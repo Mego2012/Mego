@@ -4,3 +4,4 @@ dev-dist
 e2e/screens
 *.log
 .DS_Store
+tsconfig.tsbuildinfo

@@ -96,7 +96,11 @@ a { color: var(--primary); }
 .btn svg { width: 18px; height: 18px; flex: none; }
 .btn { white-space: nowrap; max-width: 100%; }
 .btn.block, .btn.grow { white-space: normal; text-align: center; }
-html, body { overflow-x: hidden; }
+/* Never put overflow on html/body: on Android Chrome it turns <body> into its own scroll container and
+   touch scrolling of the page stops working. Horizontal overflow is clipped on .app instead (clip does not
+   create a scroll container). */
+.app { overflow-x: clip; }
+.content { min-width: 0; }
 .btn:disabled { opacity: .5; cursor: default; }
 .btn.primary { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
 .btn.danger { color: var(--danger); border-color: color-mix(in srgb, var(--danger) 40%, var(--border)); }
@@ -229,3 +233,7 @@ table.tbl th { color: var(--muted); font-weight: 600; font-size: 12px; }
   .card { break-inside: avoid; box-shadow: none; border-color: #ccc; }
   .chart { height: 200px; }
 }
+
+/* Scroll lock while a sheet is open (see lockScroll in ui.tsx). */
+body.scroll-locked { overflow: hidden; }
+.sheet { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; touch-action: pan-y; }

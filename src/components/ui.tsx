@@ -104,18 +104,59 @@ export function StateChip({ state, label }: { state: FoodState; label?: string }
   return <span className={`chip ${state}`} title={label}>{t('state_' + state)}</span>;
 }
 
+/**
+ * Reference-counted page scroll lock. Each open sheet holds one lock; the page unlocks only when the last
+ * one closes — regardless of the order in which nested sheets unmount (the old save/restore approach could
+ * leave the page permanently locked when a parent and child sheet closed together).
+ */
+let locks = 0;
+export function lockScroll() {
+  locks++;
+  document.body.classList.add('scroll-locked');
+  return () => {
+    locks = Math.max(0, locks - 1);
+    if (locks === 0) document.body.classList.remove('scroll-locked');
+  };
+}
+
+/* Stack of open sheets: Escape and the Android Back button close only the top-most one. */
+type SheetEntry = { id: number; close: () => void };
+const stack: SheetEntry[] = [];
+let sheetSeq = 0;
+let ignorePop = 0;
+if (typeof window !== 'undefined') {
+  window.addEventListener('popstate', () => {
+    if (ignorePop > 0) { ignorePop--; return; }
+    const top = stack[stack.length - 1];
+    if (top) { (top as SheetEntry & { viaBack?: boolean }).viaBack = true; top.close(); }
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key !== 'Escape') return;
+    const top = stack[stack.length - 1];
+    if (top) top.close();
+  });
+}
+
 export function Sheet({ title, onClose, children, footer }: { title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
   const { t } = useApp();
+  const closeRef = useRef(onClose);
+  closeRef.current = onClose;
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    window.addEventListener('keydown', onKey);
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
+    const entry: SheetEntry & { viaBack?: boolean } = { id: ++sheetSeq, close: () => closeRef.current() };
+    stack.push(entry);
+    try { history.pushState({ ...(history.state ?? {}), megoSheet: entry.id }, ''); } catch { /* ignore */ }
+    const unlock = lockScroll();
     return () => {
-      window.removeEventListener('keydown', onKey);
-      document.body.style.overflow = prev;
+      const i = stack.indexOf(entry);
+      if (i >= 0) stack.splice(i, 1);
+      unlock();
+      // Closed by a button/Escape: drop the history entry we added (without triggering another close).
+      if (!entry.viaBack && history.state?.megoSheet === entry.id) {
+        ignorePop++;
+        history.back();
+      }
     };
-  }, [onClose]);
+  }, []);
   return (
     <div className="backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="sheet" role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined}>

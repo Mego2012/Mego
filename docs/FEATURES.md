@@ -37,25 +37,39 @@ Status legend: ✅ implemented and tested here · 🔶 implemented, needs your d
 | Week planner: replace any suggested meal, copy last week's plan | ✅ |
 | Habit streaks, 14-day water history | ✅ |
 | Design: IBM Plex Sans Arabic (cached offline), hero dashboard with Goal − Food = Remaining, active-tab pill, skeleton loading, accessible focus/tap sizes, reduced-motion support, error screen instead of blank pages | ✅ |
-| MEGO Nutrition Hub backend v3: fixed spreadsheet ID, structured tabs, dashboard, data ownership, conflict detection, soft deletes, versioning, Drive backups, migration with report & rollback | ✅ emulated · 🔶 real Hub needs your authorization (see HUB.md) |
+| MEGO Nutrition Hub backend v5: automatic one-time Excel → native Google Sheet conversion (original kept untouched, switch only after verification), native ID pinned on the phone, Hub-vs-phone food check before import, one-line connection code, structured tabs, dashboard, data ownership, conflict detection, soft deletes, versioning, Drive backups, migration with report & rollback | ✅ emulated · 🔶 real Hub needs your authorization (see HUB.md) |
 | Real food table removed from the public repo (synthetic fixture for public tests) | ✅ (still present in git history — see final report) |
 
-## AI meal scanner (photo → diary)
+## AI meal scanner (photo → diary) — free
 
 - **📷 Take a photo / 🖼️ Upload from gallery** on the Dashboard, the Diary and the Add-food sheet (Samsung camera via `capture="environment"`).
 - The photo is downscaled to ≤1024 px and re-encoded as JPEG on the phone (removes EXIF/GPS); only the pixels, your food names/states/categories
-  and an optional note are sent — to **your private Apps Script backend**, which calls Claude (`claude-opus-5-5`, structured JSON output,
-  server-side refusal fallback enabled). The API key is stored only in Script Properties. Daily cap `AI_DAILY_LIMIT` (default 40).
+  and an optional note are sent — to **your private Apps Script backend**, which calls Google's **Gemini API free tier** (`gemini-3.8-flash`,
+  JSON-schema output). The key is created in Google AI Studio **without billing** and stored only in Script Properties (set from the app,
+  checked with Google first, never kept on the phone). Only free-tier Flash models can be selected; **no fallback, no paid model**.
+  Free quota used up → clear message with the reset time (midnight Pacific); per-minute limit → "wait N seconds". Own daily cap `AI_DAILY_LIMIT` (default 40).
 - The AI identifies items (incl. oil/sauces), estimates grams with a low–high range, raw/cooked state and cooking method, and picks the matching
   row of **your** database. **All nutrition is computed by the app's own engine from your database** (identical to manual logging).
   A raw row is never accepted for a cooked item (and vice versa) — no automatic conversion.
 - Items not in your database show **⚠ AI estimate** values; they can be logged only after you choose a database food or explicitly tick
-  “add as new food (estimated, unverified)”. Such foods are marked unverified in their notes.
+  “add as new food (estimated, unverified)”. AI estimates never replace database values.
 - Review sheet: confidence chip per item, uncertain items (confidence < 60 %, hidden fat/sauce, not in DB) must be ticked “I checked this item”,
   edit name / grams / cooking method / state, change the matched food, add or remove ingredients, instant recalculation and meal total,
   choose meal and date. **Nothing is saved until you press Confirm**; the toast offers Undo. Same food twice is merged into one entry.
-- Errors handled with clear AR/EN messages: offline (photo kept), timeout, backend unreachable, key missing/invalid, AI busy, daily limit,
-  unreadable photo, refusal, malformed output.
+- Errors handled with clear AR/EN messages: offline (photo kept), timeout, backend unreachable, key missing/invalid, free quota (daily/minute),
+  region, service busy, own daily limit, unreadable photo, blocked/incomplete answer, malformed output.
+
+## Zero-cost architecture
+
+| Part | Service | Cost |
+| --- | --- | --- |
+| App hosting | GitHub Pages (public repo) | free |
+| Backend | Google Apps Script web app (your account) | free (Apps Script quotas) |
+| Cloud data | Google Sheets «MEGO Nutrition Hub» in your Drive | free (your Drive storage) |
+| Photo analysis (optional) | Gemini API free tier, key without billing | free; stops at the quota, never charges |
+| Offline data / backups | phone storage (IndexedDB) + JSON backups in your Drive | free |
+
+No paid database, hosting, image service, subscription or paid API is used. Food data lookup by barcode uses the free Open Food Facts API.
 
 ## Recipes — «وصفاتي | My Recipes»
 | Feature | Status |

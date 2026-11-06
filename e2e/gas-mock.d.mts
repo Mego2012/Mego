@@ -7,16 +7,19 @@ export interface Gas {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   migrateHub(): any[][];
   convert(): string;
+  install(): string[];
+  current(): { name: string; sheets: GasSheet[]; getSheetByName(n: string): GasSheet | null };
+  source: { name: string; sheets: GasSheet[] };
   sheetNames(): string[];
   sheet(name: string): GasSheet;
   ss: { name: string };
   drive: { copies: string[]; files: { name: string; size: number }[] };
   props: Map<string, string>;
-  state: { mode: string; tmpFiles: { id: string; name: string }[]; trashed: string[] };
+  state: { mode: string; tmpFiles: { id: string; name: string; parents?: string[]; description?: string; mimeType?: string }[]; trashed: string[]; deployedUrl?: string; renamedSource: boolean };
   aiRequests: AiRequest[];
 }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export interface AiRequest { url: string; headers: Record<string, string>; contentType: string; method: string; body: any }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AiResponder = (req: AiRequest) => { code?: number; json: any };
-export function createGas(opts?: { foodRows?: unknown[][]; token?: string; spreadsheetName?: string; mode?: 'native' | 'xlsx'; scriptProps?: Record<string, string>; ai?: AiResponder }): Gas;
+export function createGas(opts?: { foodRows?: unknown[][]; token?: string; spreadsheetName?: string; mode?: 'native' | 'xlsx'; scriptProps?: Record<string, string>; ai?: AiResponder; deployedUrl?: string }): Gas;

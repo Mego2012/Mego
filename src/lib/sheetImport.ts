@@ -273,11 +273,21 @@ export async function importParsedFoods(foods: ParsedFood[], origin: 'sheet' | '
       byKey.set(p.sheetKey, { ...f, sheetKey: p.sheetKey });
     }
   }
+  // Name-keyed rows (a CSV/Excel file or the original tab) must match foods that already have a stable Hub ID
+  // (F0001…) by name + state — otherwise they would be duplicated.
+  const isStableId = (k: string) => /^F\d{4,}$/.test(k);
+  const byName = new Map<string, Food[]>();
+  for (const f of existing) {
+    if (f.source !== 'sheet' || !f.sheetKey || !isStableId(f.sheetKey)) continue;
+    const k = `${f.nameAr.trim()}|${f.state}`;
+    byName.set(k, [...(byName.get(k) ?? []), f]);
+  }
   const res: ImportResult = { added: 0, updated: 0, unchanged: 0, kept: 0 };
   const seenKeys = new Set<string>();
   for (const p of foods) {
-    seenKeys.add(p.sheetKey);
-    const cur = byKey.get(p.sheetKey);
+    let cur = byKey.get(p.sheetKey);
+    if (!cur && !isStableId(p.sheetKey)) cur = byName.get(`${p.nameAr.trim()}|${p.state}`)?.shift();
+    seenKeys.add(cur?.sheetKey ?? p.sheetKey);
     const fields: Partial<Food> = {
       nameAr: p.nameAr, category: p.category, per100: p.per100, state: p.state, stateLabel: p.stateLabel,
       prep: p.prep, notes: p.notes, pieceGrams: p.pieceGrams, sheetRow: p.row

@@ -55,6 +55,7 @@ export function MealScannerSheet({ file, date: initialDate, meal: initialMeal, o
   const foodsById = useMemo(() => new Map(foods.map((f) => [f.id, f])), [foods]);
   const [stage, setStage] = useState<Stage>('ready');
   const [error, setError] = useState('');
+  const [errorParams, setErrorParams] = useState<Record<string, string | number>>({});
   const [note, setNote] = useState('');
   const [result, setResult] = useState<AiResult | null>(null);
   const [items, setItems] = useState<ScanItem[]>([]);
@@ -92,6 +93,7 @@ export function MealScannerSheet({ file, date: initialDate, meal: initialMeal, o
     } catch (e) {
       if (id !== runId.current) return;
       const code = e instanceof ScanError ? e.code : (e as Error).message;
+      setErrorParams(e instanceof ScanError ? e.params : {});
       setError(t(code) !== code ? code : 'AI_ERROR');
       setStage('error');
     }
@@ -147,7 +149,7 @@ export function MealScannerSheet({ file, date: initialDate, meal: initialMeal, o
 
       {(stage === 'ready' || stage === 'error') && (
         <div className="stack" style={{ gap: 10 }}>
-          {stage === 'error' && <div className="notice warn" role="alert" data-testid="scan-error">{t(error)}</div>}
+          {stage === 'error' && <div className="notice warn" role="alert" data-testid="scan-error">{t(error, errorParams)}</div>}
           <label className="field">
             <span className="small muted">{t('scanNote')}</span>
             <input className="input" value={note} maxLength={300} placeholder={t('scanNotePh')} onChange={(e) => setNote(e.target.value)} data-testid="scan-note" />

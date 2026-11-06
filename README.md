@@ -4,16 +4,24 @@ A mobile-first, installable, offline-capable nutrition tracker built around **yo
 Arabic (full RTL) and English, light and dark mode. No workouts — nutrition, body weight and progress only.
 
 * **Live app:** https://mego2012.github.io/Mego/
-* **Full feature list (v2):** [docs/FEATURES.md](docs/FEATURES.md)
+* **Phone-only setup (free):** [docs/PHONE-SETUP.md](docs/PHONE-SETUP.md)
+* **Full feature list:** [docs/FEATURES.md](docs/FEATURES.md)
 * **Setup / Android install / backups / maintenance:** [docs/SETUP.md](docs/SETUP.md)
 * **Audit of your food database:** [docs/AUDIT.md](docs/AUDIT.md)
 * **Test report (15 scenarios):** [docs/TEST-REPORT.md](docs/TEST-REPORT.md)
+
+## Free to run — no billing anywhere
+
+GitHub Pages (hosting) · Google Apps Script (private backend, your account) · Google Sheets «MEGO Nutrition Hub» (cloud data) ·
+optional **Gemini API free tier** for the photo meal scanner (key without billing — it cannot be charged; no paid or fallback model;
+stops with a clear message when the free quota is used up) · phone storage + Drive JSON backups. No paid API, database, hosting or subscription.
 
 ## Features
 
 | Area | What you get |
 | --- | --- |
 | Dashboard | Calorie ring (target / consumed / remaining / %), protein-carb-fat bars, per-meal summaries, meals logged, daily goal score, current weight, weekly calorie average, weekly weight trend, 7-day chart, insights |
+| AI meal scanner | Photo (camera or gallery) → foods, grams with ranges, raw/cooked, cooking method, matched to YOUR food database → editable review → saved only after you confirm. Nutrition always from your database; AI estimates clearly marked |
 | Food diary | Breakfast / lunch / dinner / snacks; g, kg, ml, piece, slice, tbsp, tsp and custom servings; edit, move, duplicate, delete; copy meal / day / yesterday; saved meals; any past date; day marked fully / partially logged; training vs rest day; per-day target override |
 | Food database | Search Arabic + English (forgiving of أ/ا, ة/ه…), filters (category, raw/cooked, kcal, protein, carbs, fat), favorites, recent, custom foods, edit with version history, delete = archive with confirmation, CSV/Excel import with audit preview, CSV/Excel export in the sheet's own column layout |
 | Recipes «وصفاتي» | 60 built-in recipes computed from your own food database, smart suggestions from what's left today, recipe builder, ratings, favorites, saved meals |

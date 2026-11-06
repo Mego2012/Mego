@@ -14,7 +14,7 @@ import { macroCalories } from '../lib/targets';
 import { saveSettings } from '../lib/repo';
 import backendCode from '../../apps-script/Code.gs?raw';
 import backendManifest from '../../apps-script/appsscript.json?raw';
-import { HUB_ID, HUB_NAME, pullAll, pullFoodsFromSheet, pushNow, queueFullUpload, testConnection } from '../lib/sync';
+import { checkHubFoods, HUB_ID, HUB_NAME, parseConnectionCode, pullAll, pullFoodsFromSheet, pushNow, queueFullUpload, setAiKey, testConnection, type HubFoodCheck } from '../lib/sync';
 import type { Lang, Macros, ThemeMode } from '../lib/types';
 
 export default function Settings() {
@@ -25,6 +25,7 @@ export default function Settings() {
       <ProfileForm key={'p' + settings.updatedAt} />
       <TargetsForm key={'t' + settings.updatedAt} />
       <SyncForm />
+      <AiScannerCard />
       <DataSafety />
       <LocalBackups />
     </div>
@@ -154,29 +155,89 @@ function TargetsForm() {
 }
 
 function SyncForm() {
-  const { t, settings, d } = useApp();
+  const { t, settings, d, n } = useApp();
   const [cfg, setCfg] = useState(settings.sync);
   useEffect(() => setCfg((c) => ({ ...settings.sync, url: c.url || settings.sync.url, token: c.token || settings.sync.token })), [settings.sync]);
   const status = useSyncStatus();
   const { run, busy } = useAsync();
-  const saveCfg = () => saveSettings((s) => { s.sync = { ...s.sync, url: cfg.url.trim(), token: cfg.token.trim(), autoSync: cfg.autoSync, writeFoodsToSheet: cfg.writeFoodsToSheet }; });
+  const [code, setCode] = useState('');
+  const [report, setReport] = useState<{ check: HubFoodCheck; imported?: string; uploaded?: boolean } | null>(null);
+  const saveCfg = (c = cfg) => saveSettings((s) => { s.sync = { ...s.sync, url: c.url.trim(), token: c.token.trim(), autoSync: c.autoSync, writeFoodsToSheet: c.writeFoodsToSheet }; });
+
+  /**
+   * Connect → verify the Hub against the foods on this phone → (only if no value differs) import the Hub's food IDs
+   * and upload this phone's records. Differences stop the flow and are shown; nothing is overwritten silently.
+   */
+  const connect = async (c = cfg) => {
+    await saveCfg(c);
+    let r;
+    try {
+      r = await testConnection({ ...c, hubNativeId: settings.sync.hubNativeId });
+    } catch (e) {
+      if (!/^HUB_CHANGED/.test((e as Error).message) || !window.confirm(t('hubChanged'))) throw e;
+      r = await testConnection({ ...c, hubNativeId: settings.sync.hubNativeId }, { acceptNewHub: true });
+    }
+    alertOk(t('connectionOk', { name: r.spreadsheet, tab: r.foodSheet ?? '—' }) + '\n' + t(r.writable ? 'hubWritable' : 'hubReadOnly') + '\n' + t('aiScannerStatus') + ': ' + t(r.aiScanner ? 'aiScannerOn' : 'aiScannerOff'));
+    if (!r.writable) return;
+    const check = await checkHubFoods();
+    if (check.different.length) { setReport({ check }); return; }
+    await saveLocalBackup('pre-import');
+    const imp = await pullFoodsFromSheet();
+    await queueFullUpload();
+    await pushNow();
+    setReport({ check, imported: t('importDone', { added: imp.added, updated: imp.updated, unchanged: imp.unchanged }), uploaded: true });
+  };
+
   return (
     <Card title={<span id="sync">{t('syncTitle')}</span>}>
       <div className="stack" data-testid="sync-form">
         <div className="stat" data-testid="hub-info">
           <div className="bold">🗂️ {HUB_NAME}</div>
-          <div className="tiny muted num" dir="ltr" style={{ wordBreak: 'break-all' }}>ID: {HUB_ID}</div>
+          <div className="tiny muted num" dir="ltr" style={{ wordBreak: 'break-all' }}>{t('hubSource')}: {HUB_ID}</div>
+          {settings.sync.hubNativeId && <div className="tiny muted num" dir="ltr" style={{ wordBreak: 'break-all' }} data-testid="hub-native">{t('hubNative')}: {settings.sync.hubNativeId}</div>}
           <div className="tiny muted">{t('hubOnly')}</div>
         </div>
         <div className="small"><span className={`dot ${status.state}`} /> {t('syncState_' + status.state)} · {t('pending')}: <b data-testid="pending-count">{status.pending}</b>
           {settings.sync.lastPushAt ? ` · ${t('lastSync')}: ${d(new Date(settings.sync.lastPushAt).toISOString().slice(0, 10))} ${new Date(settings.sync.lastPushAt).toLocaleTimeString()}` : ''}</div>
         {status.error && <div className="banner error small">{status.error}</div>}
-        <TextField label={t('syncUrl')} value={cfg.url} onChange={(url) => setCfg({ ...cfg, url })} dir="ltr" placeholder="https://script.google.com/macros/s/…/exec" testId="sync-url" />
-        <TextField label={t('syncToken')} value={cfg.token} onChange={(token) => setCfg({ ...cfg, token })} dir="ltr" testId="sync-token" />
+        <TextField label={t('connectionCode')} value={code} dir="ltr" placeholder="MEGO1|https://script.google.com/…|…" testId="connection-code" onChange={(v) => {
+          setCode(v);
+          const p = parseConnectionCode(v);
+          if (p) { const next = { ...cfg, url: p.url, token: p.token }; setCfg(next); setCode(''); run(() => connect(next)); }
+        }} />
+        <details>
+          <summary className="small">{t('manualConnection')}</summary>
+          <div className="stack" style={{ marginTop: 8 }}>
+            <TextField label={t('syncUrl')} value={cfg.url} onChange={(url) => setCfg({ ...cfg, url })} dir="ltr" placeholder="https://script.google.com/macros/s/…/exec" testId="sync-url" />
+            <TextField label={t('syncToken')} value={cfg.token} onChange={(token) => setCfg({ ...cfg, token })} dir="ltr" testId="sync-token" />
+          </div>
+        </details>
         <label className="check"><input type="checkbox" checked={cfg.autoSync} onChange={(e) => setCfg({ ...cfg, autoSync: e.target.checked })} />{t('autoSync')}</label>
         <label className="check"><input type="checkbox" checked={cfg.writeFoodsToSheet} onChange={(e) => setCfg({ ...cfg, writeFoodsToSheet: e.target.checked })} />{t('writeFoods')}</label>
+        {report && (
+          <div className={`notice${report.check.different.length ? ' warn' : ''}`} data-testid="hub-check">
+            <div className="bold">{t('hubCheckTitle')}</div>
+            <div className="small">{t('hubCheckLine', { identical: n(report.check.identical), hub: n(report.check.hubFoods), local: n(report.check.localFoods) })}</div>
+            {report.check.onlyInHub.length > 0 && <div className="tiny">{t('hubOnlyInHub', { n: report.check.onlyInHub.length })}</div>}
+            {report.check.onlyOnPhone.length > 0 && <div className="tiny">{t('hubOnlyOnPhone', { n: report.check.onlyOnPhone.length })}: {report.check.onlyOnPhone.slice(0, 5).join('، ')}</div>}
+            {report.check.different.length > 0 && (
+              <>
+                <div className="small">{t('hubDifferent', { n: report.check.different.length })}</div>
+                <ul className="tiny" style={{ margin: 0, paddingInlineStart: 18 }}>
+                  {report.check.different.slice(0, 10).map((x) => <li key={x.name}>{x.name}: {x.local.kcal}/{x.local.protein}/{x.local.carbs}/{x.local.fat} → {x.hub.kcal}/{x.hub.protein}/{x.hub.carbs}/{x.hub.fat}</li>)}
+                </ul>
+                <button className="btn sm" disabled={busy} data-testid="hub-accept" onClick={() => run(async () => {
+                  await saveLocalBackup('pre-import');
+                  const imp = await pullFoodsFromSheet(); await queueFullUpload(); await pushNow();
+                  setReport({ ...report, imported: t('importDone', { added: imp.added, updated: imp.updated, unchanged: imp.unchanged }), uploaded: true });
+                })}>{t('hubAcceptSheet')}</button>
+              </>
+            )}
+            {report.imported && <div className="tiny" data-testid="hub-imported">✓ {report.imported}{report.uploaded ? ' · ' + t('hubUploaded') : ''}</div>}
+          </div>
+        )}
         <div className="row wrap">
-          <button className="btn primary" disabled={busy} data-testid="sync-save" onClick={() => run(async () => { await saveCfg(); const r = await testConnection({ ...cfg }); return r; }).then((r) => r && alertOk(t('connectionOk', { name: r.spreadsheet, tab: r.foodSheet ?? '—' }) + '\n' + t(r.writable ? 'hubWritable' : 'hubReadOnly') + '\n' + t('aiScannerStatus') + ': ' + t(r.aiScanner ? 'aiScannerOn' : 'aiScannerOff')))}>{t('save')} + {t('testConnection')}</button>
+          <button className="btn primary" disabled={busy} data-testid="sync-save" onClick={() => run(() => connect())}>{t('save')} + {t('testConnection')}</button>
           <button className="btn" disabled={busy || !settings.sync.url} data-testid="pull-foods" onClick={() => run(async () => {
             const r = await pullFoodsFromSheet();
             alertOk(`${r.sheet}: ${t('importDone', { added: r.added, updated: r.updated, unchanged: r.unchanged })}`);
@@ -188,6 +249,45 @@ function SyncForm() {
         </div>
         <BackendHelper />
         <a className="small" href="https://github.com/Mego2012/Mego/blob/claude/nutrition-tracking-app-989rku/docs/PHONE-SETUP.md" target="_blank" rel="noreferrer">{t('setupGuide')} ↗</a>
+      </div>
+    </Card>
+  );
+}
+
+/** Free AI meal scanner: Gemini API free-tier key, stored only in the backend's Script Properties. */
+function AiScannerCard() {
+  const { t, settings } = useApp();
+  const [key, setKey] = useState('');
+  const [state, setState] = useState<{ on: boolean; model?: string } | null>(null);
+  const { run, busy } = useAsync();
+  const connected = !!settings.sync.url && !!settings.sync.token;
+  useEffect(() => {
+    if (!connected) return;
+    testConnection(settings.sync).then((r) => setState({ on: !!r.aiScanner, model: r.aiModel })).catch(() => setState(null));
+  }, [connected]); // eslint-disable-line react-hooks/exhaustive-deps
+  return (
+    <Card title={`📷 ${t('aiScannerStatus')} — ${t('aiFree')}`}>
+      <div className="stack" data-testid="ai-card">
+        <div className="small" data-testid="ai-state">{!connected ? t('AI_NO_BACKEND') : state === null ? '…' : state.on ? `✓ ${t('aiScannerOn')} (${state.model})` : t('aiScannerOff')}</div>
+        <div className="tiny muted">{t('aiFreeNote')}</div>
+        <div className="tiny muted">{t('aiPrivacyNote')}</div>
+        <a className="small" href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">{t('aiGetKey')} ↗</a>
+        <label className="field"><span>{t('aiKey')}</span>
+          <input className="input" type="password" autoComplete="off" dir="ltr" value={key} onChange={(e) => setKey(e.target.value)} data-testid="ai-key" disabled={!connected} />
+        </label>
+        <div className="row wrap">
+          <button className="btn primary" disabled={!connected || busy || key.trim().length < 20} data-testid="ai-key-save" onClick={() => run(async () => {
+            try {
+              const r = await setAiKey(key.trim());
+              setKey('');
+              setState({ on: r.aiScanner, model: r.aiModel });
+            } catch (e) {
+              const c = (e as Error).message;
+              throw new Error(t(c) !== c ? t(c) : c);
+            }
+          }, t('saved'))}>{t('aiKeySave')}</button>
+          {state?.on && <button className="btn danger" disabled={busy} data-testid="ai-key-remove" onClick={() => run(async () => { await setAiKey('', true); setState({ on: false }); }, t('saved'))}>{t('aiKeyRemove')}</button>}
+        </div>
       </div>
     </Card>
   );

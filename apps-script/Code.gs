@@ -1,15 +1,18 @@
 /**
- * MEGO Nutrition Hub — Google Apps Script backend (v3).
+ * MEGO Nutrition Hub — Google Apps Script backend (v5). Free to run: Google Apps Script + Google Sheets + (optional)
+ * the Gemini API free tier. No paid service is used and no billing account is needed.
  *
- * ONE SOURCE OF TRUTH: this script only ever opens the spreadsheet whose ID is HUB_ID below.
- * It is a standalone script (script.google.com → New project), so it does not depend on which
- * spreadsheet it is attached to, and it never falls back to another file.
+ * ONE SOURCE OF TRUTH: the Hub is the file SOURCE_ID below («MEGO Nutrition Hub», originally an Excel .xlsx).
+ *  - installMego() converts it ONCE into a native Google Sheet in the same folder (Google gives the native file a
+ *    new ID; an .xlsx cannot become native in place). The native ID is stored in Script Properties (HUB_NATIVE_ID)
+ *    and from then on that native sheet is the Hub. The original .xlsx is never modified, renamed or deleted —
+ *    it stays as the backup.
+ *  - The script never opens any other spreadsheet and never falls back to another file.
+ * It is a standalone script (script.google.com → New project).
  *
  * Modes
- *  - native : HUB_ID is a native Google Sheet → full two-way sync into structured tabs.
- *  - xlsx   : HUB_ID is an Excel file stored in Drive (Office mode) → READ-ONLY. Food data is read through a
- *             temporary converted copy that is deleted immediately; nothing is ever written to the .xlsx.
- *             Run convertHubToGoogleSheets() (after you approve it) to enable full sync.
+ *  - native : the Hub is a native Google Sheet → full two-way sync into structured tabs.
+ *  - xlsx   : not converted yet → READ-ONLY (foods are read through a temporary converted copy that is deleted).
  *
  * Data ownership
  *  - Food_Database            : owned by the SHEET (you manage values there); the app pulls it.
@@ -25,11 +28,13 @@
  *  - Web app deployment: Execute as "Me", access "Anyone" (Google login cookies cannot be sent from a PWA),
  *    protected by a 256-bit secret token that exists only in Script Properties and on your phone — never in
  *    the app's public code. Every request is validated; unknown tables/fields are rejected.
+ *  - The Gemini key (optional) is stored only in Script Properties (GEMINI_API_KEY).
  */
 
-var HUB_ID = '1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI';
+/** The original Hub file (Excel). Kept untouched as the backup after conversion. */
+var SOURCE_ID = '1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI';
 var HUB_NAME = 'MEGO Nutrition Hub';
-var SCRIPT_VERSION = 4;
+var SCRIPT_VERSION = 5;
 var SCHEMA_VERSION = 3;
 var ORIGINAL_FOOD_TAB = 'قاعدة بيانات الأطعمة';
 var MAX_CHANGES = 500;
@@ -67,7 +72,7 @@ function setup() {
     token = Utilities.getUuid().replace(/-/g, '') + Utilities.getUuid().replace(/-/g, '');
     props.setProperty('APP_TOKEN', token);
   }
-  Logger.log('Hub: ' + HUB_ID + ' (' + hubMode_() + ')');
+  Logger.log('Hub: ' + hubId_() + ' (' + hubMode_() + ')');
   Logger.log('APP TOKEN (paste into the app, keep private): ' + token);
   return token;
 }
@@ -77,7 +82,9 @@ function rotateToken() {
   return setup();
 }
 
-function hubFile_() { return DriveApp.getFileById(HUB_ID); }
+/** The current Hub: the native converted sheet once installMego() ran, otherwise the original file. */
+function hubId_() { return PropertiesService.getScriptProperties().getProperty('HUB_NATIVE_ID') || SOURCE_ID; }
+function hubFile_() { return DriveApp.getFileById(hubId_()); }
 
 function hubMode_() {
   var mt = hubFile_().getMimeType();
@@ -86,7 +93,7 @@ function hubMode_() {
 
 function hub_() {
   if (hubMode_() !== 'native') throw new Error('HUB_IS_XLSX: the Hub is an Excel file; run convertHubToGoogleSheets() to enable writing');
-  return SpreadsheetApp.openById(HUB_ID);
+  return SpreadsheetApp.openById(hubId_());
 }
 
 /** Full Drive copy of the Hub before any structural change. */
@@ -136,19 +143,78 @@ function migrateHub() {
 }
 
 /**
- * ONLY with your approval: makes a native Google Sheets version of the Excel Hub (Google gives it a new ID —
- * an .xlsx file cannot become native in place). The original .xlsx is kept completely untouched as the backup.
- * (On a phone it is simpler to convert in the Google Sheets app: ⋮ → Save as Google Sheets.)
- * After running it, put the new ID in HUB_ID and redeploy.
+ * ONE-TIME INSTALL — run this once from the editor (Run ▶ installMego). It is safe to run again.
+ *  1. creates the secret app token (kept in Script Properties)
+ *  2. converts the Excel Hub (SOURCE_ID) into a native Google Sheet in the same folder; the .xlsx is not touched
+ *  3. verifies the converted file (food tab present, food rows counted, numeric values readable)
+ *  4. runs migrateHub() on the native sheet (Drive backup copy first, structured tabs, Food_Database with IDs)
+ *  5. prints the connection code to paste into the app (after you deployed the web app)
  */
-function convertHubToGoogleSheets() {
-  if (hubMode_() === 'native') return 'Already native';
-  var blob = hubFile_().getBlob();
-  var file = Drive.Files.create({ name: HUB_NAME, mimeType: 'application/vnd.google-apps.spreadsheet', parents: [hubFile_().getParents().next().getId()] }, blob);
-  // The original .xlsx is left completely untouched (not renamed, not edited) as the backup.
-  Logger.log('NEW NATIVE HUB ID: ' + file.id + ' — set HUB_ID to this value and redeploy.');
-  return file.id;
+function installMego() {
+  var props = PropertiesService.getScriptProperties();
+  var token = setup();
+  var out = [];
+  var conv = ensureNativeHub_();
+  out.push('Original (kept untouched): ' + SOURCE_ID);
+  out.push('Native Hub: ' + conv.id + (conv.created ? ' (created now)' : ' (already existed)'));
+  var v = verifyNativeHub_(conv.id);
+  out.push('Verification: ' + JSON.stringify(v));
+  if (!v.ok) throw new Error('VERIFY_FAILED: ' + JSON.stringify(v) + ' — the Hub was NOT switched; the original file is unchanged.');
+  props.setProperty('HUB_VERIFIED', JSON.stringify(v));
+  props.setProperty('HUB_NATIVE_ID', conv.id); // switch only after a successful verification
+  props.deleteProperty('HUB_PENDING_ID');
+  var rep = migrateHub();
+  out.push('Migration: ' + rep.map(function (r) { return r[0] + '=' + r[1]; }).join(' | '));
+  var url = '';
+  try { url = ScriptApp.getService().getUrl() || ''; } catch (e) { /* not deployed yet */ }
+  out.push(url ? 'CONNECTION CODE (paste into MEGO → Settings): MEGO1|' + url + '|' + token
+    : 'Web app not deployed yet: Deploy → New deployment → Web app, then run installMego again to get the connection code.');
+  out.forEach(function (l) { Logger.log(l); });
+  return out;
 }
+
+/** Converts the Excel Hub once (the new file is "pending" until verified). Never modifies the .xlsx. */
+function ensureNativeHub_() {
+  var props = PropertiesService.getScriptProperties();
+  var existing = props.getProperty('HUB_NATIVE_ID') || props.getProperty('HUB_PENDING_ID');
+  if (existing) {
+    try { if (!DriveApp.getFileById(existing).isTrashed()) return { id: existing, created: false }; } catch (e) { /* missing → convert again */ }
+  }
+  var src = DriveApp.getFileById(SOURCE_ID);
+  if (src.getMimeType() === 'application/vnd.google-apps.spreadsheet') return { id: SOURCE_ID, created: false };
+  var parent = src.getParents().hasNext() ? src.getParents().next().getId() : null;
+  var meta = { name: HUB_NAME, mimeType: 'application/vnd.google-apps.spreadsheet',
+    description: 'MEGO Nutrition Hub — native Google Sheets version converted from the Excel file ' + SOURCE_ID + ' on ' + new Date().toISOString() + '. The Excel file is kept unchanged as the backup.' };
+  if (parent) meta.parents = [parent];
+  var file = Drive.Files.create(meta, src.getBlob());
+  props.setProperty('HUB_PENDING_ID', file.id);
+  props.setProperty('HUB_CONVERTED_AT', new Date().toISOString());
+  return { id: file.id, created: true };
+}
+
+/** Checks the native Hub: food tab present, food rows with a name, numeric values readable. */
+function verifyNativeHub_(id) {
+  var ss = SpreadsheetApp.openById(id);
+  var res = { ok: false, tabs: ss.getSheets().map(function (s) { return s.getName(); }), foods: 0, numericProblems: 0 };
+  var orig = ss.getSheetByName(ORIGINAL_FOOD_TAB);
+  if (!orig) { res.error = 'food tab not found'; return res; }
+  var vals = orig.getDataRange().getValues();
+  var h = headerMap_(vals);
+  if (!h) { res.error = 'food header not found'; return res; }
+  for (var r = h.row + 1; r < vals.length; r++) {
+    if (!String(vals[r][h.map.name] || '').trim()) continue;
+    res.foods++;
+    ['kcal', 'protein', 'carbs', 'fat'].forEach(function (k) {
+      var v = vals[r][h.map[k]];
+      if (v !== '' && isNaN(Number(String(v).replace(',', '.')))) res.numericProblems++;
+    });
+  }
+  res.ok = res.foods > 0;
+  return res;
+}
+
+/** Kept for compatibility: same as the conversion step of installMego(). */
+function convertHubToGoogleSheets() { return ensureNativeHub_().id; } // verification + switch happen in installMego()
 
 /* ============================================================== web app */
 
@@ -163,6 +229,7 @@ function doPost(e) {
     if (!token || typeof req.token !== 'string' || req.token !== token) return json_({ ok: false, error: 'unauthorized' });
     // AI meal analysis never touches the spreadsheet, so it runs outside the lock (it can take ~10-40 s).
     if (req.action === 'analyzeMeal') return json_(analyzeMeal_(req));
+    if (req.action === 'setAiKey') return json_(setAiKey_(req));
     var lock = LockService.getScriptLock();
     lock.waitLock(25000);
     try {
@@ -191,9 +258,10 @@ function json_(o) {
 function ping_() {
   var f = hubFile_();
   var mode = hubMode_();
-  return { ok: true, spreadsheet: f.getName(), spreadsheetId: HUB_ID, mode: mode, writable: mode === 'native', scriptVersion: SCRIPT_VERSION,
-    aiScanner: !!PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY'),
-    foodSheet: mode === 'native' ? (SpreadsheetApp.openById(HUB_ID).getSheetByName('Food_Database') ? 'Food_Database' : ORIGINAL_FOOD_TAB) : ORIGINAL_FOOD_TAB,
+  var props = PropertiesService.getScriptProperties();
+  return { ok: true, spreadsheet: f.getName(), spreadsheetId: hubId_(), sourceId: SOURCE_ID, verified: props.getProperty('HUB_VERIFIED') ? JSON.parse(props.getProperty('HUB_VERIFIED')) : null, mode: mode, writable: mode === 'native', scriptVersion: SCRIPT_VERSION,
+    aiScanner: !!props.getProperty('GEMINI_API_KEY'), aiModel: aiModel_(),
+    foodSheet: mode === 'native' ? (SpreadsheetApp.openById(hubId_()).getSheetByName('Food_Database') ? 'Food_Database' : ORIGINAL_FOOD_TAB) : ORIGINAL_FOOD_TAB,
     meta: mode === 'native' ? readMeta_() : {} };
 }
 
@@ -280,7 +348,7 @@ function n_(v) { return v === undefined || v === null ? '' : v; }
 /** Reads foods. Native: Food_Database (stable IDs) if present, else the original tab. xlsx: original tab via a temporary converted copy. */
 function readFoods_() {
   if (hubMode_() === 'native') {
-    var ss = SpreadsheetApp.openById(HUB_ID);
+    var ss = SpreadsheetApp.openById(hubId_());
     var fdb = ss.getSheetByName('Food_Database');
     if (fdb && fdb.getLastRow() > 1) {
       var vals = fdb.getDataRange().getValues();
@@ -514,7 +582,7 @@ function writeTable_(name, header, rows) {
 function pull_(since) {
   var tables = {};
   if (hubMode_() !== 'native') return { ok: true, tables: tables, meta: {}, readOnly: true };
-  var ss = SpreadsheetApp.openById(HUB_ID);
+  var ss = SpreadsheetApp.openById(hubId_());
   Object.keys(TABLES).forEach(function (t) {
     var sh = ss.getSheetByName(TABLES[t][0]);
     var width = TABLES[t][2].length + 2;
@@ -582,19 +650,30 @@ function buildDashboard_() {
   } catch (e) { /* charts are optional */ }
 }
 
-/* ============================================================== AI meal scanner */
+/* ============================================================== AI meal scanner (Gemini API free tier) */
 /*
- * The app sends: a downscaled JPEG (EXIF-free, re-encoded on the phone), the list of foods in YOUR database
- * (short key, names, state, category — no diary, weight or profile data) and an optional note you typed.
- * The Claude API key lives ONLY in Script Properties (ANTHROPIC_API_KEY) — never in the app or on GitHub.
- * The model only identifies foods, estimates grams and picks the matching database row; the app computes all
- * nutrition values from your database. Nothing is saved here: the result is returned to the phone for review.
- * Optional Script Properties: AI_MODEL (default claude-opus-5-5), AI_EFFORT (default medium), AI_DAILY_LIMIT (default 40).
+ * FREE ONLY: calls Google's Gemini API with a key created in Google AI Studio WITHOUT a billing account.
+ * A key without billing can only use the free tier — it cannot be charged. There is NO fallback model and NO paid
+ * model: only the free-tier Flash models in AI_FREE_MODELS can be used. When the free quota is used up, Google
+ * answers 429 and the app shows when it resets; nothing is retried on another service.
+ *
+ * The app sends: a downscaled JPEG (EXIF/location removed on the phone), the list of YOUR food names (short key,
+ * names, state, category — no diary, weight or profile data) and an optional note. Note: on the free tier Google may
+ * use requests to improve its products and human reviewers may see them (disconnected from your account), so the
+ * request contains only the meal photo and food names. The model only identifies foods, estimates grams and picks
+ * the matching database row; the app computes all nutrition values from your database. Nothing is saved here.
+ * Script Properties: GEMINI_API_KEY (set from the app), optional AI_MODEL (one of AI_FREE_MODELS), AI_DAILY_LIMIT (default 40).
  */
-var AI_ENDPOINT = 'https://api.anthropic.com/v1/messages';
-var AI_DEFAULT_MODEL = 'claude-opus-5-5';
+var AI_FREE_MODELS = ['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite'];
+var AI_DEFAULT_MODEL = 'gemini-3.8-flash';
+var AI_BASE = 'https://generativelanguage.googleapis.com/v1beta/models/';
 var AI_MAX_IMAGE_CHARS = 2800000; // ≈ 2 MB JPEG as base64
 var AI_MAX_FOODS = 800;
+
+function aiModel_() {
+  var m = PropertiesService.getScriptProperties().getProperty('AI_MODEL');
+  return AI_FREE_MODELS.indexOf(m) >= 0 ? m : AI_DEFAULT_MODEL;
+}
 
 var AI_SCHEMA = {
   type: 'object',
@@ -658,9 +737,43 @@ var AI_SYSTEM = [
   'details from the photo in the output.'
 ].join('\n');
 
+/** Maps a Gemini error response to a clear app error. Never retries elsewhere. */
+function aiError_(code, text) {
+  var err = {};
+  try { err = JSON.parse(text).error || {}; } catch (e) { /* not JSON */ }
+  var msg = String(err.message || '');
+  if (code === 429) {
+    if (/PerDay/i.test(text)) return { ok: false, error: 'AI_QUOTA_DAY' };
+    var m = /"retryDelay"\s*:\s*"(\d+)/.exec(text);
+    return { ok: false, error: 'AI_QUOTA_MINUTE', retryAfter: m ? Number(m[1]) : 60 };
+  }
+  if (/location is not supported|not available in your country/i.test(msg)) return { ok: false, error: 'AI_REGION' };
+  if (code === 401 || code === 403 || /API key not valid|API_KEY_INVALID/i.test(text)) return { ok: false, error: 'AI_KEY_INVALID' };
+  if (code === 404) return { ok: false, error: 'AI_MODEL_UNAVAILABLE' };
+  if (code >= 500) return { ok: false, error: 'AI_BUSY' };
+  return { ok: false, error: 'AI_HTTP_' + code, detail: msg.slice(0, 200) };
+}
+
+/** Stores the Gemini key in Script Properties after checking it with Google (a metadata call, not a generation). */
+function setAiKey_(req) {
+  var key = String(req.key || '').trim();
+  var props = PropertiesService.getScriptProperties();
+  if (req.remove === true) { props.deleteProperty('GEMINI_API_KEY'); return { ok: true, aiScanner: false }; }
+  if (!/^[A-Za-z0-9_\-]{20,200}$/.test(key)) return { ok: false, error: 'AI_KEY_INVALID' };
+  var res;
+  try {
+    res = UrlFetchApp.fetch(AI_BASE + aiModel_(), { method: 'get', headers: { 'x-goog-api-key': key }, muteHttpExceptions: true });
+  } catch (e) {
+    return { ok: false, error: 'AI_NETWORK' };
+  }
+  if (res.getResponseCode() !== 200) return aiError_(res.getResponseCode(), res.getContentText());
+  props.setProperty('GEMINI_API_KEY', key);
+  return { ok: true, aiScanner: true, aiModel: aiModel_() };
+}
+
 function analyzeMeal_(req) {
   var props = PropertiesService.getScriptProperties();
-  var key = props.getProperty('ANTHROPIC_API_KEY');
+  var key = props.getProperty('GEMINI_API_KEY');
   if (!key) return { ok: false, error: 'AI_NOT_CONFIGURED' };
   var img = String(req.image || '');
   var mediaType = req.mediaType === 'image/png' || req.mediaType === 'image/webp' ? req.mediaType : 'image/jpeg';
@@ -672,7 +785,7 @@ function analyzeMeal_(req) {
   var lang = req.lang === 'en' ? 'English' : 'Arabic';
   var note = String(req.note || '').replace(/[\r\n]+/g, ' ').slice(0, 300);
 
-  // Simple daily cap to protect your API budget.
+  // Own daily cap (in addition to Google's free quota) — keeps usage predictable.
   var limit = Number(props.getProperty('AI_DAILY_LIMIT')) || 40;
   var day = new Date().toISOString().slice(0, 10);
   var used = props.getProperty('AI_USED_' + day);
@@ -680,25 +793,17 @@ function analyzeMeal_(req) {
 
   var userText = 'User language: ' + lang + '.\n' + (note ? 'User note about this meal: ' + note + '\n' : '') +
     '\nUser food database (' + lines.length + ' rows):\n' + lines.join('\n') + '\n\nAnalyse the meal in the photo.';
+  var model = aiModel_();
   var body = {
-    model: props.getProperty('AI_MODEL') || AI_DEFAULT_MODEL,
-    max_tokens: 16000,
-    system: AI_SYSTEM,
-    output_config: { effort: props.getProperty('AI_EFFORT') || 'medium', format: { type: 'json_schema', schema: AI_SCHEMA } },
-    fallbacks: 'default',
-    messages: [{ role: 'user', content: [
-      { type: 'image', source: { type: 'base64', media_type: mediaType, data: img } },
-      { type: 'text', text: userText }
-    ] }]
+    systemInstruction: { parts: [{ text: AI_SYSTEM }] },
+    contents: [{ role: 'user', parts: [{ inlineData: { mimeType: mediaType, data: img } }, { text: userText }] }],
+    generationConfig: { responseMimeType: 'application/json', responseJsonSchema: AI_SCHEMA, maxOutputTokens: 8192, temperature: 0.2,
+      thinkingConfig: { thinkingLevel: 'MEDIUM' } }
   };
   var res;
   try {
-    res = UrlFetchApp.fetch(AI_ENDPOINT, {
-      method: 'post',
-      contentType: 'application/json',
-      headers: { 'x-api-key': key, 'anthropic-version': '2026-10-21', 'anthropic-beta': 'server-side-fallback-2026-07-01' },
-      payload: JSON.stringify(body),
-      muteHttpExceptions: true
+    res = UrlFetchApp.fetch(AI_BASE + model + ':generateContent', {
+      method: 'post', contentType: 'application/json', headers: { 'x-goog-api-key': key }, payload: JSON.stringify(body), muteHttpExceptions: true
     });
   } catch (e) {
     return { ok: false, error: 'AI_NETWORK', detail: String((e && e.message) || e).slice(0, 200) };
@@ -706,17 +811,15 @@ function analyzeMeal_(req) {
   props.setProperty('AI_USED_' + day, String((Number(used) || 0) + 1));
   var code = res.getResponseCode();
   var text = res.getContentText();
-  if (code !== 200) {
-    var msg = '';
-    try { msg = (JSON.parse(text).error || {}).message || ''; } catch (e) { /* not JSON */ }
-    var kind = code === 401 || code === 403 ? 'AI_KEY_INVALID' : code === 429 || code === 529 ? 'AI_BUSY' : 'AI_HTTP_' + code;
-    return { ok: false, error: kind, detail: String(msg).slice(0, 200) };
-  }
+  if (code !== 200) return aiError_(code, text);
   var out = JSON.parse(text);
-  if (out.stop_reason === 'refusal') return { ok: false, error: 'AI_REFUSED' };
-  if (out.stop_reason === 'max_tokens') return { ok: false, error: 'AI_TRUNCATED' };
-  var t = (out.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('');
+  if (out.promptFeedback && out.promptFeedback.blockReason) return { ok: false, error: 'AI_REFUSED' };
+  var cand = (out.candidates || [])[0];
+  if (!cand) return { ok: false, error: 'AI_BAD_OUTPUT' };
+  if (cand.finishReason === 'MAX_TOKENS') return { ok: false, error: 'AI_TRUNCATED' };
+  if (cand.finishReason && cand.finishReason !== 'STOP') return { ok: false, error: 'AI_REFUSED' };
+  var t = ((cand.content || {}).parts || []).filter(function (p) { return typeof p.text === 'string' && !p.thought; }).map(function (p) { return p.text; }).join('');
   var result;
   try { result = JSON.parse(t); } catch (e) { return { ok: false, error: 'AI_BAD_OUTPUT' }; }
-  return { ok: true, model: out.model, result: result };
+  return { ok: true, model: model, result: result };
 }

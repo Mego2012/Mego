@@ -1,12 +1,12 @@
-# Test report — v3.1 (2026-11-06)
+# Test report — v3.2 free edition (2026-11-06)
 
 Re-run everything with:
 
 ```bash
 npx tsc -b                 # TypeScript: 0 errors
-npm test                   # unit tests (59 with the private real-food file present; 49 + 10 skipped without it)
+npm test                   # unit tests (68 with the private real-food file present; some value tests skip without it)
 npm run build
-npm run e2e                # 40 browser checks, emulated Samsung Galaxy S9+, Arabic locale
+npm run e2e                # 41 browser checks, emulated Samsung Galaxy S9+, Arabic locale
 npm run e2e:scroll         # 103 touch-swipe scroll checks (3 Samsung viewports × AR/EN × 13 screens + 4 sheet flows + control)
 node e2e/migration-test.mjs <dir>   # v1 → v2 upgrade (see file header)
 ```
@@ -24,26 +24,52 @@ Legend: **Verified** = executed here against the real code · **Simulated** = ex
 | Regression suite | ✅ **103/103** — every screen reaches its real bottom, last content above the bottom nav, no horizontal overflow, never left locked; Galaxy S23 (360×780), A54 (412×915), S9+ (320×658); Arabic RTL + English LTR |
 | Physical Samsung phone | ⏳ Unverified — please confirm on your phone (emulated touch input is the closest test possible here) |
 
-## AI meal scanner (Verified app + backend code; Claude API Simulated)
+## Zero-cost check (Verified by code search + tests)
 
-The REAL `apps-script/Code.gs` runs in the emulator; only the HTTPS call to the Claude Messages API is replaced by a scripted stand-in that reads
-the food catalog the backend actually sent. **A real call to Claude has not been made yet — it needs your API key (Step 2b of PHONE-SETUP).**
+* No Anthropic/Claude, OpenAI, Stripe or other paid endpoint remains in the app, the backend or the tests' expectations (`grep` clean;
+  the scanner test asserts the request contains no `fallback`/`anthropic`/`claude`).
+* The only AI endpoint is `generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent` (Gemini API free tier).
+  `AI_MODEL` can only select free-tier Flash models (`gemini-3.8-flash`, `gemini-3.6-flash`, `gemini-3.5-flash-lite`); a paid model
+  name (e.g. `gemini-4-argon`) is ignored — tested. One request per scan: no retry on another model, no fallback — tested.
+* Free quota exhausted (429 per-day) → "resets at HH:MM (your time)"; per-minute → "wait N s" — tested; reset time = midnight Pacific, DST-aware — tested.
+* Google's terms (checked 2026-11-06): the free tier needs no billing account; moving to paid requires linking billing **and** prepaying;
+  free-tier content may be used to improve Google products and seen by human reviewers → only the meal photo (EXIF removed) and food names are sent.
+
+## Hub conversion (Simulated Drive/Sheets, real Code.gs, all 160 real foods)
+
+| Check | Result |
+| --- | --- |
+| `installMego()` converts the Excel Hub once, same folder, native type, description pointing to the original | ✅ |
+| Original .xlsx: not renamed, no tab/cell changed, not trashed (before and after writes) | ✅ |
+| Verification (food tab, 160 foods, numbers readable) before switching; failed verification → no switch, Hub stays on the original | ✅ |
+| All **160 foods value-by-value** (kcal, protein, carbs, fat, piece weight) identical between the original tab and Food_Database | ✅ |
+| Running again: no second conversion, no duplicates | ✅ |
+| Connection code `MEGO1|url|token` printed; app parses it, rejects non-Google URLs | ✅ |
+| App pins the native ID; another source or a later different sheet is refused | ✅ |
+| Phone-vs-Hub food check: 160/160 identical, read-only; a changed value is reported, not applied | ✅ |
+| File import after Hub IDs: **bug found and fixed** (20 duplicates in the browser run) → now 0 duplicates, values unchanged | ✅ |
+| Browser SETUP: one-line code → verified → foods imported → records uploaded; SYNC2: everything in the converted Hub, Excel untouched | ✅ |
+
+## AI meal scanner (Verified app + backend code; Gemini API Simulated)
+
+The REAL `apps-script/Code.gs` runs in the emulator; only the HTTPS call to Google is replaced by a stand-in that uses Gemini's request,
+response and error formats and reads the food catalog the backend actually sent. **No real Gemini call has been made yet — it needs your free key.**
 
 | Scenario | Result |
 | --- | --- |
 | Rice & chicken (+ oil) | ✅ 3 DB matches; values = `macrosFor` = manual logging of the same grams; oil flagged, must be confirmed |
-| Eggs (AI matched the RAW egg row to boiled eggs) | ✅ match refused (`stateMismatch`), shown as estimate, cannot be logged without your choice |
+| Eggs (AI matched the RAW egg row to boiled eggs) | ✅ match refused, shown as estimate, cannot be logged without your choice |
 | Sandwich (hidden filling not in DB) | ✅ estimate labelled; added as new unverified food only after explicit approval |
 | Salad (+ dressing) | ✅ dressing flagged as hidden fat; totals = sum of items |
 | Restaurant burger & fries | ✅ all estimates, low confidence; replacing with a DB food logs exact DB values |
 | Homemade kabsa | ✅ grams edit recalculates instantly; dashboard total & remaining updated after save |
 | Mixed meal (same bread twice) | ✅ merged into one entry (90 g) |
 | Not food | ✅ no items, save blocked |
-| Errors | ✅ no key, invalid key (401), busy (529), network failure, refusal, daily limit, wrong token, bad image, offline phone, no backend |
-| Request content | ✅ model `claude-opus-5-5`, image block first, JSON schema output; no token/weight/targets/profile; API key never returned |
+| Errors | ✅ no key, invalid key, region, model unavailable, busy (503), network failure, blocked (SAFETY), truncated, own daily limit, wrong token, bad image, offline phone, no backend |
+| Key handling | ✅ checked with Google (metadata call) before saving; stored only in Script Properties; never returned, never in the URL, never on the phone (browser check reads IndexedDB) |
 | Browser (SCAN) | ✅ camera input → offline message → analyse → 3 DB items → save disabled until oil confirmed → 200→180 g recalculates (578→552 kcal) → nothing saved before confirm → dashboard +552; image sent was a re-encoded JPEG without EXIF |
 
-## Unit tests — 59/59 (Verified)
+## Unit tests — 68/68 (Verified)
 
 Nutrition engine, raw vs cooked (200 g raw rice 720 kcal vs cooked 260), all 160 foods imported unchanged, energy explanations,
 precision/rounding, remaining macros, units, undo, recipe grams, import validation (blank cells, decimal comma), **101 library recipes all
@@ -51,10 +77,10 @@ calculable from your food database**, suggestions (350 kcal / 25 g protein case)
 recommendations (never auto-applied), progress estimate, water/habits/fasting, backups & validated restore, barcode (mocked network),
 **MEGO Nutrition Hub backend v3** (see below), stable-ID switch-over without duplicates.
 
-## Browser checks — 40/40 (Verified, Google/Open-Food-Facts/Claude simulated)
+## Browser checks — 41/41 (Verified, Google/Open-Food-Facts/Gemini simulated)
 
 Original 15 scenarios + SETUP, IMPORT, DASH, BODY, REMAIN, UNDO, COPYGUARD, LIBRARY, SUGGEST, GOAL, PLAN, HABITS, BARCODE, PHOTO, BACKUP,
-SYNC2, **HUBINFO, SCAN, LIB100, COOK, BACKBTN, STREAK, REPLACE**, LAYOUT, DARK.
+SYNC2, **HUBINFO, AIKEY, SCAN, LIB100, COOK, BACKBTN, STREAK, REPLACE**, LAYOUT, DARK.
 
 ## MEGO Nutrition Hub (Simulated — real file needs your authorization)
 
@@ -77,4 +103,4 @@ Real-file checks done here: rename to «MEGO Nutrition Hub» with the same ID (�
 
 ## Not verifiable here
 
-Physical Samsung touch scrolling, PWA install, camera barcode, the phone camera opening from «Take a photo», notifications, the real Apps Script deployment, and real Claude photo analysis (accuracy of identification/portion estimates on your meals).
+Physical Samsung touch scrolling, PWA install, camera barcode, the phone camera opening from «Take a photo», notifications, the real Apps Script deployment and conversion of your real file (needs your Google authorization), and real Gemini photo analysis (needs your free key; accuracy on your meals).

@@ -68,28 +68,42 @@ class Sheet {
 }
 
 /**
- * `ai` emulates the Claude Messages API reached through UrlFetchApp: `ai(request)` receives
+ * `ai` emulates the Gemini API (generateContent / model metadata) reached through UrlFetchApp: `ai(request)` receives
  * { url, headers, body } and returns { code, json } (or throws to emulate a network failure).
  * Every request is recorded in `aiRequests` so tests can check what left the backend.
  */
-export function createGas({ foodRows = [], token = 'test-token', spreadsheetName = 'نظام التنشيف والتضخيم', mode = 'native', scriptProps = {}, ai } = {}) {
+export function createGas({ foodRows = [], token = 'test-token', spreadsheetName = 'نظام التنشيف والتضخيم', mode = 'native', scriptProps = {}, ai, deployedUrl } = {}) {
   const ss = { sheets: [], name: spreadsheetName, getName() { return this.name; }, rename(n) { this.name = n; }, getId() { return HUB_ID; },
     getSheets() { return this.sheets; },
     getSheetByName(n) { return this.sheets.find((s) => s.name === n) || null; },
     insertSheet(n, index) { const s = new Sheet(this, n); if (index === 0) this.sheets.unshift(s); else this.sheets.push(s); return s; } };
   ss.sheets.push(new Sheet(ss, 'لوحة التحكم', [['لوحة التحكم القديمة']]));
   ss.sheets.push(new Sheet(ss, 'قاعدة بيانات الأطعمة', foodRows));
-  const state = { mode, writesToXlsx: 0, tmpFiles: [], trashed: [] };
+  const state = { mode, writesToXlsx: 0, tmpFiles: [], trashed: [], deployedUrl, renamedSource: false };
   const props = new Map([['APP_TOKEN', token], ...Object.entries(scriptProps)]);
   const aiRequests = [];
   const drive = { copies: [], files: [] };
   const otherSheets = new Map(); // temporary converted copies
+  const parent = { getId: () => 'parent-folder' };
+  const parents = () => { let used = false; return { hasNext: () => !used, next: () => { used = true; return parent; } }; };
   const hubFile = {
     getMimeType: () => (state.mode === 'native' ? 'application/vnd.google-apps.spreadsheet' : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'),
-    getName: () => ss.name, setName: (n) => { ss.name = n; },
+    getName: () => ss.name, setName: (n) => { ss.name = n; state.renamedSource = true; },
     getBlob: () => ({ kind: 'xlsx-blob' }),
-    getParents: () => ({ next: () => ({ getId: () => 'parent' }) }),
+    getParents: parents,
+    isTrashed: () => false,
     makeCopy: (name) => { drive.copies.push(name); return { getName: () => name }; }
+  };
+  /** Files created by Drive.Files.create (conversions): native spreadsheets with the Hub's content at creation time. */
+  const created = new Map();
+  const nativeFile = (id) => {
+    const f = created.get(id);
+    return {
+      getMimeType: () => 'application/vnd.google-apps.spreadsheet', getName: () => f.ss.name, setName: (n) => { f.ss.name = n; },
+      getParents: parents, isTrashed: () => !!f.trashed, getDescription: () => f.meta.description,
+      setTrashed: (v) => { f.trashed = v; state.trashed.push(id); otherSheets.delete(id); },
+      makeCopy: (name) => { drive.copies.push(name); return { getName: () => name }; }
+    };
   };
   const env = {
     SpreadsheetApp: {
@@ -107,9 +121,10 @@ export function createGas({ foodRows = [], token = 'test-token', spreadsheetName
     Session: { getScriptTimeZone: () => 'Asia/Riyadh' },
     Logger: { log() {} },
     MimeType: { PLAIN_TEXT: 'text/plain' },
+    ScriptApp: { getService: () => ({ getUrl: () => (state.deployedUrl || null) }) },
     UrlFetchApp: {
       fetch: (url, opts) => {
-        const req = { url, headers: opts.headers, contentType: opts.contentType, method: opts.method, body: JSON.parse(opts.payload) };
+        const req = { url, headers: opts.headers, contentType: opts.contentType, method: opts.method, body: opts.payload ? JSON.parse(opts.payload) : undefined };
         aiRequests.push(req);
         if (!ai) throw new Error('DNS error: no network in the emulator');
         const r = ai(req);
@@ -119,25 +134,31 @@ export function createGas({ foodRows = [], token = 'test-token', spreadsheetName
     DriveApp: {
       getFileById: (id) => {
         if (id === HUB_ID) return hubFile;
-        return { setTrashed: () => { state.trashed.push(id); otherSheets.delete(id); } };
+        if (created.has(id)) return nativeFile(id);
+        throw new Error('File not found: ' + id);
       },
       getFoldersByName: () => ({ hasNext: () => false }),
       createFolder: () => ({ createFile: (fname, content) => { drive.files.push({ name: fname, size: content.length }); return { getName: () => fname, getUrl: () => 'https://drive.example/' + fname }; } })
     },
     Drive: {
       Files: {
-        create: (meta) => {
-          const id = 'tmp-' + randomUUID();
-          // a converted copy of the Excel Hub: same tabs/content as the Hub
-          const copy = { ...ss, sheets: ss.sheets.map((s) => new Sheet(null, s.name, s.data)), getSheetByName(n) { return this.sheets.find((s) => s.name === n) || null; } };
+        create: (meta, blob) => {
+          if (!blob || blob.kind !== 'xlsx-blob') throw new Error('emulator: only conversions of the Hub are supported');
+          const id = (meta.name.startsWith('TMP') ? 'tmp-' : 'native-') + randomUUID();
+          // a converted copy of the Excel Hub: same tabs/content as the Hub at this moment (independent copy)
+          const copy = { name: meta.name, sheets: [], getName() { return this.name; }, rename(n) { this.name = n; }, getId: () => id,
+            getSheets() { return this.sheets; }, getSheetByName(n) { return this.sheets.find((x) => x.name === n) || null; },
+            insertSheet(n, index) { const x = new Sheet(this, n); if (index === 0) this.sheets.unshift(x); else this.sheets.push(x); return x; } };
+          copy.sheets = ss.sheets.map((x) => new Sheet(copy, x.name, x.data));
           otherSheets.set(id, copy);
-          state.tmpFiles.push({ id, name: meta.name });
+          created.set(id, { ss: copy, meta });
+          state.tmpFiles.push({ id, name: meta.name, parents: meta.parents, description: meta.description, mimeType: meta.mimeType });
           return { id };
         }
       }
     }
   };
-  const fn = new Function(...Object.keys(env), CODE + '\nreturn { doPost, doGet, setup, rotateToken, migrateHub, convertHubToGoogleSheets };');
+  const fn = new Function(...Object.keys(env), CODE + '\nreturn { doPost, doGet, setup, rotateToken, migrateHub, convertHubToGoogleSheets, installMego };');
   const api = fn(...Object.values(env));
   return {
     ss, drive, props, state, aiRequests,
@@ -145,7 +166,11 @@ export function createGas({ foodRows = [], token = 'test-token', spreadsheetName
     setup: api.setup,
     migrateHub: api.migrateHub,
     convert: api.convertHubToGoogleSheets,
+    install: api.installMego,
+    /** The spreadsheet the backend currently uses (the native converted copy after install, else the Hub). */
+    current: () => { const id = props.get('HUB_NATIVE_ID'); return id && id !== HUB_ID ? otherSheets.get(id) : ss; },
     sheetNames: () => ss.sheets.map((s) => s.name),
-    sheet: (n) => ss.getSheetByName(n)
+    sheet: (n) => { const id = props.get('HUB_NATIVE_ID'); const cur = id && id !== HUB_ID ? otherSheets.get(id) : ss; return cur.getSheetByName(n); },
+    source: ss
   };
 }

@@ -6,7 +6,8 @@
 | ID | `1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI` |
 | Owner | ahmedmego967@gmail.com |
 | Format | **Excel (.xlsx) stored in Google Drive**, opened by Google Sheets in Office-compatibility mode |
-| Hard-coded in | `apps-script/Code.gs` (`HUB_ID`) and the app (`src/lib/sync.ts`, `HUB_ID`) — the app refuses any backend that reports another ID |
+| Hard-coded in | `apps-script/Code.gs` (`SOURCE_ID`) and the app (`src/lib/sync.ts`, `HUB_ID`) — the app refuses any backend whose source is another file |
+| Native Hub (v5) | Created automatically by `installMego()` from this file (same folder, same name, new ID). The ID is kept in Script Properties (`HUB_NATIVE_ID`) and pinned on the phone at the first connection. The .xlsx is never modified. |
 
 ## 1. Audit (read-only, 2026-11-06)
 
@@ -24,7 +25,7 @@ Converting a file to native Google Sheets **always creates a new file with a new
 
 | Option | What happens | Result |
 | --- | --- | --- |
-| **A. Convert (recommended)** | Run `convertHubToGoogleSheets()` once. It creates a native «MEGO Nutrition Hub», renames the .xlsx to «MEGO Nutrition Hub (original .xlsx archive)» and leaves it untouched. Then `HUB_ID` is set to the new ID in both the script and the app (one line each). | Full two-way sync, dashboard, structured tabs, formulas work again. The .xlsx stays as a frozen archive. |
+| **A. Convert (chosen)** | `installMego()` creates a native «MEGO Nutrition Hub» in the same folder and leaves the .xlsx completely untouched (not renamed). The script switches to the new file only after verifying it; the app learns the new ID automatically — no code change or redeploy. | Full two-way sync, dashboard, structured tabs, formulas work again. The .xlsx stays as a frozen archive. |
 | **B. Keep the .xlsx** | Nothing to do. | The backend runs **read-only** on the exact ID: foods are imported through a temporary converted copy that is deleted immediately. Diary, weight, water etc. stay on the phone (and in local/Drive JSON backups) but are **not** written to the sheet. |
 
 The backend already supports both; it reports its mode to the app (Settings shows "full sync" or "read-only").
@@ -59,7 +60,7 @@ Every data tab is a plain table (row 1 = headers, no merged cells). The last two
 
 * The script runs **as you** and is the only thing with access to the Hub. The web-app URL is public by necessity (a PWA cannot send Google login cookies), so every request must carry a **256-bit token** that exists only in the script's properties and on your phone. It is never in the app's source code or the repository.
 * Run `rotateToken()` if the token is ever exposed.
-* The app accepts the backend only if it reports `spreadsheetId = 1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI` (or the converted ID after option A).
+* The app accepts the backend only if it reports `sourceId = 1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI`; the native Hub ID it reports is pinned on the phone, and a later different ID is refused unless you confirm.
 * Progress photos are never uploaded.
 
 ## 5. Migration plan & rollback
@@ -76,7 +77,7 @@ Every data tab is a plain table (row 1 = headers, no merged cells). The last two
 | --- | --- |
 | Rename to «MEGO Nutrition Hub», same ID | ✅ done and verified through Google Drive |
 | Read-only audit of the real file (160 foods identical) | ✅ done |
-| Backend v3 (fixed HUB_ID, both modes, migration, dashboard, validation, conflicts, soft delete, versioning) | ✅ written; tested against an emulated Hub in both modes |
-| App: exclusive Hub ID, stable food IDs, read-only mode handling | ✅ implemented and tested |
-| Running the backend against the **real** Hub | ⏳ needs your Google authorization (I cannot authorize Apps Script on your behalf) |
-| Converting the .xlsx (option A) | ⏳ needs your explicit approval |
+| Option A chosen by you (convert to native Google Sheets) | ✅ automated in `installMego()`: convert → verify → switch → migrate; the .xlsx stays untouched |
+| Conversion run by me directly | ❌ not possible: my Drive access is a different Google account with view-only sharing on the file (it would create the new Hub in that account, not yours); the conversion therefore runs inside your own script, under your account |
+| Backend v5 tested against an emulated Drive/Sheets with all 160 real foods (value-by-value) | ✅ |
+| Running against the **real** Hub | ⏳ needs your one-time Google authorization (PHONE-SETUP.md) |

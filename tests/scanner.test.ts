@@ -1,6 +1,6 @@
 /**
- * AI Meal Scanner — runs the REAL apps-script/Code.gs (gas-mock) with a scripted stand-in for the Claude Messages
- * API, and the real app logic (catalog → request → validation → DB matching → nutrition → logging).
+ * AI Meal Scanner — runs the REAL apps-script/Code.gs (gas-mock) with a scripted stand-in for the Gemini API
+ * (free tier, generateContent), and the real app logic (catalog → request → validation → DB matching → nutrition → logging).
  * The stand-in reads the food catalog the backend actually sent and answers like the model would.
  */
 import { readFileSync } from 'node:fs';
@@ -12,7 +12,7 @@ import { addFoodEntry, saveSettings } from '../src/lib/repo';
 import { summarizeDay } from '../src/lib/reports';
 import { importParsedFoods, parseCSV, parseFoodRows } from '../src/lib/sheetImport';
 import {
-  blockers, buildCatalog, itemNutrition, logScannedMeal, mealTotals, needsConfirmation, requestAnalysis, ScanError, suggestFoods, toScanItems,
+  blockers, buildCatalog, itemNutrition, logScannedMeal, mealTotals, needsConfirmation, nextQuotaReset, requestAnalysis, ScanError, suggestFoods, toScanItems,
   validateAiResult, type AiItem, type ScanItem
 } from '../src/lib/mealScanner';
 import { createGas, type AiRequest } from '../e2e/gas-mock.mjs';
@@ -21,13 +21,13 @@ import { getSettings } from '../src/lib/repo';
 
 const CSV = readFileSync(new URL('./fixtures/foods-synthetic.csv', import.meta.url), 'utf8');
 const TOKEN = 'scan-token';
-const KEY = 'sk-ant-test-key-never-in-app';
+const KEY = 'AIzaTestKeyNeverInTheApp_0123456789abcd';
 const IMG = Buffer.from('fake-jpeg-bytes').toString('base64');
 let n = 0;
 
 /** Finds the catalog key the backend sent for an Arabic food name (the model sees exactly these lines). */
 function keyFor(req: AiRequest, nameAr: string): string {
-  const text: string = req.body.messages[0].content[1].text;
+  const text: string = req.body.contents[0].parts[1].text;
   const line = text.split('\n').find((l) => l.split(' | ')[1] === nameAr);
   if (!line) throw new Error('not in catalog: ' + nameAr);
   return line.split(' | ')[0];
@@ -76,15 +76,19 @@ const SCENARIOS: Record<string, Scenario> = {
   notfood: () => ({ is_food: false, meal_name_ar: '', meal_name_en: '', notes: 'لا يظهر طعام', items: [] })
 };
 
-function claude(scenarioOf: (req: AiRequest) => string, opts: { code?: number; stop?: string } = {}) {
+/** Stand-in for the Gemini API (generateContent + model metadata), including its error formats. */
+function gemini(scenarioOf: (req: AiRequest) => string, opts: { code?: number; finish?: string; error?: unknown } = {}) {
   return (req: AiRequest) => {
-    if (opts.code && opts.code !== 200) return { code: opts.code, json: { type: 'error', error: { type: 'x', message: 'emulated error' } } };
-    if (opts.stop === 'refusal') return { json: { model: req.body.model, stop_reason: 'refusal', content: [] } };
+    if (req.method === 'get') return req.headers['x-goog-api-key'] === KEY ? { json: { name: 'models/gemini-3.8-flash' } } : { code: 400, json: { error: { code: 400, message: 'API key not valid. Please pass a valid API key.', status: 'INVALID_ARGUMENT', details: [{ reason: 'API_KEY_INVALID' }] } } };
+    if (opts.code && opts.code !== 200) return { code: opts.code, json: opts.error ?? { error: { code: opts.code, message: 'emulated error', status: 'X' } } };
+    if (opts.finish) return { json: { candidates: [{ content: { parts: [] }, finishReason: opts.finish }] } };
     const out = SCENARIOS[scenarioOf(req)](req);
-    return { json: { id: 'msg_test', model: req.body.model, stop_reason: 'end_turn', content: [{ type: 'thinking', thinking: '' }, { type: 'text', text: JSON.stringify(out) }] } };
+    return { json: { candidates: [{ content: { role: 'model', parts: [{ text: 'thinking…', thought: true }, { text: JSON.stringify(out) }] }, finishReason: 'STOP' }], usageMetadata: { totalTokenCount: 1 } } };
   };
 }
-const scenarioFromNote = (req: AiRequest) => /SCENARIO:([\w-]+)/.exec(req.body.messages[0].content[1].text)![1];
+const scenarioFromNote = (req: AiRequest) => /SCENARIO:([\w-]+)/.exec(req.body.contents[0].parts[1].text)![1];
+const QUOTA_DAY = { error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'Quota exceeded for metric: generate_content_free_tier_requests, limit: 0', details: [{ '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaId: 'GenerateRequestsPerDayPerProjectPerModel-FreeTier' }] }] } };
+const QUOTA_MIN = { error: { code: 429, status: 'RESOURCE_EXHAUSTED', message: 'Quota exceeded', details: [{ '@type': 'type.googleapis.com/google.rpc.QuotaFailure', violations: [{ quotaId: 'GenerateRequestsPerMinutePerProjectPerModel-FreeTier' }] }, { '@type': 'type.googleapis.com/google.rpc.RetryInfo', retryDelay: '17s' }] } };
 
 let gas: ReturnType<typeof createGas>;
 let foods: Food[];
@@ -94,7 +98,7 @@ async function setup(gasOpts: Parameters<typeof createGas>[0] = {}) {
   useDatabase('scan-' + ++n);
   await importParsedFoods(parseFoodRows(parseCSV(CSV)).foods);
   foods = await db.foods.toArray();
-  gas = createGas({ token: TOKEN, scriptProps: { ANTHROPIC_API_KEY: KEY }, ai: claude(scenarioFromNote), ...gasOpts });
+  gas = createGas({ token: TOKEN, scriptProps: { GEMINI_API_KEY: KEY }, ai: gemini(scenarioFromNote), ...gasOpts });
   globalThis.fetch = (async (_url: string, init: RequestInit) => new Response(JSON.stringify(gas.post(JSON.parse(String(init.body)))), { status: 200 })) as typeof fetch;
   await saveSettings((s) => { s.sync.url = 'https://script.google.com/macros/s/X/exec'; s.sync.token = TOKEN; });
 }
@@ -112,29 +116,73 @@ describe('AI meal scanner', () => {
   beforeEach(async () => { await setup(); });
   afterAll(() => { globalThis.fetch = realFetch; });
 
-  it('backend request: model, headers, image first, schema, no personal data, key never returned', async () => {
+  it('backend request: free Gemini model only, key in header, image first, JSON schema, no personal data, key never returned', async () => {
     await scan('rice-chicken');
+    expect(gas.aiRequests).toHaveLength(1); // one call, no retries, no fallback
     const req = gas.aiRequests[0];
-    expect(req.url).toBe('https://api.anthropic.com/v1/messages');
-    expect(req.headers['x-api-key']).toBe(KEY);
-    expect(req.headers['anthropic-version']).toBeTruthy();
-    expect(req.body.model).toBe('claude-opus-5-5');
-    expect(req.body.thinking).toBeUndefined();
-    expect(req.body.output_config.format.type).toBe('json_schema');
-    const content = req.body.messages[0].content;
-    expect(content[0]).toMatchObject({ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: IMG } });
-    expect(content[1].type).toBe('text');
-    const s = await getSettings();
+    expect(req.url).toBe('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash:generateContent');
+    expect(req.url).not.toContain(KEY); // key travels in a header, not in the URL
+    expect(req.headers['x-goog-api-key']).toBe(KEY);
+    expect(Object.keys(req.headers)).toEqual(['x-goog-api-key']);
+    expect(req.body.generationConfig.responseMimeType).toBe('application/json');
+    expect(req.body.generationConfig.responseJsonSchema.required).toContain('items');
+    const parts = req.body.contents[0].parts;
+    expect(parts[0]).toEqual({ inlineData: { mimeType: 'image/jpeg', data: IMG } });
     const sent = JSON.stringify(req.body);
-    // nothing personal: no weight/targets/profile/diary values, no token
     expect(sent).not.toContain(TOKEN);
-    expect(sent).not.toContain(String(s.profile.currentWeight) + ' kg');
-    const userText: string = content[1].text;
+    expect(sent).not.toMatch(/fallback|anthropic|claude/i);
+    const userText: string = parts[1].text;
     expect(userText).not.toMatch(/weight|waist|profile|target|\bkg\b|وزن|خصر/i);
-    expect(Object.keys(req.body).sort()).toEqual(['fallbacks', 'max_tokens', 'messages', 'model', 'output_config', 'system']);
-    // the app response never contains the API key
+    expect(Object.keys(req.body).sort()).toEqual(['contents', 'generationConfig', 'systemInstruction']);
     const res = gas.post({ action: 'analyzeMeal', token: TOKEN, image: IMG, foods: buildCatalog(foods).lines, note: 'SCENARIO:salad' });
     expect(JSON.stringify(res)).not.toContain(KEY);
+    expect(JSON.stringify(gas.post({ action: 'ping', token: TOKEN }))).not.toContain(KEY);
+  });
+
+  it('a paid or unknown model can never be selected (AI_MODEL is limited to free-tier Flash models)', async () => {
+    gas = createGas({ token: TOKEN, scriptProps: { GEMINI_API_KEY: KEY, AI_MODEL: 'gemini-4-argon' }, ai: gemini(scenarioFromNote) });
+    await scan('salad');
+    expect(gas.aiRequests[0].url).toContain('/models/gemini-3.8-flash:generateContent');
+    gas = createGas({ token: TOKEN, scriptProps: { GEMINI_API_KEY: KEY, AI_MODEL: 'gemini-3.6-flash' }, ai: gemini(scenarioFromNote) });
+    await scan('salad');
+    expect(gas.aiRequests[0].url).toContain('/models/gemini-3.6-flash:generateContent');
+    expect(gas.post({ action: 'ping', token: TOKEN }).aiModel).toBe('gemini-3.6-flash');
+  });
+
+  it('setAiKey: key checked with Google first, stored only in Script Properties, removable', () => {
+    gas = createGas({ token: TOKEN, ai: gemini(scenarioFromNote) });
+    expect(gas.post({ action: 'setAiKey', token: 'wrong', key: KEY }).error).toBe('unauthorized');
+    expect(gas.post({ action: 'setAiKey', token: TOKEN, key: 'AIzaWrongKey_000000000000000000' }).error).toBe('AI_KEY_INVALID');
+    expect(gas.props.has('GEMINI_API_KEY')).toBe(false);
+    expect(gas.post({ action: 'setAiKey', token: TOKEN, key: 'bad key!' }).error).toBe('AI_KEY_INVALID');
+    const r = gas.post({ action: 'setAiKey', token: TOKEN, key: KEY });
+    expect(r).toMatchObject({ ok: true, aiScanner: true, aiModel: 'gemini-3.8-flash' });
+    expect(JSON.stringify(r)).not.toContain(KEY);
+    expect(gas.props.get('GEMINI_API_KEY')).toBe(KEY);
+    expect(gas.aiRequests[gas.aiRequests.length - 1].method).toBe('get'); // metadata check, not a generation
+    expect(gas.post({ action: 'ping', token: TOKEN }).aiScanner).toBe(true);
+    gas.post({ action: 'setAiKey', token: TOKEN, remove: true });
+    expect(gas.props.has('GEMINI_API_KEY')).toBe(false);
+  });
+
+  it('free quota: daily → clear message with reset time; per-minute → wait seconds; never retried elsewhere', async () => {
+    const code = async () => { try { await scan('salad'); return null; } catch (e) { return e as ScanError; } };
+    gas = createGas({ token: TOKEN, scriptProps: { GEMINI_API_KEY: KEY }, ai: gemini(scenarioFromNote, { code: 429, error: QUOTA_DAY }) });
+    const d = (await code())!;
+    expect(d.code).toBe('AI_QUOTA_DAY');
+    expect(String(d.params.time)).toMatch(/\d/);
+    expect(gas.aiRequests).toHaveLength(1);
+    gas = createGas({ token: TOKEN, scriptProps: { GEMINI_API_KEY: KEY }, ai: gemini(scenarioFromNote, { code: 429, error: QUOTA_MIN }) });
+    const m = (await code())!;
+    expect(m.code).toBe('AI_QUOTA_MINUTE');
+    expect(m.params.s).toBe(17);
+    expect(gas.aiRequests).toHaveLength(1);
+  });
+
+  it('quota reset time = next midnight Pacific (DST aware)', () => {
+    expect(nextQuotaReset(new Date('2026-11-06T16:00:00Z')).toISOString()).toBe('2026-11-07T08:00:00.000Z');
+    expect(nextQuotaReset(new Date('2026-07-06T16:00:00Z')).toISOString()).toBe('2026-07-07T07:00:00.000Z');
+    expect(nextQuotaReset(new Date('2026-11-07T07:59:00Z')).toISOString()).toBe('2026-11-07T08:00:00.000Z');
   });
 
   it('rice & chicken: DB matches, nutrition = engine values, oil needs confirmation, nothing saved before confirm', async () => {
@@ -229,20 +277,27 @@ describe('AI meal scanner', () => {
 
   it('errors are reported clearly and never crash', async () => {
     const err = async () => { try { await scan('salad'); return 'none'; } catch (e) { return (e as ScanError).code; } };
-    gas = createGas({ token: TOKEN, ai: claude(scenarioFromNote) }); // no API key
+    const k = { GEMINI_API_KEY: KEY };
+    gas = createGas({ token: TOKEN, ai: gemini(scenarioFromNote) }); // no key
     expect(await err()).toBe('AI_NOT_CONFIGURED');
-    gas = createGas({ token: TOKEN, scriptProps: { ANTHROPIC_API_KEY: KEY }, ai: claude(scenarioFromNote, { code: 401 }) });
+    gas = createGas({ token: TOKEN, scriptProps: k, ai: gemini(scenarioFromNote, { code: 400, error: { error: { code: 400, message: 'API key not valid. Please pass a valid API key.', status: 'INVALID_ARGUMENT' } } }) });
     expect(await err()).toBe('AI_KEY_INVALID');
-    gas = createGas({ token: TOKEN, scriptProps: { ANTHROPIC_API_KEY: KEY }, ai: claude(scenarioFromNote, { code: 529 }) });
+    gas = createGas({ token: TOKEN, scriptProps: k, ai: gemini(scenarioFromNote, { code: 400, error: { error: { code: 400, message: 'User location is not supported for the API use.', status: 'FAILED_PRECONDITION' } } }) });
+    expect(await err()).toBe('AI_REGION');
+    gas = createGas({ token: TOKEN, scriptProps: k, ai: gemini(scenarioFromNote, { code: 503 }) });
     expect(await err()).toBe('AI_BUSY');
-    gas = createGas({ token: TOKEN, scriptProps: { ANTHROPIC_API_KEY: KEY } }); // UrlFetchApp throws
+    gas = createGas({ token: TOKEN, scriptProps: k, ai: gemini(scenarioFromNote, { code: 404 }) });
+    expect(await err()).toBe('AI_MODEL_UNAVAILABLE');
+    gas = createGas({ token: TOKEN, scriptProps: k }); // UrlFetchApp throws
     expect(await err()).toBe('AI_NETWORK');
-    gas = createGas({ token: TOKEN, scriptProps: { ANTHROPIC_API_KEY: KEY }, ai: claude(scenarioFromNote, { stop: 'refusal' }) });
+    gas = createGas({ token: TOKEN, scriptProps: k, ai: gemini(scenarioFromNote, { finish: 'SAFETY' }) });
     expect(await err()).toBe('AI_REFUSED');
-    gas = createGas({ token: TOKEN, scriptProps: { ANTHROPIC_API_KEY: KEY, AI_DAILY_LIMIT: '1' }, ai: claude(scenarioFromNote) });
+    gas = createGas({ token: TOKEN, scriptProps: k, ai: gemini(scenarioFromNote, { finish: 'MAX_TOKENS' }) });
+    expect(await err()).toBe('AI_TRUNCATED');
+    gas = createGas({ token: TOKEN, scriptProps: { ...k, AI_DAILY_LIMIT: '1' }, ai: gemini(scenarioFromNote) });
     expect(await err()).toBe('none');
     expect(await err()).toBe('AI_DAILY_LIMIT');
-    gas = createGas({ token: 'other', scriptProps: { ANTHROPIC_API_KEY: KEY }, ai: claude(scenarioFromNote) });
+    gas = createGas({ token: 'other', scriptProps: k, ai: gemini(scenarioFromNote) });
     expect(await err()).toBe('AI_UNAUTHORIZED');
     expect(gas.post({ action: 'analyzeMeal', token: 'other', image: 'not base64!!' }).error).toBe('AI_BAD_IMAGE');
     globalThis.fetch = (async () => { throw new TypeError('Failed to fetch'); }) as typeof fetch;

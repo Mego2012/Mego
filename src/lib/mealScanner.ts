@@ -2,7 +2,7 @@
  * AI Meal Scanner — photo → identified foods → YOUR database values → reviewed → logged.
  *
  * Responsibilities are split on purpose:
- *  - The AI (Claude, called by your private Apps Script backend — the API key never reaches the phone) only
+ *  - The AI (Google Gemini API FREE tier, called by your private Apps Script backend — the key never reaches the phone) only
  *    identifies foods, estimates grams/state/method and picks the matching row of YOUR food database.
  *  - All nutrition numbers are computed here with the same engine as manual logging (macrosFor + the food's
  *    per-100 g basis). Values for foods that are not in the database are clearly marked as AI estimates and can
@@ -121,7 +121,19 @@ function blobToBase64(blob: Blob): Promise<string> {
 /* ------------------------------------------------------------------ request */
 
 export class ScanError extends Error {
-  constructor(public code: string) { super(code); }
+  constructor(public code: string, public params: Record<string, string | number> = {}) { super(code); }
+}
+
+/** Next reset of Google's free daily quota: midnight in America/Los_Angeles, as a Date. */
+export function nextQuotaReset(now = new Date()): Date {
+  const parts = (d: Date) => Object.fromEntries(new Intl.DateTimeFormat('en-US', { timeZone: 'America/Los_Angeles', hourCycle: 'h23',
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit' }).formatToParts(d).map((p) => [p.type, p.value]));
+  const offsetMin = (d: Date) => { const p = parts(d); return (Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour, +p.minute, +p.second) - Math.floor(d.getTime() / 1000) * 1000) / 60000; };
+  const p = parts(now);
+  const guess = Date.UTC(+p.year, +p.month - 1, +p.day + 1, 0, 0, 0);
+  let t = guess - offsetMin(new Date(guess)) * 60000;
+  t = guess - offsetMin(new Date(t)) * 60000; // re-evaluate offset at the target (DST changes)
+  return new Date(t);
 }
 
 export async function requestAnalysis(base64: string, catalog: Catalog, opts: { lang: 'ar' | 'en'; note?: string; timeoutMs?: number }): Promise<AiResult> {
@@ -139,6 +151,9 @@ export async function requestAnalysis(base64: string, catalog: Catalog, opts: { 
   } catch (e) {
     if (e instanceof ScanError) throw e;
     const msg = (e as Error).message || '';
+    const data = (e as { data?: { retryAfter?: number } }).data;
+    if (msg === 'AI_QUOTA_DAY') throw new ScanError(msg, { time: nextQuotaReset().toLocaleTimeString(opts.lang === 'ar' ? 'ar' : 'en', { hour: '2-digit', minute: '2-digit' }) });
+    if (msg === 'AI_QUOTA_MINUTE') throw new ScanError(msg, { s: Math.max(1, Math.round(data?.retryAfter ?? 60)) });
     if (/^AI_/.test(msg)) throw new ScanError(msg.split(':')[0]);
     if (msg === 'unauthorized') throw new ScanError('AI_UNAUTHORIZED');
     if (msg === 'unknown action') throw new ScanError('AI_OLD_BACKEND');

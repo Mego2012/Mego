@@ -18,7 +18,7 @@ const SHOTS = path.join(ROOT, 'e2e', 'screens');
 const PROFILE = path.join(ROOT, 'e2e', '.profile');
 const URL_BASE = 'http://localhost:4173/';
 const SCRIPT_URL = 'https://script.google.com/macros/s/TEST-DEPLOYMENT/exec';
-const TOKEN = 'test-token-123';
+const TOKEN = 'e2eToken' + '0123456789abcdef'.repeat(3) + 'abcdefgh';
 mkdirSync(SHOTS, { recursive: true });
 rmSync(PROFILE, { recursive: true, force: true });
 
@@ -44,11 +44,13 @@ import { createGas } from './gas-mock.mjs';
 import Papa from 'papaparse';
 const fixtureCsv = readFileSync(path.join(ROOT, 'tests/fixtures/food-sheet-sample.csv'), 'utf8');
 const fixtureRows = Papa.parse(fixtureCsv.trim()).data;
-// Stand-in for the Claude Messages API behind the backend's UrlFetchApp: answers from the catalog it was sent.
+// Stand-in for the Gemini API (free tier) behind the backend's UrlFetchApp: answers from the catalog it was sent.
 const aiCalls = [];
-function e2eClaude(req) {
+const AI_KEY = 'AIzaE2eTestKey_0123456789abcdefghij';
+function e2eGemini(req) {
   aiCalls.push(req);
-  const text = req.body.messages[0].content[1].text;
+  if (req.method === 'get') return req.headers['x-goog-api-key'] === AI_KEY ? { json: { name: 'models/gemini-3.8-flash' } } : { code: 400, json: { error: { code: 400, message: 'API key not valid.' } } };
+  const text = req.body.contents[0].parts[1].text;
   const key = (ar) => text.split('\n').find((l) => l.split(' | ')[1] === ar).split(' | ')[0];
   const it = (ar, en, food_key, grams, state, kind, confidence) => ({ name_ar: ar, name_en: en, food_key, grams, grams_low: Math.round(grams * 0.8), grams_high: Math.round(grams * 1.25),
     state, cooking_method: 'none', kind, confidence, reason: '', est_per100: { kcal: 0, protein: 0, carbs: 0, fat: 0 } });
@@ -57,9 +59,13 @@ function e2eClaude(req) {
     it('صدر دجاج مشوي', 'Grilled chicken breast', key('صدر دجاج مشوي'), 150, 'cooked', 'food', 0.9),
     it('زيت زيتون', 'Olive oil', key('زيت زيتون'), 8, 'other', 'oil_or_fat', 0.45)
   ] };
-  return { json: { model: req.body.model, stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(out) }] } };
+  return { json: { candidates: [{ content: { role: 'model', parts: [{ text: JSON.stringify(out) }] }, finishReason: 'STOP' }] } };
 }
-const gas = createGas({ foodRows: fixtureRows, token: TOKEN, spreadsheetName: 'نظام التنشيف (emulated)', scriptProps: { ANTHROPIC_API_KEY: 'sk-ant-e2e-secret' }, ai: e2eClaude });
+// The Hub starts as the Excel file; installMego() converts it (emulated Drive) exactly as on Google.
+const gas = createGas({ foodRows: fixtureRows, token: TOKEN, spreadsheetName: 'MEGO Nutrition Hub', mode: 'xlsx', ai: e2eGemini });
+const sourceSnapshot = JSON.stringify(gas.source.sheets.map((x) => [x.name, x.data]));
+gas.install();
+gas.props.set('APP_TOKEN', TOKEN);
 const remote = { received: [] };
 async function mockScript(route) {
   const body = JSON.parse(route.request().postData() || '{}');
@@ -136,16 +142,32 @@ await go(page, '/');
 await page.waitForSelector('[data-testid="dashboard"]');
 
 // ---------- setup: connect mock sheet and import the food database from it
-await check('SETUP', 'Connect Google Sheet (mock Apps Script) and import food DB', async () => {
+await check('SETUP', 'Connect with the one-line connection code → Hub verified → foods imported → records uploaded', async () => {
   await go(page, '/settings');
-  await page.getByTestId('sync-url').fill(SCRIPT_URL);
-  await page.getByTestId('sync-token').fill(TOKEN);
-  await page.getByTestId('sync-save').click();
-  await page.waitForTimeout(800);
-  await page.waitForFunction(() => !document.querySelector('[data-testid="pull-foods"]')?.disabled, null, { timeout: 5000 });
-  await page.getByTestId('pull-foods').click();
+  await page.getByTestId('connection-code').fill(`MEGO1|${SCRIPT_URL}|${TOKEN}`);
+  await page.getByTestId('hub-imported').waitFor({ timeout: 15000 });
+  const check = await page.getByTestId('hub-check').innerText();
+  const native = await page.getByTestId('hub-native').innerText();
+  if (!native.includes(gas.props.get('HUB_NATIVE_ID'))) throw new Error('native Hub ID not pinned: ' + native);
   await go(page, '/foods');
-  return await waitText(page.getByTestId('foods-count'), /^10 /);
+  await waitText(page.getByTestId('foods-count'), /^10 /);
+  return check.split('\n').slice(0, 2).join(' · ');
+});
+
+await check('AIKEY', 'Free Gemini key: checked with Google by the backend, stored only in Script Properties, never kept in the app', async () => {
+  await go(page, '/settings');
+  await page.getByTestId('ai-key').fill('AIzaWrongKey_00000000000000000000');
+  await tap(page, 'ai-key-save');
+  await waitText(page.getByTestId('toast'), /Gemini|مفتاح/);
+  if (gas.props.has('GEMINI_API_KEY')) throw new Error('invalid key stored');
+  await page.getByTestId('ai-key').fill(AI_KEY);
+  await tap(page, 'ai-key-save');
+  await waitText(page.getByTestId('ai-state'), /gemini-3\.8-flash/);
+  if (gas.props.get('GEMINI_API_KEY') !== AI_KEY) throw new Error('key not stored in Script Properties');
+  if ((await page.getByTestId('ai-key').inputValue()) !== '') throw new Error('key left in the form');
+  const stored = await page.evaluate(() => new Promise((res) => { const r = indexedDB.open('mego-nutrition'); r.onsuccess = () => { const q = r.result.transaction('settings').objectStore('settings').getAll(); q.onsuccess = () => res(JSON.stringify(q.result)); }; }));
+  if (stored.includes(AI_KEY)) throw new Error('key stored on the phone');
+  return await page.getByTestId('ai-state').innerText();
 });
 
 await check('IMPORT', 'Import CSV file shows audit preview (header row detection, issues)', async () => {
@@ -548,7 +570,7 @@ await check('BACKUP', 'Local backup list + backup now', async () => {
   return `${n} local backup(s)`;
 });
 
-await check('SYNC2', 'Everything synced to the emulated sheet (APP_* tabs) by the real Code.gs', async () => {
+await check('SYNC2', 'Everything synced to the converted native Hub by the real Code.gs; Excel original untouched', async () => {
   await page.getByTestId('push-now').click();
   await page.waitForTimeout(2500);
   const pulled = gas.post({ action: 'pull', token: TOKEN });
@@ -556,6 +578,7 @@ await check('SYNC2', 'Everything synced to the emulated sheet (APP_* tabs) by th
   if (!counts.entries || !counts.foods || !counts.kv) throw new Error(JSON.stringify(counts));
   const original = gas.sheet('قاعدة بيانات الأطعمة').data.length;
   expectEq(original, fixtureRows.length, 'original food tab untouched');
+  expectEq(JSON.stringify(gas.source.sheets.map((x) => [x.name, x.data])), sourceSnapshot, 'Excel original untouched');
   return `${JSON.stringify(counts)} · dataVersion ${pulled.meta.dataVersion}`;
 });
 
@@ -602,11 +625,12 @@ await check('SCAN', 'AI meal scanner: photo → review (DB values, confidence, c
   const after = Number((await page.getByTestId('kcal-consumed').innerText()).replace(/[^0-9.]/g, ''));
   if (Math.abs(after - (before + t2)) > 1) throw new Error(`dashboard ${before} + ${t2} ≠ ${after}`);
   // what left the phone: a re-encoded JPEG (no EXIF), food names only
-  const sent = aiCalls[aiCalls.length - 1].body.messages[0].content;
-  const bytes = Buffer.from(sent[0].source.data, 'base64');
+  const sent = aiCalls[aiCalls.length - 1].body.contents[0].parts;
+  const bytes = Buffer.from(sent[0].inlineData.data, 'base64');
   if (bytes[0] !== 0xff || bytes[1] !== 0xd8) throw new Error('not a JPEG');
   if (bytes.includes(Buffer.from('Exif'))) throw new Error('EXIF present');
-  if (/sk-ant/.test(JSON.stringify(await page.evaluate(() => document.documentElement.outerHTML)))) throw new Error('key in page');
+  if ((await page.evaluate(() => document.documentElement.outerHTML)).includes(AI_KEY)) throw new Error('key in page');
+  if (!aiCalls.every((c) => c.url.startsWith('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash'))) throw new Error('unexpected AI endpoint');
   return `meal ${t2} kcal · dashboard ${before} → ${after} · image ${bytes.length} B JPEG`;
 });
 

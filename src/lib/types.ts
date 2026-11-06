@@ -275,6 +275,8 @@ export interface SyncConfig {
   lastError?: string;
   /** Server data version last seen (conflict detection). */
   serverVersion?: number;
+  /** ID of the native Google Sheet converted from the Hub, pinned at first connection. */
+  hubNativeId?: string;
 }
 
 export interface Settings {

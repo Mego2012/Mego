@@ -9,7 +9,7 @@ import {
 } from '../src/lib/repo';
 import { monthReport, progressEstimate, summarizeDay, weekReport } from '../src/lib/reports';
 import { importParsedFoods, parseCSV, parseFoodRows, parseStructuredFoods, auditFoods } from '../src/lib/sheetImport';
-import { testConnection } from '../src/lib/sync';
+import { checkHub, checkHubFoods, parseConnectionCode, testConnection } from '../src/lib/sync';
 import { computeLibrary, generatePlan, applyGeneratedPlan, materializeLibraryRecipe, shoppingList, suggest } from '../src/lib/recipeEngine';
 import { LIBRARY } from '../src/lib/recipeEngine';
 import { recommend, differsFromRecommendation } from '../src/lib/goals';
@@ -283,7 +283,7 @@ describe('MEGO Nutrition Hub backend (real Code.gs v3 on an emulated Hub)', () =
     expect(gas.post({ action: 'ping', token: 'bad' })).toEqual({ ok: false, error: 'unauthorized' });
     expect(gas.post({ action: 'ping' }).error).toBe('unauthorized');
     const ping = gas.post({ action: 'ping', token: 'tok' });
-    expect(ping).toMatchObject({ ok: true, spreadsheetId: HUB_ID, mode: 'xlsx', writable: false, scriptVersion: 4 });
+    expect(ping).toMatchObject({ ok: true, spreadsheetId: HUB_ID, sourceId: HUB_ID, mode: 'xlsx', writable: false, scriptVersion: 5 });
     const before = JSON.stringify(gas.sheet('قاعدة بيانات الأطعمة').data);
     const foods = gas.post({ action: 'foods', token: 'tok' });
     expect(foods).toMatchObject({ ok: true, structured: false, readOnly: true });
@@ -353,13 +353,89 @@ describe('MEGO Nutrition Hub backend (real Code.gs v3 on an emulated Hub)', () =
     expect(JSON.stringify(gas.sheet('قاعدة بيانات الأطعمة').data)).toBe(before);
     expect(gas.post({ action: 'saveFoods', token: 'tok', foods: [{ name: 'x', kcal: -5, protein: 0, carbs: 0, fat: 0 }] }).ok).toBe(false);
   });
-  it('setup creates a long token; conversion keeps the .xlsx as archive', () => {
-    const gas = createGas({ foodRows: rows, token: '', mode: 'xlsx' });
+  it('installMego: converts the Excel Hub once, verifies 160 foods, switches only after verification; .xlsx untouched', () => {
+    const gas = createGas({ foodRows: rows, token: '', mode: 'xlsx', deployedUrl: 'https://script.google.com/macros/s/DEPLOY/exec' });
     gas.props.delete('APP_TOKEN');
-    expect(gas.setup().length).toBe(64);
-    const newId = gas.convert();
-    expect(newId).toMatch(/^tmp-/);
-    expect(gas.ss.name).toBe('نظام التنشيف والتضخيم'); // original untouched
+    const sourceBefore = JSON.stringify(gas.source.sheets.map((x) => [x.name, x.data]));
+    const out = gas.install();
+    const token = gas.props.get('APP_TOKEN')!;
+    expect(token).toHaveLength(64);
+    const nativeId = gas.props.get('HUB_NATIVE_ID')!;
+    expect(nativeId).toMatch(/^native-/);
+    // the converted file: same folder, native mime type, description pointing to the original
+    const conv = gas.state.tmpFiles.find((f) => f.id === nativeId)!;
+    expect(conv).toMatchObject({ name: 'MEGO Nutrition Hub', mimeType: 'application/vnd.google-apps.spreadsheet', parents: ['parent-folder'] });
+    expect(conv.description).toContain(HUB_ID);
+    // original .xlsx: not renamed, no tab or cell changed, not trashed
+    expect(gas.state.renamedSource).toBe(false);
+    expect(JSON.stringify(gas.source.sheets.map((x) => [x.name, x.data]))).toBe(sourceBefore);
+    expect(gas.state.trashed).not.toContain(HUB_ID);
+    // verification + migration happened on the native copy
+    expect(JSON.parse(gas.props.get('HUB_VERIFIED')!)).toMatchObject({ ok: true, foods: 160, numericProblems: 0 });
+    expect(gas.sheet('Food_Database').getLastRow()).toBe(161);
+    expect(gas.drive.copies[0]).toMatch(/BACKUP MEGO Nutrition Hub/);
+    // every one of the 160 foods: Food_Database values identical to the original Excel tab
+    const original = parseFoodRows(rows).foods;
+    const fdb = parseStructuredFoods(gas.post({ action: 'foods', token }).rows).foods;
+    expect(fdb).toHaveLength(160);
+    for (const o of original) {
+      const f = fdb.find((x) => x.nameAr === o.nameAr)!;
+      expect(f, o.nameAr).toBeTruthy();
+      expect(f.per100, o.nameAr).toEqual(o.per100);
+      expect(f.pieceGrams, o.nameAr).toEqual(o.pieceGrams);
+    }
+    // backend now reports the native sheet, with the original as source; it is writable
+    expect(gas.post({ action: 'ping', token })).toMatchObject({ spreadsheetId: nativeId, sourceId: HUB_ID, mode: 'native', writable: true, verified: { foods: 160 } });
+    expect(gas.post({ action: 'push', token, changes: [{ table: 'entries', key: 'e1', op: 'upsert', payload: { id: 'e1', date: '2026-11-06', meal: 'lunch', name: 'x', macros: { kcal: 1, protein: 0, carbs: 0, fat: 0 }, updatedAt: 1 } }] })).toMatchObject({ ok: true, applied: 1 });
+    expect(JSON.stringify(gas.source.sheets.map((x) => [x.name, x.data]))).toBe(sourceBefore);
+    // connection code for the app
+    const line = out.find((l) => l.includes('MEGO1|'))!;
+    expect(line).toContain('MEGO1|https://script.google.com/macros/s/DEPLOY/exec|' + token);
+    // running it again: no second conversion, no duplicates
+    gas.install();
+    expect(gas.state.tmpFiles.filter((f) => f.id.startsWith('native-'))).toHaveLength(1);
+    expect(gas.sheet('Food_Database').getLastRow()).toBe(161);
+  });
+  it('installMego: a conversion that fails verification is NOT used; the Hub stays on the original', () => {
+    const gas = createGas({ foodRows: [['no header here']], token: 'tok', mode: 'xlsx' });
+    expect(() => gas.install()).toThrow(/VERIFY_FAILED/);
+    expect(gas.props.has('HUB_NATIVE_ID')).toBe(false);
+    expect(gas.post({ action: 'ping', token: 'tok' })).toMatchObject({ spreadsheetId: HUB_ID, mode: 'xlsx', writable: false });
+  });
+  it('app side: connection code parsing and Hub pinning', () => {
+    expect(parseConnectionCode('MEGO1|https://script.google.com/macros/s/AKfy/exec|' + 'a'.repeat(64))).toEqual({ url: 'https://script.google.com/macros/s/AKfy/exec', token: 'a'.repeat(64) });
+    expect(parseConnectionCode('MEGO1|https://evil.example.com/x|' + 'a'.repeat(64))).toBeNull();
+    expect(parseConnectionCode('garbage')).toBeNull();
+    expect(checkHub({ spreadsheet: 'x', foodSheet: null, spreadsheetId: 'native-1', sourceId: HUB_ID })).toBe('native-1');
+    expect(checkHub({ spreadsheet: 'x', foodSheet: null, spreadsheetId: HUB_ID })).toBeUndefined(); // still Excel / legacy backend
+    expect(() => checkHub({ spreadsheet: 'x', foodSheet: null, spreadsheetId: 'native-2', sourceId: HUB_ID }, 'native-1')).toThrow(/HUB_CHANGED/);
+    expect(() => checkHub({ spreadsheet: 'x', foodSheet: null, spreadsheetId: 'native-1', sourceId: 'OTHER' })).toThrow(/WRONG_SPREADSHEET/);
+  });
+  it('app side: Hub food check compares the converted Hub with the 160 foods on the phone (read-only)', async () => {
+    await fresh160();
+    const gas = createGas({ foodRows: rows, token: 'tok', mode: 'xlsx' });
+    gas.install();
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = (async (_u: string, init: RequestInit) => new Response(JSON.stringify(gas.post(JSON.parse(String(init.body)))), { status: 200 })) as typeof fetch;
+    try {
+      await saveSettings((s) => { s.sync.url = 'https://script.google.com/macros/s/X/exec'; s.sync.token = 'tok'; });
+      const r = await testConnection((await getSettings()).sync);
+      expect((await getSettings()).sync.hubNativeId).toBe(r.spreadsheetId);
+      const before = await db.foods.count();
+      const c = await checkHubFoods();
+      expect(c).toMatchObject({ hubFoods: 160, localFoods: 160, identical: 160, different: [], onlyInHub: [], onlyOnPhone: [] });
+      expect(await db.foods.count()).toBe(before); // nothing imported by the check
+      // a changed value in the Hub is reported, not applied
+      const fdb = gas.sheet('Food_Database');
+      const row = fdb.data.findIndex((x) => x[1] === 'صدر دجاج');
+      fdb.data[row][4] = 999;
+      fdb.data[row][fdb.data[row].length - 1] = JSON.stringify({ ...JSON.parse(String(fdb.data[row][fdb.data[row].length - 1])), per100: { kcal: 999, protein: 23, carbs: 0, fat: 2.6 } });
+      const c2 = await checkHubFoods();
+      expect(c2.different.map((d) => d.name)).toEqual(['صدر دجاج']);
+      expect((await food('صدر دجاج')).per100.kcal).not.toBe(999);
+    } finally {
+      globalThis.fetch = realFetch;
+    }
   });
   it('the app refuses a backend connected to any other spreadsheet', async () => {
     useDatabase('v2-hub-' + ++n);
@@ -376,6 +452,18 @@ describe('MEGO Nutrition Hub backend (real Code.gs v3 on an emulated Hub)', () =
 });
 
 describe('switch to stable Hub food IDs', () => {
+  it('after the Hub assigned stable IDs, importing the same foods from a CSV/Excel file creates no duplicates and changes no values', async () => {
+    useDatabase('v2-fileafterhub-' + ++n);
+    const gas = createGas({ foodRows: parseCSV(CSV160).filter((r) => r.length > 1), token: 'tok', mode: 'xlsx' });
+    gas.install();
+    await importParsedFoods(parseStructuredFoods(gas.post({ action: 'foods', token: 'tok' }).rows).foods);
+    expect(await db.foods.count()).toBe(160);
+    const before = JSON.stringify((await db.foods.toArray()).map((f) => [f.sheetKey, f.per100]).sort());
+    const r = await importParsedFoods(parseFoodRows(parseCSV(CSV160)).foods, 'file');
+    expect(r.added).toBe(0);
+    expect(await db.foods.count()).toBe(160);
+    expect(JSON.stringify((await db.foods.toArray()).map((f) => [f.sheetKey, f.per100]).sort())).toBe(before);
+  });
   it('foods imported by name are re-keyed to F-IDs without duplicates; diary history untouched', async () => {
     await fresh160();
     const e = await addFoodEntry(today(), 'lunch', await food('صدر دجاج'), 100, 'g');

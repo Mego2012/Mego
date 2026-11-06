@@ -2,15 +2,35 @@ import { db, DB_SCHEMA_VERSION, SYNC_TABLES, type SyncTable } from './db';
 import { getSettings, onLocalChange, saveSettings } from './repo';
 import { importParsedFoods, parseFoodRows, parseStructuredFoods, type ImportResult } from './sheetImport';
 
-/** The ONLY spreadsheet this app may sync with («MEGO Nutrition Hub»). A server reporting any other ID is refused. */
+/**
+ * The Hub («MEGO Nutrition Hub»): the ONLY spreadsheet this app may sync with. HUB_ID is the original file (Excel,
+ * kept untouched as the backup). The backend converts it once into a native Google Sheet and reports
+ * { sourceId: HUB_ID, spreadsheetId: <native ID> }. The native ID is pinned on this phone at the first connection;
+ * a backend reporting another source, or a different native sheet later, is refused.
+ */
 export const HUB_ID = '1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI';
 export const HUB_NAME = 'MEGO Nutrition Hub';
 let hubChecked = false;
+
+interface PingResult {
+  spreadsheet: string; spreadsheetId?: string; sourceId?: string; foodSheet: string | null; mode?: 'native' | 'xlsx'; writable?: boolean;
+  aiScanner?: boolean; aiModel?: string; verified?: { ok: boolean; foods: number; tabs: string[] } | null; scriptVersion?: number;
+}
+
+/** Checks a ping result against the Hub identity. Returns the native ID to pin (or undefined while still Excel). */
+export function checkHub(r: PingResult, pinned?: string): string | undefined {
+  const source = r.sourceId ?? r.spreadsheetId;
+  if (source !== HUB_ID) throw new Error(`WRONG_SPREADSHEET: backend uses ${source ?? 'unknown'}, expected ${HUB_ID} (${HUB_NAME})`);
+  const native = r.spreadsheetId && r.spreadsheetId !== HUB_ID ? r.spreadsheetId : undefined;
+  if (pinned && native && native !== pinned) throw new Error(`HUB_CHANGED: backend now uses ${native}, this phone is pinned to ${pinned}`);
+  return native;
+}
+
 /** Verifies the backend is connected to the Hub (once per session) before any data is exchanged. */
 async function assertHub(cfg: Settings['sync']) {
   if (hubChecked) return;
-  const r = await callScript<{ spreadsheetId?: string; mode?: string }>(cfg, 'ping');
-  if (r.spreadsheetId !== HUB_ID) throw new Error(`WRONG_SPREADSHEET: backend uses ${r.spreadsheetId ?? 'unknown'}, expected ${HUB_ID}`);
+  const r = await callScript<PingResult>(cfg, 'ping');
+  checkHub(r, cfg.hubNativeId);
   hubChecked = true;
 }
 import type { Food, OutboxItem, Settings } from './types';
@@ -67,7 +87,7 @@ export async function callScript<T = Record<string, unknown>>(cfg: Settings['syn
   });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const json = (await res.json()) as { ok: boolean; error?: string } & T;
-  if (!json.ok) throw new Error(json.error || 'Script error');
+  if (!json.ok) throw Object.assign(new Error(json.error || 'Script error'), { data: json });
   return json;
 }
 
@@ -153,6 +173,43 @@ export function foodToSheetRow(f: Food) {
   };
 }
 
+export interface HubFoodCheck {
+  hubFoods: number;
+  localFoods: number;
+  identical: number;
+  /** Same food, different values (name, local per100, hub per100). Nothing is changed automatically. */
+  different: { name: string; local: Food['per100']; hub: Food['per100'] }[];
+  onlyInHub: string[];
+  onlyOnPhone: string[];
+}
+
+const sameNum = (a: number | undefined, b: number | undefined) => (a ?? 0) === (b ?? 0) || Math.abs((a ?? 0) - (b ?? 0)) < 1e-9;
+
+/** Compares the Hub's food table with the foods already on this phone (read-only — imports nothing). */
+export async function checkHubFoods(): Promise<HubFoodCheck> {
+  const s = await getSettings();
+  await assertHub(s.sync);
+  const res = await callScript<{ rows: string[][]; structured?: boolean }>(s.sync, 'foods');
+  const parsed = res.structured ? parseStructuredFoods(res.rows) : parseFoodRows(res.rows);
+  if (parsed.errors.length) throw new Error(parsed.errors.join(','));
+  const local = (await db.foods.toArray()).filter((f) => f.source === 'sheet' && !f.archived);
+  const key = (name: string, state: string) => `${name.trim()}|${state}`;
+  const byKey = new Map(local.map((f) => [key(f.nameAr, f.state), f]));
+  const out: HubFoodCheck = { hubFoods: parsed.foods.length, localFoods: local.length, identical: 0, different: [], onlyInHub: [], onlyOnPhone: [] };
+  const seen = new Set<string>();
+  for (const p of parsed.foods) {
+    const k = key(p.nameAr, p.state);
+    const f = byKey.get(k);
+    if (!f) { out.onlyInHub.push(p.nameAr); continue; }
+    seen.add(k);
+    const same = (['kcal', 'protein', 'carbs', 'fat'] as const).every((m) => sameNum(f.per100[m], p.per100[m])) && sameNum(f.pieceGrams, p.pieceGrams);
+    if (same) out.identical++;
+    else out.different.push({ name: p.nameAr, local: f.per100, hub: p.per100 });
+  }
+  for (const [k, f] of byKey) if (!seen.has(k)) out.onlyOnPhone.push(f.nameAr);
+  return out;
+}
+
 /** Pulls the food database tab from Google Sheets and merges it (never deletes local records). */
 export async function pullFoodsFromSheet(): Promise<ImportResult & { sheet: string; rowsRead: number }> {
   const s = await getSettings();
@@ -217,12 +274,27 @@ export async function queueFullUpload() {
   await refreshPending();
 }
 
-export async function testConnection(cfg: Settings['sync']) {
+/** Explicit connection test (Settings). Pins the native Hub ID on first success; acceptNewHub re-pins after confirmation. */
+export async function testConnection(cfg: Settings['sync'], opts: { acceptNewHub?: boolean } = {}) {
   hubChecked = false;
-  const r = await callScript<{ spreadsheet: string; spreadsheetId?: string; foodSheet: string | null; mode?: 'native' | 'xlsx'; writable?: boolean; aiScanner?: boolean }>(cfg, 'ping');
-  if (r.spreadsheetId !== HUB_ID) throw new Error(`WRONG_SPREADSHEET: backend uses ${r.spreadsheetId ?? 'unknown'}, expected ${HUB_ID} (${HUB_NAME})`);
+  const r = await callScript<PingResult>(cfg, 'ping');
+  const native = checkHub(r, opts.acceptNewHub ? undefined : cfg.hubNativeId);
+  if (native && native !== cfg.hubNativeId) await saveSettings((x) => { x.sync.hubNativeId = native; });
   hubChecked = true;
   return r;
+}
+
+/** Stores the Gemini key in the backend's Script Properties (checked by Google first). The app does not keep it. */
+export async function setAiKey(key: string, remove = false) {
+  const s = await getSettings();
+  await assertHub(s.sync);
+  return callScript<{ aiScanner: boolean; aiModel?: string }>(s.sync, 'setAiKey', remove ? { remove: true } : { key });
+}
+
+/** Parses the one-line connection code printed by installMego(): MEGO1|<web app url>|<token>. */
+export function parseConnectionCode(code: string): { url: string; token: string } | null {
+  const m = /^MEGO1\|(https:\/\/script\.google\.com\/[^|\s]+)\|([A-Za-z0-9]{32,128})$/.exec(code.trim());
+  return m ? { url: m[1], token: m[2] } : null;
 }
 
 let started = false;

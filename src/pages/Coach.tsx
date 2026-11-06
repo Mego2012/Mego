@@ -176,7 +176,7 @@ function FoodsTab({ foods }: { foods: IntelFood[] }) {
           <li key={r.food.item.id} className="clickable" onClick={() => setDetail(r)} data-testid="rank-row">
             <span className="rank-no num">{r.rank}</span>
             <div className="grow" style={{ minWidth: 0 }}>
-              <div className="bold">{r.food.name}</div>
+              <div className="bold">{r.food.name}{(kind === 'protein' || kind === 'building' || kind === 'cutting') && !r.aas && r.food.protein >= 5 && <span className="chip" style={{ marginInlineStart: 6 }} data-testid="no-aa">{t('rank_noAA')}</span>}</div>
               <div className="tiny muted num">{n(r.food.kcal)} {t('kcalUnit')} · P {n(r.food.protein, 1)} · C {n(r.food.carbs, 1)} · F {n(r.food.fat, 1)}{r.food.fiber !== undefined ? ` · ${t('fiber')} ${n(r.food.fiber, 1)}` : ''} / 100 {t('g')}</div>
             </div>
             <div className="stack" style={{ alignItems: 'flex-end', gap: 2 }}>

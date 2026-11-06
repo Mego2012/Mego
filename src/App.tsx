@@ -1,4 +1,4 @@
-import { lazy, Suspense } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { HashRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './app/AppContext';
 import { Layout } from './components/Layout';
@@ -19,6 +19,14 @@ const Coach = lazy(() => import('./pages/Coach'));
 function Routed() {
   const { ready, lang } = useApp();
   const loc = useLocation();
+  useEffect(() => {
+    if (!ready) return;
+    const el = document.getElementById('splash');
+    if (!el) return;
+    el.classList.add('gone');
+    const id = setTimeout(() => el.remove(), 500);
+    return () => clearTimeout(id);
+  }, [ready]);
   if (!ready) return <div className="main"><Skeleton /></div>;
   return (
     <Layout>

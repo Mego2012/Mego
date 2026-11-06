@@ -60,6 +60,7 @@ function ProfileForm() {
   const fmt = (m: { kcal: number; protein: number; carbs: number; fat: number }) => `${n(m.kcal)} ${t('kcalUnit')} · ${n(m.protein)}/${n(m.carbs)}/${n(m.fat)} ${t('g')}`;
   return (
     <Card title={t('profile')}>
+      <div style={{ marginBottom: 10 }}><TextField label={t('yourName')} value={p.name ?? ''} onChange={(v) => setP({ ...p, name: v.slice(0, 30) })} testId="profile-name" /></div>
       <label className="field" style={{ marginBottom: 10 }}>
         <span>{t('goalType')}</span>
         <select className="input" value={p.goalType} onChange={(e) => setP({ ...p, goalType: e.target.value as GoalType })} data-testid="goal-select" style={{ fontWeight: 600 }}>

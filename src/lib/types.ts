@@ -253,6 +253,8 @@ export type GoalType = 'fat_loss' | 'fat_loss_preserve' | 'recomp' | 'lean_bulk'
 export const GOAL_TYPES: GoalType[] = ['fat_loss', 'fat_loss_preserve', 'recomp', 'lean_bulk', 'bulk', 'maintain', 'healthy', 'performance', 'custom'];
 
 export interface Profile {
+  /** Optional first name used in the greeting. */
+  name?: string;
   sex: 'male' | 'female';
   age: number;
   heightCm: number;

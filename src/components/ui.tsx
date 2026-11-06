@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { createPortal } from 'react-dom';
 import { useApp } from '../app/AppContext';
 import { addDays, today } from '../lib/dates';
 import type { FoodState, Macros } from '../lib/types';
@@ -47,22 +48,25 @@ export function Ring({ value, max, size = 150, stroke = 14, color = 'var(--kcal)
 type CoreKey = 'kcal' | 'protein' | 'carbs' | 'fat';
 const MACRO_COLORS: Record<CoreKey, string> = { kcal: 'var(--kcal)', protein: 'var(--protein)', carbs: 'var(--carbs)', fat: 'var(--fat)' };
 
-/** Consumed / target with remaining (or over) for each macro. */
+/** Consumed / target with remaining (or over) for each macro — graduated gauges (a tick every 10 %). */
 export function MacroBars({ totals, target, keys = ['protein', 'carbs', 'fat'] }: { totals: Macros; target: Macros; keys?: CoreKey[] }) {
   const { t, n } = useApp();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { const id = requestAnimationFrame(() => setMounted(true)); return () => cancelAnimationFrame(id); }, []);
   return (
-    <div className="stack">
+    <div className="gauges">
       {keys.map((k) => {
         const left = target[k] - totals[k];
         const unit = k === 'kcal' ? t('kcalUnit') : t('g');
+        const pct = target[k] > 0 ? Math.min(100, (totals[k] / target[k]) * 100) : 0;
         return (
-          <div key={k} className="macro-row" data-macro={k}>
-            <span className="small bold" style={{ color: MACRO_COLORS[k] }}>{t(k)}</span>
-            <span className="small num">
-              <b>{n(totals[k], k === 'kcal' ? 0 : 1)}</b> / {n(target[k])} {unit}
-            </span>
-            <ProgressBar value={totals[k]} max={target[k]} color={MACRO_COLORS[k]} />
-            <span className={`tiny num ${left < 0 ? 'delta pos' : 'muted'}`} style={{ gridColumn: '1 / -1' }} data-testid={`remaining-${k}`}>
+          <div key={k} className="macro-row" data-macro={k} style={{ ['--c' as string]: MACRO_COLORS[k] }}>
+            <span className="m-name">{t(k)}</span>
+            <span className="m-val num"><b>{n(totals[k], k === 'kcal' ? 0 : 1)}</b> / {n(target[k])} {unit}</span>
+            <div className={`gauge ${totals[k] > target[k] ? 'over' : ''}`} role="progressbar" aria-label={t(k)} aria-valuenow={Math.round(totals[k])} aria-valuemax={Math.round(target[k])}>
+              <i style={{ width: `${mounted ? pct : 0}%` }} />
+            </div>
+            <span className={`m-left tiny num ${left < 0 ? 'delta pos' : 'muted'}`} data-testid={`remaining-${k}`}>
               {left >= 0 ? `${t('remainingShort')} ${n(left, k === 'kcal' ? 0 : 1)} ${unit}` : `${t('overShort')} ${n(-left, k === 'kcal' ? 0 : 1)} ${unit}`}
             </span>
           </div>
@@ -157,7 +161,8 @@ export function Sheet({ title, onClose, children, footer }: { title: ReactNode; 
       }
     };
   }, []);
-  return (
+  // Rendered at the document root so no page stacking context can place it under the sticky header.
+  const node = (
     <div className="backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="sheet" role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined}>
         <div className="grabber" />
@@ -170,6 +175,7 @@ export function Sheet({ title, onClose, children, footer }: { title: ReactNode; 
       </div>
     </div>
   );
+  return typeof document === 'undefined' ? node : createPortal(node, document.body);
 }
 
 export function Confirm({ message, onYes, onNo, danger }: { message: string; onYes: () => void; onNo: () => void; danger?: boolean }) {

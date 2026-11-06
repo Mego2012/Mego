@@ -32,7 +32,9 @@ async function check(id, name, fn) {
     const detail = await fn();
     record(id, name, true, detail || '');
   } catch (e) {
-    record(id, name, false, String(e && e.message || e).split('\n')[0]);
+    const lines = String(e && e.message || e).split('\n').map((l) => l.replace(/\u001b\[[0-9;]*m/g, '').trim()).filter(Boolean);
+    const why = [...new Set(lines.filter((l) => /intercepts pointer|not stable|outside of the viewport|not visible|not enabled|detached/.test(l)))].slice(0, 2);
+    record(id, name, false, [lines[0], ...why].join(' | '));
   }
 }
 function expectEq(a, b, label) {
@@ -391,8 +393,10 @@ await check('TEST 15', 'Switch Arabic ⇄ English: dir rtl/ltr and labels', asyn
   await page.waitForTimeout(300);
   expectEq(await page.evaluate(() => document.documentElement.dir), 'ltr', 'dir after EN');
   await go(page, '/');
-  const h1 = await page.locator('header h1').innerText();
-  expectEq(h1, 'Dashboard', 'EN title');
+  expectEq((await page.getByTestId('nav-home').innerText()).trim(), 'Dashboard', 'EN nav label');
+  await page.getByTestId('nav-diary').click();
+  await waitText(page.locator('header h1'), /^Diary$/);
+  await go(page, '/');
   await shot(page, '09-dashboard-en');
   await go(page, '/diary');
   await shot(page, '10-diary-en');
@@ -401,7 +405,7 @@ await check('TEST 15', 'Switch Arabic ⇄ English: dir rtl/ltr and labels', asyn
   await page.waitForTimeout(300);
   expectEq(await page.evaluate(() => document.documentElement.dir), 'rtl', 'dir after AR');
   await go(page, '/');
-  expectEq(await page.locator('header h1').innerText(), 'الرئيسية', 'AR title');
+  expectEq((await page.getByTestId('nav-home').innerText()).trim(), 'الرئيسية', 'AR nav label');
 });
 
 
@@ -760,8 +764,8 @@ await check('LAYOUT', 'No horizontal overflow on any screen (phone width)', asyn
   for (const h of ['/', '/diary', '/recipes', '/recipes?tab=suggest', '/recipes?tab=cook', '/recipes?tab=recipes', '/foods', '/planner', '/progress', '/habits', '/reports/week', '/reports/month', '/settings']) {
     await go(page, h);
     await page.waitForTimeout(300);
-    const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth, wide: [...document.querySelectorAll('main *')].filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1 && getComputedStyle(e).position !== 'fixed' && !e.closest('.table-wrap,.segmented,.chart')).length }));
-    if (w.wide > 0) bad.push(`${h}: ${w.wide} element(s) wider than the screen`);
+    const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth, wide: [...document.querySelectorAll('main *')].filter((e) => { const r = e.getBoundingClientRect(); return (r.right > window.innerWidth + 1 || r.left < -1) && getComputedStyle(e).position !== 'fixed' && !e.closest('.table-wrap,.segmented,.chart,.vchart'); }).map((e) => `${e.tagName.toLowerCase()}.${String(e.className).split(' ')[0]}${e.dataset.testid ? '#' + e.dataset.testid : ''}`) }));
+    if (w.wide.length > 0) bad.push(`${h}: ${w.wide.length} element(s) wider than the screen (${[...new Set(w.wide)].slice(0, 4).join(', ')})`);
   }
   if (bad.length) throw new Error(bad.join('; '));
 });

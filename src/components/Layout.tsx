@@ -4,6 +4,7 @@ import { useApp } from '../app/AppContext';
 import { pushNow, subscribeSync, type SyncStatus } from '../lib/sync';
 import { Icon, type IconName } from './icons';
 import { Sheet } from './ui';
+import { Wordmark } from './instrument';
 
 const ALL: { to: string; key: string; icon: IconName }[] = [
   { to: '/', key: 'nav_dashboard', icon: 'home' },
@@ -64,7 +65,7 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <div className="app">
       <nav className="side-nav" aria-label="main">
-        <div className="brand">{t('appName')}</div>
+        <div className="brand"><Wordmark /></div>
         {ALL.map((a) => (
           <NavLink key={a.to} to={a.to} end={a.to === '/'} className={({ isActive }) => (isActive ? 'active' : '')}>
             <Icon name={a.icon} /> {t(a.key)}
@@ -73,7 +74,7 @@ export function Layout({ children }: { children: ReactNode }) {
       </nav>
       <div className="content">
         <header className="header">
-          <h1>{current ? t(current.key) : t('appName')}</h1>
+          {loc.pathname === '/' ? <h1 aria-label={t('appName')}><Wordmark /></h1> : <h1>{current ? t(current.key) : t('appName')}</h1>}
           <button className="sync-chip" onClick={() => (sync.state === 'disabled' ? nav('/settings#sync') : pushNow())} data-testid="sync-chip" title={sync.error}>
             <span className={`dot ${state}`} />
             {t('syncState_' + state)}{sync.pending > 0 ? ` · ${sync.pending}` : ''}{sync.state === 'error' && sync.retryIn ? ` · ${t('retryIn', { s: sync.retryIn })}` : ''}

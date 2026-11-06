@@ -1,14 +1,17 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { db } from '../lib/db';
 import { availableUnits, basisFromFood, gramsPerUnit, macrosFor, UnitError } from '../lib/nutrition';
-import { BarcodeSheet } from './BarcodeSheet';
+import { BarcodeSheet, ProductForm } from './BarcodeSheet';
+import { FoodEditor } from '../pages/Foods';
+import { loadRefFoods, materializeRefFood, refLoaded, searchRefFoods, type RefFood } from '../lib/refFoods';
+import { searchOFF, type ExternalProduct } from '../lib/barcode';
 import { displayName, toggleFavoriteFood } from '../lib/repo';
 import { filterFoods } from '../lib/search';
 import type { DiaryEntry, EntryBasis, Food, MealTemplate, Recipe, Unit } from '../lib/types';
 import { Icon } from './icons';
-import { MacroLine, OptionalNutrientsLine, Segmented, StateChip } from './ui';
+import { MacroLine, OptionalNutrientsLine, Segmented, Sheet, StateChip, useAsync } from './ui';
 
 type Tab = 'search' | 'recent' | 'frequent' | 'favorites' | 'history' | 'meals' | 'recipes';
 
@@ -48,6 +51,22 @@ export function FoodPicker({ onPickFood, onPickRecipe, onPickTemplate, onPickHis
     if (tab === 'favorites') return filterFoods(foods, { favoritesOnly: true, q, state });
     return filterFoods(foods, { q, state }).slice(0, 80);
   }, [foods, tab, q, state]);
+
+  // Shared reference database (USDA): loaded on first search, works offline after the first load.
+  const [refState, setRefState] = useState<'idle' | 'loading' | 'ready' | 'error'>(refLoaded() ? 'ready' : 'idle');
+  const searching = tab === 'search' && q.trim().length >= 2;
+  useEffect(() => {
+    if (!searching || refState !== 'idle') return;
+    setRefState('loading');
+    loadRefFoods().then(() => setRefState('ready')).catch(() => setRefState('error'));
+  }, [searching, refState]);
+  const refResults = useMemo(() => (searching && refState === 'ready' ? searchRefFoods(q, { state: state || undefined }, 30) : []), [q, state, searching, refState]);
+  const [creating, setCreating] = useState(false);
+  const [off, setOff] = useState<{ state: 'idle' | 'loading' | 'done' | 'error'; items: ExternalProduct[] }>({ state: 'idle', items: [] });
+  const [offPick, setOffPick] = useState<ExternalProduct | null>(null);
+  useEffect(() => setOff({ state: 'idle', items: [] }), [q]);
+  const { run } = useAsync();
+  const pickRef = async (rf: RefFood) => { const f = await run(() => materializeRefFood(rf)); if (f) onPickFood(f); };
 
   const tabs: { value: Tab; label: string }[] = [
     { value: 'search', label: t('all') },
@@ -130,8 +149,63 @@ export function FoodPicker({ onPickFood, onPickRecipe, onPickTemplate, onPickHis
               </button>
             </li>
           ))}
-          {!list.length && <li className="empty">{t('noResults')}</li>}
+          {!list.length && !refResults.length && refState !== 'loading' && <li className="empty">{t('noResults')}</li>}
         </ul>
+      )}
+      {searching && (
+        <div className="stack" data-testid="ref-section">
+          <div className="row between">
+            <span className="small bold">{t('refDb')} <span className="chip">{t('usdaBadge')}</span></span>
+            {refState === 'ready' && <span className="tiny muted num">{refResults.length}</span>}
+          </div>
+          {refState === 'loading' && <div className="tiny muted">{t('refDbLoading')}</div>}
+          {refState === 'error' && <div className="tiny muted">{t('refDbOffline')}</div>}
+          <ul className="list" data-testid="ref-results">
+            {refResults.map((rf) => (
+              <li key={rf.id} className="clickable" onClick={() => pickRef(rf)} data-testid="ref-option">
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="row" style={{ gap: 6 }}>
+                    <span className="bold" dir="ltr" style={{ overflowWrap: 'anywhere' }}>{rf.name}</span>
+                    {rf.state !== 'other' && <StateChip state={rf.state} />}
+                  </div>
+                  <div className="tiny muted">{n(rf.per100.kcal)} {t('kcalUnit')} · {t('per100')} · <MacroLine m={rf.per100} compact /> · {rf.category}</div>
+                </div>
+                <span className="chip">+</span>
+              </li>
+            ))}
+          </ul>
+          <div className="notice" data-testid="create-hint">
+            <div className="tiny muted">{t('createFoodHint')}</div>
+            <div className="row wrap" style={{ gap: 6, marginTop: 6 }}>
+              <button className="btn sm primary" onClick={() => setCreating(true)} data-testid="create-from-search">+ {t('createFoodNamed', { q: q.trim() })}</button>
+              <button className="btn sm" disabled={off.state === 'loading'} data-testid="off-search" onClick={async () => {
+                setOff({ state: 'loading', items: [] });
+                try { setOff({ state: 'done', items: await searchOFF(q.trim()) }); } catch { setOff({ state: 'error', items: [] }); }
+              }}>🌐 {t('offSearch')}</button>
+            </div>
+          </div>
+          {off.state === 'error' && <div className="tiny muted">{t('offError')}</div>}
+          {off.state === 'done' && (
+            <ul className="list" data-testid="off-results">
+              {off.items.map((p, i) => (
+                <li key={p.barcode + i} className="clickable" onClick={() => setOffPick(p)} data-testid="off-option">
+                  <div className="grow" style={{ minWidth: 0 }}>
+                    <div className="bold" style={{ overflowWrap: 'anywhere' }}>{p.name}{p.brand ? ` · ${p.brand}` : ''}</div>
+                    <div className="tiny muted">{n(p.per100.kcal)} {t('kcalUnit')} · {t('per100')} · <MacroLine m={p.per100} compact /> · Open Food Facts</div>
+                  </div>
+                  <span className="chip">+</span>
+                </li>
+              ))}
+              {!off.items.length && <li className="empty">{t('offNone')}</li>}
+            </ul>
+          )}
+        </div>
+      )}
+      {creating && <FoodEditor food={null} initialName={q.trim()} onClose={() => setCreating(false)} onSaved={(f) => onPickFood(f)} />}
+      {offPick && (
+        <Sheet title={t('offResults')} onClose={() => setOffPick(null)}>
+          <ProductForm product={offPick} note="" onSaved={(f) => { setOffPick(null); onPickFood(f); }} />
+        </Sheet>
       )}
     </div>
   );

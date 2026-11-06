@@ -644,6 +644,38 @@ await check('DEEPLINK', 'QR/deep link from the laptop setup connects the app and
   return (await page.getByTestId('hub-check').innerText()).split('\n')[1];
 });
 
+await check('FOODDB', 'USDA database: Arabic search "صدور فراخ" → chicken breast → log; missing food created from its label and logged', async () => {
+  await go(page, '/diary');
+  await tap(page, 'add-snacks');
+  await page.getByTestId('food-search').fill('صدور فراخ');
+  await page.getByTestId('ref-option').first().waitFor({ timeout: 15000 });
+  const first = await page.getByTestId('ref-option').first().innerText();
+  if (!/chicken/i.test(first) || !/breast/i.test(first)) throw new Error('first USDA result: ' + first);
+  const roasted = page.getByTestId('ref-option').filter({ hasText: 'breast, meat only, cooked, roasted' }).first();
+  await roasted.click();
+  await page.getByTestId('qty-input').fill('200');
+  const kcal = (await page.getByTestId('preview-kcal').innerText()).split(' ')[0].replace(/,/g, '');
+  expectEq(kcal, '330', 'USDA roasted chicken breast 200 g (165 kcal/100 g)');
+  await page.getByTestId('qty-submit').click();
+  // a food that is not in any database
+  await page.getByTestId('food-search').fill('كعك العيد بالتمر');
+  await page.getByTestId('create-from-search').click();
+  await page.getByTestId('fe-basis').selectOption('serving');
+  await page.getByTestId('fe-serving-g').fill('30');
+  for (const [id, v] of [['fe-kcal', '120'], ['fe-protein', '3'], ['fe-carbs', '18'], ['fe-fat', '4']]) await page.getByTestId(id).fill(v);
+  const conv = await page.getByTestId('fe-converted').innerText();
+  if (!/400/.test(conv)) throw new Error('label conversion: ' + conv);
+  await page.getByTestId('fe-save').click();
+  await page.getByTestId('qty-input').fill('60');
+  expectEq((await page.getByTestId('preview-kcal').innerText()).split(' ')[0], '240', 'custom food 60 g');
+  await page.getByTestId('qty-submit').click();
+  await page.keyboard.press('Escape');
+  await waitText(page.getByTestId('meal-snacks'), /كعك العيد بالتمر/);
+  await waitText(page.getByTestId('meal-snacks'), /Chicken, broilers or fryers, breast/);
+  await shot(page, '31-fooddb');
+  return first.split('\n')[0];
+});
+
 await check('LIB100', 'Recipe library has ≥ 100 recipes, all calculable', async () => {
   await go(page, '/recipes');
   const c = await waitText(page.getByTestId('library-count'), /\d+ \/ \d+/);

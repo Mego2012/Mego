@@ -1,7 +1,7 @@
 /** Strings for features added in v2 (merged into the main dictionaries). */
 export const en2: Record<string, string> = {
   nav_habits: 'Water & habits', nav_library: 'My Recipes',
-  fiber: 'Fiber', sugar: 'Sugar', sodium: 'Sodium', mg: 'mg', ml: 'ml', unknown: 'unknown',
+  fiber: 'Fiber', sugar: 'Sugar', sodium: 'Sodium', satFat: 'Saturated fat', mg: 'mg', ml: 'ml', unknown: 'unknown',
   remainingShort: 'left', overShort: 'over', remainingMacros: 'Remaining today',
   nutrientCoverage: '{k}: data for {n} of {total} entries', optionalNutrients: 'Fiber / sugar / sodium (optional, per 100 g)',
   unit_l: 'L', unit_cup: 'cup', unitWithGrams: '{unit} ({g} g)',
@@ -128,12 +128,18 @@ export const en2: Record<string, string> = {
   hubChanged: 'The backend now uses a different Google Sheet than before. Accept the new sheet?', hubCheckTitle: 'Hub check (foods)',
   hubCheckLine: '{identical} identical of {hub} foods in the Hub · {local} on this phone', hubOnlyInHub: '{n} new food(s) only in the Hub (will be added)',
   hubOnlyOnPhone: '{n} food(s) only on this phone (kept)', hubDifferent: '{n} food(s) have different values — nothing was imported. Review below.',
-  hubAcceptSheet: 'Use the Hub values (backup first; past diary entries keep their values)', hubUploaded: 'your records were uploaded'
+  hubAcceptSheet: 'Use the Hub values (backup first; past diary entries keep their values)', hubUploaded: 'your records were uploaded',
+  labelServing: 'Label serving', valuesPer: 'Values entered per', per100ml: 'per 100 ml', perServingLabel: 'per serving (nutrition label)', servingSizeG: 'Serving size',
+  densityAssumed: 'No density entered: 1 ml = 1 g is assumed.', convertedPer100: 'Saved per 100 g', sourceLabel: 'Source',
+  refDb: 'Food database', refDbLoading: 'Loading the food database…', refDbOffline: 'The food database could not be loaded — your own foods still work.',
+  createFoodNamed: 'Create “{q}” as my food', createFoodHint: 'Not found? Add it now from the nutrition label — it is saved in your own foods.',
+  usdaBadge: 'USDA', offSearch: 'Search packaged products online (Open Food Facts)', offResults: 'Open Food Facts results', offNone: 'No product found online.',
+  offError: 'Online search is not available right now.', exportMyFoods: 'Export my foods (JSON)', importMyFoods: 'Import my foods (JSON)', importedFoods: 'Imported {n} food(s)'
 };
 
 export const ar2: Record<string, string> = {
   nav_habits: 'الماء والعادات', nav_library: 'وصفاتي',
-  fiber: 'الألياف', sugar: 'السكر', sodium: 'الصوديوم', mg: 'ملغ', ml: 'مل', unknown: 'غير معروف',
+  fiber: 'الألياف', sugar: 'السكر', sodium: 'الصوديوم', satFat: 'دهون مشبعة', mg: 'ملغ', ml: 'مل', unknown: 'غير معروف',
   remainingShort: 'متبقٍ', overShort: 'تجاوز', remainingMacros: 'المتبقي اليوم',
   nutrientCoverage: '{k}: متوفر لـ {n} من {total} عنصر', optionalNutrients: 'الألياف / السكر / الصوديوم (اختياري، لكل 100غ)',
   unit_l: 'لتر', unit_cup: 'كوب', unitWithGrams: '{unit} ({g} غ)',
@@ -252,5 +258,11 @@ export const ar2: Record<string, string> = {
   hubChanged: 'الخادم يستخدم الآن Google Sheet مختلفًا عن السابق. هل تقبل الملف الجديد؟', hubCheckTitle: 'فحص الـ Hub (الأطعمة)',
   hubCheckLine: '{identical} متطابق من {hub} طعامًا في الـ Hub · {local} على هذا الهاتف', hubOnlyInHub: '{n} طعام جديد موجود في الـ Hub فقط (ستتم إضافته)',
   hubOnlyOnPhone: '{n} طعام موجود على الهاتف فقط (يبقى كما هو)', hubDifferent: '{n} طعام قيمه مختلفة — لم يُستورد شيء. راجعها بالأسفل.',
-  hubAcceptSheet: 'استخدم قيم الـ Hub (بعد نسخة احتياطية؛ سجلات اليوميات السابقة تحتفظ بقيمها)', hubUploaded: 'تم رفع سجلاتك'
+  hubAcceptSheet: 'استخدم قيم الـ Hub (بعد نسخة احتياطية؛ سجلات اليوميات السابقة تحتفظ بقيمها)', hubUploaded: 'تم رفع سجلاتك',
+  labelServing: 'حصة الملصق', valuesPer: 'القيم المُدخلة لكل', per100ml: 'لكل 100 مل', perServingLabel: 'لكل حصة (ملصق التغذية)', servingSizeG: 'حجم الحصة',
+  densityAssumed: 'لم تُدخل الكثافة: يُفترض أن 1 مل = 1 غ.', convertedPer100: 'يُحفظ لكل 100 غ', sourceLabel: 'المصدر',
+  refDb: 'قاعدة بيانات الأطعمة', refDbLoading: 'جارٍ تحميل قاعدة بيانات الأطعمة…', refDbOffline: 'تعذّر تحميل قاعدة الأطعمة — أطعمتك الخاصة تعمل كالمعتاد.',
+  createFoodNamed: 'أنشئ «{q}» كطعام خاص بي', createFoodHint: 'غير موجود؟ أضفه الآن من ملصق التغذية — يُحفظ في أطعمتك الخاصة.',
+  usdaBadge: 'USDA', offSearch: 'ابحث عن المنتجات المعبأة عبر الإنترنت (Open Food Facts)', offResults: 'نتائج Open Food Facts', offNone: 'لم يُعثر على منتج عبر الإنترنت.',
+  offError: 'البحث عبر الإنترنت غير متاح الآن.', exportMyFoods: 'تصدير أطعمتي (JSON)', importMyFoods: 'استيراد أطعمتي (JSON)', importedFoods: 'تم استيراد {n} طعام'
 };

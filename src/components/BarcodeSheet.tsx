@@ -84,7 +84,7 @@ export function BarcodeSheet({ onFood, onClose }: { onFood: (f: Food) => void; o
   );
 }
 
-function ProductForm({ product, note, onSaved }: { product: ExternalProduct; note: string; onSaved: (f: Food) => void }) {
+export function ProductForm({ product, note, onSaved }: { product: ExternalProduct; note: string; onSaved: (f: Food) => void }) {
   const { t } = useApp();
   const [v, setV] = useState({ name: product.name, brand: product.brand, ...product.per100, piece: product.servingGrams ?? ('' as number | '') });
   const { run, busy } = useAsync();
@@ -106,7 +106,7 @@ function ProductForm({ product, note, onSaved }: { product: ExternalProduct; not
       <div className="tiny muted">{t('barcode')}: {product.barcode}</div>
       <button className="btn primary block" disabled={busy || !v.name.trim() || !(v.kcal > 0)} data-testid="bp-save"
         onClick={async () => {
-          const per100 = { kcal: Number(v.kcal), protein: Number(v.protein), carbs: Number(v.carbs), fat: Number(v.fat), ...(v.fiber !== undefined ? { fiber: Number(v.fiber) } : {}), ...(v.sugar !== undefined ? { sugar: Number(v.sugar) } : {}), ...(v.sodium !== undefined ? { sodium: Number(v.sodium) } : {}) };
+          const per100 = { kcal: Number(v.kcal), protein: Number(v.protein), carbs: Number(v.carbs), fat: Number(v.fat), ...(v.fiber !== undefined ? { fiber: Number(v.fiber) } : {}), ...(v.sugar !== undefined ? { sugar: Number(v.sugar) } : {}), ...(v.sodium !== undefined ? { sodium: Number(v.sodium) } : {}), ...(v.satFat !== undefined ? { satFat: Number(v.satFat) } : {}) };
           const f = await run(() => createFood({
             nameAr: v.name.trim(), nameEn: '', category: v.brand ? 'منتجات' : '', per100, state: 'other', stateLabel: '—', prep: '', notes: external ? 'Open Food Facts — external data, verify with label' : '',
             pieceGrams: v.piece === '' ? undefined : Number(v.piece), source: external ? 'openfoodfacts' : 'custom', barcode: product.barcode, brand: v.brand

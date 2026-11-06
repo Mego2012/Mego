@@ -75,7 +75,7 @@ export function MacroBars({ totals, target, keys = ['protein', 'carbs', 'fat'] }
 /** Fiber / sugar / sodium line — only shown for nutrients that have data. */
 export function OptionalNutrientsLine({ m, coverage, total }: { m: Macros; coverage?: Record<string, number>; total?: number }) {
   const { t, n } = useApp();
-  const parts = (['fiber', 'sugar', 'sodium'] as const).filter((k) => typeof m[k] === 'number' && (coverage ? coverage[k] > 0 : true));
+  const parts = (['fiber', 'sugar', 'satFat', 'sodium'] as const).filter((k) => typeof m[k] === 'number' && (coverage ? coverage[k] > 0 : true));
   if (!parts.length) return null;
   return (
     <div className="tiny muted num">

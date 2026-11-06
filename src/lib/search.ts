@@ -1,18 +1,8 @@
+import { expandQuery, matchesLocal } from './foodSearch';
+import { normalizeText } from './normalize';
 import type { Food } from './types';
 
-/** Normalizes Arabic/English text for forgiving search (alef forms, taa marbuta, diacritics, case). */
-export function normalizeText(s: string): string {
-  return s
-    .toLowerCase()
-    .replace(/[ً-ْٰـ]/g, '')
-    .replace(/[أإآٱ]/g, 'ا')
-    .replace(/ة/g, 'ه')
-    .replace(/ى/g, 'ي')
-    .replace(/ؤ/g, 'و')
-    .replace(/ئ/g, 'ي')
-    .replace(/[^\p{L}\p{N}%/]+/gu, ' ')
-    .trim();
-}
+export { normalizeText } from './normalize';
 
 export interface FoodFilter {
   q?: string;
@@ -28,6 +18,7 @@ export interface FoodFilter {
 
 export function filterFoods(foods: Food[], f: FoodFilter): Food[] {
   const terms = f.q ? normalizeText(f.q).split(' ').filter(Boolean) : [];
+  const groups = f.q ? expandQuery(f.q) : [];
   const res = foods.filter((x) => {
     if (!f.includeArchived && x.archived) return false;
     if (f.category && x.category !== f.category) return false;
@@ -37,10 +28,8 @@ export function filterFoods(foods: Food[], f: FoodFilter): Food[] {
     if (f.minProtein !== undefined && f.minProtein !== '' && x.per100.protein < f.minProtein) return false;
     if (f.maxCarbs !== undefined && f.maxCarbs !== '' && x.per100.carbs > f.maxCarbs) return false;
     if (f.maxFat !== undefined && f.maxFat !== '' && x.per100.fat > f.maxFat) return false;
-    if (terms.length) {
-      const hay = normalizeText(`${x.nameAr} ${x.nameEn} ${x.category} ${x.prep}`);
-      if (!terms.every((t) => hay.includes(t))) return false;
-    }
+    // Arabic ⇄ English word translations and spelling variants (e.g. "chicken breast" finds «صدر دجاج»)
+    if (groups.length && !matchesLocal(`${x.nameAr} ${x.nameEn} ${x.category} ${x.prep} ${x.brand ?? ''}`, groups)) return false;
     return true;
   });
   if (terms.length) {

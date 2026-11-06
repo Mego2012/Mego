@@ -5,6 +5,7 @@ import { Icon } from '../components/icons';
 import { Card, Confirm, MacroLine, NumField, Sheet, StateChip, TextField, useAsync } from '../components/ui';
 import { db } from '../lib/db';
 import { exportFoodsCSV, exportFoodsXLSX } from '../lib/exporters';
+import { exportCustomFoods, importCustomFoods } from '../lib/customFoods';
 import { explainEnergy, isEnergySuspicious, round } from '../lib/nutrition';
 import { archiveFood, createFood, displayName, restoreFood, toggleFavoriteFood, uid, updateFood } from '../lib/repo';
 import { filterFoods, type FoodFilter } from '../lib/search';
@@ -13,7 +14,7 @@ import { auditFoods, importParsedFoods, parseCSV, parseFoodRows, parseWorkbook, 
 import type { CustomServing, Food, FoodChange, FoodState } from '../lib/types';
 
 export default function Foods() {
-  const { t, n, lang } = useApp();
+  const { t, n, lang, toast } = useApp();
   const foods = useLiveQuery(() => db.foods.toArray(), [], []);
   const [f, setF] = useState<FoodFilter>({ q: '' });
   const [showFilters, setShowFilters] = useState(false);
@@ -106,6 +107,17 @@ export default function Foods() {
           <button className="btn" onClick={() => fileRef.current?.click()} data-testid="import-file"><Icon name="upload" /> {t('importFile')}</button>
           <button className="btn" onClick={() => exportFoodsCSV(active)}><Icon name="download" /> {t('exportCSV')}</button>
           <button className="btn" onClick={() => exportFoodsXLSX(active)}><Icon name="download" /> {t('exportXLSX')}</button>
+          <button className="btn" data-testid="export-my-foods" onClick={async () => {
+            const blob = new Blob([await exportCustomFoods()], { type: 'application/json' });
+            const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'mego-my-foods.json'; a.click(); URL.revokeObjectURL(a.href);
+          }}><Icon name="download" /> {t('exportMyFoods')}</button>
+          <label className="btn" data-testid="import-my-foods"><Icon name="upload" /> {t('importMyFoods')}
+            <input type="file" accept=".json,application/json" hidden onChange={async (e) => {
+              const f = e.target.files?.[0]; e.target.value = '';
+              if (!f) return;
+              try { const r = await importCustomFoods(await f.text()); toast(t('importedFoods', { n: r.added })); } catch (err) { toast(`${t('error')}: ${(err as Error).message}`); }
+            }} />
+          </label>
         </div>
         <input ref={fileRef} type="file" accept=".csv,.xlsx,.xls,text/csv" hidden data-testid="import-input"
           onChange={(e) => { const file = e.target.files?.[0]; if (file) onFile(file); e.target.value = ''; }} />
@@ -151,38 +163,47 @@ function ImportPreview({ data, onClose }: { data: { foods: ParsedFood[]; source:
 
 const STATE_LABEL_AR: Record<FoodState, string> = { raw: 'نيء', cooked: 'مطبوخ', other: '—' };
 
-function FoodEditor({ food, onClose }: { food: Food | null; onClose: () => void }) {
+export function FoodEditor({ food, onClose, initialName, onSaved }: { food: Food | null; onClose: () => void; initialName?: string; onSaved?: (f: Food) => void }) {
   const { t, n, d } = useApp();
   const [v, setV] = useState(() => ({
-    nameAr: food?.nameAr ?? '', nameEn: food?.nameEn ?? '', category: food?.category ?? '', state: food?.state ?? ('raw' as FoodState),
+    nameAr: food?.nameAr ?? (initialName && /[\u0600-\u06FF]/.test(initialName) ? initialName : ''), nameEn: food?.nameEn ?? (initialName && !/[\u0600-\u06FF]/.test(initialName) ? initialName : ''), category: food?.category ?? '', state: food?.state ?? ('raw' as FoodState),
     stateLabel: food?.stateLabel ?? '', prep: food?.prep ?? '', notes: food?.notes ?? '',
     kcal: food?.per100.kcal ?? ('' as number | ''), protein: food?.per100.protein ?? ('' as number | ''), carbs: food?.per100.carbs ?? ('' as number | ''), fat: food?.per100.fat ?? ('' as number | ''),
     pieceGrams: food?.pieceGrams ?? ('' as number | ''), gramsPerMl: food?.gramsPerMl ?? ('' as number | ''), servings: food?.servings ?? ([] as CustomServing[]),
     fiber: food?.per100.fiber ?? ('' as number | ''), sugar: food?.per100.sugar ?? ('' as number | ''), sodium: food?.per100.sodium ?? ('' as number | ''),
+    satFat: food?.per100.satFat ?? ('' as number | ''),
+    /** How the numbers were typed: per 100 g, per 100 ml, or per serving (nutrition label) — converted to per 100 g on save. */
+    basis: 'g100' as 'g100' | 'ml100' | 'serving', servingGrams: '' as number | '',
     barcode: food?.barcode ?? '', brand: food?.brand ?? ''
   }));
   const [confirm, setConfirm] = useState(false);
   const [tab, setTab] = useState<'edit' | 'history'>('edit');
   const history = useLiveQuery<FoodChange[], FoodChange[]>(async () => (food ? (await db.foodChanges.where('foodId').equals(food.id).sortBy('at')).reverse() : []), [food?.id], []);
   const { run, busy } = useAsync();
-  const per100: Food['per100'] = { kcal: Number(v.kcal) || 0, protein: Number(v.protein) || 0, carbs: Number(v.carbs) || 0, fat: Number(v.fat) || 0 };
-  if (v.fiber !== '') per100.fiber = Number(v.fiber);
-  if (v.sugar !== '') per100.sugar = Number(v.sugar);
-  if (v.sodium !== '') per100.sodium = Number(v.sodium);
+  // factor converts the typed values to per 100 g: per serving of S g → ×100/S; per 100 ml → ÷ density (g/ml, default 1)
+  const density = v.gramsPerMl === '' ? 1 : Number(v.gramsPerMl) || 1;
+  const factor = v.basis === 'serving' ? (Number(v.servingGrams) > 0 ? 100 / Number(v.servingGrams) : 0) : v.basis === 'ml100' ? 1 / density : 1;
+  const conv = (x: number | '') => round((Number(x) || 0) * factor, 2);
+  const per100: Food['per100'] = { kcal: conv(v.kcal), protein: conv(v.protein), carbs: conv(v.carbs), fat: conv(v.fat) };
+  if (v.fiber !== '') per100.fiber = conv(v.fiber);
+  if (v.sugar !== '') per100.sugar = conv(v.sugar);
+  if (v.sodium !== '') per100.sodium = conv(v.sodium);
+  if (v.satFat !== '') per100.satFat = conv(v.satFat);
   const calc = round(4 * per100.protein + 4 * per100.carbs + 9 * per100.fat, 0);
   const energy = explainEnergy(per100, v.category);
-  const valid = (v.nameAr.trim() || v.nameEn.trim()) && v.kcal !== '' && v.protein !== '' && v.carbs !== '' && v.fat !== '';
+  const valid = (v.nameAr.trim() || v.nameEn.trim()) && v.kcal !== '' && v.protein !== '' && v.carbs !== '' && v.fat !== '' && factor > 0;
 
   const save = async () => {
     const payload = {
       nameAr: v.nameAr.trim(), nameEn: v.nameEn.trim(), category: v.category.trim(), state: v.state,
       stateLabel: food && food.state === v.state ? v.stateLabel : STATE_LABEL_AR[v.state], prep: v.prep, notes: v.notes, per100,
       pieceGrams: v.pieceGrams === '' ? undefined : Number(v.pieceGrams), gramsPerMl: v.gramsPerMl === '' ? undefined : Number(v.gramsPerMl),
-      servings: v.servings.filter((s) => s.name && s.grams > 0),
+      servings: [...v.servings.filter((s) => s.name && s.grams > 0),
+        ...(v.basis === 'serving' && Number(v.servingGrams) > 0 && !v.servings.some((s) => s.grams === Number(v.servingGrams)) ? [{ id: uid(), name: t('labelServing'), grams: Number(v.servingGrams) }] : [])],
       barcode: v.barcode.trim() || undefined, brand: v.brand.trim() || undefined
     };
     const ok = await run(() => (food ? updateFood(food.id, payload) : createFood(payload)), t('saved'));
-    if (ok) onClose();
+    if (ok) { onSaved?.(ok); onClose(); }
   };
 
   return (
@@ -213,19 +234,28 @@ function FoodEditor({ food, onClose }: { food: Food | null; onClose: () => void 
                 <option value="raw">{t('state_raw')}</option><option value="cooked">{t('state_cooked')}</option><option value="other">{t('state_other')}</option>
               </select></label>
           </div>
-          <div className="small bold">{t('per100')}</div>
+          <label className="field"><span>{t('valuesPer')}</span>
+            <select className="input" value={v.basis} onChange={(e) => setV({ ...v, basis: e.target.value as typeof v.basis })} data-testid="fe-basis">
+              <option value="g100">{t('per100')}</option>
+              <option value="ml100">{t('per100ml')}</option>
+              <option value="serving">{t('perServingLabel')}</option>
+            </select></label>
+          {v.basis === 'serving' && <NumField label={t('servingSizeG')} suffix={t('g')} value={v.servingGrams} onChange={(x) => setV({ ...v, servingGrams: x })} testId="fe-serving-g" />}
+          {v.basis === 'ml100' && v.gramsPerMl === '' && <div className="tiny muted">{t('densityAssumed')}</div>}
           <div className="grid4">
             <NumField label={t('kcal')} value={v.kcal} onChange={(x) => setV({ ...v, kcal: x })} testId="fe-kcal" />
             <NumField label={t('protein')} value={v.protein} onChange={(x) => setV({ ...v, protein: x })} testId="fe-protein" />
             <NumField label={t('carbs')} value={v.carbs} onChange={(x) => setV({ ...v, carbs: x })} testId="fe-carbs" />
             <NumField label={t('fat')} value={v.fat} onChange={(x) => setV({ ...v, fat: x })} testId="fe-fat" />
           </div>
+          {v.basis !== 'g100' && factor > 0 && <div className="tiny" data-testid="fe-converted">{t('convertedPer100')}: {per100.kcal} {t('kcalUnit')} · P {per100.protein} · C {per100.carbs} · F {per100.fat}</div>}
           <div className="tiny muted" data-testid="fe-energy">{t('energyCalc', { calc, kcal: per100.kcal })}</div>
           {energy && <div className={`tiny ${energy.reason === 'review' ? 'delta pos' : 'muted'}`} data-testid="fe-energy-explain">{t('energy_' + energy.reason, { pct: energy.pct })}</div>}
           <div className="small bold">{t('optionalNutrients')}</div>
-          <div className="grid3">
+          <div className="grid2">
             <NumField label={t('fiber')} suffix={t('g')} value={v.fiber} onChange={(x) => setV({ ...v, fiber: x })} testId="fe-fiber" />
             <NumField label={t('sugar')} suffix={t('g')} value={v.sugar} onChange={(x) => setV({ ...v, sugar: x })} />
+            <NumField label={t('satFat')} suffix={t('g')} value={v.satFat} onChange={(x) => setV({ ...v, satFat: x })} testId="fe-satfat" />
             <NumField label={t('sodium')} suffix={t('mg')} value={v.sodium} onChange={(x) => setV({ ...v, sodium: x })} />
           </div>
           <div className="grid2">
@@ -247,8 +277,13 @@ function FoodEditor({ food, onClose }: { food: Food | null; onClose: () => void 
             <TextField label={t('brand')} value={v.brand} onChange={(x) => setV({ ...v, brand: x })} />
           </div>
           {food?.source === 'openfoodfacts' && <div className="banner info tiny">{t('externalSource')}</div>}
+          {food?.sourceRef && <div className="tiny muted" data-testid="fe-source">{t('sourceLabel')}: {food.sourceRef}</div>}
           <label className="field"><span>{t('notes')}</span><textarea className="input" rows={3} value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} /></label>
           <button className="btn primary block" disabled={!valid || busy} onClick={save} data-testid="fe-save">{t('save')}</button>
+          {food && !food.archived && <button className="btn block" disabled={busy} data-testid="fe-duplicate" onClick={async () => {
+            const copy = await run(() => createFood({ ...food, nameAr: food.nameAr ? food.nameAr + ' (2)' : '', nameEn: food.nameEn ? food.nameEn + ' (2)' : '', source: 'custom', sourceRef: undefined, sheetKey: undefined, sheetRow: undefined, servings: food.servings.map((x) => ({ ...x, id: uid() })) }, { allowDuplicate: true }), t('saved'));
+            if (copy) onClose();
+          }}><Icon name="copy" /> {t('duplicate')}</button>}
           {food && (food.archived
             ? <button className="btn block" onClick={async () => { await restoreFood(food.id); onClose(); }}>{t('restore')}</button>
             : <button className="btn danger block" onClick={() => setConfirm(true)} data-testid="fe-archive">{t('archive')}</button>)}

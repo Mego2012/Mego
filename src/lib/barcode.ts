@@ -33,7 +33,14 @@ export async function lookupBarcode(code: string, fetcher: typeof fetch = fetch)
   }
   const j = (await res.json()) as { status?: number; product?: Record<string, unknown> };
   if (!j.product || j.status === 0) return null;
-  const p = j.product as { product_name?: string; product_name_ar?: string; product_name_en?: string; brands?: string; serving_quantity?: number; nutriments?: Record<string, number> };
+  return toProduct(j.product, code);
+}
+
+type OffProduct = { code?: string; product_name?: string; product_name_ar?: string; product_name_en?: string; brands?: string; serving_quantity?: number | string; nutriments?: Record<string, number>; saturated?: number };
+
+/** Maps an Open Food Facts product; values stay as published (community data, labelled external). */
+export function toProduct(raw: Record<string, unknown>, code = ''): ExternalProduct {
+  const p = raw as OffProduct;
   const nm = p.nutriments ?? {};
   const num = (k: string) => (typeof nm[k] === 'number' && Number.isFinite(nm[k]) ? nm[k] : undefined);
   const kcal = num('energy-kcal_100g') ?? (num('energy_100g') !== undefined ? num('energy_100g')! / 4.184 : undefined);
@@ -43,17 +50,29 @@ export async function lookupBarcode(code: string, fetcher: typeof fetch = fetch)
   const fiber = num('fiber_100g');
   const sugar = num('sugars_100g');
   const sodium = num('sodium_100g');
+  const sat = num('saturated-fat_100g');
   if (fiber !== undefined) per100.fiber = fiber;
   if (sugar !== undefined) per100.sugar = sugar;
   if (sodium !== undefined) per100.sodium = Math.round(sodium * 1000);
+  if (sat !== undefined) per100.satFat = sat;
+  const serving = Number(p.serving_quantity);
   return {
-    barcode: code,
+    barcode: code || String(p.code ?? ''),
     name: p.product_name_ar || p.product_name || p.product_name_en || code,
     brand: p.brands ?? '',
     per100,
-    servingGrams: typeof p.serving_quantity === 'number' ? p.serving_quantity : undefined,
+    servingGrams: serving > 0 ? serving : undefined,
     complete: kcal !== undefined && num('proteins_100g') !== undefined && num('carbohydrates_100g') !== undefined && num('fat_100g') !== undefined
   };
+}
+
+/** Text search of packaged products on Open Food Facts (free, no key). Incomplete products are dropped. */
+export async function searchOFF(q: string, fetcher: typeof fetch = fetch): Promise<ExternalProduct[]> {
+  const url = `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(q)}&search_simple=1&action=process&json=1&page_size=20&fields=code,product_name,product_name_ar,product_name_en,brands,nutriments,serving_quantity`;
+  const res = await fetcher(url, { headers: { Accept: 'application/json' } });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  const j = (await res.json()) as { products?: Record<string, unknown>[] };
+  return (j.products ?? []).map((p) => toProduct(p)).filter((p) => p.complete && p.name);
 }
 
 /** Camera scanning via the BarcodeDetector API (Chrome on Android supports it). */

@@ -19,9 +19,11 @@ export interface Macros {
   sugar?: number;
   /** mg */
   sodium?: number;
+  /** Saturated fat, g */
+  satFat?: number;
 }
 
-export const OPTIONAL_NUTRIENTS = ['fiber', 'sugar', 'sodium'] as const;
+export const OPTIONAL_NUTRIENTS = ['fiber', 'sugar', 'sodium', 'satFat'] as const;
 export type OptionalNutrient = (typeof OPTIONAL_NUTRIENTS)[number];
 
 export interface CustomServing {
@@ -48,7 +50,9 @@ export interface Food {
   gramsPerMl?: number;
   servings: CustomServing[];
   favorite: boolean;
-  source: 'sheet' | 'custom' | 'openfoodfacts';
+  source: 'sheet' | 'custom' | 'openfoodfacts' | 'usda';
+  /** Where the values come from (e.g. "USDA FDC 171477 (SR Legacy)"); shown to the user. */
+  sourceRef?: string;
   barcode?: string;
   brand?: string;
   /** Key of the record in the Google Sheet (original name + row) used for sync. */

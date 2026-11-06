@@ -1,7 +1,9 @@
 import { lazy, Suspense } from 'react';
-import { HashRouter, Route, Routes } from 'react-router-dom';
+import { HashRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './app/AppContext';
 import { Layout } from './components/Layout';
+import { ErrorBoundary } from './components/ErrorBoundary';
+import { Skeleton } from './components/ui';
 import Dashboard from './pages/Dashboard';
 import Diary from './pages/Diary';
 
@@ -14,11 +16,13 @@ const SettingsPage = lazy(() => import('./pages/Settings'));
 const Habits = lazy(() => import('./pages/Habits'));
 
 function Routed() {
-  const { ready } = useApp();
-  if (!ready) return null;
+  const { ready, lang } = useApp();
+  const loc = useLocation();
+  if (!ready) return <div className="main"><Skeleton /></div>;
   return (
     <Layout>
-      <Suspense fallback={<div className="empty">…</div>}>
+      <ErrorBoundary lang={lang} key={loc.pathname}>
+      <Suspense fallback={<Skeleton />}>
         <Routes>
           <Route path="/" element={<Dashboard />} />
           <Route path="/diary" element={<Diary />} />
@@ -33,6 +37,7 @@ function Routed() {
           <Route path="*" element={<Dashboard />} />
         </Routes>
       </Suspense>
+      </ErrorBoundary>
     </Layout>
   );
 }

@@ -12,7 +12,7 @@ import { exportDiaryCSV } from '../lib/exporters';
 import { DICTS, WEEKDAY_KEYS } from '../lib/i18n';
 import { macroCalories } from '../lib/targets';
 import { saveSettings } from '../lib/repo';
-import { pullAll, pullFoodsFromSheet, pushNow, queueFullUpload, testConnection } from '../lib/sync';
+import { HUB_ID, HUB_NAME, pullAll, pullFoodsFromSheet, pushNow, queueFullUpload, testConnection } from '../lib/sync';
 import type { Lang, Macros, ThemeMode } from '../lib/types';
 
 export default function Settings() {
@@ -161,6 +161,11 @@ function SyncForm() {
   return (
     <Card title={<span id="sync">{t('syncTitle')}</span>}>
       <div className="stack" data-testid="sync-form">
+        <div className="stat" data-testid="hub-info">
+          <div className="bold">🗂️ {HUB_NAME}</div>
+          <div className="tiny muted num" dir="ltr" style={{ wordBreak: 'break-all' }}>ID: {HUB_ID}</div>
+          <div className="tiny muted">{t('hubOnly')}</div>
+        </div>
         <div className="small"><span className={`dot ${status.state}`} /> {t('syncState_' + status.state)} · {t('pending')}: <b data-testid="pending-count">{status.pending}</b>
           {settings.sync.lastPushAt ? ` · ${t('lastSync')}: ${d(new Date(settings.sync.lastPushAt).toISOString().slice(0, 10))} ${new Date(settings.sync.lastPushAt).toLocaleTimeString()}` : ''}</div>
         {status.error && <div className="banner error small">{status.error}</div>}
@@ -169,7 +174,7 @@ function SyncForm() {
         <label className="check"><input type="checkbox" checked={cfg.autoSync} onChange={(e) => setCfg({ ...cfg, autoSync: e.target.checked })} />{t('autoSync')}</label>
         <label className="check"><input type="checkbox" checked={cfg.writeFoodsToSheet} onChange={(e) => setCfg({ ...cfg, writeFoodsToSheet: e.target.checked })} />{t('writeFoods')}</label>
         <div className="row wrap">
-          <button className="btn primary" disabled={busy} data-testid="sync-save" onClick={() => run(async () => { await saveCfg(); const r = await testConnection({ ...cfg }); return r; }).then((r) => r && alertOk(t('connectionOk', { name: r.spreadsheet, tab: r.foodSheet ?? '—' })))}>{t('save')} + {t('testConnection')}</button>
+          <button className="btn primary" disabled={busy} data-testid="sync-save" onClick={() => run(async () => { await saveCfg(); const r = await testConnection({ ...cfg }); return r; }).then((r) => r && alertOk(t('connectionOk', { name: r.spreadsheet, tab: r.foodSheet ?? '—' }) + '\n' + t(r.writable ? 'hubWritable' : 'hubReadOnly')))}>{t('save')} + {t('testConnection')}</button>
           <button className="btn" disabled={busy || !settings.sync.url} data-testid="pull-foods" onClick={() => run(async () => {
             const r = await pullFoodsFromSheet();
             alertOk(`${r.sheet}: ${t('importDone', { added: r.added, updated: r.updated, unchanged: r.unchanged })}`);

@@ -1,4 +1,4 @@
-# Feature list (v2)
+# Feature list (v3)
 
 Status legend: ✅ implemented and tested here · 🔶 implemented, needs your device/account to fully verify · 🔌 needs an external service
 
@@ -27,10 +27,23 @@ Status legend: ✅ implemented and tested here · 🔶 implemented, needs your d
 | Day marked fully / partially logged; auto-complete only when ≥ 60 % (configurable) of the calorie target | ✅ |
 | Barcode: camera scan (Chrome on Android, BarcodeDetector) + manual entry; Open Food Facts lookup, labelled as external | 🔶 camera must be tried on the phone; lookup 🔌 Open Food Facts (free, no key) |
 
+## v3 additions
+| Feature | Status |
+| --- | --- |
+| **Mobile scrolling fixed** (root cause: `overflow-x: hidden` on html/body made the body a scroll container; plus a nested-sheet scroll-lock bug) | ✅ verified with real touch-event swipes on 3 Samsung viewports, AR/EN, every screen |
+| Android Back button closes the open sheet; Escape closes only the top sheet | ✅ |
+| Recipe library: **101 recipes** incl. 7 healthy desserts, more air-fryer/oven, chicken, eggs, rice, fish, meat, sandwiches, low-carb, high-fiber | ✅ all calculable from your 160 foods |
+| «What can I cook today?»: pantry selection, match %, missing ingredients with substitutes, portions fitted to what is left today, method/time/meal filters | ✅ |
+| Week planner: replace any suggested meal, copy last week's plan | ✅ |
+| Habit streaks, 14-day water history | ✅ |
+| Design: IBM Plex Sans Arabic (cached offline), hero dashboard with Goal − Food = Remaining, active-tab pill, skeleton loading, accessible focus/tap sizes, reduced-motion support, error screen instead of blank pages | ✅ |
+| MEGO Nutrition Hub backend v3: fixed spreadsheet ID, structured tabs, dashboard, data ownership, conflict detection, soft deletes, versioning, Drive backups, migration with report & rollback | ✅ emulated · 🔶 real Hub needs your authorization (see HUB.md) |
+| Real food table removed from the public repo (synthetic fixture for public tests) | ✅ (still present in git history — see final report) |
+
 ## Recipes — «وصفاتي | My Recipes»
 | Feature | Status |
 | --- | --- |
-| 60 built-in recipes (breakfast, chicken, fish & seafood, meat, rice/grains/legumes, sandwiches & wraps, low-carb, snacks, meal-prep) | ✅ |
+| 101 built-in recipes (breakfast, chicken, eggs, fish & seafood, meat, rice/grains/legumes, sandwiches & wraps, low-carb, high-fiber, snacks, desserts, meal-prep, air-fryer, oven) | ✅ |
 | Arabic + English names and steps, prep/cook time, difficulty, servings, methods, gram quantities, tips & air-fryer/oven variations | ✅ |
 | Nutrition computed **from your food database** at runtime; seasonings not in the DB are listed as "not counted"; estimated DB foods flagged | ✅ |
 | Filters: high-protein, low-calorie, low-carb (computed), chicken, eggs, rice, fish, meat, sandwiches, quick, meal-prep, high-fiber, vegetarian, breakfast, favorites | ✅ |

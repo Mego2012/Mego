@@ -4,7 +4,7 @@ import { useApp } from '../app/AppContext';
 import { useDayLog } from '../app/hooks';
 import { Card, Confirm, NumField, ProgressBar, useAsync } from '../components/ui';
 import { db } from '../lib/db';
-import { today } from '../lib/dates';
+import { addDays, today } from '../lib/dates';
 import { requestNotificationPermission } from '../lib/reminders';
 import { addWater, deleteFast, endFast, saveSettings, setWater, startFast, toggleHabit, uid } from '../lib/repo';
 import type { Reminder } from '../lib/types';
@@ -35,6 +35,7 @@ function WaterCard() {
         {[150, 250, 330, 500, 750].map((ml) => <button key={ml} className="btn sm" onClick={() => run(() => addWater(date, ml))} data-testid={`h-water-${ml}`}>+{ml}</button>)}
         <button className="btn sm ghost" onClick={() => run(() => addWater(date, -250))} data-testid="h-water-minus">−250</button>
       </div>
+      <WaterHistory />
       <div className="row" style={{ marginTop: 10 }}>
         <input className="input num grow" type="number" inputMode="numeric" placeholder={t('ml')} value={custom} onChange={(e) => setCustom(e.target.value === '' ? '' : Number(e.target.value))} />
         <button className="btn" disabled={custom === ''} onClick={() => run(() => setWater(date, Number(custom)))}>{t('save')}</button>
@@ -43,10 +44,20 @@ function WaterCard() {
   );
 }
 
+/** Consecutive days a habit was done, counting back from today (or from yesterday if today isn't done yet). */
+export function habitStreak(days: { date: string; habits?: Record<string, boolean> }[], id: string, from = today()): number {
+  const done = new Set(days.filter((d) => d.habits?.[id]).map((d) => d.date));
+  let d = done.has(from) ? from : addDays(from, -1);
+  let n = 0;
+  while (done.has(d)) { n++; d = addDays(d, -1); }
+  return n;
+}
+
 function HabitsCard() {
   const { t, settings } = useApp();
   const date = today();
   const log = useDayLog(date);
+  const allDays = useLiveQuery(() => db.days.toArray(), [], []);
   const [name, setName] = useState('');
   const active = settings.habits.filter((h) => h.active);
   const done = active.filter((h) => log?.habits?.[h.id]).length;
@@ -55,7 +66,7 @@ function HabitsCard() {
       {active.map((h) => (
         <label key={h.id} className="check" data-testid="habit-row">
           <input type="checkbox" checked={!!log?.habits?.[h.id]} onChange={() => toggleHabit(date, h.id)} data-testid="habit-check" />
-          <span className="grow">{h.name}</span>
+          <span className="grow">{h.name} <span className="tiny muted" data-testid="habit-streak">🔥 {t('streak', { n: habitStreak(allDays, h.id) })}</span></span>
           <button className="icon-btn" aria-label={t('delete')} onClick={(e) => { e.preventDefault(); saveSettings((s) => { s.habits = s.habits.map((x) => (x.id === h.id ? { ...x, active: false } : x)); }); }}>×</button>
         </label>
       ))}
@@ -127,5 +138,24 @@ function RemindersCard() {
         </div>
       ))}
     </Card>
+  );
+}
+
+function WaterHistory() {
+  const { t, n, d, settings } = useApp();
+  const days = useLiveQuery(() => db.days.where('date').between(addDays(today(), -13), today(), true, true).toArray(), [], []);
+  const map = new Map(days.map((x) => [x.date, x.waterMl ?? 0]));
+  const dates = Array.from({ length: 14 }, (_, i) => addDays(today(), i - 13));
+  const max = Math.max(settings.waterTargetMl, ...dates.map((x) => map.get(x) ?? 0), 1);
+  return (
+    <div style={{ marginTop: 12 }} data-testid="water-history">
+      <div className="tiny muted" style={{ marginBottom: 4 }}>{t('waterHistory')}</div>
+      <div style={{ display: 'flex', alignItems: 'flex-end', gap: 3, height: 70, direction: 'ltr' }}>
+        {dates.map((x) => {
+          const v = map.get(x) ?? 0;
+          return <div key={x} title={`${d(x)}: ${n(v)} ${t('ml')}`} style={{ flex: 1, height: `${Math.max(3, (v / max) * 100)}%`, borderRadius: 4, background: v >= settings.waterTargetMl ? 'var(--info)' : v ? 'color-mix(in srgb, var(--info) 45%, transparent)' : 'var(--surface-2)' }} />;
+        })}
+      </div>
+    </div>
   );
 }

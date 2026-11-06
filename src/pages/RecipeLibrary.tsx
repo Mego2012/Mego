@@ -7,7 +7,8 @@ import { Card, MacroLine, NumField, Segmented, Sheet, StateChip, useAsync } from
 import { db } from '../lib/db';
 import { isValidISODate, today } from '../lib/dates';
 import { round, roundMacros, scaleMacros } from '../lib/nutrition';
-import { computeLibrary, findFood, indexFoods, materializeLibraryRecipe, recipeMeta, suggest, type ComputedRecipe, type SuggestFilters, type Suggestion } from '../lib/recipeEngine';
+import { allLibraryIngredients, computeLibrary, findFood, indexFoods, materializeLibraryRecipe, recipeMeta, suggest, whatCanICook, type ComputedRecipe, type SuggestFilters, type Suggestion } from '../lib/recipeEngine';
+import { kvGet } from '../lib/repo';
 import { addRecipeEntry, deleteEntry, kvSet, setPlannedDay, uid } from '../lib/repo';
 import { summarizeDay } from '../lib/reports';
 import { normalizeText } from '../lib/search';
@@ -251,6 +252,72 @@ export function SuggestTab() {
       ))}
       {rem.kcal >= 60 && !list.length && <div className="empty">{t('suggestNone')}</div>}
       {open?.computed && <RecipeDetail c={open.computed} servingsHint={round(open.servings, 2)} onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
+
+const METHODS = ['air-fryer', 'oven', 'pan', 'pot', 'grill', 'no-cook', 'blender'];
+
+/** «What can I cook today?» — pick what you have; recipes ranked by match, sized to what's left today. */
+export function CookTab() {
+  const { t, n, lang, settings } = useApp();
+  const data = useBundle();
+  const { lib } = useLibrary();
+  const pantry = useLiveQuery<string[], string[]>(() => kvGet<string[]>('pantry', []), [], []);
+  const [f, setF] = useState<{ meal: MealType | ''; method: string; maxMinutes: number | '' }>({ meal: '', method: '', maxMinutes: '' });
+  const [open, setOpen] = useState<{ c: ComputedRecipe; s: number } | null>(null);
+  const [q, setQ] = useState('');
+  const [showAll, setShowAll] = useState(false);
+  const day = useMemo(() => (data ? summarizeDay(today(), data.entries, data.days.find((d) => d.date === today()), settings) : null), [data, settings]);
+  if (!lib || !day) return <div className="empty">{t('loading')}</div>;
+  const all = allLibraryIngredients(lib);
+  const toggle = (name: string) => kvSet('pantry', pantry.includes(name) ? pantry.filter((x) => x !== name) : [...pantry, name]);
+  const results = whatCanICook(lib, pantry, day.remaining, f);
+  const nq = normalizeText(q);
+  return (
+    <div data-testid="cook">
+      <Card title={`🧊 ${t('cookTitle')}`}>
+        <div className="tiny muted" style={{ marginBottom: 6 }}>{t('cookHint')}</div>
+        <input className="input" placeholder={t('search') + '…'} value={q} onChange={(e) => setQ(e.target.value)} />
+        {/* No inner scroll box: nested scrolling traps touch swipes on small phones. */}
+        <div className="row wrap" style={{ gap: 6, marginTop: 8 }} data-testid="pantry">
+          {(() => {
+            const filtered = all.filter((i) => !nq || normalizeText(i).includes(nq));
+            const visible = showAll || nq ? filtered : [...pantry.filter((p) => filtered.includes(p)), ...filtered.filter((i) => !pantry.includes(i)).slice(0, 20)];
+            return visible.map((i) => (
+              <button key={i} className={`chip ${pantry.includes(i) ? 'active' : ''}`} onClick={() => toggle(i)} data-testid="pantry-chip">{i}</button>
+            ));
+          })()}
+          {!nq && <button className="chip" onClick={() => setShowAll((x) => !x)} data-testid="pantry-more">{showAll ? t('showLess') : t('showAll', { n: all.length })}</button>}
+        </div>
+        <div className="row wrap" style={{ marginTop: 8, gap: 6 }}>
+          <span className="small">{t('selectedN', { n: pantry.length })}</span>
+          {pantry.length > 0 && <button className="btn sm ghost" onClick={() => kvSet('pantry', [])}>{t('clearPlan')}</button>}
+        </div>
+        <div className="grid3" style={{ marginTop: 8 }}>
+          <label className="field"><span>{t('meal')}</span><select className="input" value={f.meal} onChange={(e) => setF({ ...f, meal: e.target.value as MealType | '' })}><option value="">{t('all')}</option>{MEALS.map((m) => <option key={m} value={m}>{t(m)}</option>)}</select></label>
+          <label className="field"><span>{t('method')}</span><select className="input" value={f.method} onChange={(e) => setF({ ...f, method: e.target.value })}><option value="">{t('all')}</option>{METHODS.map((m) => <option key={m} value={m}>{t('method_' + m.replace('-', '_'))}</option>)}</select></label>
+          <NumField label={t('maxMinutes')} value={f.maxMinutes} onChange={(v) => setF({ ...f, maxMinutes: v })} />
+        </div>
+        <div className="tiny muted" style={{ marginTop: 6 }}>{t('remainingNow', { kcal: n(Math.max(0, day.remaining.kcal)), p: n(Math.max(0, day.remaining.protein)), c: n(Math.max(0, day.remaining.carbs)), f: n(Math.max(0, day.remaining.fat)) })}</div>
+      </Card>
+      {!pantry.length && <div className="empty">{t('cookEmpty')}</div>}
+      {pantry.length > 0 && results.slice(0, 30).map((r) => (
+        <div key={r.c.lib.id} className="card clickable" style={{ cursor: 'pointer' }} onClick={() => setOpen({ c: r.c, s: r.servings ?? 1 })} data-testid="cook-result">
+          <div className="row">
+            <div style={{ fontSize: 30 }}>{r.c.lib.emoji}</div>
+            <div className="grow" style={{ minWidth: 0 }}>
+              <div className="bold">{lang === 'ar' ? r.c.lib.nameAr : r.c.lib.nameEn}</div>
+              <div className="small num"><b>{n(r.macros.kcal)}</b> {t('kcalUnit')} · <MacroLine m={r.macros} compact /> {r.servings && r.servings !== 1 ? `· ${t('servingsX', { n: n(r.servings, 2) })}` : ''}</div>
+              <div className="tiny muted">⏱ {r.c.totalTime} {t('min')} · {r.c.lib.methods.map((m) => t('method_' + m.replace('-', '_'))).join('، ')}</div>
+              {r.missing.length > 0 && <div className="tiny" data-testid="cook-missing">{t('missingShort')}: {r.missing.map((m) => (m.swap ? `${m.name} → ${m.swap}` : m.name)).join('، ')}</div>}
+            </div>
+            <span className={`chip ${r.matchPct === 100 ? 'good' : 'warn'}`} data-testid="cook-match">{r.matchPct}%</span>
+          </div>
+        </div>
+      ))}
+      {pantry.length > 0 && !results.length && <div className="empty">{t('suggestNone')}</div>}
+      {open && <RecipeDetail c={open.c} servingsHint={open.s} onClose={() => setOpen(null)} />}
     </div>
   );
 }

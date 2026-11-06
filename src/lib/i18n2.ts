@@ -72,6 +72,14 @@ export const en2: Record<string, string> = {
   worstDays: 'Lowest consistency days', fiberIndicator: 'Fiber', fiberLow: 'Average {v} g/day — below the 25–38 g recommended.', fiberOk: 'Average {v} g/day.',
   fiberUnknown: 'Not enough fiber data (only {pct}% of entries have fiber — the imported database has no fiber column).',
   loading: 'Loading…', retry: 'Retry', empty_library: 'No recipes match.', openRecipe: 'Open',
+  errorTitle: 'Something went wrong on this screen', errorBody: 'Your data is safe — it is stored separately on this phone. Try again or reload the app.', goalMinusFood: 'Goal − Food = Remaining', food_: 'Food', goal_short: 'Goal',
+  showAll: 'Show all ({n})', showLess: 'Show less',
+  cookTab: 'What can I cook?', cookTitle: 'What can I cook today?', cookHint: 'Tick what you have in the fridge and pantry. Oil and butter are assumed.', selectedN: '{n} selected',
+  cookEmpty: 'Select a few ingredients to see recipes.', missingShort: 'Missing', method: 'Cooking method', streak: 'Streak: {n} day(s)', waterHistory: 'Last 14 days',
+  replaceMeal: 'Replace', copyLastWeek: 'Copy last week’s plan', copiedPlan: 'Copied {n} day(s)',
+  hubOnly: 'This app syncs only with this spreadsheet. A backend connected to any other file is refused.',
+  hubWritable: 'Full two-way sync is active.',
+  hubReadOnly: 'The Hub is still an Excel (.xlsx) file: foods can be imported, but your records cannot be written until it is converted to Google Sheets (see the setup guide).',
   issue_missingValues: 'Missing value (blocked until fixed)', issue_decimalComma: 'Decimal comma read as decimal point (e.g. 2,6 → 2.6)',
   issue_energyMismatch: 'Calories vs macros need review (not explained by fiber/food factors)'
 };
@@ -141,6 +149,14 @@ export const ar2: Record<string, string> = {
   worstDays: 'أقل أيام الالتزام', fiberIndicator: 'الألياف', fiberLow: 'المتوسط {v} غ/يوم — أقل من الموصى به 25–38 غ.', fiberOk: 'المتوسط {v} غ/يوم.',
   fiberUnknown: 'بيانات الألياف غير كافية (فقط {pct}% من العناصر فيها ألياف — قاعدة البيانات المستوردة لا تحتوي عمود ألياف).',
   loading: 'جارٍ التحميل…', retry: 'إعادة المحاولة', empty_library: 'لا توجد وصفات مطابقة.', openRecipe: 'فتح',
+  errorTitle: 'حدث خطأ في هذه الشاشة', errorBody: 'بياناتك آمنة — محفوظة بشكل منفصل على الهاتف. حاول مجدداً أو أعد تحميل التطبيق.', goalMinusFood: 'الهدف − الأكل = المتبقي', food_: 'الأكل', goal_short: 'الهدف',
+  showAll: 'عرض الكل ({n})', showLess: 'عرض أقل',
+  cookTab: 'ماذا أطبخ؟', cookTitle: 'ماذا يمكنني أن أطبخ اليوم؟', cookHint: 'اختر المكونات المتوفرة في الثلاجة والمطبخ. الزيت والزبدة مفترضة.', selectedN: '{n} مختار',
+  cookEmpty: 'اختر بعض المكونات لعرض الوصفات.', missingShort: 'ينقصك', method: 'طريقة الطهي', streak: 'سلسلة: {n} يوم', waterHistory: 'آخر 14 يوماً',
+  replaceMeal: 'استبدال', copyLastWeek: 'نسخ خطة الأسبوع الماضي', copiedPlan: 'تم نسخ {n} يوم',
+  hubOnly: 'يزامن التطبيق مع هذا الملف فقط. أي خادم متصل بملف آخر يُرفض.',
+  hubWritable: 'المزامنة الكاملة في الاتجاهين مفعّلة.',
+  hubReadOnly: 'ملف الـ Hub ما زال بصيغة Excel (.xlsx): يمكن استيراد الأطعمة، لكن لا يمكن كتابة سجلاتك حتى يُحوَّل إلى Google Sheets (راجع دليل الإعداد).',
   issue_missingValues: 'قيمة ناقصة (محظور حتى التصحيح)', issue_decimalComma: 'فاصلة عشرية قُرئت كنقطة (مثل 2,6 ← 2.6)',
   issue_energyMismatch: 'السعرات مقابل الماكروز تحتاج مراجعة (لا تفسرها الألياف أو معاملات الطعام)'
 };

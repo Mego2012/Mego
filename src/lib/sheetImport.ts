@@ -21,6 +21,53 @@ export interface ParsedFood {
   issues: string[];
   /** A required value cell was blank/unreadable: the food is imported but blocked from logging. */
   missingValues: boolean;
+  /** Previous key (the food name) used before the Hub assigned stable IDs. */
+  legacyKey?: string;
+  verification?: string;
+}
+
+/**
+ * Parses the Hub's structured Food_Database tab (exact column names, stable food_id keys).
+ * The original name is kept as legacyKey so foods imported earlier (keyed by name) are matched, not duplicated.
+ */
+export function parseStructuredFoods(rows: unknown[][]): { foods: ParsedFood[]; errors: string[] } {
+  if (!rows.length) return { foods: [], errors: ['empty'] };
+  const header = rows[0].map((h) => String(h).trim());
+  const col = (n: string) => header.indexOf(n);
+  const need = ['food_id', 'name_ar', 'kcal_100g', 'protein_100g', 'carbs_100g', 'fat_100g'];
+  const missing = need.filter((n) => col(n) < 0);
+  if (missing.length) return { foods: [], errors: ['missingColumns:' + missing.join(',')] };
+  const foods: ParsedFood[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const r = rows[i];
+    const get = (n: string) => (col(n) >= 0 ? String(r[col(n)] ?? '').trim() : '');
+    const id = get('food_id');
+    if (!id || get('active') === 'no') continue;
+    const issues: string[] = [];
+    let missingValues = false;
+    const per100: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+    for (const [k, c] of [['kcal', 'kcal_100g'], ['protein', 'protein_100g'], ['carbs', 'carbs_100g'], ['fat', 'fat_100g']] as const) {
+      const p = parseNum(get(c));
+      if (!Number.isFinite(p.value) || p.value < 0) { missingValues = true; if (!issues.includes('missingValues')) issues.push('missingValues'); } else per100[k] = p.value;
+    }
+    for (const [k, c] of [['fiber', 'fiber_100g'], ['sugar', 'sugar_100g'], ['sodium', 'sodium_mg_100g']] as const) {
+      const p = parseNum(get(c));
+      if (Number.isFinite(p.value) && p.value >= 0) per100[k] = p.value;
+    }
+    if (!missingValues && isIncompleteMacros(per100)) issues.push('zeroValues');
+    const notes = get('notes');
+    if (/⚠|غير محقق|تقريبي|تقديري|للمراجعة/.test(notes)) issues.push('flaggedInNotes');
+    const stateLabel = get('state_label');
+    const st = get('state');
+    const piece = parseNum(get('piece_g')).value;
+    foods.push({
+      row: i + 1, sheetKey: id, legacyKey: get('name_ar'), nameAr: get('name_ar'), nameEn: get('name_en'), category: get('category'), per100,
+      pieceGrams: Number.isFinite(piece) && piece > 0 ? piece : undefined,
+      state: st === 'raw' || st === 'cooked' || st === 'other' ? st : normalizeState(stateLabel), stateLabel, prep: get('prep'), notes,
+      issues, missingValues, verification: get('verification')
+    });
+  }
+  return { foods, errors: [] };
 }
 
 type Col = 'name' | 'nameEn' | 'category' | 'kcal' | 'protein' | 'carbs' | 'fat' | 'fiber' | 'sugar' | 'sodium' | 'piece' | 'state' | 'prep' | 'notes';
@@ -217,6 +264,15 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stri
 export async function importParsedFoods(foods: ParsedFood[], origin: 'sheet' | 'file' = 'sheet'): Promise<ImportResult> {
   const existing = await db.foods.toArray();
   const byKey = new Map(existing.filter((f) => f.sheetKey).map((f) => [f.sheetKey!, f]));
+  // Foods imported before the Hub assigned stable IDs were keyed by name: re-key them instead of duplicating.
+  for (const p of foods) {
+    if (p.legacyKey && !byKey.has(p.sheetKey) && byKey.has(p.legacyKey)) {
+      const f = byKey.get(p.legacyKey)!;
+      await db.foods.update(f.id, { sheetKey: p.sheetKey });
+      byKey.delete(p.legacyKey);
+      byKey.set(p.sheetKey, { ...f, sheetKey: p.sheetKey });
+    }
+  }
   const res: ImportResult = { added: 0, updated: 0, unchanged: 0, kept: 0 };
   const seenKeys = new Set<string>();
   for (const p of foods) {
@@ -252,6 +308,6 @@ export async function importParsedFoods(foods: ParsedFood[], origin: 'sheet' | '
       res.unchanged++;
     }
   }
-  res.kept = existing.filter((f) => !f.sheetKey || !seenKeys.has(f.sheetKey)).length;
+  res.kept = (await db.foods.toArray()).filter((f) => !f.sheetKey || !seenKeys.has(f.sheetKey)).length;
   return res;
 }

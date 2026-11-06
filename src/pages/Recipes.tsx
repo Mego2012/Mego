@@ -1,7 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { LibraryTab, SuggestTab } from './RecipeLibrary';
+import { CookTab, LibraryTab, SuggestTab } from './RecipeLibrary';
 import { useApp } from '../app/AppContext';
 import { FoodPicker, QuantityForm } from '../components/FoodPicker';
 import { Icon } from '../components/icons';
@@ -13,20 +13,21 @@ import {
 } from '../lib/repo';
 import { MEALS, type Food, type MealTemplate, type MealType, type PlanItem, type Recipe, type RecipeIngredient } from '../lib/types';
 
-type RTab = 'library' | 'suggest' | 'recipes' | 'meals';
+type RTab = 'library' | 'suggest' | 'cook' | 'recipes' | 'meals';
 
 export default function Recipes() {
   const { t } = useApp();
   const [params, setParams] = useSearchParams();
-  const tab = (['library', 'suggest', 'recipes', 'meals'].includes(params.get('tab') ?? '') ? params.get('tab') : 'library') as RTab;
+  const tab = (['library', 'suggest', 'cook', 'recipes', 'meals'].includes(params.get('tab') ?? '') ? params.get('tab') : 'library') as RTab;
   const setTab = (x: RTab) => setParams({ tab: x }, { replace: true });
   return (
     <div data-testid="recipes-page">
       <div style={{ marginBottom: 12 }}>
-        <Segmented value={tab} options={[{ value: 'library', label: t('library') }, { value: 'suggest', label: t('suggestions') }, { value: 'recipes', label: t('myRecipes') }, { value: 'meals', label: t('savedMeals') }]} onChange={setTab} />
+        <Segmented value={tab} options={[{ value: 'library', label: t('library') }, { value: 'suggest', label: t('suggestions') }, { value: 'cook', label: t('cookTab') }, { value: 'recipes', label: t('myRecipes') }, { value: 'meals', label: t('savedMeals') }]} onChange={setTab} />
       </div>
       {tab === 'library' && <LibraryTab />}
       {tab === 'suggest' && <SuggestTab />}
+      {tab === 'cook' && <CookTab />}
       {tab === 'recipes' && <RecipeList />}
       {tab === 'meals' && <TemplateList />}
     </div>

@@ -34,13 +34,13 @@ export default function Dashboard() {
 
   return (
     <div data-testid="dashboard">
-      <Card>
+      <Card className="hero">
         <div className="row between" style={{ marginBottom: 6 }}>
           <span className="chip">{t(day.dayType)}</span>
           <span className={`chip status-${day.status}`}>{t('status_' + day.status)}</span>
         </div>
         <div className="row" style={{ gap: 18, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Ring value={day.totals.kcal} max={day.target.kcal} size={164}>
+          <Ring value={day.totals.kcal} max={day.target.kcal} size={164} color="#5eead4">
             <div className="big num" data-testid="kcal-remaining">{n(Math.abs(remaining))}</div>
             <div className="small muted">{remaining >= 0 ? t('remaining') : t('over')}</div>
           </Ring>
@@ -50,7 +50,14 @@ export default function Dashboard() {
             <div><div className="small muted">{t('ofTarget')}</div><div className="bold num" data-testid="kcal-pct">{n(pct)}%</div></div>
           </div>
         </div>
-        <div className="hr" />
+        <div className="equation" aria-label={t('goalMinusFood')}>
+          <div><div className="v num">{n(day.target.kcal)}</div><div className="k">{t('goal_short')}</div></div>
+          <div className="op">−</div>
+          <div><div className="v num">{n(day.totals.kcal)}</div><div className="k">{t('food_')}</div></div>
+          <div className="op">=</div>
+          <div><div className="v num">{n(remaining)}</div><div className="k">{t('remaining')}</div></div>
+        </div>
+        <div className="hr" style={{ background: 'rgba(255,255,255,.18)' }} />
         <div data-testid="macro-bars"><MacroBars totals={day.totals} target={day.target} /></div>
         <OptionalNutrientsLine m={day.totals} coverage={day.coverage} total={day.entryCount} />
         <Link to="/recipes?tab=suggest" className="btn block" style={{ marginTop: 10, flexDirection: 'column', gap: 2 }} data-testid="what-to-eat">

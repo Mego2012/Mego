@@ -15,36 +15,23 @@ One-time action required from you (GitHub → repository **Settings → Pages**)
 > either make it public (the app contains no personal data — your data lives on your phone and in your own Google Sheet)
 > or deploy the `dist/` folder to Netlify / Cloudflare Pages / Vercel (any static host works; set `BASE_PATH=/`).
 
-## 2. Connect your Google Sheet (food database + cloud backup)
+## 2. Connect «MEGO Nutrition Hub» (your only Google Sheets database)
 
-The app talks to **your** spreadsheet through a small Google Apps Script you own. No third-party server, no extra account.
+Read [HUB.md](HUB.md) first — it explains the one decision you need to make (the Hub is currently an .xlsx file).
 
-1. Open your nutrition spreadsheet (the one with the tab **قاعدة بيانات الأطعمة**).
-2. **Extensions → Apps Script**. Create a new file, paste the contents of [`apps-script/Code.gs`](../apps-script/Code.gs), save.
-3. Select the function **`setup`** and click **Run**. Approve the Google permission prompt.
-   - It first makes a **full copy of the spreadsheet** in your Drive ("FULL BACKUP before Mego app sync — date").
-   - It prints an **APP TOKEN** in the execution log — copy it.
-4. **Deploy → New deployment → type: Web app**
-   - Execute as: **Me**
-   - Who has access: **Anyone** (requests are still rejected without your token)
-   - Copy the **Web app URL** (ends in `/exec`).
-5. In the app: **Settings → Google Sheets sync** → paste URL and token → **Save + test connection**.
-6. Tap **Import foods from sheet**. All rows are imported; nothing in the sheet is changed.
+1. Open https://script.google.com → **New project**, name it «MEGO Nutrition Hub backend».
+2. Replace `Code.gs` with [`apps-script/Code.gs`](../apps-script/Code.gs).
+   In **Project Settings** tick "Show appsscript.json", then replace it with [`apps-script/appsscript.json`](../apps-script/appsscript.json)
+   (it enables the Drive service the script needs).
+3. Select **setup** → **Run** → **Review permissions → Allow** (sign in as ahmedmego967@gmail.com, the Hub's owner).
+   The log prints the **APP TOKEN** — keep it private.
+4. *(Only if you choose option A in HUB.md)* run **convertHubToGoogleSheets** → it logs the new native ID → send it to me
+   (or replace `HUB_ID` in Code.gs and in `src/lib/sync.ts`) → then run **migrateHub**.
+5. **Deploy → New deployment → Web app** — Execute as **Me**, Who has access **Anyone** → copy the `/exec` URL.
+6. In the app: **Settings → MEGO Nutrition Hub → paste URL and token → Save + test connection**. The app shows the Hub name, its ID and
+   whether sync is full or read-only. Then tap **Import foods from sheet**.
 
-What the script does with your spreadsheet:
-
-| Tab | Access |
-| --- | --- |
-| `قاعدة بيانات الأطعمة` | **Read-only** by default. Written only if you enable *"Write food edits back to the Google Sheet"*; before the first write each day the tab is copied to `BACKUP_Foods_YYYYMMDD`, and every write is logged in `APP_FoodSheetLog` with the before/after row. Archiving a food in the app never deletes a sheet row. |
-| `APP_entries`, `APP_body`, `APP_foods`, `APP_recipes`, `APP_templates`, `APP_plans`, `APP_plannedDays`, `APP_days`, `APP_settings`, `APP_foodChanges` | Created by the app; one JSON record per row (your cloud copy of all app data). |
-| Every other tab | Never touched. |
-
-If the token ever leaks, run `rotateToken()` in Apps Script and paste the new token in the app.
-
-**Upgrading an existing script to v2:** paste the new `Code.gs` over the old one, then **Deploy → Manage deployments → ✏️ Edit →
-Version: New version → Deploy**. The URL and token stay the same. v2 adds request validation, conflict detection, `APP_trash`
-(soft deletes), `APP_meta` (data version) and the `kv` / `fasts` tables.
-If you edit `Code.gs` later, use **Deploy → Manage deployments → Edit → New version** so the URL stays the same.
+Updating the script later: paste the new code, then **Deploy → Manage deployments → Edit → New version** (URL and token stay the same).
 
 ## 3. Install on your Samsung phone
 

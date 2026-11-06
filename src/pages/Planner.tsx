@@ -10,10 +10,10 @@ import { summarizeDay } from '../lib/reports';
 import type { DayPlan, DayType, Macros, PlannedDay } from '../lib/types';
 import { CopySheet } from './Diary';
 import { useLibrary } from './RecipeLibrary';
-import { applyGeneratedPlan, generatePlan, shoppingList, type GeneratedDay, type ShoppingItem } from '../lib/recipeEngine';
+import { applyGeneratedPlan, generatePlan, replacePick, shoppingList, type ComputedRecipe, type GeneratedDay, type ShoppingItem } from '../lib/recipeEngine';
 import { kvGet, kvSet } from '../lib/repo';
 import { targetsFor } from '../lib/targets';
-import { LIBRARY } from '../lib/recipeLibraryData';
+import { LIBRARY } from '../lib/recipeEngine';
 import { Confirm, MacroLine, StateChip } from '../components/ui';
 import { ItemsEditor } from './Recipes';
 
@@ -54,6 +54,11 @@ export default function Planner() {
         <button className="btn primary grow" disabled={!lib} data-testid="generate-plan"
           onClick={() => lib && setGenerated(generatePlan(dates.filter((x) => x >= today()), (dt) => targetsFor(dt, settings, data?.days.find((y) => y.date === dt)), lib))}>✨ {t('generatePlan')}</button>
         <button className="btn grow" onClick={() => setShopping(true)} data-testid="open-shopping">🛒 {t('shoppingList')}</button>
+        <button className="btn grow" data-testid="copy-last-week" onClick={async () => {
+          let c = 0;
+          for (const dt of dates) { const src = await db.plannedDays.get(addDays(dt, -7)); if (src?.items.length) { await copyPlannedDay(addDays(dt, -7), dt); c++; } }
+          toast(t('copiedPlan', { n: c }));
+        }}>{t('copyLastWeek')}</button>
       </div>
 
       <Card title={t('weekPlan')}>
@@ -119,7 +124,7 @@ export default function Planner() {
         onCopy={async (to) => { await run(() => copyPlannedDay(copyFrom, to), t('saved')); setCopyFrom(null); }} />}
       {editPlan && <PlanEditor plan={editPlan === 'new' ? null : editPlan} onClose={() => setEditPlan(null)} />}
       {applyPlan && <ApplySheet plan={applyPlan} dates={dates} onClose={() => setApplyPlan(null)} />}
-      {generated && <GeneratedSheet days={generated} hasExisting={generated.some((g) => byDate.has(g.date))} onClose={() => setGenerated(null)} />}
+      {generated && lib && <GeneratedSheet days={generated} lib={lib} onChange={setGenerated} hasExisting={generated.some((g) => byDate.has(g.date))} onClose={() => setGenerated(null)} />}
       {shopping && <ShoppingSheet dates={dates} weekKey={dates[0]} onClose={() => setShopping(false)} />}
     </div>
   );
@@ -154,7 +159,7 @@ function ApplySheet({ plan, dates, onClose }: { plan: DayPlan; dates: string[]; 
   );
 }
 
-function GeneratedSheet({ days, hasExisting, onClose }: { days: GeneratedDay[]; hasExisting: boolean; onClose: () => void }) {
+function GeneratedSheet({ days, lib, onChange, hasExisting, onClose }: { days: GeneratedDay[]; lib: ComputedRecipe[]; onChange: (d: GeneratedDay[]) => void; hasExisting: boolean; onClose: () => void }) {
   const { t, n, d, lang, settings, toast } = useApp();
   const [confirm, setConfirm] = useState(false);
   const { run, busy } = useAsync();
@@ -168,7 +173,12 @@ function GeneratedSheet({ days, hasExisting, onClose }: { days: GeneratedDay[]; 
           return (
             <div key={g.date} className="stat">
               <div className="row between"><b>{d(g.date)}</b><span className="small num">{t('dayTotal')}: {n(g.total.kcal)} {t('kcalUnit')} · {t('protein')} {n(g.total.protein)}{t('g')}</span></div>
-              {g.picks.map((p) => <div key={p.meal} className="tiny"><span className="muted">{t(p.meal)}:</span> {name(p.libId)} {p.servings !== 1 ? `× ${n(p.servings, 2)}` : ''} — {n(p.macros.kcal)} {t('kcalUnit')}</div>)}
+              {g.picks.map((p) => (
+                <div key={p.meal} className="row tiny" style={{ gap: 6 }}>
+                  <span className="grow"><span className="muted">{t(p.meal)}:</span> {name(p.libId)} {p.servings !== 1 ? `× ${n(p.servings, 2)}` : ''} — {n(p.macros.kcal)} {t('kcalUnit')}</span>
+                  <button className="btn sm ghost" data-testid="replace-meal" onClick={() => onChange(replacePick(days, g.date, p.meal, lib))}>↻ {t('replaceMeal')}</button>
+                </div>
+              ))}
               <div className="tiny muted"><MacroLine m={g.total} compact /> · {t('target')} {n(T.kcal)}/{n(T.protein)}</div>
             </div>
           );

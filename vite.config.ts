@@ -35,7 +35,12 @@ export default defineConfig({
         globPatterns: ['**/*.{js,css,html,svg,png,woff2}'],
         navigateFallback: 'index.html',
         // Never cache calls to the Google Apps Script sync endpoint.
-        navigateFallbackDenylist: [/^\/macros\//]
+        navigateFallbackDenylist: [/^\/macros\//],
+        // Fonts are cached on first use so the app keeps its typography offline.
+        runtimeCaching: [
+          { urlPattern: /^https:\/\/fonts\.googleapis\.com\//, handler: 'StaleWhileRevalidate', options: { cacheName: 'google-fonts-css' } },
+          { urlPattern: /^https:\/\/fonts\.gstatic\.com\//, handler: 'CacheFirst', options: { cacheName: 'google-fonts', expiration: { maxEntries: 20, maxAgeSeconds: 31536000 }, cacheableResponse: { statuses: [0, 200] } } }
+        ]
       }
     })
   ],

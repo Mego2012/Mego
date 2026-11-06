@@ -1,54 +1,61 @@
-# Test report — v2
+# Test report — v3 (2026-11-06)
 
-All results below come from runs in this repository on 2026-11-06. Re-run with:
+Re-run everything with:
 
 ```bash
-npm test                      # 45 unit tests (Vitest + in-memory IndexedDB + the real Code.gs on an emulated spreadsheet)
-npm run build && npm run e2e  # 33 browser checks, emulated Samsung Galaxy S9+, Arabic locale
-node e2e/migration-test.mjs <dir>   # v1 → v2 upgrade on the same browser profile (see file header)
-npx tsc -b                    # TypeScript: 0 errors
+npx tsc -b                 # TypeScript: 0 errors
+npm test                   # unit tests (48 with the private real-food file present; 38 + 10 skipped without it)
+npm run build
+npm run e2e                # 39 browser checks, emulated Samsung Galaxy S9+, Arabic locale
+npm run e2e:scroll         # 103 touch-swipe scroll checks (3 Samsung viewports × AR/EN × 13 screens + 4 sheet flows + control)
+node e2e/migration-test.mjs <dir>   # v1 → v2 upgrade (see file header)
 ```
 
-Test data: `tests/fixtures/foods-160.csv` = the 160 rows of your food tab (notes shortened); `food-sheet-sample.csv` = 10 of those rows.
-Google Sheets is emulated (`e2e/gas-mock.mjs`) and runs the **actual** `apps-script/Code.gs`. Open Food Facts is mocked in tests.
+Legend: **Verified** = executed here against the real code · **Simulated** = executed against an emulation of an external service ·
+**Unverified** = needs your device/account.
 
-## Brief checklist
+## Mobile scrolling (highest priority)
 
-| # | Requirement | Result |
-| --- | --- | --- |
-| 1 | Run all existing tests | ✅ 21 original unit tests + 20 original browser checks still pass |
-| 2 | Tests for new functionality | ✅ 24 new unit tests, 13 new browser checks, 1 upgrade test |
-| 3 | Nutrition calculations | ✅ 100 g raw chicken 120 kcal · cooked 165 · 3 eggs 236 · 3 toast slices 207 · exact sums, no rounding drift (10 × 2.7 g tomato = 5 kcal, was 0) · remaining = target − consumed |
-| 4 | Raw vs cooked | ✅ 200 g raw rice 720 kcal vs cooked 260; 71 raw / 61 cooked / 28 ready records kept separate |
-| 5 | Recipe calculations | ✅ builder totals/per-serving; library kabsa equals hand calculation from DB values; 60/60 library recipes computable from your 160 foods |
-| 6 | Food imports | ✅ all 160 imported with 0 differences; blank cells block the food; "2,6" read as 2.6 and reported; re-import adds no duplicates |
-| 7 | Data persistence | ✅ close/reopen browser profile keeps entries and targets |
-| 8 | Backup & restore | ✅ file backup validated before restore; on-phone backup → delete → restore brings the entry back; pre-restore snapshot created |
-| 9 | Google Sheets sync | ✅ against the real Code.gs (emulated): auth, food import, push/pull, **conflict: older offline copy rejected**, soft delete to APP_trash, data version, validation, food tab untouched unless write-back is enabled (then backup tab + log) · 🔶 not yet run against your real Google account |
-| 10 | Offline | ✅ logging while offline → 0 uploads → reconnect → uploaded; app shell loads offline |
-| 11 | Arabic & English | ✅ rtl/ltr switch, labels; goal dropdown works in both |
-| 12 | Mobile responsiveness | ✅ new check: no element wider than the phone screen on 12 screens (found and fixed one real overflow) |
-| 13 | Weekly & monthly reports | ✅ complete/partial/empty days, threshold rule, water, macro split, top foods, export CSV/XLSX |
-| 14 | Error handling | ✅ invalid backups rejected, invalid sync payloads rejected by the server, unauthorized token, sync retry with backoff, invalid barcode check digit blocks lookup |
-| 15 | Duplicate food entries | ✅ duplicate guard, idempotent import, copy-into-non-empty-day confirmation |
-| 16 | Data loss / migration | ✅ v1 → v2 upgrade on the same profile: entry kept (240 kcal), DB version 1 → 2, pre-migration snapshot with all entries and foods |
-| — | Production build + TypeScript | ✅ `vite build` ok, `tsc -b` 0 errors |
+| | |
+| --- | --- |
+| Reproduced on the **live v2 site** | ✅ Verified: with real touch events (control page scrolls 431 px) no screen scrolled at all (scrollY stayed 0 on every page) |
+| Root cause | `html, body { overflow-x: hidden }` (added in v2) made `<body>` its own scroll container → touch swipes stopped scrolling the page in Chrome mobile. Secondary bug: sheets saved/restored `body.style.overflow`; when a parent and child sheet closed together the page stayed locked (reproduced: "Escape closes nested sheets" left the page locked). |
+| Fix | Removed overflow from html/body (`overflow-x: clip` on `.app`), reference-counted scroll lock, Escape/Back close only the top sheet, no nested scroll boxes (one was found and removed on the Cook tab — the test caught it on the 320 px screen) |
+| Regression suite | ✅ **103/103** — every screen reaches its real bottom, last content above the bottom nav, no horizontal overflow, never left locked; Galaxy S23 (360×780), A54 (412×915), S9+ (320×658); Arabic RTL + English LTR |
+| Physical Samsung phone | ⏳ Unverified — please confirm on your phone (emulated touch input is the closest test possible here) |
 
-## Browser checks (33/33 passed)
+## Unit tests — 48/48 (Verified)
 
-SETUP, IMPORT, TEST 1–15 (original scenarios), DASH, BODY, REMAIN (remaining macros + water), UNDO, COPYGUARD, LIBRARY (60 recipes,
-detail, rating, add to diary), SUGGEST (every suggestion ≤ remaining kcal), GOAL (9 options, default, recommendation applied only after
-confirmation, persisted), PLAN (generated week + shopping list check-off), HABITS (water, habit, fasting), BARCODE (manual code →
-Open Food Facts mock → save & log), PHOTO, BACKUP, SYNC2 (all tables synced through Code.gs, original food tab untouched), LAYOUT, DARK.
+Nutrition engine, raw vs cooked (200 g raw rice 720 kcal vs cooked 260), all 160 foods imported unchanged, energy explanations,
+precision/rounding, remaining macros, units, undo, recipe grams, import validation (blank cells, decimal comma), **101 library recipes all
+calculable from your food database**, suggestions (350 kcal / 25 g protein case), week plan near 2000/160/200/62, shopping list, goals and
+recommendations (never auto-applied), progress estimate, water/habits/fasting, backups & validated restore, barcode (mocked network),
+**MEGO Nutrition Hub backend v3** (see below), stable-ID switch-over without duplicates.
 
-## Issues found and fixed during this round
+## Browser checks — 39/39 (Verified, Google/Open-Food-Facts simulated)
 
-1. Toast notifications blocked taps on buttons underneath for up to 6 s → toasts no longer intercept taps.
-2. A long dashboard button made the page wider than the screen (sideways scroll) → wraps now; overflow check added.
-3. Audit items: day auto-complete threshold, per-entry rounding drift, copy-day duplicates, missing remaining macros, unit gram labels,
-   blank/decimal-comma import cells, recipe-entry grams, score tolerance, noisy energy warnings — all fixed and covered by tests.
+Original 15 scenarios + SETUP, IMPORT, DASH, BODY, REMAIN, UNDO, COPYGUARD, LIBRARY, SUGGEST, GOAL, PLAN, HABITS, BARCODE, PHOTO, BACKUP,
+SYNC2, **HUBINFO, LIB100, COOK, BACKBTN, STREAK, REPLACE**, LAYOUT, DARK.
 
-## Needs you (cannot be verified from here)
+## MEGO Nutrition Hub (Simulated — real file needs your authorization)
 
-* Install / camera barcode scanning / notifications on your Samsung phone.
-* The Apps Script against your real spreadsheet (requires your Google login and the "Allow" click).
+The real `apps-script/Code.gs` runs inside an emulation of Apps Script/Drive/Sheets (`e2e/gas-mock.mjs`) in both modes:
+
+| Check | Result |
+| --- | --- |
+| Unauthorized requests rejected | ✅ |
+| Backend reports exactly `1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI`; app refuses any other ID (e.g. the TEST COPY) | ✅ |
+| Excel Hub: read-only, foods read via temporary copy that is deleted, writes refused, original untouched | ✅ |
+| Native Hub: `migrateHub` backs up first, renames, creates 17 tabs, 160 foods → Food_Database with IDs F0001…, original food tab byte-identical, re-run adds no duplicates, report counts 4 placeholder rows | ✅ |
+| Push/pull, incremental pull, Weight_Log / Recipe_Ingredients / Shopping_List views | ✅ |
+| Conflict: older offline copy rejected and reported; newer kept | ✅ |
+| Soft delete to Deleted_Records; data version increments | ✅ |
+| Validation: unknown table, bad date, impossible weight, oversized payload | ✅ rejected |
+| Food write-back goes to Food_Database only, after a daily Drive backup | ✅ |
+
+Real-file checks done here: rename to «MEGO Nutrition Hub» with the same ID (✅ via Google Drive), read-only audit of the real file
+(✅ 160 foods identical). **Not done:** running the script against the real file (needs your Google authorization).
+
+## Not verifiable here
+
+Physical Samsung touch scrolling, PWA install, camera barcode, notifications, the real Apps Script deployment.

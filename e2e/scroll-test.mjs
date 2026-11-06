@@ -22,7 +22,7 @@ const VIEWPORTS = [
   { name: 'Galaxy A54 (412×915)', width: 412, height: 915, dpr: 2.625 },
   { name: 'Galaxy S9+ (320×658)', width: 320, height: 658, dpr: 4.5 }
 ];
-const PAGES = ['/', '/diary', '/recipes', '/recipes?tab=suggest', '/recipes?tab=recipes', '/foods', '/planner', '/progress', '/habits', '/reports/week', '/reports/month', '/settings'];
+const PAGES = ['/', '/diary', '/recipes', '/recipes?tab=suggest', '/recipes?tab=cook', '/recipes?tab=recipes', '/foods', '/planner', '/progress', '/habits', '/reports/week', '/reports/month', '/settings'];
 
 let server;
 if (!EXTERNAL) {
@@ -135,6 +135,13 @@ for (const vp of VIEWPORTS) {
         await page.keyboard.press('Escape');
         await page.waitForTimeout(100);
         await page.keyboard.press('Escape');
+      },
+      'android back button closes a sheet': async () => {
+        await page.goto(BASE + '#/diary');
+        const add = page.getByTestId('add-dinner');
+        await add.evaluate((n) => n.scrollIntoView({ block: 'center' }));
+        await add.click();
+        await page.goBack();
       },
       'more menu navigation': async () => {
         await page.goto(BASE + '#/');

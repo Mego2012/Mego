@@ -257,3 +257,21 @@ export function Delta({ value, unit = '', invert = false, digits = 1 }: { value:
   const cls = value === 0 ? '' : (value > 0) !== invert ? 'pos' : 'neg';
   return <span className={`delta num ${cls}`}>{value > 0 ? '+' : ''}{n(value, digits)}{unit}</span>;
 }
+
+export function Skeleton({ lines = 3 }: { lines?: number }) {
+  return (
+    <div aria-busy="true" aria-live="polite">
+      {Array.from({ length: lines }, (_, i) => <div key={i} className="skeleton" style={{ height: i === 0 ? 120 : 64, marginBottom: 12 }} />)}
+    </div>
+  );
+}
+
+export function EmptyState({ icon, text, action }: { icon: string; text: string; action?: ReactNode }) {
+  return (
+    <div className="empty-state">
+      <div className="ico" aria-hidden="true">{icon}</div>
+      <div>{text}</div>
+      {action && <div style={{ marginTop: 12 }}>{action}</div>}
+    </div>
+  );
+}

@@ -1,6 +1,18 @@
 import { db, DB_SCHEMA_VERSION, SYNC_TABLES, type SyncTable } from './db';
 import { getSettings, onLocalChange, saveSettings } from './repo';
-import { importParsedFoods, parseFoodRows, type ImportResult } from './sheetImport';
+import { importParsedFoods, parseFoodRows, parseStructuredFoods, type ImportResult } from './sheetImport';
+
+/** The ONLY spreadsheet this app may sync with («MEGO Nutrition Hub»). A server reporting any other ID is refused. */
+export const HUB_ID = '1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI';
+export const HUB_NAME = 'MEGO Nutrition Hub';
+let hubChecked = false;
+/** Verifies the backend is connected to the Hub (once per session) before any data is exchanged. */
+async function assertHub(cfg: Settings['sync']) {
+  if (hubChecked) return;
+  const r = await callScript<{ spreadsheetId?: string; mode?: string }>(cfg, 'ping');
+  if (r.spreadsheetId !== HUB_ID) throw new Error(`WRONG_SPREADSHEET: backend uses ${r.spreadsheetId ?? 'unknown'}, expected ${HUB_ID}`);
+  hubChecked = true;
+}
 import type { Food, OutboxItem, Settings } from './types';
 
 export type SyncState = 'disabled' | 'offline' | 'idle' | 'syncing' | 'error';
@@ -82,10 +94,21 @@ export async function pushNow(): Promise<void> {
     }
     setStatus({ state: 'syncing' });
     try {
+      await assertHub(s.sync);
       for (;;) {
         const batch = await db.outbox.orderBy('id').limit(300).toArray();
         if (!batch.length) break;
-        const changes = coalesce(batch).map(({ table, key, op, payload, at }) => ({ table, key, op, payload, at }));
+        // Food values belong to the Hub's Food_Database: only custom foods are pushed (sheet foods go through
+        // the explicit write-back path below, when enabled). Sheet foods are keyed by their stable food_id.
+        const changes = coalesce(batch)
+          .filter((c) => !(c.table === 'foods' && (c.payload as Food | undefined)?.source === 'sheet'))
+          .map(({ table, key, op, payload, at }) => ({ table, key, op, payload, at }));
+        const sheetFoodEdits = coalesce(batch).filter((c) => c.table === 'foods' && (c.payload as Food | undefined)?.source === 'sheet').map((c) => c.payload as Food);
+        if (!changes.length) {
+          await db.outbox.bulkDelete(batch.map((b) => b.id!));
+          if (s.sync.writeFoodsToSheet && sheetFoodEdits.length) await callScript(s.sync, 'saveFoods', { foods: sheetFoodEdits.map(foodToSheetRow) });
+          continue;
+        }
         const res = await callScript<{ applied: number; conflicts?: { table: string; key: string }[]; dataVersion?: number }>(s.sync, 'push', { changes, clientSchema: DB_SCHEMA_VERSION });
         await db.outbox.bulkDelete(batch.map((b) => b.id!));
         if (res.dataVersion) await db.settings.update('main', { 'sync.serverVersion': res.dataVersion } as never);
@@ -94,10 +117,7 @@ export async function pushNow(): Promise<void> {
           setStatus({ conflicts: (status.conflicts ?? 0) + res.conflicts.length });
           await pullAll();
         }
-        if (s.sync.writeFoodsToSheet) {
-          const foods = changes.filter((c) => c.table === 'foods' && c.op === 'upsert').map((c) => c.payload as Food);
-          if (foods.length) await callScript(s.sync, 'saveFoods', { foods: foods.map(foodToSheetRow) });
-        }
+        if (s.sync.writeFoodsToSheet && sheetFoodEdits.length) await callScript(s.sync, 'saveFoods', { foods: sheetFoodEdits.map(foodToSheetRow) });
       }
       const now = Date.now();
       await db.settings.update('main', { 'sync.lastPushAt': now, 'sync.lastError': '' } as never);
@@ -109,7 +129,8 @@ export async function pushNow(): Promise<void> {
       failures++;
       const wait = backoffMs(failures);
       clearTimeout(retryTimer);
-      if (msg !== 'unauthorized') retryTimer = setTimeout(() => { pushNow(); }, wait);
+      // Permanent errors are not retried automatically (they need the user): bad token, wrong spreadsheet, read-only Excel Hub.
+      if (!/unauthorized|WRONG_SPREADSHEET|HUB_IS_XLSX/.test(msg)) retryTimer = setTimeout(() => { pushNow(); }, wait);
       await db.settings.update('main', { 'sync.lastError': msg } as never).catch(() => {});
       setStatus({ state: isOnline() ? 'error' : 'offline', error: msg, retryIn: Math.round(wait / 1000) });
     } finally {
@@ -125,6 +146,7 @@ export async function pushNow(): Promise<void> {
 
 export function foodToSheetRow(f: Food) {
   return {
+    foodId: f.sheetKey ?? '', updatedAt: f.updatedAt,
     sheetKey: f.sheetKey ?? '', sheetRow: f.sheetRow ?? 0, name: f.nameAr || f.nameEn, category: f.category,
     kcal: f.per100.kcal, protein: f.per100.protein, carbs: f.per100.carbs, fat: f.per100.fat,
     piece: f.pieceGrams ?? '', state: f.stateLabel || f.state, prep: f.prep, notes: f.notes, archived: f.archived
@@ -134,8 +156,9 @@ export function foodToSheetRow(f: Food) {
 /** Pulls the food database tab from Google Sheets and merges it (never deletes local records). */
 export async function pullFoodsFromSheet(): Promise<ImportResult & { sheet: string; rowsRead: number }> {
   const s = await getSettings();
-  const res = await callScript<{ rows: string[][]; sheet: string }>(s.sync, 'foods');
-  const parsed = parseFoodRows(res.rows);
+  await assertHub(s.sync);
+  const res = await callScript<{ rows: string[][]; sheet: string; structured?: boolean }>(s.sync, 'foods');
+  const parsed = res.structured ? parseStructuredFoods(res.rows) : parseFoodRows(res.rows);
   if (parsed.errors.length) throw new Error(parsed.errors.join(','));
   const r = await importParsedFoods(parsed.foods, 'sheet');
   await saveSettings((x) => { x.sync.lastFoodsPullAt = Date.now(); });
@@ -145,10 +168,12 @@ export async function pullFoodsFromSheet(): Promise<ImportResult & { sheet: stri
 /** Restores/merges every app table from the APP_* tabs (newer updatedAt wins). */
 export async function pullAll(): Promise<Record<string, number>> {
   const s = await getSettings();
+  await assertHub(s.sync);
   const res = await callScript<{ tables: Record<string, unknown[]> }>(s.sync, 'pull');
   const counts: Record<string, number> = {};
   for (const [table, rows] of Object.entries(res.tables)) {
-    if (!(table in SYNC_TABLES)) continue;
+    // Foods are pulled through the Food_Database import (stable IDs), not as raw records.
+    if (!(table in SYNC_TABLES) || table === 'foods') continue;
     const t = db.table(table);
     const keyName = SYNC_TABLES[table as SyncTable];
     let n = 0;
@@ -193,7 +218,11 @@ export async function queueFullUpload() {
 }
 
 export async function testConnection(cfg: Settings['sync']) {
-  return callScript<{ spreadsheet: string; foodSheet: string | null }>(cfg, 'ping');
+  hubChecked = false;
+  const r = await callScript<{ spreadsheet: string; spreadsheetId?: string; foodSheet: string | null; mode?: 'native' | 'xlsx'; writable?: boolean }>(cfg, 'ping');
+  if (r.spreadsheetId !== HUB_ID) throw new Error(`WRONG_SPREADSHEET: backend uses ${r.spreadsheetId ?? 'unknown'}, expected ${HUB_ID} (${HUB_NAME})`);
+  hubChecked = true;
+  return r;
 }
 
 let started = false;

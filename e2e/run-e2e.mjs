@@ -4,7 +4,7 @@
  * Uses the pre-installed Playwright + Chromium, emulating a Samsung Galaxy phone.
  */
 import { spawn } from 'node:child_process';
-import { mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 
@@ -401,7 +401,8 @@ await check('COPYGUARD', 'Copy from yesterday into a non-empty day asks for conf
 await check('LIBRARY', 'Recipe library: ≥50 recipes computed from the food DB, detail, rate, add to diary', async () => {
   // Use the full 160-food database for the library.
   await go(page, '/foods');
-  await page.getByTestId('import-input').setInputFiles(path.join(ROOT, 'tests/fixtures/foods-160.csv'));
+  const realFoods = path.join(ROOT, 'tests/private/foods-160.csv');
+  await page.getByTestId('import-input').setInputFiles(existsSync(realFoods) ? realFoods : path.join(ROOT, 'tests/fixtures/foods-synthetic.csv'));
   await page.getByTestId('import-confirm').click();
   await page.waitForTimeout(1500);
   await go(page, '/recipes');
@@ -543,9 +544,70 @@ await check('SYNC2', 'Everything synced to the emulated sheet (APP_* tabs) by th
   return `${JSON.stringify(counts)} · dataVersion ${pulled.meta.dataVersion}`;
 });
 
+
+await check('HUBINFO', 'Settings shows MEGO Nutrition Hub with its fixed ID; backend reported the same ID', async () => {
+  await go(page, '/settings');
+  const txt = await page.getByTestId('hub-info').innerText();
+  if (!txt.includes('MEGO Nutrition Hub') || !txt.includes('1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI')) throw new Error(txt);
+  return txt.split('\n')[0];
+});
+
+await check('LIB100', 'Recipe library has ≥ 100 recipes, all calculable', async () => {
+  await go(page, '/recipes');
+  const c = await waitText(page.getByTestId('library-count'), /\d+ \/ \d+/);
+  const [a, b] = c.split('·')[0].split('/').map((x) => Number(x.trim()));
+  if (b < 100 || a !== b) throw new Error(c);
+  return c.split('·')[0].trim();
+});
+
+await check('COOK', 'What can I cook today? — pantry selection ranks recipes and lists missing items', async () => {
+  await go(page, '/recipes?tab=cook');
+  await page.getByTestId('pantry-more').click();
+  for (const name of ['صدر دجاج', 'أرز أبيض', 'بصل', 'طماطم', 'بيض كامل', 'خيار', 'زبادي يوناني خالي الدسم', 'توست بر (خبز أسمر)']) {
+    await page.getByTestId('pantry-chip').filter({ hasText: new RegExp(`^${name.replace(/[()]/g, '\\$&')}$`) }).first().click();
+  }
+  await page.getByTestId('cook-result').first().waitFor();
+  const n = await page.getByTestId('cook-result').count();
+  const first = await page.getByTestId('cook-match').first().innerText();
+  await shot(page, '18-cook');
+  return `${n} recipes, best match ${first}`;
+});
+
+await check('BACKBTN', 'Android Back closes an open sheet without leaving the page; scrolling still works', async () => {
+  await go(page, '/diary');
+  await tap(page, 'add-lunch');
+  await page.getByTestId('food-search').waitFor();
+  await page.goBack();
+  await page.waitForTimeout(400);
+  if (await page.getByTestId('food-search').count()) throw new Error('sheet still open');
+  if (!page.url().includes('#/diary')) throw new Error('left the diary: ' + page.url());
+  const locked = await page.evaluate(() => document.body.classList.contains('scroll-locked'));
+  if (locked) throw new Error('page left scroll-locked');
+});
+
+await check('STREAK', 'Habit streaks and 14-day water history', async () => {
+  await go(page, '/habits');
+  await page.getByTestId('water-history').waitFor();
+  const st = await page.getByTestId('habit-streak').first().innerText();
+  return st;
+});
+
+await check('REPLACE', 'Replace a meal in the suggested week plan', async () => {
+  await go(page, '/planner');
+  await page.getByTestId('generate-plan').click();
+  const plan = page.getByTestId('generated-plan');
+  await plan.waitFor();
+  const before = await plan.innerText();
+  await page.getByTestId('replace-meal').first().click();
+  await page.waitForTimeout(200);
+  const after = await plan.innerText();
+  if (before === after) throw new Error('nothing replaced');
+  await page.keyboard.press('Escape');
+});
+
 await check('LAYOUT', 'No horizontal overflow on any screen (phone width)', async () => {
   const bad = [];
-  for (const h of ['/', '/diary', '/recipes', '/recipes?tab=suggest', '/recipes?tab=recipes', '/foods', '/planner', '/progress', '/habits', '/reports/week', '/reports/month', '/settings']) {
+  for (const h of ['/', '/diary', '/recipes', '/recipes?tab=suggest', '/recipes?tab=cook', '/recipes?tab=recipes', '/foods', '/planner', '/progress', '/habits', '/reports/week', '/reports/month', '/settings']) {
     await go(page, h);
     await page.waitForTimeout(300);
     const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth, wide: [...document.querySelectorAll('main *')].filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1 && getComputedStyle(e).position !== 'fixed' && !e.closest('.table-wrap,.segmented,.chart')).length }));

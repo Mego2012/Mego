@@ -1,7 +1,10 @@
 import { db } from './db';
 import { macrosFor, preciseMacros, roundMacros, scaleMacros, sumMacros, basisFromFood } from './nutrition';
 import { buildIngredient, saveRecipe, setPlannedDay, uid, kvGet } from './repo';
-import { LIBRARY, type LibraryRecipe } from './recipeLibraryData';
+import { LIBRARY as LIB1, type LibraryRecipe } from './recipeLibraryData';
+import { LIBRARY_2 } from './recipeLibraryData2';
+
+export const LIBRARY: LibraryRecipe[] = [...LIB1, ...LIBRARY_2];
 import { normalizeText } from './search';
 import type { Food, Macros, MealType, PlanItem, Recipe } from './types';
 
@@ -194,16 +197,23 @@ export function generatePlan(dates: string[], targetsFor: (d: string) => Macros,
   const by = (meal: MealType) => ok.filter((c) => c.lib.meals.includes(meal));
   const used = new Map<string, number>();
   const days: GeneratedDay[] = [];
-  const mults = [0.75, 1, 1.25, 1.5];
+  const mults = [0.75, 1, 1.25, 1.5, 1.75, 2];
+  const snackMults = [1, 1.5];
   for (const date of dates) {
     const T = targetsFor(date);
     let best: { cost: number; picks: GeneratedDay['picks']; total: Macros } | null = null;
     const B = by('breakfast'), L = by('lunch'), D = by('dinner'), N = by('snacks');
-    const pickOrder = (list: ComputedRecipe[]) => [...list].sort((a, b) => (used.get(a.lib.id) ?? 0) - (used.get(b.lib.id) ?? 0) || b.perServing.protein / Math.max(b.perServing.kcal, 1) - a.perServing.protein / Math.max(a.perServing.kcal, 1)).slice(0, 9);
+    // Candidates: least-used first, mixing protein-dense and more filling options so days can reach the target.
+    const pickOrder = (list: ComputedRecipe[]) => {
+      const byUse = (a: ComputedRecipe, b: ComputedRecipe) => (used.get(a.lib.id) ?? 0) - (used.get(b.lib.id) ?? 0);
+      const dense = [...list].sort((a, b) => byUse(a, b) || b.perServing.protein / Math.max(b.perServing.kcal, 1) - a.perServing.protein / Math.max(a.perServing.kcal, 1)).slice(0, 6);
+      const filling = [...list].filter((c) => !dense.includes(c)).sort((a, b) => byUse(a, b) || b.perServing.kcal - a.perServing.kcal).slice(0, 3);
+      return [...dense, ...filling];
+    };
     for (const b of pickOrder(B)) for (const l of pickOrder(L)) for (const d of pickOrder(D)) {
       if (l.lib.id === d.lib.id) continue;
-      for (const n of pickOrder(N)) for (const ml of mults) for (const md of mults) {
-        const parts = [b.perServing, scaleMacros(l.perServing, ml), scaleMacros(d.perServing, md), n.perServing];
+      for (const n of pickOrder(N)) for (const ml of mults) for (const md of mults) for (const mn of snackMults) {
+        const parts = [b.perServing, scaleMacros(l.perServing, ml), scaleMacros(d.perServing, md), scaleMacros(n.perServing, mn)];
         const t = sumMacros(parts);
         const kcalOver = Math.max(0, t.kcal - T.kcal);
         const kcalUnder = Math.max(0, T.kcal - t.kcal);
@@ -217,7 +227,7 @@ export function generatePlan(dates: string[], targetsFor: (d: string) => Macros,
               { meal: 'breakfast', libId: b.lib.id, servings: 1, macros: roundMacros(b.perServing) },
               { meal: 'lunch', libId: l.lib.id, servings: ml, macros: roundMacros(scaleMacros(l.perServing, ml)) },
               { meal: 'dinner', libId: d.lib.id, servings: md, macros: roundMacros(scaleMacros(d.perServing, md)) },
-              { meal: 'snacks', libId: n.lib.id, servings: 1, macros: roundMacros(n.perServing) }
+              { meal: 'snacks', libId: n.lib.id, servings: mn, macros: roundMacros(scaleMacros(n.perServing, mn)) }
             ]
           };
         }
@@ -279,4 +289,104 @@ export async function shoppingList(dates: string[]): Promise<ShoppingItem[]> {
 
 export async function recipeMeta(): Promise<{ favorites: Set<string>; ratings: Record<string, number> }> {
   return { favorites: new Set(await kvGet<string[]>('recipeFavorites', [])), ratings: await kvGet<Record<string, number>>('recipeRatings', {}) };
+}
+
+/* ------------------------------------------------------------------ "What can I cook today?" */
+
+/** Ingredients that don't decide whether you can cook a dish (kept in every kitchen). */
+const STAPLES = new Set(['زيت زيتون', 'زيت طهي عام', 'زبدة']);
+
+/** Practical swaps between foods of the user's database (same role in a recipe). */
+export const SUBSTITUTES: Record<string, string[]> = {
+  'صدر دجاج': ['فخذ دجاج بدون جلد', 'ديك رومي (توركي) مفروم'],
+  'فخذ دجاج بدون جلد': ['صدر دجاج'],
+  'أرز أبيض': ['أرز بسمتي نيء/جاف', 'برغل نيء/جاف', 'كينوا نيئة/جافة'],
+  'أرز بسمتي نيء/جاف': ['أرز أبيض', 'برغل نيء/جاف'],
+  'معكرونة نيئة/جافة': ['أرز أبيض', 'برغل نيء/جاف'],
+  'زبادي يوناني قليل الدسم': ['زبادي يوناني خالي الدسم', 'جبن قريش قليل الدسم'],
+  'زبادي يوناني خالي الدسم': ['زبادي يوناني قليل الدسم', 'جبن قريش قليل الدسم'],
+  'توست بر (خبز أسمر)': ['خبز عربي أسمر', 'تورتيلا قمح'],
+  'خبز عربي أسمر': ['توست بر (خبز أسمر)', 'تورتيلا قمح'],
+  'تورتيلا قمح': ['خبز عربي أسمر'],
+  'سمك بلطي/تلابيا': ['سمك قاروس (سي باس) نيء'],
+  'سمك قاروس (سي باس) نيء': ['سمك بلطي/تلابيا'],
+  'لحم بقري قليل الدهن 90/10': ['ديك رومي (توركي) مفروم'],
+  'ديك رومي (توركي) مفروم': ['لحم بقري قليل الدهن 90/10', 'صدر دجاج'],
+  'بطاطس': ['بطاطا حلوة نيئة'],
+  'بطاطا حلوة نيئة': ['بطاطس'],
+  'جبن موزاريلا قليلة الدسم': ['جبن شيدر كامل الدسم'],
+  'فراولة': ['مانجو', 'موز'],
+  'بروكلي': ['قرنبيط', 'فاصوليا خضراء'],
+  'كوسا': ['باذنجان'],
+  'فاصوليا حمراء مطبوخة': ['فاصوليا سوداء مطبوخة', 'حمص مطبوخ'],
+  'حمص مطبوخ': ['فاصوليا حمراء مطبوخة']
+};
+
+export interface CookMatch {
+  c: ComputedRecipe;
+  have: string[];
+  missing: { name: string; swap?: string }[];
+  matchPct: number;
+  /** servings that fit the remaining calories (0.5–2), null when nothing remains */
+  servings: number | null;
+  macros: Macros;
+}
+
+export function allLibraryIngredients(lib: ComputedRecipe[]): string[] {
+  const set = new Set<string>();
+  for (const c of lib) for (const [n] of c.lib.ingredients) if (!STAPLES.has(n)) set.add(n);
+  return [...set].sort((a, b) => a.localeCompare(b, 'ar'));
+}
+
+export function whatCanICook(lib: ComputedRecipe[], pantry: string[], remaining: Macros | null, f: { meal?: MealType | ''; method?: string; maxMinutes?: number | '' } = {}): CookMatch[] {
+  const have = new Set(pantry);
+  const out: CookMatch[] = [];
+  for (const c of lib) {
+    if (!c.ok) continue;
+    if (f.meal && !c.lib.meals.includes(f.meal)) continue;
+    if (f.method && !(c.lib.methods as string[]).includes(f.method)) continue;
+    if (f.maxMinutes && c.totalTime > Number(f.maxMinutes)) continue;
+    const main = c.lib.ingredients.map((i) => i[0]).filter((n) => !STAPLES.has(n));
+    const got: string[] = [];
+    const missing: { name: string; swap?: string }[] = [];
+    for (const n of main) {
+      if (have.has(n)) { got.push(n); continue; }
+      const swap = (SUBSTITUTES[n] ?? []).find((s) => have.has(s));
+      if (swap) got.push(n);
+      missing.push({ name: n, swap });
+    }
+    const covered = main.filter((n) => have.has(n) || (SUBSTITUTES[n] ?? []).some((s) => have.has(s))).length;
+    const matchPct = main.length ? Math.round((covered / main.length) * 100) : 0;
+    if (matchPct < 50) continue;
+    let servings: number | null = 1;
+    if (remaining) {
+      if (remaining.kcal < 60) servings = null;
+      else {
+        const fit = [2, 1.5, 1.25, 1, 0.75, 0.5].find((m) => c.perServing.kcal * m <= remaining.kcal * 1.05 + 20);
+        servings = fit ?? 0.5;
+      }
+    }
+    out.push({ c, have: got, missing: missing.filter((m) => !have.has(m.name)), matchPct, servings, macros: roundMacros(scaleMacros(c.perServing, servings ?? 1)) });
+  }
+  return out.sort((a, b) => b.matchPct - a.matchPct || b.macros.protein - a.macros.protein);
+}
+
+/** Swaps one meal of a generated day for the closest-calorie alternative not already used that week. */
+export function replacePick(days: GeneratedDay[], date: string, meal: MealType, lib: ComputedRecipe[]): GeneratedDay[] {
+  const used = new Set(days.flatMap((d) => d.picks.map((p) => p.libId)));
+  return days.map((d) => {
+    if (d.date !== date) return d;
+    const cur = d.picks.find((p) => p.meal === meal)!;
+    const target = cur.macros.kcal;
+    const options = lib.filter((c) => c.ok && c.lib.meals.includes(meal) && !used.has(c.lib.id) && c.lib.id !== cur.libId)
+      .map((c) => {
+        const m = [0.75, 1, 1.25, 1.5, 1.75, 2].reduce((best, x) => (Math.abs(c.perServing.kcal * x - target) < Math.abs(c.perServing.kcal * best - target) ? x : best), 1);
+        return { c, m, err: Math.abs(c.perServing.kcal * m - target) - c.perServing.protein * m * 2 };
+      })
+      .sort((a, b) => a.err - b.err);
+    const alt = options[0];
+    if (!alt) return d;
+    const picks = d.picks.map((p) => (p.meal === meal ? { meal, libId: alt.c.lib.id, servings: alt.m, macros: roundMacros(scaleMacros(alt.c.perServing, alt.m)) } : p));
+    return { ...d, picks, total: roundMacros(sumMacros(picks.map((p) => p.macros))) };
+  });
 }

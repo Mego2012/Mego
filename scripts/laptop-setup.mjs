@@ -7,6 +7,8 @@
  *   node scripts/laptop-setup.mjs --photo meal.jpg   use your own photo for the real AI test
  *   node scripts/laptop-setup.mjs --ai-key-from-clipboard   read the Gemini key you copied (never typed into a chat)
  *   --auto   no keyboard prompts (also automatic when not run in a terminal): waits for Google screens by polling
+ *   --cloud [admin-email]   ALSO set up the public multi-user platform on Firebase's free Spark plan:
+ *            project, web app, Firestore (security rules deployed), email sign-in, admin account, public config
  *
  * What it does (you only click Google's own "Allow" screens):
  *  1. signs in Google's official Apps Script CLI (clasp) — browser "Allow"
@@ -269,6 +271,100 @@ function connectApp() {
   log('   Keep this link private (it contains your token). Re-print it any time with: node scripts/laptop-setup.mjs --test');
 }
 
+/* ------------------------------------------------------------------ public platform: Firebase Spark (free) */
+
+const FB = [process.platform === 'win32' ? 'npx.cmd' : 'npx', ['--no-install', 'firebase']];
+function firebase(cmdArgs, { json = false, allowFail = false } = {}) {
+  const r = spawnSync(FB[0], [...FB[1], ...cmdArgs, ...(json ? ['--json'] : []), '--non-interactive'], { cwd: ROOT, encoding: 'utf8' });
+  const out = (r.stdout || '') + (r.stderr || '');
+  if (r.status !== 0 && !allowFail) throw new Error('firebase ' + cmdArgs.join(' ') + ': ' + out.slice(-600));
+  return { status: r.status, out, json: json ? safeJson(r.stdout) : null };
+}
+async function googleToken() {
+  const require = (await import('node:module')).createRequire(import.meta.url);
+  const auth = require(path.join(ROOT, 'node_modules/firebase-tools/lib/auth.js'));
+  const acct = auth.getGlobalDefaultAccount();
+  if (!acct?.tokens?.refresh_token) throw new Error('firebase CLI not signed in');
+  const t = await auth.getAccessToken(acct.tokens.refresh_token, []);
+  return t.access_token;
+}
+async function gapi(url, method, body, project) {
+  const res = await fetch(url, { method, headers: { Authorization: 'Bearer ' + (await googleToken()), 'Content-Type': 'application/json', ...(project ? { 'x-goog-user-project': project } : {}) }, body: body ? JSON.stringify(body) : undefined });
+  const text = await res.text();
+  let j = null; try { j = JSON.parse(text); } catch { /* not JSON */ }
+  return { ok: res.ok, status: res.status, json: j, text };
+}
+
+async function setupCloud(adminEmail) {
+  step('Public platform on Firebase (free Spark plan — no billing account)');
+  if (!existsSync(path.join(ROOT, 'node_modules/firebase-tools'))) spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['ci'], { cwd: ROOT, stdio: 'inherit' });
+  if (!/@/.test(firebase(['login:list'], { allowFail: true }).out)) {
+    log('   A browser window opens: choose your Google account and click "Allow".');
+    spawnSync(FB[0], [...FB[1], 'login'], { cwd: ROOT, stdio: 'inherit' });
+  }
+  if (!state.fbProject) {
+    const id = 'mego-' + randomBytes(3).toString('hex');
+    firebase(['projects:create', id, '--display-name', 'MEGO Nutrition']);
+    state.fbProject = id; saveState(state);
+    ok('project ' + id);
+  } else ok('project ' + state.fbProject);
+  const P = state.fbProject;
+  if (!state.fbAppId) {
+    const r = firebase(['apps:create', 'WEB', 'MEGO Web', '--project', P], { json: true });
+    state.fbAppId = r.json?.result?.appId; saveState(state);
+  }
+  const cfg = firebase(['apps:sdkconfig', 'WEB', state.fbAppId, '--project', P], { json: true }).json?.result?.sdkConfig;
+  if (!cfg?.apiKey) throw new Error('could not read the web app config');
+  ok('web app ' + state.fbAppId);
+  // Firestore database (location is permanent: Dammam, then Doha, then Europe)
+  if (!state.fbDb) {
+    for (const loc of ['me-central2', 'me-central1', 'eur3']) {
+      const r = firebase(['firestore:databases:create', '(default)', '--location', loc, '--project', P], { allowFail: true });
+      if (r.status === 0 || /already exists/i.test(r.out)) { state.fbDb = loc; saveState(state); break; }
+    }
+    if (!state.fbDb) throw new Error('could not create the Firestore database');
+  }
+  ok('Firestore (' + state.fbDb + ')');
+  firebase(['deploy', '--only', 'firestore:rules,firestore:indexes', '--project', P]);
+  ok('security rules deployed');
+  // Email/password sign-in + the app's domain
+  const enable = await gapi(`https://identitytoolkit.googleapis.com/admin/v2/projects/${P}/config?updateMask=signIn.email,authorizedDomains`, 'PATCH',
+    { signIn: { email: { enabled: true, passwordRequired: true } }, authorizedDomains: ['localhost', `${P}.firebaseapp.com`, `${P}.web.app`, 'mego2012.github.io'] }, P);
+  if (!enable.ok) {
+    openUrl(`https://console.firebase.google.com/project/${P}/authentication/providers`);
+    for (;;) {
+      await pause('Firebase needs one click: Authentication → Get started → "Email/Password" → Enable → Save.');
+      const c = await gapi(`https://identitytoolkit.googleapis.com/admin/v2/projects/${P}/config`, 'GET', null, P);
+      if (c.json?.signIn?.email?.enabled) break;
+    }
+  }
+  ok('email sign-in enabled');
+  // public config for the app (identifiers only — access is enforced by the rules)
+  const pub = { apiKey: cfg.apiKey, authDomain: cfg.authDomain, projectId: cfg.projectId, appId: cfg.appId, aiBackendUrl: state.url };
+  writeFileSync(path.join(ROOT, 'public/firebase-config.json'), JSON.stringify(pub, null, 2) + '\n');
+  ok('public/firebase-config.json written');
+  if (state.url && state.token) {
+    const r = await call(state.url, { action: 'setCloudConfig', token: state.token, apiKey: cfg.apiKey, projectId: cfg.projectId, userLimit: 10, globalLimit: 200 });
+    record('AI backend knows the Firebase project (per-user limit 10/day, global 200/day)', r.ok === true, r.error || '');
+  }
+  // admin account (must already be registered in the app)
+  if (adminEmail) {
+    const look = await gapi(`https://identitytoolkit.googleapis.com/v1/projects/${P}/accounts:lookup`, 'POST', { email: [adminEmail] }, P);
+    const uid = look.json?.users?.[0]?.localId;
+    if (!uid) log(`   ${adminEmail} has no account yet: register in the app, then run again with --cloud ${adminEmail}`);
+    else {
+      const w = await gapi(`https://firestore.googleapis.com/v1/projects/${P}/databases/(default)/documents/admins/${uid}`, 'PATCH', { fields: { since: { integerValue: String(Date.now()) } } }, P);
+      record('administrator role for ' + adminEmail, w.ok, w.ok ? '' : w.text.slice(0, 120));
+    }
+  }
+  // publish the config with the app (GitHub Pages)
+  const g = spawnSync('git', ['add', 'public/firebase-config.json'], { cwd: ROOT, encoding: 'utf8' });
+  const c = spawnSync('git', ['commit', '-m', 'Enable public accounts (Firebase config: public identifiers only)'], { cwd: ROOT, encoding: 'utf8' });
+  const p = spawnSync('git', ['push'], { cwd: ROOT, encoding: 'utf8' });
+  if (g.status === 0 && p.status === 0) ok('config pushed — GitHub Pages redeploys in ~2 minutes');
+  else log('   Could not push automatically (' + ((c.stderr || '') + (p.stderr || '')).trim().slice(0, 120) + '). Commit public/firebase-config.json and push it.');
+}
+
 /* ------------------------------------------------------------------ main */
 
 try {
@@ -288,6 +384,7 @@ try {
   if (!state.url || !state.token) throw new Error('no backend yet — run without --test first');
   const info = await liveTests();
   await gemini(info);
+  if (args.includes('--cloud') && !FAKE_BACKEND) await setupCloud(args[args.indexOf('--cloud') + 1]?.includes('@') ? args[args.indexOf('--cloud') + 1] : '');
   connectApp();
   const failed = results.filter((r) => !r.pass);
   const report = [`# MEGO live check ${new Date().toISOString()}`, '', `Backend: ${state.url.replace(/\/s\/.{8}/, '/s/…')}`, `Hub: ${state.nativeId || ''}`, '',

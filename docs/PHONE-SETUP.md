@@ -21,6 +21,10 @@ node scripts/laptop-setup.mjs
 أنت تضغط فقط على شاشات Google الخاصة بالسماح: «Allow» لتسجيل الدخول، مفتاح «Google Apps Script API» (مرة واحدة)، وأذونات السكربت (مرة واحدة).
 It does everything; you only click Google's own permission screens. Re-run any time with `--test` for the live checks.
 
+**التطبيق العام متعدد المستخدمين · Public multi-user platform:** `node scripts/laptop-setup.mjs --cloud you@example.com`
+ينشئ مشروع Firebase مجانيًا (خطة Spark بدون فوترة)، قاعدة Firestore، قواعد الأمان، تسجيل الدخول بالبريد، يجعل بريدك مسؤولًا،
+ويرفع ملف الإعداد العام. سجّل حسابك في التطبيق أولًا ثم أعد التشغيل بنفس الأمر لمنح صلاحية المسؤول.
+
 ## 1) إنشاء الخادم المجاني (≈ 5 دقائق، مرة واحدة) · Create the free backend (once)
 
 1. في **Chrome**: افتح `script.google.com` ← ⋮ ← فعّل **Desktop site / موقع لسطح المكتب** ← سجّل الدخول بـ **ahmedmego967@gmail.com** ← **New project / مشروع جديد**.

@@ -4,7 +4,8 @@ A mobile-first, installable, offline-capable nutrition tracker built around **yo
 Arabic (full RTL) and English, light and dark mode. No workouts — nutrition, body weight and progress only.
 
 * **Live app:** https://mego2012.github.io/Mego/
-* **Phone-only setup (free):** [docs/PHONE-SETUP.md](docs/PHONE-SETUP.md)
+* **Architecture, security model, free-tier limits:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+* **Setup (laptop, one command) / phone-only:** [docs/PHONE-SETUP.md](docs/PHONE-SETUP.md)
 * **Full feature list:** [docs/FEATURES.md](docs/FEATURES.md)
 * **Setup / Android install / backups / maintenance:** [docs/SETUP.md](docs/SETUP.md)
 * **Audit of your food database:** [docs/AUDIT.md](docs/AUDIT.md)
@@ -21,6 +22,9 @@ stops with a clear message when the free quota is used up) · phone storage + Dr
 | Area | What you get |
 | --- | --- |
 | Dashboard | Calorie ring (target / consumed / remaining / %), protein-carb-fat bars, per-meal summaries, meals logged, daily goal score, current weight, weekly calorie average, weekly weight trend, 7-day chart, insights |
+| Public accounts | Registration with onboarding, private data per account (server-enforced), sign-in on several devices with live sync, password reset, export, account deletion, admin dashboard without access to private data — free Firebase Spark plan |
+| Food database | 12,879 USDA FoodData Central foods (public domain) + your verified 160, Arabic/English search with dialect words and typos, custom foods from nutrition labels, submissions reviewed by an admin |
+| Coach & Food intelligence | Daily/weekly/monthly coaching from your own logs, transparent goal-dependent food rankings (amino-acid score, NRF9.3, omega-3…), education center with cited sources |
 | AI meal scanner | Photo (camera or gallery) → foods, grams with ranges, raw/cooked, cooking method, matched to YOUR food database → editable review → saved only after you confirm. Nutrition always from your database; AI estimates clearly marked |
 | Food diary | Breakfast / lunch / dinner / snacks; g, kg, ml, piece, slice, tbsp, tsp and custom servings; edit, move, duplicate, delete; copy meal / day / yesterday; saved meals; any past date; day marked fully / partially logged; training vs rest day; per-day target override |
 | Food database | Search Arabic + English (forgiving of أ/ا, ة/ه…), filters (category, raw/cooked, kcal, protein, carbs, fat), favorites, recent, custom foods, edit with version history, delete = archive with confirmation, CSV/Excel import with audit preview, CSV/Excel export in the sheet's own column layout |

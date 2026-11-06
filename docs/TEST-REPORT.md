@@ -1,4 +1,4 @@
-# Test report — v3.2 free edition (2026-11-06)
+# Test report — v4 public platform (2026-11-07)
 
 Re-run everything with:
 
@@ -23,6 +23,20 @@ Legend: **Verified** = executed here against the real code · **Simulated** = ex
 | Fix | Removed overflow from html/body (`overflow-x: clip` on `.app`), reference-counted scroll lock, Escape/Back close only the top sheet, no nested scroll boxes (one was found and removed on the Cook tab — the test caught it on the 320 px screen) |
 | Regression suite | ✅ **103/103** — every screen reaches its real bottom, last content above the bottom nav, no horizontal overflow, never left locked; Galaxy S23 (360×780), A54 (412×915), S9+ (320×658); Arabic RTL + English LTR |
 | Physical Samsung phone | ⏳ Unverified — please confirm on your phone (emulated touch input is the closest test possible here) |
+
+## Summary of suites (all executed here)
+
+| Suite | Result | What it covers |
+| --- | --- | --- |
+| `npm test` | 101/101 | nutrition engine, real 160 foods, USDA database integrity + exact spot values, bilingual search, custom foods, coach, rankings, scanner, Code.gs (owner + public AI paths), i18n coverage |
+| `npm run test:rules` | 14/14 | Firestore rules on Google's official emulator: 3 users isolated, admin without private access, suspension, older-copy rule; real Firebase SDK sync incl. live second device |
+| `npm run e2e` | 44/44 | guest-mode browser checks (Samsung-size), incl. FOODDB, COACH, SCAN, DEEPLINK, LAYOUT, DARK |
+| `npm run e2e:multi` | 8/8 | real browsers vs Firebase emulators: 3 registrations, isolation (server 403), two devices live, AI per-user limit, password reset, food submission review, admin suspend, sign-out, account deletion |
+| `npm run e2e:scroll` | 103/103 | touch scrolling on 3 Samsung viewports × AR/EN |
+| `npm run e2e:laptop` | 10/10 | laptop setup script against the real Code.gs over HTTP |
+
+**Not yet verified on real services** (needs the owner's laptop / accounts): real Firebase project, real Google Sheet
+conversion, real Gemini calls, real Android device camera and install.
 
 ## Zero-cost check (Verified by code search + tests)
 

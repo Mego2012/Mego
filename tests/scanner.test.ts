@@ -377,3 +377,13 @@ describe('public accounts: AI proxy with Firebase sign-in tokens (real Code.gs)'
     expect(JSON.stringify(st)).not.toMatch(/alice|bob|salad|SCENARIO/);
   });
 });
+
+describe('owner configuration of the public platform', () => {
+  it('setCloudConfig needs the owner token, validates input and bounds the limits', () => {
+    const g = createGas({ token: TOKEN });
+    expect(g.post({ action: 'setCloudConfig', token: 'wrong', apiKey: 'AIzaSyAAAAAAAAAAAAAAAAAAAAAAA', projectId: 'mego-abc123' }).error).toBe('unauthorized');
+    expect(g.post({ action: 'setCloudConfig', token: TOKEN, apiKey: 'bad key', projectId: 'mego' }).ok).toBe(false);
+    expect(g.post({ action: 'setCloudConfig', token: TOKEN, apiKey: 'AIzaSyAAAAAAAAAAAAAAAAAAAAAAA', projectId: 'mego-abc123', userLimit: 999, globalLimit: 5 }).ok).toBe(true);
+    expect([g.props.get('FIREBASE_PROJECT_ID'), g.props.get('AI_USER_DAILY_LIMIT'), g.props.get('AI_DAILY_LIMIT')]).toEqual(['mego-abc123', '50', '5']);
+  });
+});

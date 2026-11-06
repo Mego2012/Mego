@@ -1,4 +1,6 @@
-# Feature list (v3)
+# Feature list (v4)
+
+See also [ARCHITECTURE.md](ARCHITECTURE.md) for the public multi-user platform and its security model.
 
 Status legend: ✅ implemented and tested here · 🔶 implemented, needs your device/account to fully verify · 🔌 needs an external service
 

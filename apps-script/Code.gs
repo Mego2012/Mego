@@ -268,6 +268,7 @@ function doPost(e) {
     // AI meal analysis never touches the spreadsheet, so it runs outside the lock (it can take ~10-40 s).
     if (req.action === 'analyzeMeal') return json_(analyzeMeal_(req));
     if (req.action === 'setAiKey') return json_(setAiKey_(req));
+    if (req.action === 'setCloudConfig') return json_(setCloudConfig_(req));
     var lock = LockService.getScriptLock();
     lock.waitLock(25000);
     try {
@@ -937,4 +938,15 @@ function cleanupAiCounters() {
     var m = /^AI_(?:U_|USED_)(\d{4}-\d{2}-\d{2})/.exec(k);
     if (m && m[1] < keep) props.deleteProperty(k);
   });
+}
+
+/** Owner-only (app token): stores the PUBLIC Firebase identifiers and the per-user / global AI limits. */
+function setCloudConfig_(req) {
+  var props = PropertiesService.getScriptProperties();
+  if (!/^[A-Za-z0-9_\-]{20,100}$/.test(String(req.apiKey || '')) || !/^[a-z0-9\-]{4,40}$/.test(String(req.projectId || ''))) return { ok: false, error: 'invalid config' };
+  props.setProperty('FIREBASE_API_KEY', String(req.apiKey));
+  props.setProperty('FIREBASE_PROJECT_ID', String(req.projectId));
+  if (req.userLimit) props.setProperty('AI_USER_DAILY_LIMIT', String(Math.max(1, Math.min(50, Number(req.userLimit) || 10))));
+  if (req.globalLimit) props.setProperty('AI_DAILY_LIMIT', String(Math.max(1, Math.min(1500, Number(req.globalLimit) || 200))));
+  return { ok: true };
 }

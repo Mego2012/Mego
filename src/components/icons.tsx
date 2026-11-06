@@ -23,6 +23,7 @@ const P = {
   upload: 'M12 20V9M7 14l5-5 5 5M5 4h14',
   sync: 'M20 11a8 8 0 0 0-14.9-3M4 13a8 8 0 0 0 14.9 3M4 4v4h4M20 20v-4h-4',
   edit: 'M4 20h4l11-11-4-4L4 16zM14 6l4 4',
+  water: 'M12 3s6 6.5 6 11a6 6 0 0 1-12 0c0-4.5 6-11 6-11z',
   history: 'M3 12a9 9 0 1 0 3-6.7L3 8M3 3v5h5M12 7v5l3 3'
 } as const;
 

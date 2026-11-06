@@ -1,6 +1,6 @@
 import Papa from 'papaparse';
 import { db } from './db';
-import { atwaterDeviation, isIncompleteMacros } from './nutrition';
+import { isEnergySuspicious, isIncompleteMacros } from './nutrition';
 import { createFood, updateFood } from './repo';
 import type { Food, FoodState, Macros } from './types';
 
@@ -19,9 +19,11 @@ export interface ParsedFood {
   prep: string;
   notes: string;
   issues: string[];
+  /** A required value cell was blank/unreadable: the food is imported but blocked from logging. */
+  missingValues: boolean;
 }
 
-type Col = 'name' | 'nameEn' | 'category' | 'kcal' | 'protein' | 'carbs' | 'fat' | 'piece' | 'state' | 'prep' | 'notes';
+type Col = 'name' | 'nameEn' | 'category' | 'kcal' | 'protein' | 'carbs' | 'fat' | 'fiber' | 'sugar' | 'sodium' | 'piece' | 'state' | 'prep' | 'notes';
 
 const MATCHERS: [Col, RegExp][] = [
   ['nameEn', /(english|الإنجليزي|الانجليزي|name[_ ]?en)/i],
@@ -30,6 +32,9 @@ const MATCHERS: [Col, RegExp][] = [
   ['kcal', /(سعرات|kcal|calorie|energy)/i],
   ['protein', /(بروتين|protein)/i],
   ['carbs', /(كارب|كربوهيدرات|carb)/i],
+  ['fiber', /(ألياف|الياف|fiber|fibre)/i],
+  ['sugar', /(سكر|sugar)/i],
+  ['sodium', /(صوديوم|sodium)/i],
   ['fat', /(دهون|fat)/i],
   ['piece', /(وزن الحبة|الحصة|serving|piece|portion)/i],
   ['state', /(الحالة|state|status|raw\/cooked)/i],
@@ -64,12 +69,18 @@ export function normalizeState(label: string): FoodState {
   return 'other';
 }
 
-function num(v: unknown): number {
-  if (v === null || v === undefined) return NaN;
-  if (typeof v === 'number') return v;
-  const s = String(v).replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace('٫', '.').replace(/,/g, '').trim();
-  if (!s || s === '—' || s === '-') return NaN;
-  return Number(s);
+/** Parses a numeric cell. Returns {value, decimalComma} — "2,6" is read as 2.6 (and reported), "1,234" as 1234. */
+export function parseNum(v: unknown): { value: number; decimalComma: boolean } {
+  if (v === null || v === undefined) return { value: NaN, decimalComma: false };
+  if (typeof v === 'number') return { value: v, decimalComma: false };
+  let s = String(v).replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d))).replace('٫', '.').trim();
+  if (!s || s === '—' || s === '-') return { value: NaN, decimalComma: false };
+  let decimalComma = false;
+  if (/^-?\d+,\d{1,2}$/.test(s)) {
+    s = s.replace(',', '.');
+    decimalComma = true;
+  } else s = s.replace(/,/g, '');
+  return { value: Number(s), decimalComma };
 }
 
 export function parseFoodRows(rows: string[][]): { foods: ParsedFood[]; headerRow: number; errors: string[] } {
@@ -84,20 +95,27 @@ export function parseFoodRows(rows: string[][]): { foods: ParsedFood[]; headerRo
     const name = get('name');
     if (!name) continue;
     const issues: string[] = [];
-    const per100: Macros = { kcal: num(get('kcal')), protein: num(get('protein')), carbs: num(get('carbs')), fat: num(get('fat')) };
-    for (const k of Object.keys(per100) as (keyof Macros)[]) {
-      if (!Number.isFinite(per100[k])) {
-        issues.push(`missing_${k}`);
-        per100[k] = 0;
-      }
+    let missingValues = false;
+    const per100: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
+    for (const k of ['kcal', 'protein', 'carbs', 'fat'] as const) {
+      const p = parseNum(get(k));
+      if (p.decimalComma && !issues.includes('decimalComma')) issues.push('decimalComma');
+      if (!Number.isFinite(p.value) || p.value < 0) {
+        missingValues = true;
+        if (!issues.includes('missingValues')) issues.push('missingValues');
+      } else per100[k] = p.value;
     }
-    if (isIncompleteMacros(per100)) issues.push('zeroValues');
-    else {
-      const dev = atwaterDeviation(per100);
-      if (per100.kcal > 20 && Math.abs(dev) > 0.15) issues.push('energyMismatch');
+    for (const k of ['fiber', 'sugar', 'sodium'] as const) {
+      if (map[k] === undefined) continue;
+      const p = parseNum(get(k));
+      if (Number.isFinite(p.value) && p.value >= 0) per100[k] = p.value;
+    }
+    if (!missingValues && isIncompleteMacros(per100)) issues.push('zeroValues');
+    else if (!missingValues) {
+      if (isEnergySuspicious(per100, get('category'))) issues.push('energyMismatch');
       if (per100.protein + per100.carbs + per100.fat > 100.5) issues.push('over100g');
     }
-    const piece = num(get('piece'));
+    const piece = parseNum(get('piece')).value;
     const stateLabel = get('state');
     const notes = get('notes');
     if (/⚠|غير محقق|تقريبي|تقديري|للمراجعة/.test(notes)) issues.push('flaggedInNotes');
@@ -117,7 +135,8 @@ export function parseFoodRows(rows: string[][]): { foods: ParsedFood[]; headerRo
       stateLabel,
       prep: get('prep'),
       notes,
-      issues
+      issues,
+      missingValues
     });
   }
   // mark the first occurrence of duplicate names too
@@ -147,6 +166,8 @@ export interface AuditSummary {
   cooked: number;
   other: number;
   zeroValues: number;
+  missingValues: number;
+  decimalComma: number;
   energyMismatch: number;
   duplicates: number;
   flagged: number;
@@ -169,6 +190,8 @@ export function auditFoods(foods: ParsedFood[]): AuditSummary {
     cooked: count((f) => f.state === 'cooked'),
     other: count((f) => f.state === 'other'),
     zeroValues: count((f) => f.issues.includes('zeroValues')),
+    missingValues: count((f) => f.missingValues),
+    decimalComma: count((f) => f.issues.includes('decimalComma')),
     energyMismatch: count((f) => f.issues.includes('energyMismatch')),
     duplicates: count((f) => f.issues.includes('duplicateName')),
     flagged: count((f) => f.issues.includes('flaggedInNotes')),
@@ -212,12 +235,17 @@ export async function importParsedFoods(foods: ParsedFood[], origin: 'sheet' | '
         },
         { allowDuplicate: true }
       );
+      if (p.missingValues) {
+        const created = await db.foods.where('sheetKey').equals(p.sheetKey).first();
+        if (created) await db.foods.update(created.id, { incomplete: true });
+      }
       res.added++;
       continue;
     }
     const changed = (Object.keys(fields) as (keyof Food)[]).some((k) => k !== 'sheetRow' && !same(cur[k], fields[k]));
     if (changed) {
       await updateFood(cur.id, fields, origin);
+      if (p.missingValues) await db.foods.update(cur.id, { incomplete: true });
       res.updated++;
     } else {
       if (cur.sheetRow !== p.row) await db.foods.update(cur.id, { sheetRow: p.row });

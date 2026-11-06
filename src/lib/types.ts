@@ -5,8 +5,8 @@ export const MEALS: MealType[] = ['breakfast', 'lunch', 'dinner', 'snacks'];
 
 /** raw = weighed raw/dry; cooked = weighed after cooking; other = prepared/processed/powder/not applicable */
 export type FoodState = 'raw' | 'cooked' | 'other';
-export type Unit = 'g' | 'kg' | 'ml' | 'piece' | 'slice' | 'tbsp' | 'tsp' | 'serving';
-export const UNITS: Unit[] = ['g', 'kg', 'ml', 'piece', 'slice', 'tbsp', 'tsp', 'serving'];
+export type Unit = 'g' | 'kg' | 'ml' | 'l' | 'cup' | 'piece' | 'slice' | 'tbsp' | 'tsp' | 'serving';
+export const UNITS: Unit[] = ['g', 'kg', 'ml', 'l', 'cup', 'piece', 'slice', 'tbsp', 'tsp', 'serving'];
 export type DayType = 'training' | 'rest';
 
 export interface Macros {
@@ -14,7 +14,15 @@ export interface Macros {
   protein: number;
   carbs: number;
   fat: number;
+  /** Optional nutrients — undefined means "unknown" (never treated as zero). */
+  fiber?: number;
+  sugar?: number;
+  /** mg */
+  sodium?: number;
 }
+
+export const OPTIONAL_NUTRIENTS = ['fiber', 'sugar', 'sodium'] as const;
+export type OptionalNutrient = (typeof OPTIONAL_NUTRIENTS)[number];
 
 export interface CustomServing {
   id: string;
@@ -40,7 +48,9 @@ export interface Food {
   gramsPerMl?: number;
   servings: CustomServing[];
   favorite: boolean;
-  source: 'sheet' | 'custom';
+  source: 'sheet' | 'custom' | 'openfoodfacts';
+  barcode?: string;
+  brand?: string;
   /** Key of the record in the Google Sheet (original name + row) used for sync. */
   sheetKey?: string;
   sheetRow?: number;
@@ -115,6 +125,8 @@ export interface Recipe {
   totalGrams: number;
   notes: string;
   favorite: boolean;
+  /** Set when created from the built-in library. */
+  libraryId?: string;
   createdAt: number;
   updatedAt: number;
   deleted?: boolean;
@@ -186,8 +198,55 @@ export interface DayLog {
   dayType?: DayType;
   targetsOverride?: Macros;
   notes?: string;
+  /** Water drunk on this day, ml. */
+  waterMl?: number;
+  /** Habit id -> done. */
+  habits?: Record<string, boolean>;
   updatedAt: number;
 }
+
+export interface Habit {
+  id: string;
+  name: string;
+  active: boolean;
+}
+
+export interface Reminder {
+  id: string;
+  kind: 'water' | 'meal' | 'weigh' | 'custom';
+  label: string;
+  /** HH:MM local time */
+  time: string;
+  enabled: boolean;
+}
+
+export interface FastSession {
+  id: string;
+  start: number;
+  end?: number;
+  targetHours: number;
+  updatedAt: number;
+  deleted?: boolean;
+}
+
+export interface ProgressPhoto {
+  id: string;
+  date: string;
+  blob: Blob;
+  note: string;
+  createdAt: number;
+}
+
+export interface LocalBackup {
+  id?: number;
+  at: number;
+  reason: 'auto-daily' | 'manual' | 'pre-migration' | 'pre-restore' | 'pre-import' | 'pre-pull';
+  size: number;
+  json: string;
+}
+
+export type GoalType = 'fat_loss' | 'fat_loss_preserve' | 'recomp' | 'lean_bulk' | 'bulk' | 'maintain' | 'healthy' | 'performance' | 'custom';
+export const GOAL_TYPES: GoalType[] = ['fat_loss', 'fat_loss_preserve', 'recomp', 'lean_bulk', 'bulk', 'maintain', 'healthy', 'performance', 'custom'];
 
 export interface Profile {
   sex: 'male' | 'female';
@@ -197,8 +256,12 @@ export interface Profile {
   currentWeight: number;
   targetWeight: number;
   weeklyChangeKg: number;
+  /** Free-text description (used for the custom goal). */
   goal: string;
+  goalType: GoalType;
   trainingDaysPerWeek: number;
+  startWaist?: number;
+  activityLevel?: 'sedentary' | 'light' | 'moderate' | 'active' | 'very_active';
 }
 
 export interface SyncConfig {
@@ -210,6 +273,8 @@ export interface SyncConfig {
   lastPullAt?: number;
   lastFoodsPullAt?: number;
   lastError?: string;
+  /** Server data version last seen (conflict detection). */
+  serverVersion?: number;
 }
 
 export interface Settings {
@@ -224,6 +289,14 @@ export interface Settings {
   lang: Lang;
   theme: ThemeMode;
   sync: SyncConfig;
+  /** Fully-logged threshold: a past day counts as complete when calories reach this % of target. */
+  completeThresholdPct: number;
+  waterTargetMl: number;
+  habits: Habit[];
+  reminders: Reminder[];
+  fastingTargetHours: number;
+  /** Include progress photos in Google Drive backups (off by default — photos stay on the device). */
+  backupPhotos: boolean;
   updatedAt: number;
 }
 

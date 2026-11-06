@@ -44,21 +44,42 @@ export function Ring({ value, max, size = 150, stroke = 14, color = 'var(--kcal)
   );
 }
 
-const MACRO_COLORS: Record<keyof Macros, string> = { kcal: 'var(--kcal)', protein: 'var(--protein)', carbs: 'var(--carbs)', fat: 'var(--fat)' };
+type CoreKey = 'kcal' | 'protein' | 'carbs' | 'fat';
+const MACRO_COLORS: Record<CoreKey, string> = { kcal: 'var(--kcal)', protein: 'var(--protein)', carbs: 'var(--carbs)', fat: 'var(--fat)' };
 
-export function MacroBars({ totals, target, keys = ['protein', 'carbs', 'fat'] }: { totals: Macros; target: Macros; keys?: (keyof Macros)[] }) {
+/** Consumed / target with remaining (or over) for each macro. */
+export function MacroBars({ totals, target, keys = ['protein', 'carbs', 'fat'] }: { totals: Macros; target: Macros; keys?: CoreKey[] }) {
   const { t, n } = useApp();
   return (
     <div className="stack">
-      {keys.map((k) => (
-        <div key={k} className="macro-row" data-macro={k}>
-          <span className="small bold" style={{ color: MACRO_COLORS[k] }}>{t(k)}</span>
-          <span className="small num">
-            <b>{n(totals[k], k === 'kcal' ? 0 : 1)}</b> / {n(target[k])} {k === 'kcal' ? t('kcalUnit') : t('g')}
-          </span>
-          <ProgressBar value={totals[k]} max={target[k]} color={MACRO_COLORS[k]} />
-        </div>
-      ))}
+      {keys.map((k) => {
+        const left = target[k] - totals[k];
+        const unit = k === 'kcal' ? t('kcalUnit') : t('g');
+        return (
+          <div key={k} className="macro-row" data-macro={k}>
+            <span className="small bold" style={{ color: MACRO_COLORS[k] }}>{t(k)}</span>
+            <span className="small num">
+              <b>{n(totals[k], k === 'kcal' ? 0 : 1)}</b> / {n(target[k])} {unit}
+            </span>
+            <ProgressBar value={totals[k]} max={target[k]} color={MACRO_COLORS[k]} />
+            <span className={`tiny num ${left < 0 ? 'delta pos' : 'muted'}`} style={{ gridColumn: '1 / -1' }} data-testid={`remaining-${k}`}>
+              {left >= 0 ? `${t('remainingShort')} ${n(left, k === 'kcal' ? 0 : 1)} ${unit}` : `${t('overShort')} ${n(-left, k === 'kcal' ? 0 : 1)} ${unit}`}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/** Fiber / sugar / sodium line — only shown for nutrients that have data. */
+export function OptionalNutrientsLine({ m, coverage, total }: { m: Macros; coverage?: Record<string, number>; total?: number }) {
+  const { t, n } = useApp();
+  const parts = (['fiber', 'sugar', 'sodium'] as const).filter((k) => typeof m[k] === 'number' && (coverage ? coverage[k] > 0 : true));
+  if (!parts.length) return null;
+  return (
+    <div className="tiny muted num">
+      {parts.map((k) => `${t(k)} ${n(m[k], k === 'sodium' ? 0 : 1)}${k === 'sodium' ? t('mg') : t('g')}${coverage && total && coverage[k] < total ? ` (${coverage[k]}/${total})` : ''}`).join(' · ')}
     </div>
   );
 }

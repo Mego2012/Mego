@@ -1,4 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { db } from '../lib/db';
+import { addPhoto, compressImage, deletePhoto } from '../lib/repo';
+import { progressEstimate } from '../lib/reports';
+import type { ProgressPhoto } from '../lib/types';
 import { useApp } from '../app/AppContext';
 import { useBody } from '../app/hooks';
 import { WeightChart } from '../components/charts';
@@ -33,7 +38,8 @@ export default function Progress() {
       return { weekStart: s, ...weightStats(body, weekDates(s)) };
     });
     const waists = body.filter((b) => b.waist);
-    return { latest, startWeight, points, waistPts, week, month, weeks, waistFirst: waists[0], waistLast: waists[waists.length - 1] };
+    const est = progressEstimate(body, settings.profile.targetWeight, date);
+    return { latest, startWeight, points, waistPts, week, month, weeks, waistFirst: waists[0], waistLast: waists[waists.length - 1], est };
   }, [body, range, date, settings]);
 
   return (
@@ -46,9 +52,19 @@ export default function Progress() {
         <div className="stat"><div className="k">{t('weeklyAverage')}</div><div className="v num" data-testid="progress-week-avg">{n(view.week.average, 2)}</div><div className="tiny muted">{t('weighIns', { n: view.week.count })}</div></div>
         <div className="stat"><div className="k">{t('monthlyAverage')}</div><div className="v num">{n(view.month.average, 2)}</div><div className="tiny muted">{t('weighIns', { n: view.month.count })}</div></div>
         <div className="stat"><div className="k">{t('targetWeight')}</div><div className="v num">{n(settings.profile.targetWeight, 1)}</div></div>
-        <div className="stat"><div className="k">{t('waistTrend')}</div><div className="v">
-          {view.waistLast ? <>{n(view.waistLast.waist, 1)} <Delta value={view.waistFirst && view.waistLast !== view.waistFirst ? round(view.waistLast.waist! - view.waistFirst.waist!, 1) : null} unit={` ${t('cm')}`} /></> : '—'}</div></div>
+        <div className="stat"><div className="k">{t('waistTrend')} ({t('startWaist')} {n(settings.profile.startWaist ?? view.waistFirst?.waist ?? null, 1)})</div><div className="v">
+          {view.waistLast ? <>{n(view.waistLast.waist, 1)} <Delta value={(settings.profile.startWaist ?? view.waistFirst?.waist) ? round(view.waistLast.waist! - (settings.profile.startWaist ?? view.waistFirst!.waist!), 1) : null} unit={` ${t('cm')}`} /></> : '—'}</div></div>
       </div>
+
+      <Card title={t('rate')}>
+        <div className="grid2" data-testid="progress-estimate">
+          <div className="stat"><div className="k">{t('rate')}</div><div className="v num">{view.est.ratePerWeek === null ? '—' : `${view.est.ratePerWeek > 0 ? '+' : ''}${n(view.est.ratePerWeek, 2)} ${t('kg')}${t('perWeek')}`}</div>
+            {view.est.ratePctPerWeek !== null && <div className="tiny muted num">{n(view.est.ratePctPerWeek, 2)}%{t('perWeek')}</div>}</div>
+          <div className="stat"><div className="k">{t('eta')}</div><div className="v num">{view.est.etaDate ? d(view.est.etaDate, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</div>
+            {view.est.weeksToTarget !== null && <div className="tiny muted">{t('weeksToGo', { n: view.est.weeksToTarget })}</div>}</div>
+        </div>
+        <div className={`tiny ${view.est.pace === 'fast' || view.est.pace === 'away' ? 'delta pos' : 'muted'}`} style={{ marginTop: 6 }}>{t('pace_' + view.est.pace)}</div>
+      </Card>
 
       <Card title={t('weightTrendChart')}>
         <Segmented value={range} options={[{ value: '30', label: '30' }, { value: '90', label: '90' }, { value: '365', label: '365' }, { value: 'all', label: t('all') }]} onChange={setRange} />
@@ -80,7 +96,40 @@ export default function Progress() {
           {!body.length && <li className="empty">{t('noData')}</li>}
         </ul>
       </Card>
+      <PhotosCard />
       {editing && <BodySheet entry={editing === 'new' ? null : editing} onClose={() => setEditing(null)} />}
+    </div>
+  );
+}
+
+function PhotosCard() {
+  const { t, d } = useApp();
+  const photos = useLiveQuery(() => db.photos.orderBy('date').reverse().toArray(), [], []);
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [del, setDel] = useState<ProgressPhoto | null>(null);
+  const { run } = useAsync();
+  return (
+    <Card title={`📷 ${t('photos')}`} actions={<button className="btn sm" onClick={() => fileRef.current?.click()} data-testid="add-photo">+ {t('addPhoto')}</button>}>
+      <div className="tiny muted" style={{ marginBottom: 8 }}>{t('photosPrivate')}</div>
+      <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden data-testid="photo-input"
+        onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) await run(async () => addPhoto(today(), await compressImage(f))); }} />
+      <div className="grid3" data-testid="photo-grid">
+        {photos.map((p) => <PhotoThumb key={p.id} p={p} label={d(p.date)} onDelete={() => setDel(p)} />)}
+      </div>
+      {!photos.length && <div className="empty">{t('noData')}</div>}
+      {del && <Confirm danger message={t('delete') + '?'} onNo={() => setDel(null)} onYes={async () => { await deletePhoto(del.id); setDel(null); }} />}
+    </Card>
+  );
+}
+
+function PhotoThumb({ p, label, onDelete }: { p: ProgressPhoto; label: string; onDelete: () => void }) {
+  const [url, setUrl] = useState('');
+  useEffect(() => { const u = URL.createObjectURL(p.blob); setUrl(u); return () => URL.revokeObjectURL(u); }, [p.blob]);
+  return (
+    <div style={{ position: 'relative' }}>
+      {url && <img src={url} alt={label} style={{ width: '100%', aspectRatio: '3/4', objectFit: 'cover', borderRadius: 10 }} />}
+      <div className="tiny center">{label}</div>
+      <button className="icon-btn" style={{ position: 'absolute', top: 2, insetInlineEnd: 2, background: 'var(--surface)', width: 28, height: 28 }} onClick={onDelete} aria-label="delete">×</button>
     </div>
   );
 }

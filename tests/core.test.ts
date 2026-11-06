@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { db, useDatabase } from '../src/lib/db';
 import { addDays, startOfWeek, today } from '../src/lib/dates';
-import { macrosFor } from '../src/lib/nutrition';
+import { macrosFor, roundMacros } from '../src/lib/nutrition';
 import {
   addFoodEntry, addRecipeEntry, buildIngredient, copyDay, getSettings, saveBodyEntry, saveRecipe, saveSettings, updateEntry,
   updateDayLog, updateFood, logItems, saveTemplate, entryToPlanItem
@@ -59,26 +59,26 @@ describe('TEST 1-4: logging calculations', () => {
   it('TEST 1: 100 g raw chicken breast', async () => {
     const e = await addFoodEntry(today(), 'lunch', await food('صدر دجاج'), 100, 'g');
     expect(e.state).toBe('raw');
-    expect(e.macros).toEqual({ kcal: 120, protein: 23, carbs: 0, fat: 2.6 });
+    expect(roundMacros(e.macros)).toEqual({ kcal: 120, protein: 23, carbs: 0, fat: 2.6 });
   });
   it('TEST 2: 100 g cooked chicken breast uses the cooked record', async () => {
     const e = await addFoodEntry(today(), 'lunch', await food('صدر دجاج مشوي'), 100, 'g');
     expect(e.state).toBe('cooked');
-    expect(e.macros).toEqual({ kcal: 165, protein: 31, carbs: 0, fat: 3.6 });
+    expect(roundMacros(e.macros)).toEqual({ kcal: 165, protein: 31, carbs: 0, fat: 3.6 });
   });
   it('TEST 3: three eggs (55 g each from the sheet)', async () => {
     const e = await addFoodEntry(today(), 'breakfast', await food('بيض كامل'), 3, 'piece');
     expect(e.grams).toBe(165);
-    expect(e.macros).toEqual({ kcal: 236, protein: 21.5, carbs: 1.8, fat: 16.5 });
+    expect(roundMacros(e.macros)).toEqual({ kcal: 236, protein: 21.5, carbs: 1.8, fat: 16.5 });
   });
   it('TEST 4: three slices of whole-wheat toast (28 g per slice)', async () => {
     const e = await addFoodEntry(today(), 'breakfast', await food('توست بر (خبز أسمر)'), 3, 'slice');
     expect(e.grams).toBe(84);
-    expect(e.macros).toEqual({ kcal: 207, protein: 10.9, carbs: 34.4, fat: 2.9 });
+    expect(roundMacros(e.macros)).toEqual({ kcal: 207, protein: 10.9, carbs: 34.4, fat: 2.9 });
   });
   it('kg / tbsp / tsp conversions', () => {
     const basis = { per100: { kcal: 884, protein: 0, carbs: 0, fat: 100 } };
-    expect(macrosFor(basis, 1, 'tbsp').macros.kcal).toBe(133); // 15 g assumed (1 g/ml)
+    expect(Math.round(macrosFor(basis, 1, 'tbsp').macros.kcal)).toBe(133); // 15 g assumed (1 g/ml)
     expect(macrosFor({ ...basis, gramsPerMl: 0.91 }, 1, 'tbsp').grams).toBe(13.7);
     expect(macrosFor(basis, 0.1, 'kg').grams).toBe(100);
     expect(macrosFor(basis, 2, 'tsp').grams).toBe(10);
@@ -106,10 +106,10 @@ describe('TEST 5: recipes', () => {
     ];
     const r = await saveRecipe({ name: 'كبسة دجاج', servings: 4, ingredients: ings });
     // 500g chicken 600/115/0/13 + 300g rice 1080/21/237/1.8 + 15g oil 132.6/0/0/15
-    expect(r.totals).toEqual({ kcal: 1813, protein: 136, carbs: 237, fat: 29.8 });
-    expect(r.perServing).toEqual({ kcal: 453, protein: 34, carbs: 59.3, fat: 7.5 });
+    expect(roundMacros(r.totals)).toEqual({ kcal: 1813, protein: 136, carbs: 237, fat: 29.8 });
+    expect(roundMacros(r.perServing)).toEqual({ kcal: 453, protein: 34, carbs: 59.3, fat: 7.5 });
     const e = await addRecipeEntry(today(), 'lunch', r, 1.5);
-    expect(e.macros).toEqual({ kcal: 680, protein: 51, carbs: 88.9, fat: 11.2 });
+    expect(roundMacros(e.macros)).toEqual({ kcal: 680, protein: 51, carbs: 88.9, fat: 11.2 });
   });
 });
 
@@ -117,7 +117,7 @@ describe('TEST 6-7: editable targets propagate', () => {
   beforeEach(freshDb);
   it('calorie 2000→2200 and protein 160→170 update day summaries and reports', async () => {
     const d = addDays(today(), -1);
-    await addFoodEntry(d, 'lunch', await food('صدر دجاج مشوي'), 600, 'g'); // 990 kcal, 186 g protein
+    await addFoodEntry(d, 'lunch', await food('صدر دجاج مشوي'), 900, 'g'); // 1485 kcal (≥60% of target), 279 g protein
     let s = await getSettings();
     expect(summarizeDay(d, await db.entries.toArray(), undefined, s).target.kcal).toBe(2000);
     s = await saveSettings((x) => { x.targets.training.kcal = 2200; x.targets.rest.kcal = 2200; x.targets.training.protein = 170; x.targets.rest.protein = 170; });
@@ -189,7 +189,7 @@ describe('TEST 11: historical entries keep their snapshot', () => {
     await updateFood(f.id, { per100: { kcal: 110, protein: 24, carbs: 0, fat: 1.2 } });
     expect((await db.entries.get(e.id))!.macros.kcal).toBe(240);
     const edited = await updateEntry(e.id, { quantity: 100 });
-    expect(edited.macros).toEqual({ kcal: 120, protein: 23, carbs: 0, fat: 2.6 });
+    expect(roundMacros(edited.macros)).toEqual({ kcal: 120, protein: 23, carbs: 0, fat: 2.6 });
     const after = await addFoodEntry(today(), 'lunch', await food('صدر دجاج'), 100, 'g');
     expect(after.macros.kcal).toBe(110);
     const changes = await db.foodChanges.where('foodId').equals(f.id).toArray();

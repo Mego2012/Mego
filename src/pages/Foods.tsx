@@ -5,9 +5,10 @@ import { Icon } from '../components/icons';
 import { Card, Confirm, MacroLine, NumField, Sheet, StateChip, TextField, useAsync } from '../components/ui';
 import { db } from '../lib/db';
 import { exportFoodsCSV, exportFoodsXLSX } from '../lib/exporters';
-import { atwaterDeviation, round } from '../lib/nutrition';
+import { explainEnergy, isEnergySuspicious, round } from '../lib/nutrition';
 import { archiveFood, createFood, displayName, restoreFood, toggleFavoriteFood, uid, updateFood } from '../lib/repo';
 import { filterFoods, type FoodFilter } from '../lib/search';
+import { saveLocalBackup } from '../lib/localBackup';
 import { auditFoods, importParsedFoods, parseCSV, parseFoodRows, parseWorkbook, type ParsedFood } from '../lib/sheetImport';
 import type { CustomServing, Food, FoodChange, FoodState } from '../lib/types';
 
@@ -25,7 +26,7 @@ export default function Foods() {
   const active = foods.filter((x) => !x.archived);
   const issues = {
     incomplete: active.filter((x) => x.incomplete).length,
-    energy: active.filter((x) => !x.incomplete && x.per100.kcal > 20 && Math.abs(atwaterDeviation(x.per100)) > 0.15).length,
+    energy: active.filter((x) => !x.incomplete && isEnergySuspicious(x.per100, x.category)).length,
     flagged: active.filter((x) => /⚠|غير محقق|تقريبي|تقديري|للمراجعة/.test(x.notes)).length
   };
 
@@ -83,7 +84,7 @@ export default function Foods() {
                   {x.archived && <span className="chip">{t('archived')}</span>}
                   {x.incomplete && <span className="chip warn">!</span>}
                 </div>
-                <div className="tiny muted">{x.category} · {n(x.per100.kcal)} {t('kcalUnit')} · <MacroLine m={x.per100} compact /></div>
+                <div className="tiny muted">{x.category} · {n(x.per100.kcal)} {t('kcalUnit')} · <MacroLine m={x.per100} compact />{x.source === 'openfoodfacts' ? ' · OFF' : ''}</div>
               </div>
               <button className="icon-btn" style={{ color: x.favorite ? 'var(--warn)' : 'var(--muted)' }} onClick={(e) => { e.stopPropagation(); toggleFavoriteFood(x.id); }} aria-label={t('favorites')}><Icon name="star" filled={x.favorite} /></button>
             </li>
@@ -124,7 +125,7 @@ function ImportPreview({ data, onClose }: { data: { foods: ParsedFood[]; source:
   return (
     <Sheet title={`${t('importPreview')} — ${data.source}`} onClose={onClose}
       footer={<button className="btn primary block" disabled={busy} data-testid="import-confirm" onClick={async () => {
-        const r = await run(() => importParsedFoods(data.foods, 'file'));
+        const r = await run(async () => { await saveLocalBackup('pre-import'); return importParsedFoods(data.foods, 'file'); });
         if (r) { toast(t('importDone', { added: r.added, updated: r.updated, unchanged: r.unchanged })); onClose(); }
       }}>{t('importNow')} ({audit.total})</button>}>
       <div className="stack" data-testid="import-preview">
@@ -135,7 +136,7 @@ function ImportPreview({ data, onClose }: { data: { foods: ParsedFood[]; source:
           <div className="stat"><div className="k">{t('state_other')}</div><div className="v num">{audit.other}</div></div>
         </div>
         <div className="small">
-          {t('issue_zeroValues')}: <b>{audit.zeroValues}</b> · {t('issue_energyMismatch')}: <b>{audit.energyMismatch}</b> · {t('issue_duplicateName')}: <b>{audit.duplicates}</b> · {t('issue_flaggedInNotes')}: <b>{audit.flagged}</b>
+          {t('issue_zeroValues')}: <b>{audit.zeroValues}</b> · {t('issue_missingValues')}: <b>{audit.missingValues}</b> · {t('issue_decimalComma')}: <b>{audit.decimalComma}</b> · {t('issue_energyMismatch')}: <b>{audit.energyMismatch}</b> · {t('issue_duplicateName')}: <b>{audit.duplicates}</b> · {t('issue_flaggedInNotes')}: <b>{audit.flagged}</b>
         </div>
         <ul className="list">
           {withIssues.slice(0, 60).map((f) => (
@@ -156,14 +157,20 @@ function FoodEditor({ food, onClose }: { food: Food | null; onClose: () => void 
     nameAr: food?.nameAr ?? '', nameEn: food?.nameEn ?? '', category: food?.category ?? '', state: food?.state ?? ('raw' as FoodState),
     stateLabel: food?.stateLabel ?? '', prep: food?.prep ?? '', notes: food?.notes ?? '',
     kcal: food?.per100.kcal ?? ('' as number | ''), protein: food?.per100.protein ?? ('' as number | ''), carbs: food?.per100.carbs ?? ('' as number | ''), fat: food?.per100.fat ?? ('' as number | ''),
-    pieceGrams: food?.pieceGrams ?? ('' as number | ''), gramsPerMl: food?.gramsPerMl ?? ('' as number | ''), servings: food?.servings ?? ([] as CustomServing[])
+    pieceGrams: food?.pieceGrams ?? ('' as number | ''), gramsPerMl: food?.gramsPerMl ?? ('' as number | ''), servings: food?.servings ?? ([] as CustomServing[]),
+    fiber: food?.per100.fiber ?? ('' as number | ''), sugar: food?.per100.sugar ?? ('' as number | ''), sodium: food?.per100.sodium ?? ('' as number | ''),
+    barcode: food?.barcode ?? '', brand: food?.brand ?? ''
   }));
   const [confirm, setConfirm] = useState(false);
   const [tab, setTab] = useState<'edit' | 'history'>('edit');
   const history = useLiveQuery<FoodChange[], FoodChange[]>(async () => (food ? (await db.foodChanges.where('foodId').equals(food.id).sortBy('at')).reverse() : []), [food?.id], []);
   const { run, busy } = useAsync();
-  const per100 = { kcal: Number(v.kcal) || 0, protein: Number(v.protein) || 0, carbs: Number(v.carbs) || 0, fat: Number(v.fat) || 0 };
+  const per100: Food['per100'] = { kcal: Number(v.kcal) || 0, protein: Number(v.protein) || 0, carbs: Number(v.carbs) || 0, fat: Number(v.fat) || 0 };
+  if (v.fiber !== '') per100.fiber = Number(v.fiber);
+  if (v.sugar !== '') per100.sugar = Number(v.sugar);
+  if (v.sodium !== '') per100.sodium = Number(v.sodium);
   const calc = round(4 * per100.protein + 4 * per100.carbs + 9 * per100.fat, 0);
+  const energy = explainEnergy(per100, v.category);
   const valid = (v.nameAr.trim() || v.nameEn.trim()) && v.kcal !== '' && v.protein !== '' && v.carbs !== '' && v.fat !== '';
 
   const save = async () => {
@@ -171,7 +178,8 @@ function FoodEditor({ food, onClose }: { food: Food | null; onClose: () => void 
       nameAr: v.nameAr.trim(), nameEn: v.nameEn.trim(), category: v.category.trim(), state: v.state,
       stateLabel: food && food.state === v.state ? v.stateLabel : STATE_LABEL_AR[v.state], prep: v.prep, notes: v.notes, per100,
       pieceGrams: v.pieceGrams === '' ? undefined : Number(v.pieceGrams), gramsPerMl: v.gramsPerMl === '' ? undefined : Number(v.gramsPerMl),
-      servings: v.servings.filter((s) => s.name && s.grams > 0)
+      servings: v.servings.filter((s) => s.name && s.grams > 0),
+      barcode: v.barcode.trim() || undefined, brand: v.brand.trim() || undefined
     };
     const ok = await run(() => (food ? updateFood(food.id, payload) : createFood(payload)), t('saved'));
     if (ok) onClose();
@@ -212,7 +220,14 @@ function FoodEditor({ food, onClose }: { food: Food | null; onClose: () => void 
             <NumField label={t('carbs')} value={v.carbs} onChange={(x) => setV({ ...v, carbs: x })} testId="fe-carbs" />
             <NumField label={t('fat')} value={v.fat} onChange={(x) => setV({ ...v, fat: x })} testId="fe-fat" />
           </div>
-          <div className={`tiny ${Math.abs(atwaterDeviation(per100)) > 0.15 && per100.kcal > 20 ? 'delta pos' : 'muted'}`}>{t('macroKcalCheck', { kcal: calc })}</div>
+          <div className="tiny muted" data-testid="fe-energy">{t('energyCalc', { calc, kcal: per100.kcal })}</div>
+          {energy && <div className={`tiny ${energy.reason === 'review' ? 'delta pos' : 'muted'}`} data-testid="fe-energy-explain">{t('energy_' + energy.reason, { pct: energy.pct })}</div>}
+          <div className="small bold">{t('optionalNutrients')}</div>
+          <div className="grid3">
+            <NumField label={t('fiber')} suffix={t('g')} value={v.fiber} onChange={(x) => setV({ ...v, fiber: x })} testId="fe-fiber" />
+            <NumField label={t('sugar')} suffix={t('g')} value={v.sugar} onChange={(x) => setV({ ...v, sugar: x })} />
+            <NumField label={t('sodium')} suffix={t('mg')} value={v.sodium} onChange={(x) => setV({ ...v, sodium: x })} />
+          </div>
           <div className="grid2">
             <NumField label={t('pieceWeight')} value={v.pieceGrams} onChange={(x) => setV({ ...v, pieceGrams: x })} testId="fe-piece" />
             <NumField label={t('density')} value={v.gramsPerMl} onChange={(x) => setV({ ...v, gramsPerMl: x })} />
@@ -227,6 +242,11 @@ function FoodEditor({ food, onClose }: { food: Food | null; onClose: () => void 
           ))}
           <button className="btn sm" onClick={() => setV({ ...v, servings: [...v.servings, { id: uid(), name: '', grams: 0 }] })}>+ {t('addServing')}</button>
           <TextField label={t('prep')} value={v.prep} onChange={(x) => setV({ ...v, prep: x })} />
+          <div className="grid2">
+            <TextField label={t('barcode')} value={v.barcode} onChange={(x) => setV({ ...v, barcode: x.replace(/\D/g, '') })} dir="ltr" />
+            <TextField label={t('brand')} value={v.brand} onChange={(x) => setV({ ...v, brand: x })} />
+          </div>
+          {food?.source === 'openfoodfacts' && <div className="banner info tiny">{t('externalSource')}</div>}
           <label className="field"><span>{t('notes')}</span><textarea className="input" rows={3} value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} /></label>
           <button className="btn primary block" disabled={!valid || busy} onClick={save} data-testid="fe-save">{t('save')}</button>
           {food && (food.archived

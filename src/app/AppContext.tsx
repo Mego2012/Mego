@@ -13,7 +13,7 @@ interface Ctx {
   t: (key: string, params?: Record<string, string | number>) => string;
   n: (v: number | null | undefined, digits?: number) => string;
   d: (iso: string, opts?: Intl.DateTimeFormatOptions) => string;
-  toast: (msg: string) => void;
+  toast: (msg: string, action?: { label: string; run: () => void | Promise<void> }) => void;
 }
 
 const AppCtx = createContext<Ctx | null>(null);
@@ -27,7 +27,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   }, [stored]);
   const lang = settings.lang;
   const dir = lang === 'ar' ? 'rtl' : 'ltr';
-  const [msg, setMsg] = useState<string | null>(null);
+  const [msg, setMsg] = useState<{ text: string; action?: { label: string; run: () => void | Promise<void> }; id: number } | null>(null);
 
   useEffect(() => {
     document.documentElement.lang = lang;
@@ -41,9 +41,10 @@ export function AppProvider({ children }: { children: ReactNode }) {
     else root.setAttribute('data-theme', settings.theme);
   }, [settings.theme]);
 
-  const toast = useCallback((m: string) => {
-    setMsg(m);
-    window.setTimeout(() => setMsg((cur) => (cur === m ? null : cur)), 2800);
+  const toast = useCallback((text: string, action?: { label: string; run: () => void | Promise<void> }) => {
+    const id = Date.now() + Math.random();
+    setMsg({ text, action, id });
+    window.setTimeout(() => setMsg((cur) => (cur?.id === id ? null : cur)), action ? 6000 : 2800);
   }, []);
 
   const value = useMemo<Ctx>(
@@ -60,7 +61,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   return (
     <AppCtx.Provider value={value}>
       {children}
-      {msg && <div className="toast" role="status">{msg}</div>}
+      {msg && (
+        <div className="toast row between" role="status" data-testid="toast">
+          <span>{msg.text}</span>
+          {msg.action && (
+            <button className="btn sm" data-testid="toast-action" onClick={async () => { const a = msg.action!; setMsg(null); await a.run(); }}>{msg.action.label}</button>
+          )}
+        </div>
+      )}
     </AppCtx.Provider>
   );
 }

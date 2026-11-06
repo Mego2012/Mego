@@ -39,8 +39,20 @@ export async function backupToDrive() {
 
 /** Restores a backup by merging records (newer updatedAt wins). Never deletes existing data. */
 export async function restoreBackup(text: string): Promise<Record<string, number>> {
-  const data = JSON.parse(text) as { format?: string; tables?: Record<string, Record<string, unknown>[]> };
-  if (data.format !== BACKUP_FORMAT || !data.tables) throw new Error('Not a valid backup file');
+  let data: { format?: string; tables?: Record<string, Record<string, unknown>[]> };
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error('Not a valid backup file (unreadable JSON)');
+  }
+  if (data.format !== BACKUP_FORMAT || !data.tables || typeof data.tables !== 'object') throw new Error('Not a valid backup file');
+  for (const [table, rows] of Object.entries(data.tables)) {
+    if (!(table in SYNC_TABLES)) continue;
+    if (!Array.isArray(rows)) throw new Error(`Backup table ${table} is invalid`);
+    const keyName = SYNC_TABLES[table as keyof typeof SYNC_TABLES];
+    if (rows.some((r) => !r || typeof r !== 'object' || (r as Record<string, unknown>)[keyName] === undefined)) throw new Error(`Backup table ${table} has records without ${keyName}`);
+    if (table === 'entries' && rows.some((r) => typeof (r as { macros?: { kcal?: unknown } }).macros?.kcal !== 'number')) throw new Error('Backup entries are missing nutrition values');
+  }
   const counts: Record<string, number> = {};
   const localSettings = await getSettings();
   await db.transaction('rw', Object.keys(SYNC_TABLES).map((t) => db.table(t)), async () => {

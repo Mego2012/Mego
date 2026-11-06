@@ -39,28 +39,25 @@ function expectEq(a, b, label) {
   if (String(a).trim() !== String(b).trim()) throw new Error(`${label}: expected "${b}", got "${a}"`);
 }
 
-// ---------- mock Google Apps Script backend
+// ---------- Google Apps Script backend: the REAL apps-script/Code.gs running on an emulated spreadsheet
+import { createGas } from './gas-mock.mjs';
+import Papa from 'papaparse';
 const fixtureCsv = readFileSync(path.join(ROOT, 'tests/fixtures/food-sheet-sample.csv'), 'utf8');
-const fixtureRows = fixtureCsv.trim().split('\n').map((l) => l.split(','));
-const remote = { tables: {}, pushes: 0, received: [] };
+const fixtureRows = Papa.parse(fixtureCsv.trim()).data;
+const gas = createGas({ foodRows: fixtureRows, token: TOKEN, spreadsheetName: 'نظام التنشيف (emulated)' });
+const remote = { received: [] };
 async function mockScript(route) {
-  const req = route.request();
-  const body = JSON.parse(req.postData() || '{}');
-  let res;
-  if (body.token !== TOKEN) res = { ok: false, error: 'unauthorized' };
-  else if (body.action === 'ping') res = { ok: true, spreadsheet: 'نظام التنشيف (mock)', foodSheet: 'قاعدة بيانات الأطعمة' };
-  else if (body.action === 'foods') res = { ok: true, sheet: 'قاعدة بيانات الأطعمة', rows: fixtureRows };
-  else if (body.action === 'push') {
-    remote.pushes++;
-    for (const c of body.changes) {
-      remote.received.push(c);
-      const t = (remote.tables[c.table] ||= {});
-      if (c.op === 'delete') delete t[c.key]; else t[c.key] = c.payload;
-    }
-    res = { ok: true, applied: body.changes.length };
-  } else if (body.action === 'pull') res = { ok: true, tables: Object.fromEntries(Object.entries(remote.tables).map(([k, v]) => [k, Object.values(v)])) };
-  else res = { ok: true };
+  const body = JSON.parse(route.request().postData() || '{}');
+  if (body.action === 'push' && body.token === TOKEN) remote.received.push(...(body.changes || []));
+  const res = gas.post(body);
   await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(res) });
+}
+// Open Food Facts lookups are mocked (no external calls from tests).
+async function mockOFF(route) {
+  const code = route.request().url().split('/product/')[1].split('.json')[0];
+  if (code === '6281007025058') {
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ status: 1, product: { product_name: 'لبن زبادي يوناني', brands: 'Test Dairy', serving_quantity: 150, nutriments: { 'energy-kcal_100g': 70, proteins_100g: 9, carbohydrates_100g: 4, fat_100g: 2, sugars_100g: 4, sodium_100g: 0.05 } } }) });
+  } else await route.fulfill({ status: 404, body: '{}' });
 }
 
 // ---------- server
@@ -74,10 +71,28 @@ const device = devices['Galaxy S9+'];
 async function openContext() {
   const ctx = await chromium.launchPersistentContext(PROFILE, { ...device, acceptDownloads: true, locale: 'ar-SA', timezoneId: 'Asia/Riyadh' });
   await ctx.route('https://script.google.com/**', mockScript);
+  await ctx.route('https://world.openfoodfacts.org/**', mockOFF);
   const page = ctx.pages()[0] || (await ctx.newPage());
   page.on('dialog', (d) => d.accept());
   page.on('pageerror', (e) => console.log('  [pageerror]', e.message));
   return { ctx, page };
+}
+/** Scrolls an element to the middle of the screen first (the fixed bottom nav can cover low buttons). */
+async function tap(page, testId) {
+  const el = page.getByTestId(testId).first();
+  await el.waitFor();
+  await el.evaluate((n) => n.scrollIntoView({ block: 'center' }));
+  await el.click();
+}
+async function waitText(locator, re, timeout = 10000) {
+  const end = Date.now() + timeout;
+  let last = '';
+  while (Date.now() < end) {
+    last = await locator.innerText().catch(() => '');
+    if (re.test(last)) return last;
+    await new Promise((r) => setTimeout(r, 250));
+  }
+  throw new Error('timeout waiting for ' + re + ' — last: ' + last);
 }
 const shot = (page, name) => page.screenshot({ path: path.join(SHOTS, name + '.png'), fullPage: false });
 const go = async (page, hash) => { await page.goto(URL_BASE + '#' + hash); await page.waitForLoadState('networkidle'); };
@@ -112,12 +127,10 @@ await check('SETUP', 'Connect Google Sheet (mock Apps Script) and import food DB
   await page.getByTestId('sync-token').fill(TOKEN);
   await page.getByTestId('sync-save').click();
   await page.waitForTimeout(800);
+  await page.waitForFunction(() => !document.querySelector('[data-testid="pull-foods"]')?.disabled, null, { timeout: 5000 });
   await page.getByTestId('pull-foods').click();
-  await page.waitForTimeout(1500);
   await go(page, '/foods');
-  const count = await page.getByTestId('foods-count').innerText();
-  if (!count.includes('10')) throw new Error('food count ' + count);
-  return count;
+  return await waitText(page.getByTestId('foods-count'), /^10 /);
 });
 
 await check('IMPORT', 'Import CSV file shows audit preview (header row detection, issues)', async () => {
@@ -159,7 +172,7 @@ await check('DASH', 'Dashboard updates immediately (728 kcal consumed)', async (
 });
 
 await check('TEST 5', 'Recipe: 500 g raw chicken + 300 g raw rice, 4 servings → 1680 total / 420 per serving, logged', async () => {
-  await go(page, '/recipes');
+  await go(page, '/recipes?tab=recipes');
   await page.getByTestId('new-recipe').click();
   await page.getByTestId('recipe-name').fill('كبسة دجاج');
   await page.getByTestId('recipe-servings-input').fill('4');
@@ -349,6 +362,196 @@ await check('TEST 15', 'Switch Arabic ⇄ English: dir rtl/ltr and labels', asyn
   expectEq(await page.evaluate(() => document.documentElement.dir), 'rtl', 'dir after AR');
   await go(page, '/');
   expectEq(await page.locator('header h1').innerText(), 'الرئيسية', 'AR title');
+});
+
+
+await check('REMAIN', 'Dashboard shows remaining protein/carbs/fat and water', async () => {
+  await go(page, '/');
+  const rp = await page.getByTestId('remaining-protein').first().innerText();
+  if (!/\d/.test(rp)) throw new Error('remaining protein: ' + rp);
+  await tap(page, 'dash-water-250');
+  await page.waitForTimeout(300);
+  const w = await page.getByTestId('dash-water').innerText();
+  if (!w.includes('250')) throw new Error('water ' + w);
+  return rp;
+});
+
+await check('UNDO', 'Delete an entry, then Undo restores it', async () => {
+  await go(page, '/diary');
+  await page.getByTestId('entry').first().waitFor();
+  const before = await page.getByTestId('entry').count();
+  await page.getByTestId('entry').first().click();
+  await page.getByTestId('entry-delete').click();
+  await page.getByTestId('confirm-yes').click();
+  await page.waitForTimeout(300);
+  expectEq(await page.getByTestId('entry').count(), before - 1, 'entries after delete');
+  await page.getByTestId('toast-action').click();
+  await page.waitForTimeout(400);
+  expectEq(await page.getByTestId('entry').count(), before, 'entries after undo');
+  return `${before} → ${before - 1} → ${before}`;
+});
+
+await check('COPYGUARD', 'Copy from yesterday into a non-empty day asks for confirmation', async () => {
+  await go(page, '/diary');
+  await page.getByTestId('copy-yesterday').click();
+  await page.getByText(/مسبقاً|already has/).waitFor({ timeout: 3000 });
+  await page.keyboard.press('Escape');
+});
+
+await check('LIBRARY', 'Recipe library: ≥50 recipes computed from the food DB, detail, rate, add to diary', async () => {
+  // Use the full 160-food database for the library.
+  await go(page, '/foods');
+  await page.getByTestId('import-input').setInputFiles(path.join(ROOT, 'tests/fixtures/foods-160.csv'));
+  await page.getByTestId('import-confirm').click();
+  await page.waitForTimeout(1500);
+  await go(page, '/recipes');
+  await page.getByTestId('library-card').first().waitFor();
+  const count = await page.getByTestId('library-count').innerText();
+  const total = Number(count.split('/')[1].trim().split(' ')[0]);
+  if (total < 50) throw new Error('library size ' + count);
+  await page.getByTestId('tag-high_protein').click();
+  const hp = await page.getByTestId('library-card').count();
+  await page.getByTestId('tag-all').click();
+  await page.getByTestId('library-search').fill('كبسة');
+  await page.getByTestId('library-card').first().click();
+  await page.getByTestId('recipe-detail').waitFor();
+  const kcal = await page.getByTestId('detail-kcal').innerText();
+  await page.getByTestId('rate-5').click();
+  await page.getByTestId('recipe-fav').click();
+  await shot(page, '13-recipe-detail');
+  await page.getByTestId('lib-add-diary').click();
+  await page.getByTestId('dms-confirm').click();
+  await page.waitForTimeout(500);
+  await page.keyboard.press('Escape');
+  await go(page, '/diary');
+  await waitText(page.getByTestId('diary'), /كبسة دجاج صحية/);
+  return `${count} · high-protein ${hp} · kabsa ${kcal}/serving`;
+});
+
+await check('SUGGEST', 'Suggestions fit remaining calories and include protein', async () => {
+  await go(page, '/recipes?tab=suggest');
+  await page.getByTestId('suggest').waitFor();
+  const rem = await page.getByTestId('suggest-remaining').innerText();
+  const remKcal = Number(rem.replace(/,/g, '').match(/\d+/)[0]);
+  const items = await page.getByTestId('suggestion-kcal').allInnerTexts();
+  if (!items.length) throw new Error('no suggestions; ' + rem);
+  for (const k of items) if (Number(k.replace(/,/g, '')) > remKcal * 1.05 + 20) throw new Error(`suggestion ${k} > remaining ${remKcal}`);
+  await shot(page, '14-suggestions');
+  return `${items.length} suggestions for ${remKcal} kcal remaining`;
+});
+
+await check('GOAL', 'Goal dropdown (9 options, default fat-loss-preserve), recommendation needs confirmation', async () => {
+  await go(page, '/settings');
+  const sel = page.getByTestId('goal-select');
+  expectEq(await sel.inputValue(), 'fat_loss_preserve', 'default goal');
+  expectEq(await sel.locator('option').count(), 9, 'options');
+  await sel.selectOption('lean_bulk');
+  const rec = await page.getByTestId('rec-values').innerText();
+  await page.getByTestId('profile-save').click();
+  await page.waitForTimeout(400);
+  await go(page, '/');
+  const target = (await page.getByTestId('kcal-target').innerText()).replace(/[^\d]/g, '');
+  expectEq(target, '2200', 'targets unchanged after goal change');
+  await go(page, '/settings');
+  expectEq(await page.getByTestId('goal-select').inputValue(), 'lean_bulk', 'goal persisted');
+  await page.getByTestId('apply-rec').click();
+  await page.getByTestId('confirm-yes').click();
+  await page.waitForTimeout(400);
+  await go(page, '/');
+  const t2 = (await page.getByTestId('kcal-target').innerText()).replace(/[^\d]/g, '');
+  if (t2 === '2200') throw new Error('recommendation not applied after confirm');
+  await go(page, '/settings');
+  await page.getByTestId('goal-select').selectOption('fat_loss_preserve');
+  await page.getByTestId('profile-save').click();
+  await page.waitForTimeout(300);
+  await shot(page, '15-goal');
+  // restore 2000/160/200/62
+  for (const [k, v] of [['kcal', 2000], ['protein', 160], ['carbs', 200], ['fat', 62]]) { await page.getByTestId('tt-' + k).fill(String(v)); await page.getByTestId('rt-' + k).fill(String(v)); }
+  await page.getByTestId('targets-save').click();
+  await page.waitForTimeout(300);
+  return `lean bulk recommendation ${rec}; applied → ${t2} kcal; restored defaults`;
+});
+
+await check('PLAN', 'Suggest a week plan, apply, shopping list with check-off', async () => {
+  await go(page, '/planner');
+  await page.getByTestId('generate-plan').click();
+  await page.getByTestId('generated-plan').waitFor();
+  await page.getByTestId('apply-generated').click();
+  const confirm = page.getByTestId('confirm-yes');
+  if (await confirm.isVisible().catch(() => false)) await confirm.click();
+  await page.waitForTimeout(1500);
+  await page.getByTestId('open-shopping').click();
+  await page.getByTestId('shopping-check').first().waitFor();
+  const items = await page.getByTestId('shopping-check').count();
+  await page.getByTestId('shopping-check').first().click();
+  await page.waitForFunction(() => document.querySelector('[data-testid="shopping-check"]')?.checked === true, null, { timeout: 3000 });
+  await shot(page, '16-shopping');
+  await page.keyboard.press('Escape');
+  return `${items} shopping items`;
+});
+
+await check('HABITS', 'Water, habits and fasting timer', async () => {
+  await go(page, '/habits');
+  await page.getByTestId('h-water-500').click();
+  await page.getByTestId('habit-check').first().click();
+  await page.waitForFunction(() => document.querySelector('[data-testid="habit-check"]')?.checked === true, null, { timeout: 3000 });
+  await page.getByTestId('fast-start').click();
+  await page.getByTestId('fast-running').waitFor();
+  await page.getByTestId('fast-end').click();
+  await shot(page, '17-habits');
+  return await page.getByTestId('water-total').innerText();
+});
+
+await check('BARCODE', 'Barcode manual entry → Open Food Facts (mocked) → save & log', async () => {
+  await go(page, '/diary');
+  await tap(page, 'add-snacks');
+  await page.getByTestId('open-barcode').click();
+  await page.getByTestId('barcode-input').fill('6281007025058');
+  await page.getByTestId('barcode-lookup').click();
+  await page.getByTestId('barcode-product').waitFor();
+  expectEq(await page.getByTestId('bp-kcal').inputValue(), '70', 'kcal from OFF');
+  await page.getByTestId('bp-save').click();
+  await page.getByTestId('qty-input').fill('150');
+  await page.getByTestId('qty-submit').click();
+  await page.keyboard.press('Escape');
+  await waitText(page.getByTestId('diary'), /لبن زبادي يوناني/);
+});
+
+await check('PHOTO', 'Progress photo stored locally', async () => {
+  await go(page, '/progress');
+  await page.getByTestId('photo-input').setInputFiles(path.join(ROOT, 'public/icon-192.png'));
+  await page.locator('[data-testid="photo-grid"] img').first().waitFor({ timeout: 5000 });
+});
+
+await check('BACKUP', 'Local backup list + backup now', async () => {
+  await go(page, '/settings');
+  await page.getByTestId('backup-now').click();
+  await page.waitForTimeout(800);
+  const n = await page.getByTestId('local-backups').locator('li').count();
+  if (n < 1) throw new Error('no local backups');
+  return `${n} local backup(s)`;
+});
+
+await check('SYNC2', 'Everything synced to the emulated sheet (APP_* tabs) by the real Code.gs', async () => {
+  await page.getByTestId('push-now').click();
+  await page.waitForTimeout(2500);
+  const pulled = gas.post({ action: 'pull', token: TOKEN });
+  const counts = Object.fromEntries(Object.entries(pulled.tables).map(([k, v]) => [k, v.length]));
+  if (!counts.entries || !counts.foods || !counts.kv) throw new Error(JSON.stringify(counts));
+  const original = gas.sheet('قاعدة بيانات الأطعمة').data.length;
+  expectEq(original, fixtureRows.length, 'original food tab untouched');
+  return `${JSON.stringify(counts)} · dataVersion ${pulled.meta.dataVersion}`;
+});
+
+await check('LAYOUT', 'No horizontal overflow on any screen (phone width)', async () => {
+  const bad = [];
+  for (const h of ['/', '/diary', '/recipes', '/recipes?tab=suggest', '/recipes?tab=recipes', '/foods', '/planner', '/progress', '/habits', '/reports/week', '/reports/month', '/settings']) {
+    await go(page, h);
+    await page.waitForTimeout(300);
+    const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth, wide: [...document.querySelectorAll('main *')].filter((e) => e.getBoundingClientRect().right > window.innerWidth + 1 && getComputedStyle(e).position !== 'fixed' && !e.closest('.table-wrap,.segmented,.chart')).length }));
+    if (w.wide > 0) bad.push(`${h}: ${w.wide} element(s) wider than the screen`);
+  }
+  if (bad.length) throw new Error(bad.join('; '));
 });
 
 await check('DARK', 'Dark mode renders', async () => {

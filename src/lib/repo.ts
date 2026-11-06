@@ -1,6 +1,6 @@
 import { db, type SyncTable } from './db';
 import { defaultSettings } from './defaults';
-import { basisFromFood, isIncompleteMacros, macrosFor, roundMacros, scaleMacros, sumMacros, validateMacros } from './nutrition';
+import { basisFromFood, isIncompleteMacros, macrosFor, preciseMacros, roundMacros, scaleMacros, sumMacros, validateMacros } from './nutrition';
 import type {
   BodyEntry, DayLog, DayPlan, DayType, DiaryEntry, Food, FoodChange, Macros, MealTemplate, MealType, PlanItem,
   PlannedDay, Recipe, RecipeIngredient, Settings, Unit
@@ -240,7 +240,8 @@ export async function updateEntry(id: string, changes: { quantity?: number; unit
   const servingId = changes.servingId ?? e.servingId;
   const { grams, macros } = macrosFor(e.basis, quantity, unit, servingId);
   const next: DiaryEntry = {
-    ...e, quantity, unit, servingId, grams: e.basis.perServing ? e.grams : grams, macros,
+    ...e, quantity, unit, servingId,
+    grams: e.basis.perServing ? (e.quantity > 0 ? Math.round((e.grams / e.quantity) * quantity) : e.grams) : grams, macros,
     meal: changes.meal ?? e.meal, date: changes.date ?? e.date, updatedAt: Date.now()
   };
   await db.entries.put(next);
@@ -405,8 +406,8 @@ export async function buildIngredient(foodId: string, quantity: number, unit: Un
 
 export function computeRecipe(ingredients: RecipeIngredient[], servings: number) {
   if (!(servings > 0)) throw new Error('Servings must be > 0');
-  const totals = roundMacros(sumMacros(ingredients.map((i) => i.macros)));
-  const perServing = roundMacros(scaleMacros(totals, 1 / servings));
+  const totals = preciseMacros(sumMacros(ingredients.map((i) => i.macros)));
+  const perServing = preciseMacros(scaleMacros(totals, 1 / servings));
   const totalGrams = Math.round(ingredients.reduce((s, i) => s + i.grams, 0));
   return { totals, perServing, totalGrams };
 }
@@ -481,4 +482,109 @@ export async function updateDayLog(date: string, change: Partial<Omit<DayLog, 'd
 
 export async function setDayType(date: string, dayType: DayType | undefined) {
   return updateDayLog(date, { dayType });
+}
+
+/* ------------------------------------------------------------------ undo helpers */
+
+/** Removes entries (used to undo an add / copy / log action). */
+export async function deleteEntries(ids: string[]) {
+  for (const id of ids) await deleteEntry(id);
+}
+
+/** Puts entries back exactly as they were (used to undo a delete or an edit). */
+export async function restoreEntries(entries: DiaryEntry[]) {
+  for (const e of entries) {
+    const rec = { ...e, updatedAt: Date.now() };
+    await db.entries.put(rec);
+    await enqueue('entries', e.id, 'upsert', rec);
+  }
+}
+
+/* ------------------------------------------------------------------ water & habits */
+
+export async function addWater(date: string, ml: number) {
+  const cur = (await db.days.get(date))?.waterMl ?? 0;
+  const next = Math.max(0, Math.round(cur + ml));
+  if (next > 15000) throw new Error('Water above 15 L — check the amount');
+  return updateDayLog(date, { waterMl: next });
+}
+
+export async function setWater(date: string, ml: number) {
+  if (!(ml >= 0 && ml <= 15000)) throw new Error('Invalid water amount');
+  return updateDayLog(date, { waterMl: Math.round(ml) });
+}
+
+export async function toggleHabit(date: string, habitId: string) {
+  const cur = (await db.days.get(date))?.habits ?? {};
+  return updateDayLog(date, { habits: { ...cur, [habitId]: !cur[habitId] } });
+}
+
+/* ------------------------------------------------------------------ fasting */
+
+export async function startFast(targetHours: number, start = Date.now()) {
+  const open = (await db.fasts.toArray()).find((f) => !f.end && !f.deleted);
+  if (open) throw new Error('A fast is already running');
+  const rec = { id: uid(), start, targetHours, updatedAt: Date.now() };
+  await db.fasts.put(rec);
+  await enqueue('fasts', rec.id, 'upsert', rec);
+  return rec;
+}
+
+export async function endFast(id: string, end = Date.now()) {
+  const f = await db.fasts.get(id);
+  if (!f) return;
+  const rec = { ...f, end: Math.max(end, f.start), updatedAt: Date.now() };
+  await db.fasts.put(rec);
+  await enqueue('fasts', id, 'upsert', rec);
+  return rec;
+}
+
+export async function deleteFast(id: string) {
+  await db.fasts.delete(id);
+  await enqueue('fasts', id, 'delete');
+}
+
+/* ------------------------------------------------------------------ key/value (ratings, favorites, shopping checks) */
+
+export async function kvGet<T>(key: string, fallback: T): Promise<T> {
+  const r = await db.kv.get(key);
+  return (r?.value as T) ?? fallback;
+}
+
+export async function kvSet(key: string, value: unknown) {
+  const rec = { key, value, updatedAt: Date.now() };
+  await db.kv.put(rec);
+  await enqueue('kv', key, 'upsert', rec);
+}
+
+/* ------------------------------------------------------------------ progress photos (local only) */
+
+export async function addPhoto(date: string, blob: Blob, note = '') {
+  const rec = { id: uid(), date, blob, note, createdAt: Date.now() };
+  await db.photos.put(rec);
+  return rec;
+}
+
+export async function deletePhoto(id: string) {
+  await db.photos.delete(id);
+}
+
+/** Downscale a camera image to max 1280px JPEG to keep storage small. */
+export async function compressImage(file: Blob, max = 1280): Promise<Blob> {
+  if (typeof createImageBitmap === 'undefined') return file;
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, max / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.round(bmp.width * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  canvas.getContext('2d')!.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  return new Promise((res) => canvas.toBlob((b) => res(b ?? file), 'image/jpeg', 0.82));
+}
+
+/* ------------------------------------------------------------------ duplicate recipe */
+
+export async function duplicateRecipe(id: string, suffix = ' (2)') {
+  const r = await db.recipes.get(id);
+  if (!r) throw new Error('Recipe not found');
+  return saveRecipe({ name: r.name + suffix, servings: r.servings, ingredients: structuredClone(r.ingredients), notes: r.notes });
 }

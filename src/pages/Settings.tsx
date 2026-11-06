@@ -2,15 +2,18 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { useSyncStatus } from '../components/Layout';
-import { Card, NumField, Segmented, TextField, useAsync } from '../components/ui';
+import { Card, Confirm, NumField, Segmented, TextField, useAsync } from '../components/ui';
+import { differsFromRecommendation, recommend } from '../lib/goals';
+import { listPreMigrationBackups, restoreLocalBackup, saveLocalBackup } from '../lib/localBackup';
+import { GOAL_TYPES, type GoalType, type Profile } from '../lib/types';
 import { backupToDrive, downloadBackup, restoreBackup } from '../lib/backup';
 import { db } from '../lib/db';
 import { exportDiaryCSV } from '../lib/exporters';
 import { DICTS, WEEKDAY_KEYS } from '../lib/i18n';
-import { bmr, macroCalories } from '../lib/targets';
+import { macroCalories } from '../lib/targets';
 import { saveSettings } from '../lib/repo';
 import { pullAll, pullFoodsFromSheet, pushNow, queueFullUpload, testConnection } from '../lib/sync';
-import type { Lang, Macros, Settings as S, ThemeMode } from '../lib/types';
+import type { Lang, Macros, ThemeMode } from '../lib/types';
 
 export default function Settings() {
   const { settings } = useApp();
@@ -21,6 +24,7 @@ export default function Settings() {
       <TargetsForm key={'t' + settings.updatedAt} />
       <SyncForm />
       <DataSafety />
+      <LocalBackups />
     </div>
   );
 }
@@ -41,11 +45,22 @@ function Preferences() {
 
 function ProfileForm() {
   const { t, settings, n } = useApp();
-  const [p, setP] = useState(settings.profile);
+  const [p, setP] = useState<Profile>(settings.profile);
+  const [confirmRec, setConfirmRec] = useState(false);
   const { run } = useAsync();
-  const num = (k: keyof S['profile']) => (v: number | '') => setP({ ...p, [k]: v === '' ? 0 : v });
+  const num = (k: keyof Profile) => (v: number | '') => setP({ ...p, [k]: v === '' ? 0 : v });
+  const rec = recommend(p);
+  const cur = settings.targets.training;
+  const fmt = (m: { kcal: number; protein: number; carbs: number; fat: number }) => `${n(m.kcal)} ${t('kcalUnit')} · ${n(m.protein)}/${n(m.carbs)}/${n(m.fat)} ${t('g')}`;
   return (
     <Card title={t('profile')}>
+      <label className="field" style={{ marginBottom: 10 }}>
+        <span>{t('goalType')}</span>
+        <select className="input" value={p.goalType} onChange={(e) => setP({ ...p, goalType: e.target.value as GoalType })} data-testid="goal-select" style={{ fontWeight: 600 }}>
+          {GOAL_TYPES.map((g) => <option key={g} value={g}>{t('goal_' + g)}</option>)}
+        </select>
+      </label>
+      {p.goalType === 'custom' && <div style={{ marginBottom: 10 }}><TextField label={t('customGoal')} value={p.goal} onChange={(v) => setP({ ...p, goal: v })} testId="goal-custom" /></div>}
       <div className="grid2">
         <label className="field"><span>{t('sex')}</span>
           <select className="input" value={p.sex} onChange={(e) => setP({ ...p, sex: e.target.value as 'male' | 'female' })}>
@@ -55,12 +70,32 @@ function ProfileForm() {
         <NumField label={t('currentWeight')} suffix={t('kg')} value={p.currentWeight} onChange={num('currentWeight')} testId="profile-weight" />
         <NumField label={t('startWeight')} suffix={t('kg')} value={p.startWeight} onChange={num('startWeight')} />
         <NumField label={t('targetWeight')} suffix={t('kg')} value={p.targetWeight} onChange={num('targetWeight')} />
+        <NumField label={t('startWaist')} suffix={t('cm')} value={p.startWaist ?? ''} onChange={(v) => setP({ ...p, startWaist: v === '' ? undefined : v })} />
         <NumField label={t('weeklyChange')} value={p.weeklyChangeKg} onChange={num('weeklyChangeKg')} step="0.05" />
+        <label className="field"><span>{t('activity')}</span>
+          <select className="input" value={p.activityLevel ?? 'moderate'} onChange={(e) => setP({ ...p, activityLevel: e.target.value as Profile['activityLevel'] })} data-testid="activity-select">
+            {(['sedentary', 'light', 'moderate', 'active', 'very_active'] as const).map((a) => <option key={a} value={a}>{t('act_' + a)}</option>)}
+          </select></label>
         <NumField label={t('trainingDaysPerWeek')} value={p.trainingDaysPerWeek} onChange={num('trainingDaysPerWeek')} />
       </div>
-      <div style={{ marginTop: 10 }}><TextField label={t('goal')} value={p.goal} onChange={(v) => setP({ ...p, goal: v })} /></div>
-      <div className="tiny muted" style={{ marginTop: 8 }}>{t('bmrRef')}: {n(bmr(p))} {t('kcalUnit')}</div>
-      <button className="btn primary block" style={{ marginTop: 10 }} onClick={() => run(() => saveSettings((s) => { s.profile = p; }), t('saved'))} data-testid="profile-save">{t('save')}</button>
+      <div className="stat" style={{ marginTop: 10 }} data-testid="recommendation">
+        <div className="k">{t('recommendation')}: {t('goal_' + p.goalType)}</div>
+        {rec.targets ? (
+          <>
+            <div className="v num" data-testid="rec-values">{fmt(rec.targets)}</div>
+            <div className="tiny muted">{t('recommendationNote', { bmr: n(rec.bmr), tdee: n(rec.tdee), ppk: n(rec.targets.protein / p.currentWeight, 1) })} {rec.expectedWeeklyKg !== null ? `· ${t('expectedChange', { kg: n(rec.expectedWeeklyKg, 2) })}` : ''}</div>
+            {differsFromRecommendation(cur, rec) && <div className="tiny" style={{ marginTop: 4 }} data-testid="targets-differ">{t('targetsDiffer')} ({fmt(cur)})</div>}
+          </>
+        ) : <div className="tiny muted">—</div>}
+      </div>
+      <div className="row" style={{ marginTop: 10 }}>
+        <button className="btn primary grow" onClick={() => run(() => saveSettings((s) => { s.profile = p; }), t('saved'))} data-testid="profile-save">{t('save')}</button>
+        {rec.targets && differsFromRecommendation(cur, rec) && <button className="btn grow" onClick={() => setConfirmRec(true)} data-testid="apply-rec">{t('applyRecommendation')}</button>}
+      </div>
+      {confirmRec && rec.targets && (
+        <Confirm message={t('confirmApplyRec', { cur: fmt(cur), rec: fmt(rec.targets) })} onNo={() => setConfirmRec(false)}
+          onYes={async () => { setConfirmRec(false); await run(() => saveSettings((s) => { s.profile = p; s.targets = { training: { ...rec.targets! }, rest: { ...rec.targets! } }; }), t('saved')); }} />
+      )}
     </Card>
   );
 }
@@ -81,7 +116,7 @@ function MacroInputs({ value, onChange, prefix }: { value: Macros; onChange: (m:
 
 function TargetsForm() {
   const { t, settings } = useApp();
-  const [v, setV] = useState({ targets: settings.targets, trainingWeekdays: settings.trainingWeekdays, tolerance: settings.tolerance, autoCompletePastDays: settings.autoCompletePastDays, weekStartsOn: settings.weekStartsOn });
+  const [v, setV] = useState({ targets: settings.targets, trainingWeekdays: settings.trainingWeekdays, tolerance: settings.tolerance, autoCompletePastDays: settings.autoCompletePastDays, weekStartsOn: settings.weekStartsOn, completeThresholdPct: settings.completeThresholdPct, waterTargetMl: settings.waterTargetMl });
   const { run } = useAsync();
   return (
     <Card title={t('nutritionTargets')}>
@@ -106,6 +141,10 @@ function TargetsForm() {
               {[6, 0, 1].map((wd) => <option key={wd} value={wd}>{t(WEEKDAY_KEYS[wd])}</option>)}</select></label>
         </div>
         <label className="check"><input type="checkbox" checked={v.autoCompletePastDays} onChange={(e) => setV({ ...v, autoCompletePastDays: e.target.checked })} />{t('autoComplete')}</label>
+        <div className="grid2">
+          <NumField label={t('completeThreshold')} value={v.completeThresholdPct} onChange={(x) => setV({ ...v, completeThresholdPct: Math.min(100, Math.max(0, Number(x) || 0)) })} testId="complete-threshold" />
+          <NumField label={t('waterTarget')} value={v.waterTargetMl} onChange={(x) => setV({ ...v, waterTargetMl: Number(x) || 0 })} testId="water-target" />
+        </div>
         <button className="btn primary block" data-testid="targets-save" onClick={() => run(() => saveSettings((s) => { Object.assign(s, v); }), t('saved'))}>{t('save')}</button>
       </div>
     </Card>
@@ -137,7 +176,7 @@ function SyncForm() {
           })}>{t('pullFoods')}</button>
           <button className="btn" disabled={busy || !settings.sync.url} onClick={() => run(() => pushNow())} data-testid="push-now">{t('pushNow')}</button>
           <button className="btn" disabled={busy || !settings.sync.url} onClick={() => run(async () => { await queueFullUpload(); await pushNow(); }, t('saved'))}>{t('uploadAll')}</button>
-          <button className="btn" disabled={busy || !settings.sync.url} onClick={() => run(async () => { const c = await pullAll(); alertOk(t('restoreDone', { n: Object.values(c).reduce((a, b) => a + b, 0) })); })}>{t('restoreFromSheet')}</button>
+          <button className="btn" disabled={busy || !settings.sync.url} onClick={() => run(async () => { await saveLocalBackup('pre-pull'); const c = await pullAll(); alertOk(t('restoreDone', { n: Object.values(c).reduce((a, b) => a + b, 0) })); })}>{t('restoreFromSheet')}</button>
           <button className="btn" disabled={busy || !settings.sync.url} onClick={() => run(async () => { const r = await backupToDrive(); alertOk(r.file); })}>{t('backupDrive')}</button>
         </div>
         <a className="small" href="https://github.com/mego2012/mego/blob/claude/nutrition-tracking-app-989rku/docs/SETUP.md" target="_blank" rel="noreferrer">{t('setupGuide')} ↗</a>
@@ -172,10 +211,38 @@ function DataSafety() {
           const f = e.target.files?.[0];
           e.target.value = '';
           if (!f) return;
-          const c = await run(async () => restoreBackup(await f.text()));
+          const c = await run(async () => { await saveLocalBackup('pre-restore'); return restoreBackup(await f.text()); });
           if (c) alertOk(t('restoreDone', { n: Object.values(c).reduce((a, b) => a + b, 0) }));
         }} />
       </div>
+    </Card>
+  );
+}
+
+function LocalBackups() {
+  const { t, d } = useApp();
+  const list = useLiveQuery(() => db.backups.orderBy('at').reverse().toArray(), [], []);
+  const [pre, setPre] = useState<{ at: number; fromSchema: number }[]>([]);
+  const [confirm, setConfirm] = useState<number | null>(null);
+  const { run } = useAsync();
+  useEffect(() => { listPreMigrationBackups().then((x) => setPre(x.map(({ at, fromSchema }) => ({ at, fromSchema })))).catch(() => {}); }, []);
+  return (
+    <Card title={t('localBackups')} actions={<button className="btn sm" onClick={() => run(() => saveLocalBackup('manual'), t('saved'))} data-testid="backup-now">{t('backupNow')}</button>}>
+      <ul className="list" data-testid="local-backups">
+        {list.map((b) => (
+          <li key={b.id}>
+            <span className="grow small">{d(new Date(b.at).toISOString().slice(0, 10))} {new Date(b.at).toLocaleTimeString()} · {t('backupReason_' + b.reason.replace(/-/g, '_'))} · {Math.round(b.size / 1024)} KB</span>
+            <button className="btn sm" onClick={() => setConfirm(b.id!)}>{t('restore')}</button>
+          </li>
+        ))}
+        {!list.length && <li className="empty">—</li>}
+      </ul>
+      {pre.length > 0 && <div className="tiny muted">{t('preMigration')}: {pre.map((p) => `${d(new Date(p.at).toISOString().slice(0, 10))} (v${p.fromSchema})`).join(', ')}</div>}
+      {confirm !== null && <Confirm message={t('confirmRestoreLocal')} onNo={() => setConfirm(null)} onYes={async () => {
+        const id = confirm; setConfirm(null);
+        const c = await run(() => restoreLocalBackup(id));
+        if (c) alertOk(t('restoreDone', { n: Object.values(c).reduce((a, b) => a + b, 0) }));
+      }} />}
     </Card>
   );
 }

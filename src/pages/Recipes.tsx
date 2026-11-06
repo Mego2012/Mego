@@ -1,5 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { LibraryTab, SuggestTab } from './RecipeLibrary';
 import { useApp } from '../app/AppContext';
 import { FoodPicker, QuantityForm } from '../components/FoodPicker';
 import { Icon } from '../components/icons';
@@ -7,25 +9,32 @@ import { Card, Confirm, MacroLine, NumField, Segmented, Sheet, StateChip, TextFi
 import { db } from '../lib/db';
 import { isValidISODate, today } from '../lib/dates';
 import {
-  addRecipeEntry, buildIngredient, computeRecipe, deleteRecipe, deleteTemplate, logItems, saveRecipe, saveTemplate, totalsForItems, uid, displayName
+  addRecipeEntry, buildIngredient, computeRecipe, deleteEntries, deleteRecipe, deleteTemplate, duplicateRecipe, logItems, saveRecipe, saveTemplate, totalsForItems, uid, displayName
 } from '../lib/repo';
 import { MEALS, type Food, type MealTemplate, type MealType, type PlanItem, type Recipe, type RecipeIngredient } from '../lib/types';
 
+type RTab = 'library' | 'suggest' | 'recipes' | 'meals';
+
 export default function Recipes() {
   const { t } = useApp();
-  const [tab, setTab] = useState<'recipes' | 'meals'>('recipes');
+  const [params, setParams] = useSearchParams();
+  const tab = (['library', 'suggest', 'recipes', 'meals'].includes(params.get('tab') ?? '') ? params.get('tab') : 'library') as RTab;
+  const setTab = (x: RTab) => setParams({ tab: x }, { replace: true });
   return (
     <div data-testid="recipes-page">
       <div style={{ marginBottom: 12 }}>
-        <Segmented value={tab} options={[{ value: 'recipes', label: t('recipes') }, { value: 'meals', label: t('savedMeals') }]} onChange={setTab} />
+        <Segmented value={tab} options={[{ value: 'library', label: t('library') }, { value: 'suggest', label: t('suggestions') }, { value: 'recipes', label: t('myRecipes') }, { value: 'meals', label: t('savedMeals') }]} onChange={setTab} />
       </div>
-      {tab === 'recipes' ? <RecipeList /> : <TemplateList />}
+      {tab === 'library' && <LibraryTab />}
+      {tab === 'suggest' && <SuggestTab />}
+      {tab === 'recipes' && <RecipeList />}
+      {tab === 'meals' && <TemplateList />}
     </div>
   );
 }
 
 function RecipeList() {
-  const { t, n } = useApp();
+  const { t, n, toast } = useApp();
   const recipes = useLiveQuery(() => db.recipes.orderBy('updatedAt').reverse().toArray(), [], []);
   const [editing, setEditing] = useState<Recipe | 'new' | null>(null);
   const [logging, setLogging] = useState<Recipe | null>(null);
@@ -35,9 +44,11 @@ function RecipeList() {
       {recipes.map((r) => (
         <Card key={r.id} title={r.name} actions={<>
           <button className="btn sm" onClick={() => setEditing(r)}>{t('edit')}</button>
+          <button className="btn sm" onClick={async () => { await duplicateRecipe(r.id); toast(t('duplicated')); }} data-testid="recipe-duplicate">{t('duplicateRecipe')}</button>
           <button className="btn sm primary" onClick={() => setLogging(r)} data-testid="recipe-add-diary">{t('addToDiary')}</button>
         </>}>
           <div className="small"><b className="num">{n(r.perServing.kcal)}</b> {t('kcalUnit')} / {t('unit_serving')} · <MacroLine m={r.perServing} /></div>
+          {r.libraryId && <div className="tiny muted">📚 {t('library')}</div>}
           <div className="tiny muted">{r.ingredients.length} {t('ingredients')} · {t('servings')}: {n(r.servings, 1)} · {t('total')}: {n(r.totals.kcal)} {t('kcalUnit')}</div>
         </Card>
       ))}
@@ -133,7 +144,7 @@ function TemplateList() {
       {templates.map((tp) => (
         <Card key={tp.id} title={tp.name} actions={<>
           <button className="btn sm" onClick={() => setEditing(tp)}>{t('edit')}</button>
-          <button className="btn sm primary" onClick={async () => { const r = await logItems(today(), tp.items); toast(`${t('added')}: ${r.logged.length}`); }}>{t('logMeal')} ({t('today')})</button>
+          <button className="btn sm primary" onClick={async () => { const r = await logItems(today(), tp.items); toast(t('logged', { n: r.logged.length }), { label: t('undo'), run: () => deleteEntries(r.logged.map((x) => x.id)) }); }}>{t('logMeal')} ({t('today')})</button>
         </>}>
           <div className="tiny muted">{tp.items.map((i) => i.name).join(' · ')}</div>
           <div className="small num">{n(totals[tp.id])} {t('kcalUnit')}</div>

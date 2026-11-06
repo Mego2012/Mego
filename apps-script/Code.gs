@@ -12,10 +12,19 @@
  *  - setup() makes a full copy of the spreadsheet in Drive before anything else.
  *  - Every write to the food tab is recorded in APP_FoodSheetLog (before/after).
  *  - App data lives only in tabs prefixed APP_ (one JSON record per row).
+ *  - Every request is validated (table whitelist, key/payload size, record shape).
+ *  - Conflict detection: an upsert older than the stored record is rejected and reported back,
+ *    so a device that was offline can never overwrite newer data.
+ *  - Deletes are soft: the removed row is moved to APP_trash first.
+ *  - APP_meta holds the schema version and a data version that increases on every write.
  */
 
 var FOOD_SHEET_NAMES = ['قاعدة بيانات الأطعمة', 'Foods', 'Food Database'];
-var APP_TABLES = ['foods', 'entries', 'recipes', 'templates', 'plans', 'plannedDays', 'body', 'days', 'settings', 'foodChanges'];
+var APP_TABLES = ['foods', 'entries', 'recipes', 'templates', 'plans', 'plannedDays', 'body', 'days', 'settings', 'foodChanges', 'kv', 'fasts'];
+var SCRIPT_VERSION = 2;
+var MAX_CHANGES = 500;          // per request
+var MAX_PAYLOAD_CHARS = 45000;  // Sheets cell limit is 50,000
+var MAX_KEY_CHARS = 200;
 
 function setup() {
   var props = PropertiesService.getScriptProperties();
@@ -55,8 +64,9 @@ function doPost(e) {
     try {
       switch (req.action) {
         case 'ping': return json_(ping_());
+        case 'meta': return json_({ ok: true, meta: readMeta_() });
         case 'foods': return json_(readFoods_());
-        case 'push': return json_(push_(req.changes || []));
+        case 'push': return json_(push_(req.changes || [], req.clientSchema));
         case 'pull': return json_(pull_());
         case 'saveFoods': return json_(saveFoods_(req.foods || []));
         case 'backup': return json_(backup_(req.snapshot));
@@ -85,7 +95,46 @@ function foodSheet_() {
 
 function ping_() {
   var sh = foodSheet_();
-  return { ok: true, spreadsheet: SpreadsheetApp.getActiveSpreadsheet().getName(), foodSheet: sh ? sh.getName() : null };
+  return { ok: true, spreadsheet: SpreadsheetApp.getActiveSpreadsheet().getName(), foodSheet: sh ? sh.getName() : null, scriptVersion: SCRIPT_VERSION, meta: readMeta_() };
+}
+
+function metaSheet_() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sh = ss.getSheetByName('APP_meta');
+  if (!sh) {
+    sh = ss.insertSheet('APP_meta');
+    sh.getRange(1, 1, 3, 2).setValues([['key', 'value'], ['schemaVersion', 2], ['dataVersion', 0]]);
+  }
+  return sh;
+}
+
+function readMeta_() {
+  var vals = metaSheet_().getDataRange().getValues();
+  var m = {};
+  for (var i = 1; i < vals.length; i++) m[vals[i][0]] = vals[i][1];
+  return m;
+}
+
+function bumpDataVersion_(clientSchema) {
+  var sh = metaSheet_();
+  var vals = sh.getDataRange().getValues();
+  var v = 0;
+  for (var i = 1; i < vals.length; i++) {
+    if (vals[i][0] === 'dataVersion') { v = Number(vals[i][1]) + 1; sh.getRange(i + 1, 2).setValue(v); }
+    if (vals[i][0] === 'schemaVersion' && clientSchema && Number(clientSchema) > Number(vals[i][1])) sh.getRange(i + 1, 2).setValue(Number(clientSchema));
+  }
+  return v;
+}
+
+function validChange_(c) {
+  if (!c || APP_TABLES.indexOf(c.table) < 0) return false;
+  if (typeof c.key !== 'string' || !c.key || c.key.length > MAX_KEY_CHARS) return false;
+  if (c.op !== 'upsert' && c.op !== 'delete') return false;
+  if (c.op === 'upsert') {
+    if (!c.payload || typeof c.payload !== 'object' || Array.isArray(c.payload)) return false;
+    if (JSON.stringify(c.payload).length > MAX_PAYLOAD_CHARS) return false;
+  }
+  return true;
 }
 
 function readFoods_() {
@@ -116,13 +165,16 @@ function keyIndex_(sh) {
   return map;
 }
 
-function push_(changes) {
+function push_(changes, clientSchema) {
+  if (!Array.isArray(changes)) return { ok: false, error: 'invalid changes' };
+  if (changes.length > MAX_CHANGES) return { ok: false, error: 'too many changes in one request' };
+  var invalid = changes.filter(function (c) { return !validChange_(c); }).length;
+  if (invalid) return { ok: false, error: invalid + ' invalid change(s) rejected' };
   var byTable = {};
-  changes.forEach(function (c) {
-    if (APP_TABLES.indexOf(c.table) < 0) return;
-    (byTable[c.table] = byTable[c.table] || []).push(c);
-  });
+  changes.forEach(function (c) { (byTable[c.table] = byTable[c.table] || []).push(c); });
   var applied = 0;
+  var conflicts = [];
+  var trash = appSheet_('trash');
   Object.keys(byTable).forEach(function (table) {
     var sh = appSheet_(table);
     var idx = keyIndex_(sh);
@@ -131,11 +183,20 @@ function push_(changes) {
     byTable[table].forEach(function (c) {
       var row = idx[String(c.key)];
       if (c.op === 'delete') {
-        if (row) deletes.push(row);
+        if (row) {
+          var old = sh.getRange(row, 1, 1, 3).getValues()[0];
+          trash.appendRow([table + ':' + c.key, Date.now(), old[2]]);
+          deletes.push(row);
+        }
         return;
       }
-      var p = c.payload || {};
-      var values = [String(c.key), p.updatedAt || p.at || c.at, JSON.stringify(p)];
+      var p = c.payload;
+      var incoming = Number(p.updatedAt || p.at || c.at || 0);
+      if (row) {
+        var stored = Number(sh.getRange(row, 2).getValue() || 0);
+        if (stored > incoming) { conflicts.push({ table: table, key: c.key }); return; }
+      }
+      var values = [String(c.key), incoming, JSON.stringify(p)];
       if (row) sh.getRange(row, 1, 1, 3).setValues([values]);
       else appends.push(values);
       applied++;
@@ -143,7 +204,8 @@ function push_(changes) {
     if (appends.length) sh.getRange(sh.getLastRow() + 1, 1, appends.length, 3).setValues(appends);
     deletes.sort(function (a, b) { return b - a; }).forEach(function (r) { sh.deleteRow(r); applied++; });
   });
-  return { ok: true, applied: applied };
+  var dataVersion = applied ? bumpDataVersion_(clientSchema) : Number(readMeta_().dataVersion || 0);
+  return { ok: true, applied: applied, conflicts: conflicts, dataVersion: dataVersion };
 }
 
 function pull_() {
@@ -154,7 +216,7 @@ function pull_() {
     var vals = sh.getRange(2, 3, sh.getLastRow() - 1, 1).getValues();
     tables[t] = vals.map(function (v) { try { return JSON.parse(v[0]); } catch (e) { return null; } }).filter(Boolean);
   });
-  return { ok: true, tables: tables };
+  return { ok: true, tables: tables, meta: readMeta_() };
 }
 
 var HEADER_RES = {
@@ -190,6 +252,13 @@ function backupFoodTabToday_(sh) {
 }
 
 function saveFoods_(foods) {
+  if (!Array.isArray(foods) || foods.length > 200) return { ok: false, error: 'invalid foods' };
+  for (var i = 0; i < foods.length; i++) {
+    var f = foods[i];
+    if (!f || typeof f.name !== 'string' || !f.name.trim()) return { ok: false, error: 'food without name' };
+    var nums = ['kcal', 'protein', 'carbs', 'fat'];
+    for (var j = 0; j < nums.length; j++) if (typeof f[nums[j]] !== 'number' || f[nums[j]] < 0 || f[nums[j]] > 1000) return { ok: false, error: 'invalid value for ' + f.name };
+  }
   var sh = foodSheet_();
   if (!sh) return { ok: false, error: 'food sheet not found' };
   backupFoodTabToday_(sh);
@@ -219,6 +288,7 @@ function saveFoods_(foods) {
 }
 
 function backup_(snapshot) {
+  if (!snapshot || snapshot.format !== 'mego-nutrition-backup') return { ok: false, error: 'invalid backup' };
   var folders = DriveApp.getFoldersByName('Mego Nutrition Backups');
   var folder = folders.hasNext() ? folders.next() : DriveApp.createFolder('Mego Nutrition Backups');
   var name = 'mego-backup-' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd_HHmmss') + '.json';

@@ -9,6 +9,12 @@ import { applyPlanToDates, copyPlannedDay, deletePlan, logItems, savePlan, setPl
 import { summarizeDay } from '../lib/reports';
 import type { DayPlan, DayType, Macros, PlannedDay } from '../lib/types';
 import { CopySheet } from './Diary';
+import { useLibrary } from './RecipeLibrary';
+import { applyGeneratedPlan, generatePlan, shoppingList, type GeneratedDay, type ShoppingItem } from '../lib/recipeEngine';
+import { kvGet, kvSet } from '../lib/repo';
+import { targetsFor } from '../lib/targets';
+import { LIBRARY } from '../lib/recipeLibraryData';
+import { Confirm, MacroLine, StateChip } from '../components/ui';
 import { ItemsEditor } from './Recipes';
 
 export default function Planner() {
@@ -24,6 +30,9 @@ export default function Planner() {
   const [copyFrom, setCopyFrom] = useState<string | null>(null);
   const [editPlan, setEditPlan] = useState<DayPlan | 'new' | null>(null);
   const [applyPlan, setApplyPlan] = useState<DayPlan | null>(null);
+  const [generated, setGenerated] = useState<GeneratedDay[] | null>(null);
+  const [shopping, setShopping] = useState(false);
+  const { lib } = useLibrary();
   const { run } = useAsync();
 
   useEffect(() => {
@@ -39,6 +48,12 @@ export default function Planner() {
         <button className="btn sm" onClick={() => setAnchor(addDays(start, -7))}>{t('previous')}</button>
         <div className="label small">{d(dates[0], { day: 'numeric', month: 'short' })} – {d(dates[6], { day: 'numeric', month: 'short', year: 'numeric' })}</div>
         <button className="btn sm" onClick={() => setAnchor(addDays(start, 7))}>{t('next')}</button>
+      </div>
+
+      <div className="row wrap" style={{ marginBottom: 12 }}>
+        <button className="btn primary grow" disabled={!lib} data-testid="generate-plan"
+          onClick={() => lib && setGenerated(generatePlan(dates.filter((x) => x >= today()), (dt) => targetsFor(dt, settings, data?.days.find((y) => y.date === dt)), lib))}>✨ {t('generatePlan')}</button>
+        <button className="btn grow" onClick={() => setShopping(true)} data-testid="open-shopping">🛒 {t('shoppingList')}</button>
       </div>
 
       <Card title={t('weekPlan')}>
@@ -104,6 +119,8 @@ export default function Planner() {
         onCopy={async (to) => { await run(() => copyPlannedDay(copyFrom, to), t('saved')); setCopyFrom(null); }} />}
       {editPlan && <PlanEditor plan={editPlan === 'new' ? null : editPlan} onClose={() => setEditPlan(null)} />}
       {applyPlan && <ApplySheet plan={applyPlan} dates={dates} onClose={() => setApplyPlan(null)} />}
+      {generated && <GeneratedSheet days={generated} hasExisting={generated.some((g) => byDate.has(g.date))} onClose={() => setGenerated(null)} />}
+      {shopping && <ShoppingSheet dates={dates} weekKey={dates[0]} onClose={() => setShopping(false)} />}
     </div>
   );
 }
@@ -133,6 +150,57 @@ function ApplySheet({ plan, dates, onClose }: { plan: DayPlan; dates: string[]; 
       {dates.map((dt) => (
         <label key={dt} className="check"><input type="checkbox" checked={sel.includes(dt)} onChange={(e) => setSel(e.target.checked ? [...sel, dt] : sel.filter((x) => x !== dt))} />{d(dt, { weekday: 'long', day: 'numeric', month: 'short' })}</label>
       ))}
+    </Sheet>
+  );
+}
+
+function GeneratedSheet({ days, hasExisting, onClose }: { days: GeneratedDay[]; hasExisting: boolean; onClose: () => void }) {
+  const { t, n, d, lang, settings, toast } = useApp();
+  const [confirm, setConfirm] = useState(false);
+  const { run, busy } = useAsync();
+  const name = (id: string) => { const l = LIBRARY.find((x) => x.id === id)!; return `${l.emoji} ${lang === 'ar' ? l.nameAr : l.nameEn}`; };
+  const apply = async () => { if (await run(async () => { await applyGeneratedPlan(days); return true; })) { toast(t('saved')); onClose(); } };
+  return (
+    <Sheet title={t('generatedPreview')} onClose={onClose} footer={<button className="btn primary block" disabled={busy || !days.length} data-testid="apply-generated" onClick={() => (hasExisting ? setConfirm(true) : apply())}>{t('applyPlan')}</button>}>
+      <div className="stack" data-testid="generated-plan">
+        {days.map((g) => {
+          const T = settings.targets.training;
+          return (
+            <div key={g.date} className="stat">
+              <div className="row between"><b>{d(g.date)}</b><span className="small num">{t('dayTotal')}: {n(g.total.kcal)} {t('kcalUnit')} · {t('protein')} {n(g.total.protein)}{t('g')}</span></div>
+              {g.picks.map((p) => <div key={p.meal} className="tiny"><span className="muted">{t(p.meal)}:</span> {name(p.libId)} {p.servings !== 1 ? `× ${n(p.servings, 2)}` : ''} — {n(p.macros.kcal)} {t('kcalUnit')}</div>)}
+              <div className="tiny muted"><MacroLine m={g.total} compact /> · {t('target')} {n(T.kcal)}/{n(T.protein)}</div>
+            </div>
+          );
+        })}
+        {!days.length && <div className="empty">{t('noData')}</div>}
+      </div>
+      {confirm && <Confirm message={t('overwritePlanned')} onNo={() => setConfirm(false)} onYes={() => { setConfirm(false); apply(); }} />}
+    </Sheet>
+  );
+}
+
+function ShoppingSheet({ dates, weekKey, onClose }: { dates: string[]; weekKey: string; onClose: () => void }) {
+  const { t, n } = useApp();
+  const [items, setItems] = useState<ShoppingItem[] | null>(null);
+  const checked = useLiveQuery<string[], string[]>(() => kvGet<string[]>(`shopping:${weekKey}`, []), [weekKey], []);
+  useEffect(() => { shoppingList(dates).then(setItems); }, [dates.join()]);
+  const toggle = (k: string) => kvSet(`shopping:${weekKey}`, checked.includes(k) ? checked.filter((x) => x !== k) : [...checked, k]);
+  return (
+    <Sheet title={`🛒 ${t('shoppingList')}`} onClose={onClose}>
+      <div className="tiny muted" style={{ marginBottom: 8 }}>{t('shoppingNote')}</div>
+      <ul className="list" data-testid="shopping-list">
+        {(items ?? []).map((i) => (
+          <li key={i.key}>
+            <label className="check grow" style={{ textDecoration: checked.includes(i.key) ? 'line-through' : 'none', opacity: checked.includes(i.key) ? 0.55 : 1 }}>
+              <input type="checkbox" checked={checked.includes(i.key)} onChange={() => toggle(i.key)} data-testid="shopping-check" />
+              <span className="grow">{i.name} {i.state !== 'other' && <StateChip state={i.state} />}</span>
+            </label>
+            <span className="num bold small">{i.grams >= 1000 ? `${n(i.grams / 1000, 2)} ${t('unit_kg')}` : `${n(i.grams)} ${t('g')}`}</span>
+          </li>
+        ))}
+        {items && !items.length && <li className="empty">{t('noPlan')}</li>}
+      </ul>
     </Sheet>
   );
 }

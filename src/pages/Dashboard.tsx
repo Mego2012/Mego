@@ -4,7 +4,8 @@ import { useApp } from '../app/AppContext';
 import { useBundle } from '../app/hooks';
 import { CaloriesChart } from '../components/charts';
 import { InsightList } from '../components/Insights';
-import { Card, MacroBars, MacroLine, Ring } from '../components/ui';
+import { Card, MacroBars, MacroLine, OptionalNutrientsLine, ProgressBar, Ring, useAsync } from '../components/ui';
+import { addWater } from '../lib/repo';
 import { addDays, today } from '../lib/dates';
 import { generateInsights } from '../lib/insights';
 import { buildPeriod, summarizeDay, weekReport, weightTrend } from '../lib/reports';
@@ -13,6 +14,7 @@ import { MEALS } from '../lib/types';
 export default function Dashboard() {
   const { t, n, settings } = useApp();
   const data = useBundle();
+  const { run } = useAsync();
   const date = today();
 
   const view = useMemo(() => {
@@ -50,6 +52,22 @@ export default function Dashboard() {
         </div>
         <div className="hr" />
         <div data-testid="macro-bars"><MacroBars totals={day.totals} target={day.target} /></div>
+        <OptionalNutrientsLine m={day.totals} coverage={day.coverage} total={day.entryCount} />
+        <Link to="/recipes?tab=suggest" className="btn block" style={{ marginTop: 10, flexDirection: 'column', gap: 2 }} data-testid="what-to-eat">
+          <span>🍽️ {t('suggestions')}</span>
+          <span className="tiny muted" style={{ fontWeight: 400 }}>{t('remainingNow', { kcal: n(Math.max(0, day.remaining.kcal)), p: n(Math.max(0, day.remaining.protein)), c: n(Math.max(0, day.remaining.carbs)), f: n(Math.max(0, day.remaining.fat)) })}</span>
+        </Link>
+      </Card>
+
+      <Card title={`💧 ${t('water')}`} actions={<Link className="btn sm ghost" to="/habits">{t('nav_habits')}</Link>}>
+        <div className="row between">
+          <span className="num"><b data-testid="dash-water">{n(day.waterMl)}</b> / {n(settings.waterTargetMl)} {t('ml')}</span>
+          <div className="row" style={{ gap: 4 }}>
+            <button className="btn sm" onClick={() => run(() => addWater(date, 250))} data-testid="dash-water-250">+250</button>
+            <button className="btn sm" onClick={() => run(() => addWater(date, 500))}>+500</button>
+          </div>
+        </div>
+        <div style={{ marginTop: 8 }}><ProgressBar value={day.waterMl} max={settings.waterTargetMl} color="var(--info)" /></div>
       </Card>
 
       <Card title={t('nav_diary')} actions={<Link className="btn sm primary" to="/diary?add=1" data-testid="quick-add">+ {t('addFood')}</Link>}>
@@ -83,7 +101,16 @@ export default function Dashboard() {
       </div>
       <div style={{ height: 12 }} />
 
-      <Card title={t('dailyCalories')} actions={<Link className="btn sm" to="/reports/week">{t('nav_weekly')}</Link>}>
+      <Card title={t('weeklySummary')} actions={<Link className="btn sm" to="/reports/week">{t('nav_weekly')}</Link>}>
+        <div className="grid3" data-testid="week-summary">
+          <div className="stat"><div className="k">{t('avgProtein')}</div><div className="v num">{week.averages ? n(week.averages.protein) : '—'}</div></div>
+          <div className="stat"><div className="k">{t('calorieConsistency')}</div><div className="v num">{week.calorieConsistencyPct === null ? '—' : `${week.calorieConsistencyPct}%`}</div></div>
+          <div className="stat"><div className="k">{t('completeDays')}</div><div className="v num">{week.completeDays}/7</div></div>
+        </div>
+        {week.macroSplit && <div className="tiny muted" style={{ marginTop: 6 }}>{t('macroSplit')}: {t('protein')} {week.macroSplit.protein}% · {t('carbs')} {week.macroSplit.carbs}% · {t('fat')} {week.macroSplit.fat}%</div>}
+      </Card>
+
+      <Card title={t('dailyCalories')}>
         <CaloriesChart days={last7.days} />
       </Card>
 

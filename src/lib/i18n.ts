@@ -1,4 +1,5 @@
 import type { Lang } from './types';
+import { ar2, en2 } from './i18n2';
 
 type Dict = Record<string, string>;
 
@@ -212,7 +213,7 @@ const ar: Dict = {
   install: 'تثبيت التطبيق', updateReady: 'يتوفر تحديث', reload: 'إعادة تحميل'
 };
 
-export const DICTS: Record<Lang, Dict> = { ar, en };
+export const DICTS: Record<Lang, Dict> = { ar: { ...ar, ...ar2 }, en: { ...en, ...en2 } };
 
 export function translate(lang: Lang, key: string, params?: Record<string, string | number>): string {
   let s = DICTS[lang][key] ?? DICTS.en[key] ?? key;

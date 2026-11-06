@@ -8,15 +8,16 @@ import { Sheet } from './ui';
 const ALL: { to: string; key: string; icon: IconName }[] = [
   { to: '/', key: 'nav_dashboard', icon: 'home' },
   { to: '/diary', key: 'nav_diary', icon: 'diary' },
+  { to: '/recipes', key: 'nav_library', icon: 'recipes' },
+  { to: '/progress', key: 'nav_progress', icon: 'progress' },
   { to: '/foods', key: 'nav_foods', icon: 'foods' },
   { to: '/planner', key: 'nav_planner', icon: 'planner' },
-  { to: '/recipes', key: 'nav_recipes', icon: 'recipes' },
-  { to: '/progress', key: 'nav_progress', icon: 'progress' },
+  { to: '/habits', key: 'nav_habits', icon: 'water' },
   { to: '/reports/week', key: 'nav_weekly', icon: 'weekly' },
   { to: '/reports/month', key: 'nav_monthly', icon: 'monthly' },
   { to: '/settings', key: 'nav_settings', icon: 'settings' }
 ];
-const BOTTOM = ['/', '/diary', '/foods', '/progress'];
+const BOTTOM = ['/', '/diary', '/recipes', '/progress'];
 
 export function useSyncStatus() {
   const [s, setS] = useState<SyncStatus>({ state: 'disabled', pending: 0 });
@@ -52,6 +53,12 @@ export function Layout({ children }: { children: ReactNode }) {
   const current = ALL.filter((a) => (a.to === '/' ? loc.pathname === '/' : loc.pathname.startsWith(a.to))).pop();
   const inMore = current && !BOTTOM.includes(current.to);
   const state = !online ? 'offline' : sync.state;
+  const { toast } = useApp();
+  useEffect(() => {
+    const h = (e: Event) => toast('🔔 ' + (e as CustomEvent<string>).detail);
+    window.addEventListener('mego-reminder', h);
+    return () => window.removeEventListener('mego-reminder', h);
+  }, [toast]);
 
   return (
     <div className="app">
@@ -68,7 +75,7 @@ export function Layout({ children }: { children: ReactNode }) {
           <h1>{current ? t(current.key) : t('appName')}</h1>
           <button className="sync-chip" onClick={() => (sync.state === 'disabled' ? nav('/settings#sync') : pushNow())} data-testid="sync-chip" title={sync.error}>
             <span className={`dot ${state}`} />
-            {t('syncState_' + state)}{sync.pending > 0 ? ` · ${sync.pending}` : ''}
+            {t('syncState_' + state)}{sync.pending > 0 ? ` · ${sync.pending}` : ''}{sync.state === 'error' && sync.retryIn ? ` · ${t('retryIn', { s: sync.retryIn })}` : ''}
           </button>
         </header>
         <main className="main">

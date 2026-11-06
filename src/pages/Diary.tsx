@@ -2,13 +2,15 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
 import { useDayLog, useEntries } from '../app/hooks';
-import { FoodPicker, QuantityForm } from '../components/FoodPicker';
+import { FoodPicker, QuantityForm, UnitOptions } from '../components/FoodPicker';
 import { Icon } from '../components/icons';
-import { Card, Confirm, DateNav, MacroBars, MacroLine, NumField, Segmented, Sheet, StateChip, useAsync } from '../components/ui';
+import { Card, Confirm, DateNav, MacroBars, MacroLine, NumField, OptionalNutrientsLine, Segmented, Sheet, StateChip, useAsync } from '../components/ui';
 import { addDays, isValidISODate, today } from '../lib/dates';
 import { availableUnits, macrosFor } from '../lib/nutrition';
+import { db } from '../lib/db';
 import {
-  addFoodEntry, addRecipeEntry, copyDay, copyEntries, copyMeal, deleteEntry, entryToPlanItem, logItems, saveTemplate, updateDayLog, updateEntry
+  addFoodEntry, addRecipeEntry, addWater, copyDay, copyEntries, copyMeal, deleteEntries, deleteEntry, entryToPlanItem, logItems, restoreEntries,
+  saveTemplate, updateDayLog, updateEntry
 } from '../lib/repo';
 import { summarizeDay } from '../lib/reports';
 import { MEALS, type DiaryEntry, type Food, type MealTemplate, type MealType, type Recipe, type Unit } from '../lib/types';
@@ -26,7 +28,19 @@ export default function Diary() {
   const [copyTarget, setCopyTarget] = useState<{ kind: 'meal' | 'day'; meal?: MealType } | null>(null);
   const [saveMeal, setSaveMeal] = useState<MealType | null>(null);
   const [showTargets, setShowTargets] = useState(false);
+  const [pendingCopy, setPendingCopy] = useState<{ to: string; n: number; exec: () => Promise<DiaryEntry[]> } | null>(null);
   const { run } = useAsync();
+
+  /** Copies with a confirmation when the destination day already has entries, then offers Undo. */
+  const guardedCopy = async (to: string, exec: () => Promise<DiaryEntry[]>) => {
+    const existing = await db.entries.where('date').equals(to).count();
+    if (existing > 0) setPendingCopy({ to, n: existing, exec });
+    else await doCopy(exec);
+  };
+  const doCopy = async (exec: () => Promise<DiaryEntry[]>) => {
+    const created = await run(exec);
+    if (created) toast(t('copied', { n: created.length }), { label: t('undo'), run: async () => { await deleteEntries(created.map((c) => c.id)); toast(t('undone')); } });
+  };
 
   const byMeal = (m: MealType) => entries.filter((e) => e.meal === m);
 
@@ -48,9 +62,17 @@ export default function Diary() {
           <span className={`chip status-${day.status}`} data-testid="day-status">{t('status_' + day.status)}</span>
         </div>
         <MacroBars totals={day.totals} target={day.target} keys={['kcal', 'protein', 'carbs', 'fat']} />
+        <OptionalNutrientsLine m={day.totals} coverage={day.coverage} total={day.entryCount} />
+        <div className="row between" style={{ marginTop: 8 }}>
+          <span className="small">💧 <b className="num" data-testid="diary-water">{n(day.waterMl)}</b> / {n(settings.waterTargetMl)} {t('ml')}</span>
+          <div className="row" style={{ gap: 4 }}>
+            <button className="btn sm" onClick={() => run(() => addWater(date, 250))} data-testid="water-250">+250</button>
+            <button className="btn sm" onClick={() => run(() => addWater(date, 500))}>+500</button>
+          </div>
+        </div>
         {day.status === 'empty' && <div className="tiny muted" style={{ marginTop: 8 }}>{t('dayIsEmpty')}</div>}
         <div className="row wrap" style={{ marginTop: 10, gap: 6 }}>
-          <button className="btn sm" onClick={() => run(async () => { const c = await copyDay(addDays(date, -1), date); return c.length; }, t('added'))} data-testid="copy-yesterday">
+          <button className="btn sm" onClick={() => guardedCopy(date, () => copyDay(addDays(date, -1), date))} data-testid="copy-yesterday">
             <Icon name="copy" /> {t('copyFromYesterday')}
           </button>
           <button className="btn sm" onClick={() => setCopyTarget({ kind: 'day' })} disabled={!entries.length}>{t('copyDayTo')}</button>
@@ -89,8 +111,10 @@ export default function Diary() {
         <CopySheet title={copyTarget.kind === 'day' ? t('copyDayTo') : t('copyMealTo')} defaultMeal={copyTarget.meal} showMeal={copyTarget.kind === 'meal'} date={date}
           onClose={() => setCopyTarget(null)}
           onCopy={async (to, toMeal) => {
-            await run(async () => (copyTarget.kind === 'day' ? copyDay(date, to) : copyMeal(date, copyTarget.meal!, to, toMeal)), t('added'));
+            const kind = copyTarget.kind;
+            const meal = copyTarget.meal!;
             setCopyTarget(null);
+            await guardedCopy(to, () => (kind === 'day' ? copyDay(date, to) : copyMeal(date, meal, to, toMeal)));
           }} />
       )}
       {saveMeal && (
@@ -102,6 +126,10 @@ export default function Diary() {
           }} />
       )}
       {showTargets && <DayTargetsSheet date={date} onClose={() => setShowTargets(false)} />}
+      {pendingCopy && (
+        <Confirm message={t('confirmCopyIntoNonEmpty', { date: pendingCopy.to, n: pendingCopy.n })} onNo={() => setPendingCopy(null)}
+          onYes={async () => { const p = pendingCopy; setPendingCopy(null); await doCopy(p.exec); }} />
+      )}
     </div>
   );
 }
@@ -115,8 +143,13 @@ function AddSheet({ date, meal, onMeal, onClose }: { date: string; meal: MealTyp
 
   const addTemplate = async (tp: MealTemplate) => {
     const r = await logItems(date, tp.items, meal);
-    toast(`${t('added')}: ${r.logged.length}${r.skipped.length ? ` (−${r.skipped.length})` : ''}`);
+    toast(`${t('logged', { n: r.logged.length })}${r.skipped.length ? ` (−${r.skipped.length})` : ''}`, { label: t('undo'), run: () => deleteEntries(r.logged.map((x) => x.id)) });
     onClose();
+  };
+  const addHistory = async (e: DiaryEntry) => {
+    const r = await logItems(date, [entryToPlanItem(e)], meal);
+    if (r.logged.length) toast(`${t('added')}: ${e.name}`, { label: t('undo'), run: () => deleteEntries(r.logged.map((x) => x.id)) });
+    else toast(t('error'));
   };
 
   return (
@@ -124,12 +157,12 @@ function AddSheet({ date, meal, onMeal, onClose }: { date: string; meal: MealTyp
       <div style={{ marginBottom: 10 }}>
         <Segmented value={meal} options={MEALS.map((m) => ({ value: m, label: t(m) }))} onChange={onMeal} />
       </div>
-      {!food && !recipe && <FoodPicker onPickFood={setFood} onPickRecipe={setRecipe} onPickTemplate={addTemplate} />}
+      {!food && !recipe && <FoodPicker onPickFood={setFood} onPickRecipe={setRecipe} onPickTemplate={addTemplate} onPickHistory={addHistory} />}
       {food && (
         <QuantityForm food={food} submitLabel={t('logFood')} onBack={() => setFood(null)}
           onSubmit={async (q, u, s) => {
             const ok = await run(() => addFoodEntry(date, meal, food, q, u, s));
-            if (ok) { toast(`${t('added')}: ${food.nameAr || food.nameEn}`); setFood(null); }
+            if (ok) { toast(`${t('added')}: ${food.nameAr || food.nameEn}`, { label: t('undo'), run: () => deleteEntry(ok.id) }); setFood(null); }
           }} />
       )}
       {recipe && (
@@ -140,7 +173,7 @@ function AddSheet({ date, meal, onMeal, onClose }: { date: string; meal: MealTyp
           <div className="row">
             <button className="btn" onClick={() => setRecipe(null)}>{t('previous')}</button>
             <button className="btn primary grow" disabled={!(servings && servings > 0)} data-testid="recipe-log"
-              onClick={async () => { await run(() => addRecipeEntry(date, meal, recipe, Number(servings))); toast(t('added')); setRecipe(null); }}>{t('logFood')}</button>
+              onClick={async () => { const e = await run(() => addRecipeEntry(date, meal, recipe, Number(servings))); if (e) toast(t('added'), { label: t('undo'), run: () => deleteEntry(e.id) }); setRecipe(null); }}>{t('logFood')}</button>
           </div>
         </div>
       )}
@@ -149,7 +182,8 @@ function AddSheet({ date, meal, onMeal, onClose }: { date: string; meal: MealTyp
 }
 
 function EditEntrySheet({ entry, onClose }: { entry: DiaryEntry; onClose: () => void }) {
-  const { t, n } = useApp();
+  const { t, n, toast } = useApp();
+  const [copyTo, setCopyTo] = useState(false);
   const [qty, setQty] = useState<number | ''>(entry.quantity);
   const [unit, setUnit] = useState<Unit>(entry.unit);
   const [meal, setMeal] = useState<MealType>(entry.meal);
@@ -167,7 +201,7 @@ function EditEntrySheet({ entry, onClose }: { entry: DiaryEntry; onClose: () => 
           <label className="field"><span>{t('quantity')}</span>
             <input className="input num" type="number" inputMode="decimal" step="any" value={qty} data-testid="edit-qty" onChange={(e) => setQty(e.target.value === '' ? '' : Number(e.target.value))} /></label>
           <label className="field"><span>{t('unit')}</span>
-            <select className="input" value={unit} onChange={(e) => setUnit(e.target.value as Unit)}>{units.map((u) => <option key={u} value={u}>{t('unit_' + u)}</option>)}</select></label>
+            <select className="input" value={unit} onChange={(e) => setUnit(e.target.value as Unit)}><UnitOptions basis={entry.basis} units={units} /></select></label>
           <label className="field"><span>{t('meal')}</span>
             <select className="input" value={meal} onChange={(e) => setMeal(e.target.value as MealType)}>{MEALS.map((m) => <option key={m} value={m}>{t(m)}</option>)}</select></label>
           <label className="field"><span>{t('date')}</span><input className="input" type="date" value={date} onChange={(e) => setDate(e.target.value)} /></label>
@@ -175,14 +209,27 @@ function EditEntrySheet({ entry, onClose }: { entry: DiaryEntry; onClose: () => 
         {preview && <div className="stat"><b className="num">{n(preview.macros.kcal)} {t('kcalUnit')}</b> <MacroLine m={preview.macros} /></div>}
         <div className="row">
           <button className="btn primary grow" disabled={!preview || !isValidISODate(date)} data-testid="edit-save"
-            onClick={async () => { await run(() => updateEntry(entry.id, { quantity: Number(qty), unit, meal, date })); onClose(); }}>{t('save')}</button>
+            onClick={async () => {
+              const before = structuredClone(entry);
+              const ok = await run(() => updateEntry(entry.id, { quantity: Number(qty), unit, meal, date }));
+              if (ok) toast(t('saved'), { label: t('undo'), run: () => restoreEntries([before]) });
+              onClose();
+            }}>{t('save')}</button>
         </div>
         <div className="row">
-          <button className="btn grow" onClick={async () => { await run(() => copyEntries([entry], entry.date)); onClose(); }} data-testid="entry-duplicate"><Icon name="copy" /> {t('duplicate')}</button>
+          <button className="btn grow" onClick={async () => { const c = await run(() => copyEntries([entry], entry.date)); if (c) toast(t('copied', { n: 1 }), { label: t('undo'), run: () => deleteEntries(c.map((x) => x.id)) }); onClose(); }} data-testid="entry-duplicate"><Icon name="copy" /> {t('duplicate')}</button>
+          <button className="btn grow" onClick={() => setCopyTo(true)} data-testid="entry-copy-to">{t('copyToDate')}</button>
           <button className="btn danger grow" onClick={() => setConfirm(true)} data-testid="entry-delete"><Icon name="trash" /> {t('delete')}</button>
         </div>
       </div>
-      {confirm && <Confirm danger message={`${t('delete')}: ${entry.name}?`} onNo={() => setConfirm(false)} onYes={async () => { await deleteEntry(entry.id); onClose(); }} />}
+      {confirm && <Confirm danger message={`${t('delete')}: ${entry.name}?`} onNo={() => setConfirm(false)} onYes={async () => {
+        const before = structuredClone(entry);
+        await deleteEntry(entry.id);
+        toast(t('deleted'), { label: t('undo'), run: () => restoreEntries([before]) });
+        onClose();
+      }} />}
+      {copyTo && <CopySheet title={t('copyToDate')} date={entry.date} defaultMeal={entry.meal} showMeal onClose={() => setCopyTo(false)}
+        onCopy={async (to, toMeal) => { const c = await run(() => copyEntries([entry], to, toMeal)); if (c) toast(t('copied', { n: 1 }), { label: t('undo'), run: () => deleteEntries(c.map((x) => x.id)) }); setCopyTo(false); onClose(); }} />}
     </Sheet>
   );
 }

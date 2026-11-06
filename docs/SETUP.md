@@ -40,6 +40,10 @@ What the script does with your spreadsheet:
 | Every other tab | Never touched. |
 
 If the token ever leaks, run `rotateToken()` in Apps Script and paste the new token in the app.
+
+**Upgrading an existing script to v2:** paste the new `Code.gs` over the old one, then **Deploy → Manage deployments → ✏️ Edit →
+Version: New version → Deploy**. The URL and token stay the same. v2 adds request validation, conflict detection, `APP_trash`
+(soft deletes), `APP_meta` (data version) and the `kv` / `fasts` tables.
 If you edit `Code.gs` later, use **Deploy → Manage deployments → Edit → New version** so the URL stays the same.
 
 ## 3. Install on your Samsung phone

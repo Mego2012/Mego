@@ -92,6 +92,20 @@ export default function Reports({ kind }: { kind: 'week' | 'month' }) {
         {weightPoints.length > 0 && <WeightChart points={weightPoints} avg />}
       </Card>
 
+      <Card title={`${t('macroSplit')} · ${t('water')} · ${t('fiberIndicator')}`}>
+        <div className="grid3" data-testid="report-extra">
+          <div className="stat"><div className="k">{t('macroSplit')}</div><div className="small num">{r.macroSplit ? `${t('pShort')} ${r.macroSplit.protein}% · ${t('cShort')} ${r.macroSplit.carbs}% · ${t('fShort')} ${r.macroSplit.fat}%` : '—'}</div></div>
+          <div className="stat"><div className="k">{t('avgWater')}</div><div className="v num">{r.avgWaterMl === null ? '—' : `${n(r.avgWaterMl)} ${t('ml')}`}</div><div className="tiny muted">{r.waterDays} / {r.dates.length}</div></div>
+          <div className="stat"><div className="k">{t('fiberIndicator')}</div><div className="tiny">{r.avgFiber !== null ? (r.avgFiber < 25 ? t('fiberLow', { v: n(r.avgFiber, 1) }) : t('fiberOk', { v: n(r.avgFiber, 1) })) : t('fiberUnknown', { pct: r.fiberCoveragePct })}</div></div>
+        </div>
+        {r.topFoods.length > 0 && (
+          <>
+            <div className="small bold" style={{ marginTop: 10 }}>{t('topFoods')}</div>
+            <ul className="list" data-testid="top-foods">{r.topFoods.map((f) => <li key={f.name}><span className="grow small">{f.name}</span><span className="tiny muted num">×{f.count}</span><span className="num small">{n(f.kcal)} {t('kcalUnit')} · {n(f.protein)}{t('g')}</span></li>)}</ul>
+          </>
+        )}
+      </Card>
+
       <Card title={t('dailyCalories')}><CaloriesChart days={r.days} /></Card>
       <Card title={t('dailyMacros')}><MacrosChart days={r.days} /></Card>
 
@@ -116,6 +130,12 @@ export default function Reports({ kind }: { kind: 'week' | 'month' }) {
           <ul className="list">{r.bestDays.map((x) => (
             <li key={x.date}><span className="grow">{d(x.date)}</span><span className="num small">{n(x.totals.kcal)} {t('kcalUnit')} · {n(x.totals.protein)} {t('g')}</span><span className="chip good">{x.score}%</span></li>
           ))}{!r.bestDays.length && <li className="empty">{t('noCompleteDays')}</li>}</ul>
+          {r.worstDays.length > 0 && <>
+            <div className="small bold" style={{ marginTop: 10 }}>{t('worstDays')}</div>
+            <ul className="list">{r.worstDays.map((x) => (
+              <li key={x.date}><span className="grow">{d(x.date)}</span><span className="num small">{n(x.totals.kcal)} {t('kcalUnit')} · {n(x.totals.protein)} {t('g')}</span><span className="chip warn">{x.score}%</span></li>
+            ))}</ul>
+          </>}
         </Card>
       )}
 

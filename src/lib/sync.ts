@@ -1,4 +1,4 @@
-import { db, SYNC_TABLES, type SyncTable } from './db';
+import { db, DB_SCHEMA_VERSION, SYNC_TABLES, type SyncTable } from './db';
 import { getSettings, onLocalChange, saveSettings } from './repo';
 import { importParsedFoods, parseFoodRows, type ImportResult } from './sheetImport';
 import type { Food, OutboxItem, Settings } from './types';
@@ -9,6 +9,16 @@ export interface SyncStatus {
   pending: number;
   lastPushAt?: number;
   error?: string;
+  /** Seconds until the next automatic retry after a failure. */
+  retryIn?: number;
+  conflicts?: number;
+}
+
+let failures = 0;
+let retryTimer: ReturnType<typeof setTimeout> | undefined;
+/** Exponential backoff: 5 s, 10 s, 20 s … capped at 5 min. */
+export function backoffMs(n: number) {
+  return Math.min(300_000, 5000 * 2 ** Math.max(0, n - 1));
 }
 
 type StatusListener = (s: SyncStatus) => void;
@@ -76,8 +86,14 @@ export async function pushNow(): Promise<void> {
         const batch = await db.outbox.orderBy('id').limit(300).toArray();
         if (!batch.length) break;
         const changes = coalesce(batch).map(({ table, key, op, payload, at }) => ({ table, key, op, payload, at }));
-        await callScript(s.sync, 'push', { changes });
+        const res = await callScript<{ applied: number; conflicts?: { table: string; key: string }[]; dataVersion?: number }>(s.sync, 'push', { changes, clientSchema: DB_SCHEMA_VERSION });
         await db.outbox.bulkDelete(batch.map((b) => b.id!));
+        if (res.dataVersion) await db.settings.update('main', { 'sync.serverVersion': res.dataVersion } as never);
+        if (res.conflicts?.length) {
+          // The sheet holds a newer version of these records: bring them back instead of overwriting.
+          setStatus({ conflicts: (status.conflicts ?? 0) + res.conflicts.length });
+          await pullAll();
+        }
         if (s.sync.writeFoodsToSheet) {
           const foods = changes.filter((c) => c.table === 'foods' && c.op === 'upsert').map((c) => c.payload as Food);
           if (foods.length) await callScript(s.sync, 'saveFoods', { foods: foods.map(foodToSheetRow) });
@@ -85,10 +101,17 @@ export async function pushNow(): Promise<void> {
       }
       const now = Date.now();
       await db.settings.update('main', { 'sync.lastPushAt': now, 'sync.lastError': '' } as never);
-      setStatus({ state: 'idle', lastPushAt: now, error: undefined });
+      failures = 0;
+      clearTimeout(retryTimer);
+      setStatus({ state: 'idle', lastPushAt: now, error: undefined, retryIn: undefined });
     } catch (e) {
       const msg = (e as Error).message;
-      setStatus({ state: isOnline() ? 'error' : 'offline', error: msg });
+      failures++;
+      const wait = backoffMs(failures);
+      clearTimeout(retryTimer);
+      if (msg !== 'unauthorized') retryTimer = setTimeout(() => { pushNow(); }, wait);
+      await db.settings.update('main', { 'sync.lastError': msg } as never).catch(() => {});
+      setStatus({ state: isOnline() ? 'error' : 'offline', error: msg, retryIn: Math.round(wait / 1000) });
     } finally {
       await refreshPending();
     }

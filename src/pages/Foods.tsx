@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { Icon } from '../components/icons';
 import { Card, Confirm, MacroLine, NumField, Sheet, StateChip, TextField, useAsync } from '../components/ui';
@@ -280,6 +280,7 @@ export function FoodEditor({ food, onClose, initialName, onSaved }: { food: Food
           {food?.sourceRef && <div className="tiny muted" data-testid="fe-source">{t('sourceLabel')}: {food.sourceRef}</div>}
           <label className="field"><span>{t('notes')}</span><textarea className="input" rows={3} value={v.notes} onChange={(e) => setV({ ...v, notes: e.target.value })} /></label>
           <button className="btn primary block" disabled={!valid || busy} onClick={save} data-testid="fe-save">{t('save')}</button>
+          {food && !food.archived && food.source !== 'sheet' && <SubmitSharedButton food={food} />}
           {food && !food.archived && <button className="btn block" disabled={busy} data-testid="fe-duplicate" onClick={async () => {
             const copy = await run(() => createFood({ ...food, nameAr: food.nameAr ? food.nameAr + ' (2)' : '', nameEn: food.nameEn ? food.nameEn + ' (2)' : '', source: 'custom', sourceRef: undefined, sheetKey: undefined, sheetRow: undefined, servings: food.servings.map((x) => ({ ...x, id: uid() })) }, { allowDuplicate: true }), t('saved'));
             if (copy) onClose();
@@ -291,5 +292,22 @@ export function FoodEditor({ food, onClose, initialName, onSaved }: { food: Food
       )}
       {confirm && food && <Confirm danger message={t('confirmArchive', { name: displayName(food) })} onNo={() => setConfirm(false)} onYes={async () => { await archiveFood(food.id); onClose(); }} />}
     </Sheet>
+  );
+}
+
+/** Signed-in users can propose a personal food for the shared database (reviewed by an admin first). */
+function SubmitSharedButton({ food }: { food: Food }) {
+  const { t } = useApp();
+  const { run } = useAsync();
+  const [done, setDone] = useState(false);
+  const [mode, setMode] = useState<string>('guest');
+  useEffect(() => { import('../lib/account').then((m) => setMode(m.accountState().mode)); }, []);
+  if (mode !== 'account') return null;
+  return (
+    <button className="btn block" disabled={done} data-testid="fe-submit-shared" onClick={() => run(async () => {
+      const { submitFood } = await import('../lib/firebase');
+      await submitFood({ nameAr: food.nameAr, nameEn: food.nameEn, category: food.category, per100: food.per100 as unknown as Record<string, number>, state: food.state, pieceGrams: food.pieceGrams, notes: food.notes, sourceRef: food.sourceRef });
+      setDone(true);
+    }, t('submittedShared'))}>{done ? '✓ ' + t('submittedShared') : t('submitShared')}</button>
   );
 }

@@ -167,6 +167,18 @@ await check('PASSWORD-RESET', async () => {
   return 'reset email sent, new password works';
 });
 
+await check('FOOD-SUBMISSION', async () => {
+  // Bob proposes his personal food; it is not public until an admin approves it
+  await B.page.goto(BASE + '#/foods');
+  await B.page.getByTestId('foods-search').fill('Bob chicken');
+  await B.page.getByTestId('food-row').first().click();
+  await B.page.getByTestId('fe-submit-shared').click();
+  await until(async () => (await (await fetch(fsDoc('foodSubmissions'), { headers: owner })).json()).documents?.length === 1);
+  const shared = await (await fetch(fsDoc('foods'), { headers: owner })).json();
+  if (shared.documents?.length) throw new Error('published before review');
+  return 'submitted, waiting for review';
+});
+
 await check('ADMIN', async () => {
   await fetch(fsDoc(`admins/${uids.carol}`), { method: 'PATCH', headers: { ...owner, 'content-type': 'application/json' }, body: JSON.stringify({ fields: { since: { integerValue: '1' } } }) });
   const AD = await deviceCtx();
@@ -175,6 +187,8 @@ await check('ADMIN', async () => {
   await AD.page.getByTestId('admin-stats').waitFor();
   await until(async () => /3/.test(await AD.page.getByTestId('admin-stats').innerText()));
   const stats = await AD.page.getByTestId('admin-stats').innerText();
+  await AD.page.getByTestId('sub-approve').first().click();
+  await until(async () => (await (await fetch(fsDoc('foods'), { headers: owner })).json()).documents?.length === 1);
   const page = await AD.page.locator('main').innerText();
   if (page.includes('Alice chicken') || page.includes('Bob chicken')) throw new Error('private data visible to admin');
   // suspend Bob → Bob's app shows the suspended screen; reactivate

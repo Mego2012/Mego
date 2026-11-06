@@ -7,7 +7,7 @@ import { Card, NumField, Segmented, TextField, useAsync } from '../components/ui
 import { accountState, chooseGuest, enterAccount, guestDataSummary, leaveAccount, subscribeAccount, userDbName, type AccountState } from '../lib/account';
 import { downloadBackup } from '../lib/backup';
 import { SYNC_TABLES } from '../lib/db';
-import { adminListErrors, adminListProfiles, adminSetStatus, adminStats, AI_RESTRICTED_COUNTRIES, cloud, deleteAccountAuth, login, register, resetPassword, updateMyProfile } from '../lib/firebase';
+import { adminListErrors, adminListProfiles, adminListSubmissions, adminReview, adminSetStatus, adminStats, type Submission, AI_RESTRICTED_COUNTRIES, cloud, deleteAccountAuth, login, register, resetPassword, updateMyProfile } from '../lib/firebase';
 import { recommend } from '../lib/goals';
 import type { GoalType, Macros, Profile } from '../lib/types';
 
@@ -257,10 +257,11 @@ export function AdminPage() {
   const [stats, setStats] = useState<Awaited<ReturnType<typeof adminStats>> | null>(null);
   const [users, setUsers] = useState<Awaited<ReturnType<typeof adminListProfiles>>>([]);
   const [errors, setErrors] = useState<Awaited<ReturnType<typeof adminListErrors>>>([]);
+  const [subs, setSubs] = useState<Submission[]>([]);
   const [msg, setMsg] = useState('');
   const { run } = useAsync();
   const reload = async () => {
-    try { setStats(await adminStats()); setUsers(await adminListProfiles()); setErrors(await adminListErrors()); } catch (e) { setMsg((e as Error).message); }
+    try { setStats(await adminStats()); setUsers(await adminListProfiles()); setErrors(await adminListErrors()); setSubs(await adminListSubmissions()); } catch (e) { setMsg((e as Error).message); }
   };
   useEffect(() => { if (acc.admin) reload(); }, [acc.admin]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!acc.admin) return <div className="empty">{t('admin_only')}</div>;
@@ -287,6 +288,26 @@ export function AdminPage() {
             </li>
           ))}
         </ul>
+      </Card>
+      <Card title={t('admin_pendingFoods')}>
+        <ul className="list" data-testid="admin-subs">
+          {subs.map((sub) => {
+            const f = sub.food as { nameAr?: string; nameEn?: string; per100?: { kcal: number; protein: number; carbs: number; fat: number }; state?: string; notes?: string; sourceRef?: string };
+            return (
+              <li key={sub.id}>
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="bold">{f.nameAr || f.nameEn} <span className="chip">{t('state_' + (f.state ?? 'other'))}</span></div>
+                  <div className="tiny muted num">{f.per100?.kcal} kcal · P {f.per100?.protein} · C {f.per100?.carbs} · F {f.per100?.fat} / 100 g{f.sourceRef ? ` · ${f.sourceRef}` : ''}</div>
+                  {f.notes && <div className="tiny muted">{f.notes}</div>}
+                </div>
+                <button className="btn sm primary" data-testid="sub-approve" onClick={() => run(async () => { await adminReview(sub, true); await reload(); }, t('saved'))}>{t('admin_approve')}</button>
+                <button className="btn sm" data-testid="sub-reject" onClick={() => run(async () => { await adminReview(sub, false); await reload(); }, t('saved'))}>{t('admin_reject')}</button>
+              </li>
+            );
+          })}
+          {!subs.length && <li className="empty">{t('admin_noSubs')}</li>}
+        </ul>
+        <div className="tiny muted">{t('admin_reviewNote')}</div>
       </Card>
       <Card title={t('admin_errors')}>
         <ul className="list">{errors.map((e) => <li key={e.id} className="small"><span className="chip">{e.kind}</span><span className="grow">{e.message}</span><span className="tiny muted">{d(new Date(e.at).toISOString().slice(0, 10))}</span></li>)}

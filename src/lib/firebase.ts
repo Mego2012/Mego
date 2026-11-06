@@ -137,3 +137,31 @@ export async function reportError(kind: string, message: string) {
     await setDoc(doc(collection(cloud().fs, 'errorReports')), { at: Date.now(), kind: kind.slice(0, 40), message: message.slice(0, 400), app: '1' });
   } catch { /* never let reporting break the app */ }
 }
+
+/* ------------------------------------------------------------------ shared food submissions */
+
+export interface Submission { id: string; ownerUid: string; status: 'pending' | 'approved' | 'rejected'; at: number; food: Record<string, unknown> }
+
+/** A user proposes one of their own foods for the shared database (never published automatically). */
+export async function submitFood(food: { nameAr: string; nameEn: string; category: string; per100: Record<string, number>; state: string; pieceGrams?: number; notes: string; sourceRef?: string }) {
+  const u = cloud().auth.currentUser;
+  if (!u) throw new Error('NOT_SIGNED_IN');
+  const { addDoc } = await import('firebase/firestore');
+  await addDoc(collection(cloud().fs, 'foodSubmissions'), { ownerUid: u.uid, status: 'pending', at: Date.now(), food: JSON.parse(JSON.stringify(food)) });
+}
+export async function adminListSubmissions(): Promise<Submission[]> {
+  const s = await getDocs(query(collection(cloud().fs, 'foodSubmissions'), where('status', '==', 'pending'), limit(100)));
+  return s.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<Submission, 'id'>) }));
+}
+/** Approve: copies the food into /foods (id "U-<submission>") and marks the submission; reject only marks it. */
+export async function adminReview(sub: Submission, approve: boolean) {
+  const { fs } = cloud();
+  if (approve) {
+    const f = sub.food as { nameAr?: string; nameEn?: string; category?: string; per100?: Record<string, number>; state?: string; pieceGrams?: number; notes?: string };
+    await setDoc(doc(fs, 'foods', 'U-' + sub.id), JSON.parse(JSON.stringify({
+      row: 0, sheetKey: 'U-' + sub.id, nameAr: f.nameAr ?? '', nameEn: f.nameEn ?? '', category: f.category ?? '', per100: f.per100, pieceGrams: f.pieceGrams,
+      state: f.state ?? 'other', stateLabel: '', prep: '', notes: `${f.notes ?? ''} · user submission reviewed by admin`.trim()
+    })));
+  }
+  await updateDoc(doc(fs, 'foodSubmissions', sub.id), { status: approve ? 'approved' : 'rejected' });
+}

@@ -219,7 +219,7 @@ export async function queueFullUpload() {
 
 export async function testConnection(cfg: Settings['sync']) {
   hubChecked = false;
-  const r = await callScript<{ spreadsheet: string; spreadsheetId?: string; foodSheet: string | null; mode?: 'native' | 'xlsx'; writable?: boolean }>(cfg, 'ping');
+  const r = await callScript<{ spreadsheet: string; spreadsheetId?: string; foodSheet: string | null; mode?: 'native' | 'xlsx'; writable?: boolean; aiScanner?: boolean }>(cfg, 'ping');
   if (r.spreadsheetId !== HUB_ID) throw new Error(`WRONG_SPREADSHEET: backend uses ${r.spreadsheetId ?? 'unknown'}, expected ${HUB_ID} (${HUB_NAME})`);
   hubChecked = true;
   return r;

@@ -4,6 +4,7 @@ import { useApp } from '../app/AppContext';
 import { useBundle } from '../app/hooks';
 import { CaloriesChart } from '../components/charts';
 import { InsightList } from '../components/Insights';
+import { ScanButtons } from '../components/MealScanner';
 import { Card, MacroBars, MacroLine, OptionalNutrientsLine, ProgressBar, Ring, useAsync } from '../components/ui';
 import { addWater } from '../lib/repo';
 import { addDays, today } from '../lib/dates';
@@ -64,6 +65,10 @@ export default function Dashboard() {
           <span>🍽️ {t('suggestions')}</span>
           <span className="tiny muted" style={{ fontWeight: 400 }}>{t('remainingNow', { kcal: n(Math.max(0, day.remaining.kcal)), p: n(Math.max(0, day.remaining.protein)), c: n(Math.max(0, day.remaining.carbs)), f: n(Math.max(0, day.remaining.fat)) })}</span>
         </Link>
+      </Card>
+
+      <Card title={`📷 ${t('scanMeal')}`} className="scan-card">
+        <ScanButtons />
       </Card>
 
       <Card title={`💧 ${t('water')}`} actions={<Link className="btn sm ghost" to="/habits">{t('nav_habits')}</Link>}>

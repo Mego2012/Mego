@@ -40,6 +40,23 @@ Status legend: ✅ implemented and tested here · 🔶 implemented, needs your d
 | MEGO Nutrition Hub backend v3: fixed spreadsheet ID, structured tabs, dashboard, data ownership, conflict detection, soft deletes, versioning, Drive backups, migration with report & rollback | ✅ emulated · 🔶 real Hub needs your authorization (see HUB.md) |
 | Real food table removed from the public repo (synthetic fixture for public tests) | ✅ (still present in git history — see final report) |
 
+## AI meal scanner (photo → diary)
+
+- **📷 Take a photo / 🖼️ Upload from gallery** on the Dashboard, the Diary and the Add-food sheet (Samsung camera via `capture="environment"`).
+- The photo is downscaled to ≤1024 px and re-encoded as JPEG on the phone (removes EXIF/GPS); only the pixels, your food names/states/categories
+  and an optional note are sent — to **your private Apps Script backend**, which calls Claude (`claude-opus-5-5`, structured JSON output,
+  server-side refusal fallback enabled). The API key is stored only in Script Properties. Daily cap `AI_DAILY_LIMIT` (default 40).
+- The AI identifies items (incl. oil/sauces), estimates grams with a low–high range, raw/cooked state and cooking method, and picks the matching
+  row of **your** database. **All nutrition is computed by the app's own engine from your database** (identical to manual logging).
+  A raw row is never accepted for a cooked item (and vice versa) — no automatic conversion.
+- Items not in your database show **⚠ AI estimate** values; they can be logged only after you choose a database food or explicitly tick
+  “add as new food (estimated, unverified)”. Such foods are marked unverified in their notes.
+- Review sheet: confidence chip per item, uncertain items (confidence < 60 %, hidden fat/sauce, not in DB) must be ticked “I checked this item”,
+  edit name / grams / cooking method / state, change the matched food, add or remove ingredients, instant recalculation and meal total,
+  choose meal and date. **Nothing is saved until you press Confirm**; the toast offers Undo. Same food twice is merged into one entry.
+- Errors handled with clear AR/EN messages: offline (photo kept), timeout, backend unreachable, key missing/invalid, AI busy, daily limit,
+  unreadable photo, refusal, malformed output.
+
 ## Recipes — «وصفاتي | My Recipes»
 | Feature | Status |
 | --- | --- |

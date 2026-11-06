@@ -176,7 +176,7 @@ function SyncForm() {
         <label className="check"><input type="checkbox" checked={cfg.autoSync} onChange={(e) => setCfg({ ...cfg, autoSync: e.target.checked })} />{t('autoSync')}</label>
         <label className="check"><input type="checkbox" checked={cfg.writeFoodsToSheet} onChange={(e) => setCfg({ ...cfg, writeFoodsToSheet: e.target.checked })} />{t('writeFoods')}</label>
         <div className="row wrap">
-          <button className="btn primary" disabled={busy} data-testid="sync-save" onClick={() => run(async () => { await saveCfg(); const r = await testConnection({ ...cfg }); return r; }).then((r) => r && alertOk(t('connectionOk', { name: r.spreadsheet, tab: r.foodSheet ?? '—' }) + '\n' + t(r.writable ? 'hubWritable' : 'hubReadOnly')))}>{t('save')} + {t('testConnection')}</button>
+          <button className="btn primary" disabled={busy} data-testid="sync-save" onClick={() => run(async () => { await saveCfg(); const r = await testConnection({ ...cfg }); return r; }).then((r) => r && alertOk(t('connectionOk', { name: r.spreadsheet, tab: r.foodSheet ?? '—' }) + '\n' + t(r.writable ? 'hubWritable' : 'hubReadOnly') + '\n' + t('aiScannerStatus') + ': ' + t(r.aiScanner ? 'aiScannerOn' : 'aiScannerOff')))}>{t('save')} + {t('testConnection')}</button>
           <button className="btn" disabled={busy || !settings.sync.url} data-testid="pull-foods" onClick={() => run(async () => {
             const r = await pullFoodsFromSheet();
             alertOk(`${r.sheet}: ${t('importDone', { added: r.added, updated: r.updated, unchanged: r.unchanged })}`);

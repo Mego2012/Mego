@@ -44,7 +44,22 @@ import { createGas } from './gas-mock.mjs';
 import Papa from 'papaparse';
 const fixtureCsv = readFileSync(path.join(ROOT, 'tests/fixtures/food-sheet-sample.csv'), 'utf8');
 const fixtureRows = Papa.parse(fixtureCsv.trim()).data;
-const gas = createGas({ foodRows: fixtureRows, token: TOKEN, spreadsheetName: 'نظام التنشيف (emulated)' });
+// Stand-in for the Claude Messages API behind the backend's UrlFetchApp: answers from the catalog it was sent.
+const aiCalls = [];
+function e2eClaude(req) {
+  aiCalls.push(req);
+  const text = req.body.messages[0].content[1].text;
+  const key = (ar) => text.split('\n').find((l) => l.split(' | ')[1] === ar).split(' | ')[0];
+  const it = (ar, en, food_key, grams, state, kind, confidence) => ({ name_ar: ar, name_en: en, food_key, grams, grams_low: Math.round(grams * 0.8), grams_high: Math.round(grams * 1.25),
+    state, cooking_method: 'none', kind, confidence, reason: '', est_per100: { kcal: 0, protein: 0, carbs: 0, fat: 0 } });
+  const out = { is_food: true, meal_name_ar: 'أرز مع دجاج مشوي', meal_name_en: 'Rice with grilled chicken', notes: '', items: [
+    it('أرز أبيض مطبوخ', 'Cooked white rice', key('أرز أبيض مطبوخ'), 200, 'cooked', 'food', 0.85),
+    it('صدر دجاج مشوي', 'Grilled chicken breast', key('صدر دجاج مشوي'), 150, 'cooked', 'food', 0.9),
+    it('زيت زيتون', 'Olive oil', key('زيت زيتون'), 8, 'other', 'oil_or_fat', 0.45)
+  ] };
+  return { json: { model: req.body.model, stop_reason: 'end_turn', content: [{ type: 'text', text: JSON.stringify(out) }] } };
+}
+const gas = createGas({ foodRows: fixtureRows, token: TOKEN, spreadsheetName: 'نظام التنشيف (emulated)', scriptProps: { ANTHROPIC_API_KEY: 'sk-ant-e2e-secret' }, ai: e2eClaude });
 const remote = { received: [] };
 async function mockScript(route) {
   const body = JSON.parse(route.request().postData() || '{}');
@@ -550,6 +565,49 @@ await check('HUBINFO', 'Settings shows MEGO Nutrition Hub with its fixed ID; bac
   const txt = await page.getByTestId('hub-info').innerText();
   if (!txt.includes('MEGO Nutrition Hub') || !txt.includes('1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI')) throw new Error(txt);
   return txt.split('\n')[0];
+});
+
+await check('SCAN', 'AI meal scanner: photo → review (DB values, confidence, confirm uncertain) → edit grams → save → dashboard', async () => {
+  await go(page, '/');
+  const before = Number((await page.getByTestId('kcal-consumed').innerText()).replace(/[^0-9.]/g, ''));
+  const entriesBefore = await page.evaluate(() => new Promise((res) => { const r = indexedDB.open('mego-nutrition'); r.onsuccess = () => { const q = r.result.transaction('entries').objectStore('entries').count(); q.onsuccess = () => res(q.result); }; }));
+  const img = await page.screenshot({ type: 'png', clip: { x: 0, y: 0, width: 300, height: 220 } });
+  await page.getByTestId('scan-camera-input').setInputFiles({ name: 'meal.png', mimeType: 'image/png', buffer: img });
+  await page.getByTestId('scan-preview').waitFor();
+  // offline: clear message, photo kept
+  await ctx.setOffline(true);
+  await page.getByTestId('scan-analyze').click();
+  await waitText(page.getByTestId('scan-error'), /غير متصل/);
+  await ctx.setOffline(false);
+  await page.getByTestId('scan-analyze').click();
+  await page.getByTestId('scan-review').waitFor({ timeout: 15000 });
+  const items = page.getByTestId('scan-item');
+  expectEq(await items.count(), 3, 'items');
+  expectEq(await page.getByTestId('scan-item-db').count(), 3, 'all from DB');
+  if (!(await page.getByTestId('scan-save').isDisabled())) throw new Error('save enabled before confirming uncertain oil');
+  const t1 = Number((await page.getByTestId('scan-total-kcal').innerText()).replace(/[^0-9.]/g, ''));
+  expectEq(t1, Math.round(130 * 2 + 165 * 1.5 + 884 * 0.08), 'total from DB values');
+  await items.nth(0).getByTestId('scan-item-grams').fill('180');
+  const t2 = Number((await page.getByTestId('scan-total-kcal').innerText()).replace(/[^0-9.]/g, ''));
+  expectEq(t2, Math.round(130 * 1.8 + 165 * 1.5 + 884 * 0.08), 'instant recalculation');
+  await shot(page, '30-scan-review');
+  await items.nth(2).getByTestId('scan-item-confirm').check();
+  if (await page.getByTestId('scan-save').isDisabled()) throw new Error('save still disabled');
+  // nothing saved yet
+  const mid = await page.evaluate(() => new Promise((res) => { const r = indexedDB.open('mego-nutrition'); r.onsuccess = () => { const q = r.result.transaction('entries').objectStore('entries').count(); q.onsuccess = () => res(q.result); }; }));
+  expectEq(mid, entriesBefore, 'no auto-save');
+  await tap(page, 'scan-save');
+  await page.getByTestId('scan-review').waitFor({ state: 'detached' });
+  await waitText(page.getByTestId('kcal-consumed'), new RegExp('^(?!' + String(before).replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' )'));
+  const after = Number((await page.getByTestId('kcal-consumed').innerText()).replace(/[^0-9.]/g, ''));
+  if (Math.abs(after - (before + t2)) > 1) throw new Error(`dashboard ${before} + ${t2} ≠ ${after}`);
+  // what left the phone: a re-encoded JPEG (no EXIF), food names only
+  const sent = aiCalls[aiCalls.length - 1].body.messages[0].content;
+  const bytes = Buffer.from(sent[0].source.data, 'base64');
+  if (bytes[0] !== 0xff || bytes[1] !== 0xd8) throw new Error('not a JPEG');
+  if (bytes.includes(Buffer.from('Exif'))) throw new Error('EXIF present');
+  if (/sk-ant/.test(JSON.stringify(await page.evaluate(() => document.documentElement.outerHTML)))) throw new Error('key in page');
+  return `meal ${t2} kcal · dashboard ${before} → ${after} · image ${bytes.length} B JPEG`;
 });
 
 await check('LIB100', 'Recipe library has ≥ 100 recipes, all calculable', async () => {

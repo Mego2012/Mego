@@ -29,7 +29,7 @@
 
 var HUB_ID = '1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI';
 var HUB_NAME = 'MEGO Nutrition Hub';
-var SCRIPT_VERSION = 3;
+var SCRIPT_VERSION = 4;
 var SCHEMA_VERSION = 3;
 var ORIGINAL_FOOD_TAB = 'قاعدة بيانات الأطعمة';
 var MAX_CHANGES = 500;
@@ -161,6 +161,8 @@ function doPost(e) {
     var req = JSON.parse(e.postData.contents);
     var token = PropertiesService.getScriptProperties().getProperty('APP_TOKEN');
     if (!token || typeof req.token !== 'string' || req.token !== token) return json_({ ok: false, error: 'unauthorized' });
+    // AI meal analysis never touches the spreadsheet, so it runs outside the lock (it can take ~10-40 s).
+    if (req.action === 'analyzeMeal') return json_(analyzeMeal_(req));
     var lock = LockService.getScriptLock();
     lock.waitLock(25000);
     try {
@@ -190,6 +192,7 @@ function ping_() {
   var f = hubFile_();
   var mode = hubMode_();
   return { ok: true, spreadsheet: f.getName(), spreadsheetId: HUB_ID, mode: mode, writable: mode === 'native', scriptVersion: SCRIPT_VERSION,
+    aiScanner: !!PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY'),
     foodSheet: mode === 'native' ? (SpreadsheetApp.openById(HUB_ID).getSheetByName('Food_Database') ? 'Food_Database' : ORIGINAL_FOOD_TAB) : ORIGINAL_FOOD_TAB,
     meta: mode === 'native' ? readMeta_() : {} };
 }
@@ -577,4 +580,143 @@ function buildDashboard_() {
     var w = ss.getSheetByName('Weight_Log');
     if (w) sh.insertChart(sh.newChart().asLineChart().addRange(w.getRange('A1:B400')).setPosition(22, 4, 0, 0).setOption('title', 'Weight').build());
   } catch (e) { /* charts are optional */ }
+}
+
+/* ============================================================== AI meal scanner */
+/*
+ * The app sends: a downscaled JPEG (EXIF-free, re-encoded on the phone), the list of foods in YOUR database
+ * (short key, names, state, category — no diary, weight or profile data) and an optional note you typed.
+ * The Claude API key lives ONLY in Script Properties (ANTHROPIC_API_KEY) — never in the app or on GitHub.
+ * The model only identifies foods, estimates grams and picks the matching database row; the app computes all
+ * nutrition values from your database. Nothing is saved here: the result is returned to the phone for review.
+ * Optional Script Properties: AI_MODEL (default claude-opus-5-5), AI_EFFORT (default medium), AI_DAILY_LIMIT (default 40).
+ */
+var AI_ENDPOINT = 'https://api.anthropic.com/v1/messages';
+var AI_DEFAULT_MODEL = 'claude-opus-5-5';
+var AI_MAX_IMAGE_CHARS = 2800000; // ≈ 2 MB JPEG as base64
+var AI_MAX_FOODS = 800;
+
+var AI_SCHEMA = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['is_food', 'meal_name_ar', 'meal_name_en', 'notes', 'items'],
+  properties: {
+    is_food: { type: 'boolean' },
+    meal_name_ar: { type: 'string' },
+    meal_name_en: { type: 'string' },
+    notes: { type: 'string' },
+    items: {
+      type: 'array',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['name_ar', 'name_en', 'food_key', 'grams', 'grams_low', 'grams_high', 'state', 'cooking_method', 'kind', 'confidence', 'reason', 'est_per100'],
+        properties: {
+          name_ar: { type: 'string' },
+          name_en: { type: 'string' },
+          food_key: { type: 'string' },
+          grams: { type: 'number' },
+          grams_low: { type: 'number' },
+          grams_high: { type: 'number' },
+          state: { type: 'string', enum: ['raw', 'cooked', 'other'] },
+          cooking_method: { type: 'string', enum: ['none', 'grilled', 'fried', 'deep_fried', 'air_fried', 'boiled', 'steamed', 'baked', 'roasted', 'sauteed', 'stewed', 'unknown'] },
+          kind: { type: 'string', enum: ['food', 'oil_or_fat', 'sauce_or_dressing', 'drink'] },
+          confidence: { type: 'number' },
+          reason: { type: 'string' },
+          est_per100: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['kcal', 'protein', 'carbs', 'fat'],
+            properties: { kcal: { type: 'number' }, protein: { type: 'number' }, carbs: { type: 'number' }, fat: { type: 'number' } }
+          }
+        }
+      }
+    }
+  }
+};
+
+var AI_SYSTEM = [
+  'You analyse a photo of a meal for a personal nutrition diary. Identify every visible food and ingredient, including',
+  'cooking oil, butter, sauces and dressings that are visible or very likely (for example shiny fried food).',
+  'For each item estimate the edible weight in grams AS SHOWN in the photo (cooked weight for cooked food), with a',
+  'realistic low-high range. You cannot weigh food: use plate/utensil/hand size cues and be honest about uncertainty.',
+  'Decide whether each item is raw, cooked or other (prepared/processed), and the cooking method.',
+  '',
+  'Matching to the user database (provided as lines "key | Arabic name | English name | state | category"):',
+  '- Set food_key to the key of the database row that is the SAME food in the SAME state (cooked rice must match a',
+  '  cooked rice row, never a raw/dry rice row). Prefer the row whose preparation matches (grilled vs fried).',
+  '- If no row is the same food in the same state, set food_key to "" — never force a wrong match, never convert',
+  '  between raw and cooked.',
+  '- Only when food_key is "" fill est_per100 with your best typical per-100 g values for the food as shown;',
+  '  when food_key is set, put zeros in est_per100 (the app uses the database values).',
+  '',
+  'confidence is 0..1 for identification and portion together. Use below 0.6 for anything hidden, mixed, or hard to',
+  'judge (sauces, oil quantity, fillings of sandwiches, restaurant portions). reason: one short sentence explaining',
+  'the match or what is uncertain, written in the user language. Names: name_ar in Arabic, name_en in English.',
+  'Split mixed dishes into their main components when they are visibly separable; otherwise one item for the dish.',
+  'If the photo does not show food, return is_food=false and no items. Do not include people, places or any other',
+  'details from the photo in the output.'
+].join('\n');
+
+function analyzeMeal_(req) {
+  var props = PropertiesService.getScriptProperties();
+  var key = props.getProperty('ANTHROPIC_API_KEY');
+  if (!key) return { ok: false, error: 'AI_NOT_CONFIGURED' };
+  var img = String(req.image || '');
+  var mediaType = req.mediaType === 'image/png' || req.mediaType === 'image/webp' ? req.mediaType : 'image/jpeg';
+  if (!img || img.length > AI_MAX_IMAGE_CHARS || !/^[A-Za-z0-9+/=]+$/.test(img)) return { ok: false, error: 'AI_BAD_IMAGE' };
+  var foods = Array.isArray(req.foods) ? req.foods.slice(0, AI_MAX_FOODS) : [];
+  var lines = foods.map(function (f) {
+    return [f.k, f.ar, f.en, f.s, f.c].map(function (x) { return String(x == null ? '' : x).replace(/[|\n\r]/g, ' ').slice(0, 120); }).join(' | ');
+  });
+  var lang = req.lang === 'en' ? 'English' : 'Arabic';
+  var note = String(req.note || '').replace(/[\r\n]+/g, ' ').slice(0, 300);
+
+  // Simple daily cap to protect your API budget.
+  var limit = Number(props.getProperty('AI_DAILY_LIMIT')) || 40;
+  var day = new Date().toISOString().slice(0, 10);
+  var used = props.getProperty('AI_USED_' + day);
+  if (Number(used) >= limit) return { ok: false, error: 'AI_DAILY_LIMIT' };
+
+  var userText = 'User language: ' + lang + '.\n' + (note ? 'User note about this meal: ' + note + '\n' : '') +
+    '\nUser food database (' + lines.length + ' rows):\n' + lines.join('\n') + '\n\nAnalyse the meal in the photo.';
+  var body = {
+    model: props.getProperty('AI_MODEL') || AI_DEFAULT_MODEL,
+    max_tokens: 16000,
+    system: AI_SYSTEM,
+    output_config: { effort: props.getProperty('AI_EFFORT') || 'medium', format: { type: 'json_schema', schema: AI_SCHEMA } },
+    fallbacks: 'default',
+    messages: [{ role: 'user', content: [
+      { type: 'image', source: { type: 'base64', media_type: mediaType, data: img } },
+      { type: 'text', text: userText }
+    ] }]
+  };
+  var res;
+  try {
+    res = UrlFetchApp.fetch(AI_ENDPOINT, {
+      method: 'post',
+      contentType: 'application/json',
+      headers: { 'x-api-key': key, 'anthropic-version': '2026-10-21', 'anthropic-beta': 'server-side-fallback-2026-07-01' },
+      payload: JSON.stringify(body),
+      muteHttpExceptions: true
+    });
+  } catch (e) {
+    return { ok: false, error: 'AI_NETWORK', detail: String((e && e.message) || e).slice(0, 200) };
+  }
+  props.setProperty('AI_USED_' + day, String((Number(used) || 0) + 1));
+  var code = res.getResponseCode();
+  var text = res.getContentText();
+  if (code !== 200) {
+    var msg = '';
+    try { msg = (JSON.parse(text).error || {}).message || ''; } catch (e) { /* not JSON */ }
+    var kind = code === 401 || code === 403 ? 'AI_KEY_INVALID' : code === 429 || code === 529 ? 'AI_BUSY' : 'AI_HTTP_' + code;
+    return { ok: false, error: kind, detail: String(msg).slice(0, 200) };
+  }
+  var out = JSON.parse(text);
+  if (out.stop_reason === 'refusal') return { ok: false, error: 'AI_REFUSED' };
+  if (out.stop_reason === 'max_tokens') return { ok: false, error: 'AI_TRUNCATED' };
+  var t = (out.content || []).filter(function (b) { return b.type === 'text'; }).map(function (b) { return b.text; }).join('');
+  var result;
+  try { result = JSON.parse(t); } catch (e) { return { ok: false, error: 'AI_BAD_OUTPUT' }; }
+  return { ok: true, model: out.model, result: result };
 }

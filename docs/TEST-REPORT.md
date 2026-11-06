@@ -1,12 +1,12 @@
-# Test report — v3 (2026-11-06)
+# Test report — v3.1 (2026-11-06)
 
 Re-run everything with:
 
 ```bash
 npx tsc -b                 # TypeScript: 0 errors
-npm test                   # unit tests (48 with the private real-food file present; 38 + 10 skipped without it)
+npm test                   # unit tests (59 with the private real-food file present; 49 + 10 skipped without it)
 npm run build
-npm run e2e                # 39 browser checks, emulated Samsung Galaxy S9+, Arabic locale
+npm run e2e                # 40 browser checks, emulated Samsung Galaxy S9+, Arabic locale
 npm run e2e:scroll         # 103 touch-swipe scroll checks (3 Samsung viewports × AR/EN × 13 screens + 4 sheet flows + control)
 node e2e/migration-test.mjs <dir>   # v1 → v2 upgrade (see file header)
 ```
@@ -24,7 +24,26 @@ Legend: **Verified** = executed here against the real code · **Simulated** = ex
 | Regression suite | ✅ **103/103** — every screen reaches its real bottom, last content above the bottom nav, no horizontal overflow, never left locked; Galaxy S23 (360×780), A54 (412×915), S9+ (320×658); Arabic RTL + English LTR |
 | Physical Samsung phone | ⏳ Unverified — please confirm on your phone (emulated touch input is the closest test possible here) |
 
-## Unit tests — 48/48 (Verified)
+## AI meal scanner (Verified app + backend code; Claude API Simulated)
+
+The REAL `apps-script/Code.gs` runs in the emulator; only the HTTPS call to the Claude Messages API is replaced by a scripted stand-in that reads
+the food catalog the backend actually sent. **A real call to Claude has not been made yet — it needs your API key (Step 2b of PHONE-SETUP).**
+
+| Scenario | Result |
+| --- | --- |
+| Rice & chicken (+ oil) | ✅ 3 DB matches; values = `macrosFor` = manual logging of the same grams; oil flagged, must be confirmed |
+| Eggs (AI matched the RAW egg row to boiled eggs) | ✅ match refused (`stateMismatch`), shown as estimate, cannot be logged without your choice |
+| Sandwich (hidden filling not in DB) | ✅ estimate labelled; added as new unverified food only after explicit approval |
+| Salad (+ dressing) | ✅ dressing flagged as hidden fat; totals = sum of items |
+| Restaurant burger & fries | ✅ all estimates, low confidence; replacing with a DB food logs exact DB values |
+| Homemade kabsa | ✅ grams edit recalculates instantly; dashboard total & remaining updated after save |
+| Mixed meal (same bread twice) | ✅ merged into one entry (90 g) |
+| Not food | ✅ no items, save blocked |
+| Errors | ✅ no key, invalid key (401), busy (529), network failure, refusal, daily limit, wrong token, bad image, offline phone, no backend |
+| Request content | ✅ model `claude-opus-5-5`, image block first, JSON schema output; no token/weight/targets/profile; API key never returned |
+| Browser (SCAN) | ✅ camera input → offline message → analyse → 3 DB items → save disabled until oil confirmed → 200→180 g recalculates (578→552 kcal) → nothing saved before confirm → dashboard +552; image sent was a re-encoded JPEG without EXIF |
+
+## Unit tests — 59/59 (Verified)
 
 Nutrition engine, raw vs cooked (200 g raw rice 720 kcal vs cooked 260), all 160 foods imported unchanged, energy explanations,
 precision/rounding, remaining macros, units, undo, recipe grams, import validation (blank cells, decimal comma), **101 library recipes all
@@ -32,10 +51,10 @@ calculable from your food database**, suggestions (350 kcal / 25 g protein case)
 recommendations (never auto-applied), progress estimate, water/habits/fasting, backups & validated restore, barcode (mocked network),
 **MEGO Nutrition Hub backend v3** (see below), stable-ID switch-over without duplicates.
 
-## Browser checks — 39/39 (Verified, Google/Open-Food-Facts simulated)
+## Browser checks — 40/40 (Verified, Google/Open-Food-Facts/Claude simulated)
 
 Original 15 scenarios + SETUP, IMPORT, DASH, BODY, REMAIN, UNDO, COPYGUARD, LIBRARY, SUGGEST, GOAL, PLAN, HABITS, BARCODE, PHOTO, BACKUP,
-SYNC2, **HUBINFO, LIB100, COOK, BACKBTN, STREAK, REPLACE**, LAYOUT, DARK.
+SYNC2, **HUBINFO, SCAN, LIB100, COOK, BACKBTN, STREAK, REPLACE**, LAYOUT, DARK.
 
 ## MEGO Nutrition Hub (Simulated — real file needs your authorization)
 
@@ -58,4 +77,4 @@ Real-file checks done here: rename to «MEGO Nutrition Hub» with the same ID (�
 
 ## Not verifiable here
 
-Physical Samsung touch scrolling, PWA install, camera barcode, notifications, the real Apps Script deployment.
+Physical Samsung touch scrolling, PWA install, camera barcode, the phone camera opening from «Take a photo», notifications, the real Apps Script deployment, and real Claude photo analysis (accuracy of identification/portion estimates on your meals).

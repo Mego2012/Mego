@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
 import { useDayLog, useEntries } from '../app/hooks';
 import { FoodPicker, QuantityForm, UnitOptions } from '../components/FoodPicker';
+import { ScanButtons } from '../components/MealScanner';
 import { Icon } from '../components/icons';
 import { Card, Confirm, DateNav, MacroBars, MacroLine, NumField, OptionalNutrientsLine, Segmented, Sheet, StateChip, useAsync } from '../components/ui';
 import { addDays, isValidISODate, today } from '../lib/dates';
@@ -71,6 +72,7 @@ export default function Diary() {
           </div>
         </div>
         {day.status === 'empty' && <div className="tiny muted" style={{ marginTop: 8 }}>{t('dayIsEmpty')}</div>}
+        <div style={{ marginTop: 10 }}><ScanButtons date={date} /></div>
         <div className="row wrap" style={{ marginTop: 10, gap: 6 }}>
           <button className="btn sm" onClick={() => guardedCopy(date, () => copyDay(addDays(date, -1), date))} data-testid="copy-yesterday">
             <Icon name="copy" /> {t('copyFromYesterday')}
@@ -157,6 +159,7 @@ function AddSheet({ date, meal, onMeal, onClose }: { date: string; meal: MealTyp
       <div style={{ marginBottom: 10 }}>
         <Segmented value={meal} options={MEALS.map((m) => ({ value: m, label: t(m) }))} onChange={onMeal} />
       </div>
+      {!food && !recipe && <div style={{ marginBottom: 10 }}><ScanButtons date={date} meal={meal} compact /></div>}
       {!food && !recipe && <FoodPicker onPickFood={setFood} onPickRecipe={setRecipe} onPickTemplate={addTemplate} onPickHistory={addHistory} />}
       {food && (
         <QuantityForm food={food} submitLabel={t('logFood')} onBack={() => setFood(null)}

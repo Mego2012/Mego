@@ -279,3 +279,19 @@ button.chip { min-height: 36px; }
 .empty-state { text-align: center; padding: 28px 12px; color: var(--muted); }
 .empty-state .ico { font-size: 40px; margin-bottom: 6px; }
 .error-screen { max-width: 520px; margin: 40px auto; padding: 24px 16px; text-align: center; }
+
+/* ---------- AI meal scanner */
+.scan-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+.scan-buttons .btn { min-width: 0; flex: 1 1 140px; }
+.scan-preview { display: flex; justify-content: center; margin-bottom: 10px; }
+.scan-preview img { max-width: 100%; max-height: 220px; border-radius: 14px; object-fit: cover; }
+.scan-item { border: 1px solid var(--border); border-radius: 14px; padding: 10px; background: var(--surface); }
+.scan-item.attention { border-color: color-mix(in srgb, var(--warn) 60%, var(--border)); }
+.scan-item .input { min-width: 0; }
+.attention-text { color: var(--warn); }
+.scan-total { margin-top: 12px; padding: 10px; border-radius: 14px; background: var(--primary-soft); }
+.notice { padding: 10px 12px; border-radius: 12px; background: var(--surface-2); font-size: 14px; }
+.notice.warn { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }
+.spinner { width: 36px; height: 36px; margin: 0 auto; border-radius: 50%; border: 4px solid var(--surface-2); border-top-color: var(--primary); animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }

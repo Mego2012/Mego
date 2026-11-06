@@ -67,7 +67,12 @@ class Sheet {
   copyTo(ss) { const s = new Sheet(ss, 'Copy of ' + this.name, this.data); ss.sheets.push(s); return s; }
 }
 
-export function createGas({ foodRows = [], token = 'test-token', spreadsheetName = 'نظام التنشيف والتضخيم', mode = 'native' } = {}) {
+/**
+ * `ai` emulates the Claude Messages API reached through UrlFetchApp: `ai(request)` receives
+ * { url, headers, body } and returns { code, json } (or throws to emulate a network failure).
+ * Every request is recorded in `aiRequests` so tests can check what left the backend.
+ */
+export function createGas({ foodRows = [], token = 'test-token', spreadsheetName = 'نظام التنشيف والتضخيم', mode = 'native', scriptProps = {}, ai } = {}) {
   const ss = { sheets: [], name: spreadsheetName, getName() { return this.name; }, rename(n) { this.name = n; }, getId() { return HUB_ID; },
     getSheets() { return this.sheets; },
     getSheetByName(n) { return this.sheets.find((s) => s.name === n) || null; },
@@ -75,7 +80,8 @@ export function createGas({ foodRows = [], token = 'test-token', spreadsheetName
   ss.sheets.push(new Sheet(ss, 'لوحة التحكم', [['لوحة التحكم القديمة']]));
   ss.sheets.push(new Sheet(ss, 'قاعدة بيانات الأطعمة', foodRows));
   const state = { mode, writesToXlsx: 0, tmpFiles: [], trashed: [] };
-  const props = new Map([['APP_TOKEN', token]]);
+  const props = new Map([['APP_TOKEN', token], ...Object.entries(scriptProps)]);
+  const aiRequests = [];
   const drive = { copies: [], files: [] };
   const otherSheets = new Map(); // temporary converted copies
   const hubFile = {
@@ -101,6 +107,15 @@ export function createGas({ foodRows = [], token = 'test-token', spreadsheetName
     Session: { getScriptTimeZone: () => 'Asia/Riyadh' },
     Logger: { log() {} },
     MimeType: { PLAIN_TEXT: 'text/plain' },
+    UrlFetchApp: {
+      fetch: (url, opts) => {
+        const req = { url, headers: opts.headers, contentType: opts.contentType, method: opts.method, body: JSON.parse(opts.payload) };
+        aiRequests.push(req);
+        if (!ai) throw new Error('DNS error: no network in the emulator');
+        const r = ai(req);
+        return { getResponseCode: () => r.code ?? 200, getContentText: () => (typeof r.json === 'string' ? r.json : JSON.stringify(r.json)) };
+      }
+    },
     DriveApp: {
       getFileById: (id) => {
         if (id === HUB_ID) return hubFile;
@@ -125,7 +140,7 @@ export function createGas({ foodRows = [], token = 'test-token', spreadsheetName
   const fn = new Function(...Object.keys(env), CODE + '\nreturn { doPost, doGet, setup, rotateToken, migrateHub, convertHubToGoogleSheets };');
   const api = fn(...Object.values(env));
   return {
-    ss, drive, props, state,
+    ss, drive, props, state, aiRequests,
     post(body) { return JSON.parse(api.doPost({ postData: { contents: JSON.stringify(body) } }).text); },
     setup: api.setup,
     migrateHub: api.migrateHub,

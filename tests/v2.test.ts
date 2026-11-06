@@ -359,7 +359,7 @@ describe('MEGO Nutrition Hub backend (real Code.gs v3 on an emulated Hub)', () =
     expect(gas.setup().length).toBe(64);
     const newId = gas.convert();
     expect(newId).toMatch(/^tmp-/);
-    expect(gas.ss.name).toMatch(/original \.xlsx archive/);
+    expect(gas.ss.name).toBe('نظام التنشيف والتضخيم'); // original untouched
   });
   it('the app refuses a backend connected to any other spreadsheet', async () => {
     useDatabase('v2-hub-' + ++n);

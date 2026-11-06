@@ -12,6 +12,8 @@ import { exportDiaryCSV } from '../lib/exporters';
 import { DICTS, WEEKDAY_KEYS } from '../lib/i18n';
 import { macroCalories } from '../lib/targets';
 import { saveSettings } from '../lib/repo';
+import backendCode from '../../apps-script/Code.gs?raw';
+import backendManifest from '../../apps-script/appsscript.json?raw';
 import { HUB_ID, HUB_NAME, pullAll, pullFoodsFromSheet, pushNow, queueFullUpload, testConnection } from '../lib/sync';
 import type { Lang, Macros, ThemeMode } from '../lib/types';
 
@@ -184,7 +186,8 @@ function SyncForm() {
           <button className="btn" disabled={busy || !settings.sync.url} onClick={() => run(async () => { await saveLocalBackup('pre-pull'); const c = await pullAll(); alertOk(t('restoreDone', { n: Object.values(c).reduce((a, b) => a + b, 0) })); })}>{t('restoreFromSheet')}</button>
           <button className="btn" disabled={busy || !settings.sync.url} onClick={() => run(async () => { const r = await backupToDrive(); alertOk(r.file); })}>{t('backupDrive')}</button>
         </div>
-        <a className="small" href="https://github.com/mego2012/mego/blob/claude/nutrition-tracking-app-989rku/docs/SETUP.md" target="_blank" rel="noreferrer">{t('setupGuide')} ↗</a>
+        <BackendHelper />
+        <a className="small" href="https://github.com/Mego2012/Mego/blob/claude/nutrition-tracking-app-989rku/docs/PHONE-SETUP.md" target="_blank" rel="noreferrer">{t('setupGuide')} ↗</a>
       </div>
     </Card>
   );
@@ -249,5 +252,29 @@ function LocalBackups() {
         if (c) alertOk(t('restoreDone', { n: Object.values(c).reduce((a, b) => a + b, 0) }));
       }} />}
     </Card>
+  );
+}
+
+/** Phone-friendly helper: copy the backend files with one tap (no computer needed). */
+function BackendHelper() {
+  const { t, toast } = useApp();
+  const copy = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(t('copiedClipboard'));
+    } catch {
+      toast(t('error'));
+    }
+  };
+  return (
+    <div className="stat" data-testid="backend-helper">
+      <div className="small bold">{t('backendSetup')}</div>
+      <div className="tiny muted" style={{ marginBottom: 6 }}>{t('backendSetupHint')}</div>
+      <div className="row wrap">
+        <button className="btn sm" onClick={() => copy(backendCode)} data-testid="copy-code">📋 Code.gs</button>
+        <button className="btn sm" onClick={() => copy(backendManifest)} data-testid="copy-manifest">📋 appsscript.json</button>
+        <a className="btn sm" href="https://script.google.com/home/projects/create" target="_blank" rel="noreferrer">↗ script.google.com</a>
+      </div>
+    </div>
   );
 }

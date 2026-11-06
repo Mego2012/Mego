@@ -137,14 +137,15 @@ function migrateHub() {
 
 /**
  * ONLY with your approval: makes a native Google Sheets version of the Excel Hub (Google gives it a new ID —
- * an .xlsx file cannot become native in place). The original .xlsx is kept untouched as the archive.
+ * an .xlsx file cannot become native in place). The original .xlsx is kept completely untouched as the backup.
+ * (On a phone it is simpler to convert in the Google Sheets app: ⋮ → Save as Google Sheets.)
  * After running it, put the new ID in HUB_ID and redeploy.
  */
 function convertHubToGoogleSheets() {
   if (hubMode_() === 'native') return 'Already native';
   var blob = hubFile_().getBlob();
   var file = Drive.Files.create({ name: HUB_NAME, mimeType: 'application/vnd.google-apps.spreadsheet', parents: [hubFile_().getParents().next().getId()] }, blob);
-  hubFile_().setName(HUB_NAME + ' (original .xlsx archive)');
+  // The original .xlsx is left completely untouched (not renamed, not edited) as the backup.
   Logger.log('NEW NATIVE HUB ID: ' + file.id + ' — set HUB_ID to this value and redeploy.');
   return file.id;
 }

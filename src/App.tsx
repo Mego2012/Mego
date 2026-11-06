@@ -14,6 +14,7 @@ const Progress = lazy(() => import('./pages/Progress'));
 const Reports = lazy(() => import('./pages/Reports'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
 const Habits = lazy(() => import('./pages/Habits'));
+const Coach = lazy(() => import('./pages/Coach'));
 
 function Routed() {
   const { ready, lang } = useApp();
@@ -34,6 +35,7 @@ function Routed() {
           <Route path="/reports/month" element={<Reports kind="month" />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/habits" element={<Habits />} />
+          <Route path="/coach" element={<Coach />} />
           <Route path="*" element={<Dashboard />} />
         </Routes>
       </Suspense>

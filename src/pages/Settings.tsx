@@ -7,6 +7,7 @@ import { Card, Confirm, NumField, Segmented, TextField, useAsync } from '../comp
 import { differsFromRecommendation, recommend } from '../lib/goals';
 import { listPreMigrationBackups, restoreLocalBackup, saveLocalBackup } from '../lib/localBackup';
 import { GOAL_TYPES, type GoalType, type Profile } from '../lib/types';
+import { DIET_TAGS } from '../lib/intelCatalog';
 import { backupToDrive, downloadBackup, restoreBackup } from '../lib/backup';
 import { db } from '../lib/db';
 import { exportDiaryCSV } from '../lib/exporters';
@@ -25,6 +26,7 @@ export default function Settings() {
       <Preferences />
       <ProfileForm key={'p' + settings.updatedAt} />
       <TargetsForm key={'t' + settings.updatedAt} />
+      <DietForm />
       <SyncForm />
       <AiScannerCard />
       <DataSafety />
@@ -300,6 +302,30 @@ function AiScannerCard() {
           }, t('saved'))}>{t('aiKeySave')}</button>
           {state?.on && <button className="btn danger" disabled={busy} data-testid="ai-key-remove" onClick={() => run(async () => { await setAiKey('', true); setState({ on: false }); }, t('saved'))}>{t('aiKeyRemove')}</button>}
         </div>
+      </div>
+    </Card>
+  );
+}
+
+/** Food preferences for the Coach and Food Intelligence (they never change logged values or targets). */
+function DietForm() {
+  const { t, settings } = useApp();
+  const ex = new Set(settings.foodExclusions ?? []);
+  return (
+    <Card title={`🥗 ${t('diet_title')}`}>
+      <div className="stack" data-testid="diet-form">
+        <Segmented value={settings.diet ?? 'any'} onChange={(v) => saveSettings((s) => { s.diet = v; })}
+          options={[{ value: 'any', label: t('diet_any') }, { value: 'vegetarian', label: t('diet_vegetarian') }, { value: 'vegan', label: t('diet_vegan') }]} />
+        <div className="small muted">{t('diet_exclude')}</div>
+        <div className="row wrap" style={{ gap: 6 }}>
+          {DIET_TAGS.map((tag) => (
+            <button key={tag} className={`chip clickable ${ex.has(tag) ? 'on' : ''}`} data-testid={`diet-ex-${tag}`}
+              onClick={() => saveSettings((s) => { const set = new Set(s.foodExclusions ?? []); if (set.has(tag)) set.delete(tag); else set.add(tag); s.foodExclusions = [...set]; })}>
+              {ex.has(tag) ? '✕ ' : ''}{t('dtag_' + tag)}
+            </button>
+          ))}
+        </div>
+        <div className="tiny muted">{t('diet_note')}</div>
       </div>
     </Card>
   );

@@ -301,6 +301,9 @@ export interface Settings {
   habits: Habit[];
   reminders: Reminder[];
   fastingTargetHours: number;
+  /** Food preferences used by the Nutrition Coach and Food Intelligence (never by the nutrition engine). */
+  diet?: 'any' | 'vegetarian' | 'vegan';
+  foodExclusions?: string[];
   /** Include progress photos in Google Drive backups (off by default — photos stay on the device). */
   backupPhotos: boolean;
   updatedAt: number;

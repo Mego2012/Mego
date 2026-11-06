@@ -676,6 +676,32 @@ await check('FOODDB', 'USDA database: Arabic search "صدور فراخ" → chic
   return first.split('\n')[0];
 });
 
+await check('COACH', 'Nutrition Coach: today (data-based), complete-my-macros, rankings with breakdown + amino acids, education with sources, AR/EN', async () => {
+  await go(page, '/');
+  const dash = await page.getByTestId('dash-coach').innerText();
+  await go(page, '/coach?tab=today');
+  await page.getByTestId('coach-tip').waitFor();
+  await page.getByTestId('coach-msg').first().waitFor({ timeout: 15000 });
+  const msgs = await page.getByTestId('coach-msg').allInnerTexts();
+  await go(page, '/coach?tab=foods');
+  await page.getByTestId('rank-row').first().waitFor({ timeout: 15000 });
+  const top = (await page.getByTestId('rank-row').first().innerText()).split('\n').slice(0, 2).join(' ');
+  await page.getByTestId('rank-row').filter({ hasText: 'صدر دجاج مشوي (بدون جلد)' }).first().click();
+  await page.getByTestId('aa-detail').waitFor();
+  const aa = await page.getByTestId('aa-detail').innerText();
+  if (!/100/.test(aa)) throw new Error('chicken amino-acid score: ' + aa);
+  await page.keyboard.press('Escape');
+  await page.getByTestId('rank-fiber').click();
+  const fiberTop = (await page.getByTestId('rank-row').first().innerText()).split('\n')[1];
+  await go(page, '/coach?tab=learn');
+  await page.getByTestId('learn-protein').click();
+  const art = await page.getByTestId('article').innerText();
+  if (!/0\.83/.test(art) || !/doi\.org|Jäger/.test(art)) throw new Error('article without figures/sources');
+  await shot(page, '32-coach-learn');
+  await page.keyboard.press('Escape');
+  return `dash: ${dash.slice(0, 40)}… · ${msgs.length} msgs · top protein: ${top} · fiber #1: ${fiberTop}`;
+});
+
 await check('LIB100', 'Recipe library has ≥ 100 recipes, all calculable', async () => {
   await go(page, '/recipes');
   const c = await waitText(page.getByTestId('library-count'), /\d+ \/ \d+/);

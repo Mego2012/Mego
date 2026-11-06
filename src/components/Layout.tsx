@@ -9,6 +9,7 @@ const ALL: { to: string; key: string; icon: IconName }[] = [
   { to: '/', key: 'nav_dashboard', icon: 'home' },
   { to: '/diary', key: 'nav_diary', icon: 'diary' },
   { to: '/recipes', key: 'nav_library', icon: 'recipes' },
+  { to: '/coach', key: 'nav_coach', icon: 'coach' },
   { to: '/progress', key: 'nav_progress', icon: 'progress' },
   { to: '/foods', key: 'nav_foods', icon: 'foods' },
   { to: '/planner', key: 'nav_planner', icon: 'planner' },

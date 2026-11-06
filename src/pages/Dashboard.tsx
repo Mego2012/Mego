@@ -11,6 +11,7 @@ import { addDays, today } from '../lib/dates';
 import { generateInsights } from '../lib/insights';
 import { buildPeriod, summarizeDay, weekReport, weightTrend } from '../lib/reports';
 import { MEALS } from '../lib/types';
+import { dailyCoach, tipOfDay } from '../lib/coach';
 
 export default function Dashboard() {
   const { t, n, settings } = useApp();
@@ -25,11 +26,11 @@ export default function Dashboard() {
     const week = weekReport(date, data);
     const last7 = buildPeriod('week', '', Array.from({ length: 7 }, (_, i) => addDays(date, i - 6)), data);
     const latestWeight = [...data.body].reverse().find((b) => b.weight);
-    return { day, week, last7, latestWeight, trend: weightTrend(data.body, date), insights: generateInsights(data, date) };
+    return { day, week, last7, latestWeight, trend: weightTrend(data.body, date), insights: generateInsights(data, date), coach: dailyCoach(data, date, [])[0] };
   }, [data, date, settings]);
 
   if (!view) return null;
-  const { day, week, last7, latestWeight, trend, insights } = view;
+  const { day, week, last7, latestWeight, trend, insights, coach } = view;
   const remaining = day.target.kcal - day.totals.kcal;
   const pct = day.target.kcal ? Math.round((day.totals.kcal / day.target.kcal) * 100) : 0;
 
@@ -65,6 +66,10 @@ export default function Dashboard() {
           <span>🍽️ {t('suggestions')}</span>
           <span className="tiny muted" style={{ fontWeight: 400 }}>{t('remainingNow', { kcal: n(Math.max(0, day.remaining.kcal)), p: n(Math.max(0, day.remaining.protein)), c: n(Math.max(0, day.remaining.carbs)), f: n(Math.max(0, day.remaining.fat)) })}</span>
         </Link>
+      </Card>
+
+      <Card title={`✦ ${t('nav_coach')}`} actions={<Link className="btn sm" to="/coach" data-testid="open-coach">{t('coach_open')}</Link>}>
+        <div className="small" data-testid="dash-coach">{coach ? t(coach.key, coach.params) : t(tipOfDay(date))}</div>
       </Card>
 
       <Card title={`📷 ${t('scanMeal')}`} className="scan-card">

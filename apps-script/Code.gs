@@ -35,6 +35,12 @@
 var SOURCE_ID = '1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI';
 var HUB_NAME = 'MEGO Nutrition Hub';
 var SCRIPT_VERSION = 5;
+/**
+ * One-time automated install (scripts/laptop-setup.mjs). Empty in the public repository = disabled.
+ * The laptop setup writes the SHA-256 of a random secret here only in YOUR private copy of the script; the
+ * secret itself never leaves your laptop. It works once and then disables itself (BOOTSTRAP_DONE).
+ */
+var BOOTSTRAP_HASH = '';
 var SCHEMA_VERSION = 3;
 var ORIGINAL_FOOD_TAB = 'قاعدة بيانات الأطعمة';
 var MAX_CHANGES = 500;
@@ -173,6 +179,35 @@ function installMego() {
   return out;
 }
 
+/** Runs installMego() once for the automated laptop setup, authenticated by the one-time bootstrap secret. */
+function bootstrap_(req) {
+  var props = PropertiesService.getScriptProperties();
+  if (!BOOTSTRAP_HASH || props.getProperty('BOOTSTRAP_DONE')) return { ok: false, error: 'unauthorized' };
+  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(req.secret || ''), Utilities.Charset.UTF_8);
+  var hex = digest.map(function (b) { return ('0' + (b & 0xff).toString(16)).slice(-2); }).join('');
+  if (hex !== BOOTSTRAP_HASH) return { ok: false, error: 'unauthorized' };
+  var lock = LockService.getScriptLock();
+  lock.waitLock(25000);
+  try {
+    var out = installMego();
+    props.setProperty('BOOTSTRAP_DONE', new Date().toISOString());
+    return { ok: true, token: props.getProperty('APP_TOKEN'), nativeId: props.getProperty('HUB_NATIVE_ID'), sourceId: SOURCE_ID,
+      verified: JSON.parse(props.getProperty('HUB_VERIFIED') || 'null'), log: out };
+  } catch (e) {
+    return { ok: false, error: String((e && e.message) || e) };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Touches every service once so Google shows the permission screen (used if the web app asks for authorization). */
+function authorize() {
+  DriveApp.getFileById(SOURCE_ID).getName();
+  PropertiesService.getScriptProperties().getKeys();
+  try { UrlFetchApp.fetch('https://www.google.com', { muteHttpExceptions: true }); } catch (e) { /* only the permission matters */ }
+  return 'authorized';
+}
+
 /** Converts the Excel Hub once (the new file is "pending" until verified). Never modifies the .xlsx. */
 function ensureNativeHub_() {
   var props = PropertiesService.getScriptProperties();
@@ -226,6 +261,7 @@ function doPost(e) {
   try {
     var req = JSON.parse(e.postData.contents);
     var token = PropertiesService.getScriptProperties().getProperty('APP_TOKEN');
+    if (req.action === 'bootstrap') return json_(bootstrap_(req));
     if (!token || typeof req.token !== 'string' || req.token !== token) return json_({ ok: false, error: 'unauthorized' });
     // AI meal analysis never touches the spreadsheet, so it runs outside the lock (it can take ~10-40 s).
     if (req.action === 'analyzeMeal') return json_(analyzeMeal_(req));

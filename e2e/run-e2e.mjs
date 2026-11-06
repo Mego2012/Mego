@@ -269,7 +269,10 @@ await check('TEST 8', 'Log food on a previous date (yesterday)', async () => {
 });
 
 await check('TEST 9', 'Weekly report from saved records (complete/partial/empty days, targets 2200/170)', async () => {
-  await go(page, '/reports/week');
+  // Open the week that contains "yesterday" (the complete day logged in TEST 8). When today is the first day of the
+  // week (Saturday in Riyadh), yesterday belongs to the previous week and the current week correctly has no complete days.
+  const yesterday = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Riyadh' }).format(new Date(Date.now() - 86400000));
+  await go(page, '/reports/week?date=' + yesterday);
   await page.getByTestId('report-stats').waitFor();
   const complete = await page.getByTestId('complete-days').innerText();
   const avg = await page.getByTestId('avg-kcal').innerText();
@@ -632,6 +635,13 @@ await check('SCAN', 'AI meal scanner: photo → review (DB values, confidence, c
   if ((await page.evaluate(() => document.documentElement.outerHTML)).includes(AI_KEY)) throw new Error('key in page');
   if (!aiCalls.every((c) => c.url.startsWith('https://generativelanguage.googleapis.com/v1beta/models/gemini-3.8-flash'))) throw new Error('unexpected AI endpoint');
   return `meal ${t2} kcal · dashboard ${before} → ${after} · image ${bytes.length} B JPEG`;
+});
+
+await check('DEEPLINK', 'QR/deep link from the laptop setup connects the app and removes the token from the address bar', async () => {
+  await page.goto(URL_BASE + '#/settings?connect=' + encodeURIComponent(`MEGO1|${SCRIPT_URL}|${TOKEN}`));
+  await page.getByTestId('hub-check').waitFor({ timeout: 15000 });
+  if (page.url().includes('connect=')) throw new Error('token left in URL: ' + page.url());
+  return (await page.getByTestId('hub-check').innerText()).split('\n')[1];
 });
 
 await check('LIB100', 'Recipe library has ≥ 100 recipes, all calculable', async () => {

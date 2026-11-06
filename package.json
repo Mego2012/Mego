@@ -10,7 +10,9 @@
     "test": "vitest run",
     "e2e": "node e2e/run-e2e.mjs",
     "typecheck": "tsc -b",
-    "e2e:scroll": "node e2e/scroll-test.mjs"
+    "e2e:scroll": "node e2e/scroll-test.mjs",
+    "e2e:laptop": "node e2e/laptop-setup-test.mjs",
+    "setup:laptop": "node scripts/laptop-setup.mjs"
   },
   "dependencies": {
     "dexie": "4.0.10",

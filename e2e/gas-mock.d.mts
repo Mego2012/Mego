@@ -22,4 +22,4 @@ export interface Gas {
 export interface AiRequest { url: string; headers: Record<string, string>; contentType: string; method: string; body: any }
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type AiResponder = (req: AiRequest) => { code?: number; json: any };
-export function createGas(opts?: { foodRows?: unknown[][]; token?: string; spreadsheetName?: string; mode?: 'native' | 'xlsx'; scriptProps?: Record<string, string>; ai?: AiResponder; deployedUrl?: string }): Gas;
+export function createGas(opts?: { foodRows?: unknown[][]; token?: string; spreadsheetName?: string; mode?: 'native' | 'xlsx'; scriptProps?: Record<string, string>; ai?: AiResponder; deployedUrl?: string; bootstrapHash?: string }): Gas;

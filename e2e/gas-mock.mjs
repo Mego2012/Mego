@@ -7,7 +7,7 @@
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 
 const CODE = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'apps-script', 'Code.gs'), 'utf8');
 export const HUB_ID = '1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI';
@@ -72,7 +72,7 @@ class Sheet {
  * { url, headers, body } and returns { code, json } (or throws to emulate a network failure).
  * Every request is recorded in `aiRequests` so tests can check what left the backend.
  */
-export function createGas({ foodRows = [], token = 'test-token', spreadsheetName = 'نظام التنشيف والتضخيم', mode = 'native', scriptProps = {}, ai, deployedUrl } = {}) {
+export function createGas({ foodRows = [], token = 'test-token', spreadsheetName = 'نظام التنشيف والتضخيم', mode = 'native', scriptProps = {}, ai, deployedUrl, bootstrapHash } = {}) {
   const ss = { sheets: [], name: spreadsheetName, getName() { return this.name; }, rename(n) { this.name = n; }, getId() { return HUB_ID; },
     getSheets() { return this.sheets; },
     getSheetByName(n) { return this.sheets.find((s) => s.name === n) || null; },
@@ -117,7 +117,11 @@ export function createGas({ foodRows = [], token = 'test-token', spreadsheetName
     PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props.get(k) ?? null, setProperty: (k, v) => props.set(k, v), deleteProperty: (k) => props.delete(k) }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (t) => ({ text: t, setMimeType() { return this; } }) },
-    Utilities: { getUuid: () => randomUUID(), formatDate: (d) => d.toISOString().slice(0, 10).replace(/-/g, '') },
+    Utilities: {
+      getUuid: () => randomUUID(), formatDate: (d) => d.toISOString().slice(0, 10).replace(/-/g, ''),
+      DigestAlgorithm: { SHA_256: 'sha256' }, Charset: { UTF_8: 'utf8' },
+      computeDigest: (alg, text) => [...createHash(alg).update(String(text), 'utf8').digest()].map((b) => (b > 127 ? b - 256 : b))
+    },
     Session: { getScriptTimeZone: () => 'Asia/Riyadh' },
     Logger: { log() {} },
     MimeType: { PLAIN_TEXT: 'text/plain' },
@@ -158,7 +162,8 @@ export function createGas({ foodRows = [], token = 'test-token', spreadsheetName
       }
     }
   };
-  const fn = new Function(...Object.keys(env), CODE + '\nreturn { doPost, doGet, setup, rotateToken, migrateHub, convertHubToGoogleSheets, installMego };');
+  const code = bootstrapHash ? CODE.replace("var BOOTSTRAP_HASH = '';", `var BOOTSTRAP_HASH = '${bootstrapHash}';`) : CODE;
+  const fn = new Function(...Object.keys(env), code + '\nreturn { doPost, doGet, setup, rotateToken, migrateHub, convertHubToGoogleSheets, installMego };');
   const api = fn(...Object.values(env));
   return {
     ss, drive, props, state, aiRequests,

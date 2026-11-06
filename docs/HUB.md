@@ -80,4 +80,5 @@ Every data tab is a plain table (row 1 = headers, no merged cells). The last two
 | Option A chosen by you (convert to native Google Sheets) | ✅ automated in `installMego()`: convert → verify → switch → migrate; the .xlsx stays untouched |
 | Conversion run by me directly | ❌ not possible: my Drive access is a different Google account with view-only sharing on the file (it would create the new Hub in that account, not yours); the conversion therefore runs inside your own script, under your account |
 | Backend v5 tested against an emulated Drive/Sheets with all 160 real foods (value-by-value) | ✅ |
-| Running against the **real** Hub | ⏳ needs your one-time Google authorization (PHONE-SETUP.md) |
+| Automated laptop setup `scripts/laptop-setup.mjs` (clasp: create, push, deploy; one-time secret bootstrap runs installMego; live checks; Gemini test; QR connect) | ✅ written; tested end-to-end against the emulated Google backend (10/10) |
+| Running against the **real** Hub | ⏳ must run on your laptop (this cloud session cannot reach it) — needs your Google "Allow" clicks |

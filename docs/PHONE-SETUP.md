@@ -7,6 +7,20 @@
 > تحويل ملف Excel إلى Google Sheet، التحقق من الـ 160 طعامًا، الترحيل، الاستيراد والرفع.
 > Everything below needs your Google account, so only you can do it. Everything else is automatic.
 
+## ⚡ الطريقة التلقائية من اللابتوب (موصى بها) · Automatic laptop setup (recommended)
+
+على لابتوب عليه Node.js 18+ وحسابك في Google مفتوح في المتصفح: / On a laptop with Node.js 18+:
+
+```bash
+git clone -b claude/nutrition-tracking-app-989rku https://github.com/Mego2012/Mego.git && cd Mego
+node scripts/laptop-setup.mjs
+```
+
+يقوم بكل شيء: إنشاء مشروع Apps Script في Drive الخاص بك، رفع الكود، النشر، تحويل ملف Excel إلى Google Sheet (الأصل لا يُمس)،
+التحقق من كل الأطعمة، اختبار حي للمزامنة في الاتجاهين، مفتاح Gemini المجاني (اختياري) مع اختبار صورة حقيقي، ثم رمز QR يربط هاتفك.
+أنت تضغط فقط على شاشات Google الخاصة بالسماح: «Allow» لتسجيل الدخول، مفتاح «Google Apps Script API» (مرة واحدة)، وأذونات السكربت (مرة واحدة).
+It does everything; you only click Google's own permission screens. Re-run any time with `--test` for the live checks.
+
 ## 1) إنشاء الخادم المجاني (≈ 5 دقائق، مرة واحدة) · Create the free backend (once)
 
 1. في **Chrome**: افتح `script.google.com` ← ⋮ ← فعّل **Desktop site / موقع لسطح المكتب** ← سجّل الدخول بـ **ahmedmego967@gmail.com** ← **New project / مشروع جديد**.

@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
 import { useSyncStatus } from '../components/Layout';
 import { Card, Confirm, NumField, Segmented, TextField, useAsync } from '../components/ui';
@@ -162,6 +163,7 @@ function SyncForm() {
   const { run, busy } = useAsync();
   const [code, setCode] = useState('');
   const [report, setReport] = useState<{ check: HubFoodCheck; imported?: string; uploaded?: boolean } | null>(null);
+  const [params, setParams] = useSearchParams();
   const saveCfg = (c = cfg) => saveSettings((s) => { s.sync = { ...s.sync, url: c.url.trim(), token: c.token.trim(), autoSync: c.autoSync, writeFoodsToSheet: c.writeFoodsToSheet }; });
 
   /**
@@ -187,6 +189,16 @@ function SyncForm() {
     await pushNow();
     setReport({ check, imported: t('importDone', { added: imp.added, updated: imp.updated, unchanged: imp.unchanged }), uploaded: true });
   };
+
+  // Deep link from the laptop setup (QR code): #/settings?connect=MEGO1|url|token → connect once, then drop it from the URL.
+  useEffect(() => {
+    const p = parseConnectionCode(params.get('connect') ?? '');
+    if (!p) return;
+    setParams((x) => { x.delete('connect'); return x; }, { replace: true });
+    const next = { ...cfg, url: p.url, token: p.token };
+    setCfg(next);
+    run(() => connect(next));
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <Card title={<span id="sync">{t('syncTitle')}</span>}>

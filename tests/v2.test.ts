@@ -396,6 +396,23 @@ describe('MEGO Nutrition Hub backend (real Code.gs v3 on an emulated Hub)', () =
     expect(gas.state.tmpFiles.filter((f) => f.id.startsWith('native-'))).toHaveLength(1);
     expect(gas.sheet('Food_Database').getLastRow()).toBe(161);
   });
+  it('bootstrap (automated laptop setup): disabled in the public code; with the secret it installs once, then disables itself', async () => {
+    const { createHash } = await import('node:crypto');
+    const secret = 'b'.repeat(64);
+    const pub = createGas({ foodRows: rows, token: '', mode: 'xlsx' });
+    expect(pub.post({ action: 'bootstrap', secret })).toEqual({ ok: false, error: 'unauthorized' });
+    expect(pub.props.has('HUB_NATIVE_ID')).toBe(false);
+    const gas = createGas({ foodRows: rows, token: '', mode: 'xlsx', bootstrapHash: createHash('sha256').update(secret).digest('hex') });
+    gas.props.delete('APP_TOKEN');
+    expect(gas.post({ action: 'bootstrap', secret: 'wrong' }).error).toBe('unauthorized');
+    expect(gas.props.has('HUB_NATIVE_ID')).toBe(false);
+    const r = gas.post({ action: 'bootstrap', secret });
+    expect(r).toMatchObject({ ok: true, sourceId: HUB_ID, verified: { ok: true, foods: 160 } });
+    expect(r.token).toHaveLength(64);
+    expect(r.nativeId).toBe(gas.props.get('HUB_NATIVE_ID'));
+    expect(gas.post({ action: 'ping', token: r.token })).toMatchObject({ spreadsheetId: r.nativeId, writable: true });
+    expect(gas.post({ action: 'bootstrap', secret })).toEqual({ ok: false, error: 'unauthorized' }); // one time only
+  });
   it('installMego: a conversion that fails verification is NOT used; the Hub stays on the original', () => {
     const gas = createGas({ foodRows: [['no header here']], token: 'tok', mode: 'xlsx' });
     expect(() => gas.install()).toThrow(/VERIFY_FAILED/);

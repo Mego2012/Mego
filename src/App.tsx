@@ -2,6 +2,8 @@ import { lazy, Suspense, useEffect } from 'react';
 import { HashRouter, Route, Routes, useLocation } from 'react-router-dom';
 import { AppProvider, useApp } from './app/AppContext';
 import { Layout } from './components/Layout';
+import { accountState } from './lib/account';
+import { useAccount } from './pages/accountHook';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Skeleton } from './components/ui';
 import Dashboard from './pages/Dashboard';
@@ -15,9 +17,11 @@ const Reports = lazy(() => import('./pages/Reports'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
 const Habits = lazy(() => import('./pages/Habits'));
 const Coach = lazy(() => import('./pages/Coach'));
+const AccountPages = lazy(() => import('./pages/Account').then((m) => ({ default: m.AccountRouter })));
 
 function Routed() {
   const { ready, lang } = useApp();
+  useAccount(); // re-render when the account state changes (profile, suspension)
   const loc = useLocation();
   useEffect(() => {
     if (!ready) return;
@@ -28,6 +32,10 @@ function Routed() {
     return () => clearTimeout(id);
   }, [ready]);
   if (!ready) return <div className="main"><Skeleton /></div>;
+  const acc = accountState();
+  // Public landing (signed out, cloud enabled), suspended accounts and legal pages render without the app shell.
+  if ((acc.mode === 'welcome' || acc.suspended) && !['/privacy', '/terms'].includes(loc.pathname)) return <Suspense fallback={<Skeleton />}><AccountPages view={acc.suspended ? 'suspended' : 'welcome'} /></Suspense>;
+  if (acc.mode === 'welcome') return <Suspense fallback={<Skeleton />}><AccountPages view={loc.pathname === '/terms' ? 'terms' : 'privacy'} /></Suspense>;
   return (
     <Layout>
       <ErrorBoundary lang={lang} key={loc.pathname}>
@@ -44,6 +52,9 @@ function Routed() {
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/habits" element={<Habits />} />
           <Route path="/coach" element={<Coach />} />
+          <Route path="/admin" element={<AccountPages view="admin" />} />
+          <Route path="/privacy" element={<AccountPages view="privacy" />} />
+          <Route path="/terms" element={<AccountPages view="terms" />} />
           <Route path="*" element={<Dashboard />} />
         </Routes>
       </Suspense>

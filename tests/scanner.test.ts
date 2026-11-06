@@ -319,3 +319,61 @@ describe('AI meal scanner', () => {
     expect(() => validateAiResult('nope')).toThrow();
   });
 });
+
+describe('public accounts: AI proxy with Firebase sign-in tokens (real Code.gs)', () => {
+  /** Emulates Google Identity Toolkit + Firestore REST (with the user's token) + Gemini behind UrlFetchApp. */
+  function publicGas(opts: { country?: string; status?: string; admins?: string[]; userLimit?: string } = {}) {
+    const accounts: Record<string, string> = { 'tok-alice': 'alice', 'tok-bob': 'bob', 'tok-admin': 'admin' };
+    const gem = gemini(scenarioFromNote);
+    return createGas({
+      token: TOKEN, scriptProps: { GEMINI_API_KEY: KEY, FIREBASE_API_KEY: 'web-key', FIREBASE_PROJECT_ID: 'mego-prod', AI_USER_DAILY_LIMIT: opts.userLimit ?? '2' },
+      ai: (req) => {
+        if (req.url.startsWith('https://identitytoolkit.googleapis.com/')) {
+          const uid = accounts[req.body.idToken];
+          return uid ? { json: { users: [{ localId: uid }] } } : { code: 400, json: { error: { message: 'INVALID_ID_TOKEN' } } };
+        }
+        if (req.url.startsWith('https://firestore.googleapis.com/')) {
+          const tokUid = accounts[String(req.headers.Authorization).replace('Bearer ', '')];
+          const path = req.url.split('/documents/')[1];
+          if (path === `profiles/${tokUid}`) return { json: { fields: { status: { stringValue: opts.status ?? 'active' }, country: { stringValue: opts.country ?? 'SA' } } } };
+          if (path === `admins/${tokUid}` && (opts.admins ?? ['admin']).includes(tokUid)) return { json: { fields: {} } };
+          return { code: 403, json: { error: { status: 'PERMISSION_DENIED' } } };
+        }
+        return gem(req);
+      }
+    });
+  }
+  const scanBody = (idToken: string) => ({ action: 'analyzeMeal', idToken, image: IMG, foods: buildCatalog(foods).lines, note: 'SCENARIO:salad' });
+
+  it('a signed-in user can scan; the per-user daily limit applies to each user separately', () => {
+    const g = publicGas();
+    expect(g.post(scanBody('tok-alice')).ok).toBe(true);
+    expect(g.post(scanBody('tok-alice')).ok).toBe(true);
+    expect(g.post(scanBody('tok-alice'))).toMatchObject({ ok: false, error: 'AI_USER_LIMIT', limit: 2 });
+    expect(g.post(scanBody('tok-bob')).ok).toBe(true); // bob has his own allowance
+  });
+  it('invalid token, suspended account and free-tier-restricted countries are refused before any AI call', () => {
+    const g = publicGas();
+    expect(g.post(scanBody('forged-token')).error).toBe('unauthorized');
+    expect(publicGas({ status: 'suspended' }).post(scanBody('tok-alice')).error).toBe('unauthorized');
+    const eu = publicGas({ country: 'DE' });
+    expect(eu.post(scanBody('tok-alice')).error).toBe('AI_REGION_RESTRICTED');
+    expect(eu.aiRequests.some((r) => r.url.includes('generativelanguage'))).toBe(false);
+  });
+  it('the global daily cap still applies across all users', () => {
+    const p = publicGas({ userLimit: '5' });
+    p.props.set('AI_DAILY_LIMIT', '1');
+    expect(p.post(scanBody('tok-alice')).ok).toBe(true);
+    expect(p.post(scanBody('tok-bob')).error).toBe('AI_DAILY_LIMIT');
+  });
+  it('usage statistics: admins get counts only; regular users are refused', () => {
+    const g = publicGas();
+    g.post(scanBody('tok-alice')); g.post(scanBody('tok-bob'));
+    expect(g.post({ action: 'aiStats', idToken: 'tok-alice' }).error).toBe('unauthorized');
+    const st = g.post({ action: 'aiStats', idToken: 'tok-admin' });
+    expect(st.ok).toBe(true);
+    const todayRow = st.days[st.days.length - 1];
+    expect(todayRow).toMatchObject({ scans: 2, users: 2 });
+    expect(JSON.stringify(st)).not.toMatch(/alice|bob|salad|SCENARIO/);
+  });
+});

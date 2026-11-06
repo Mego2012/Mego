@@ -262,6 +262,8 @@ function doPost(e) {
     var req = JSON.parse(e.postData.contents);
     var token = PropertiesService.getScriptProperties().getProperty('APP_TOKEN');
     if (req.action === 'bootstrap') return json_(bootstrap_(req));
+    // Public accounts (Firebase): the user's own sign-in token instead of the owner's app token.
+    if (req.idToken && (req.action === 'analyzeMeal' || req.action === 'aiStats')) return json_(publicAi_(req));
     if (!token || typeof req.token !== 'string' || req.token !== token) return json_({ ok: false, error: 'unauthorized' });
     // AI meal analysis never touches the spreadsheet, so it runs outside the lock (it can take ~10-40 s).
     if (req.action === 'analyzeMeal') return json_(analyzeMeal_(req));
@@ -858,4 +860,81 @@ function analyzeMeal_(req) {
   var result;
   try { result = JSON.parse(t); } catch (e) { return { ok: false, error: 'AI_BAD_OUTPUT' }; }
   return { ok: true, model: model, result: result };
+}
+
+/* ============================================================== public accounts (Firebase) — AI proxy */
+/*
+ * Script Properties: FIREBASE_API_KEY, FIREBASE_PROJECT_ID (public identifiers of the Firebase project),
+ * AI_USER_DAILY_LIMIT (default 10 scans per user per day), AI_DAILY_LIMIT (global, default 40).
+ * The ID token is verified by Google (Identity Toolkit). The account status and country are read from Firestore
+ * WITH THE USER'S OWN TOKEN, so the security rules apply exactly as in the app. Nothing about the meal is stored.
+ */
+var AI_RESTRICTED = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','IS','LI','NO','CH','GB'];
+
+function verifyFirebaseUser_(idToken) {
+  var props = PropertiesService.getScriptProperties();
+  var key = props.getProperty('FIREBASE_API_KEY');
+  if (!key) return { ok: false, error: 'CLOUD_NOT_CONFIGURED' };
+  var r = UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + encodeURIComponent(key), {
+    method: 'post', contentType: 'application/json', payload: JSON.stringify({ idToken: String(idToken) }), muteHttpExceptions: true
+  });
+  if (r.getResponseCode() !== 200) return { ok: false, error: 'unauthorized' };
+  var u = (JSON.parse(r.getContentText()).users || [])[0];
+  if (!u || u.disabled) return { ok: false, error: 'unauthorized' };
+  return { ok: true, uid: u.localId };
+}
+
+function firestoreGet_(path, idToken) {
+  var project = PropertiesService.getScriptProperties().getProperty('FIREBASE_PROJECT_ID');
+  var r = UrlFetchApp.fetch('https://firestore.googleapis.com/v1/projects/' + project + '/databases/(default)/documents/' + path, {
+    method: 'get', headers: { Authorization: 'Bearer ' + idToken }, muteHttpExceptions: true
+  });
+  return r.getResponseCode() === 200 ? JSON.parse(r.getContentText()) : null;
+}
+
+function publicAi_(req) {
+  var v = verifyFirebaseUser_(req.idToken);
+  if (!v.ok) return v;
+  if (req.action === 'aiStats') return aiStats_(v.uid, req.idToken);
+  var profile = firestoreGet_('profiles/' + v.uid, req.idToken);
+  var f = (profile && profile.fields) || {};
+  if (!profile || (f.status && f.status.stringValue) !== 'active') return { ok: false, error: 'unauthorized' };
+  var country = (f.country && f.country.stringValue) || '';
+  if (AI_RESTRICTED.indexOf(country) >= 0) return { ok: false, error: 'AI_REGION_RESTRICTED' };
+  var props = PropertiesService.getScriptProperties();
+  var day = new Date().toISOString().slice(0, 10);
+  var perUser = Number(props.getProperty('AI_USER_DAILY_LIMIT')) || 10;
+  var ukey = 'AI_U_' + day + '_' + v.uid;
+  var lock = LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    var used = Number(props.getProperty(ukey)) || 0;
+    if (used >= perUser) return { ok: false, error: 'AI_USER_LIMIT', limit: perUser };
+    props.setProperty(ukey, String(used + 1));
+  } finally { lock.releaseLock(); }
+  return analyzeMeal_(req); // global cap, Gemini call and error mapping are shared with the owner path
+}
+
+/** Admin-only usage figures (counts only — no user content). Admin = /admins/{uid} readable with the user's token. */
+function aiStats_(uid, idToken) {
+  if (!firestoreGet_('admins/' + uid, idToken)) return { ok: false, error: 'unauthorized' };
+  var props = PropertiesService.getScriptProperties();
+  var all = props.getProperties();
+  var days = [];
+  for (var i = 6; i >= 0; i--) {
+    var d = new Date(Date.now() - i * 86400000).toISOString().slice(0, 10);
+    var users = Object.keys(all).filter(function (k) { return k.indexOf('AI_U_' + d + '_') === 0; }).length;
+    days.push({ date: d, scans: Number(all['AI_USED_' + d]) || 0, users: users });
+  }
+  return { ok: true, model: aiModel_(), configured: !!all.GEMINI_API_KEY, globalLimit: Number(all.AI_DAILY_LIMIT) || 40, userLimit: Number(all.AI_USER_DAILY_LIMIT) || 10, days: days };
+}
+
+/** Daily clean-up of old per-user counters (optional time trigger). */
+function cleanupAiCounters() {
+  var props = PropertiesService.getScriptProperties();
+  var keep = new Date(Date.now() - 8 * 86400000).toISOString().slice(0, 10);
+  Object.keys(props.getProperties()).forEach(function (k) {
+    var m = /^AI_(?:U_|USED_)(\d{4}-\d{2}-\d{2})/.exec(k);
+    if (m && m[1] < keep) props.deleteProperty(k);
+  });
 }

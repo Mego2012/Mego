@@ -138,13 +138,34 @@ export function nextQuotaReset(now = new Date()): Date {
 
 export async function requestAnalysis(base64: string, catalog: Catalog, opts: { lang: 'ar' | 'en'; note?: string; timeoutMs?: number }): Promise<AiResult> {
   const s = await getSettings();
-  if (!s.sync.url || !s.sync.token) throw new ScanError('AI_NO_BACKEND');
+  // Signed-in public accounts use their own sign-in token with the public AI backend; owner/guest devices use the private backend.
+  const { accountState } = await import('./account');
+  const acc = accountState();
+  let call: () => Promise<{ result: unknown }>;
+  const body = { image: base64, mediaType: 'image/jpeg', foods: catalog.lines, lang: opts.lang, note: (opts.note ?? '').slice(0, 300) };
+  if (acc.mode === 'account') {
+    const { cloudConfig, currentUser } = await import('./firebase');
+    const url = cloudConfig()?.aiBackendUrl;
+    const user = currentUser();
+    if (!url || !user) throw new ScanError('AI_NO_BACKEND');
+    const idToken = await user.getIdToken();
+    call = async () => {
+      const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ ...body, action: 'analyzeMeal', idToken }), redirect: 'follow' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const json = await res.json();
+      if (!json.ok) throw Object.assign(new Error(json.error || 'Script error'), { data: json });
+      return json;
+    };
+  } else {
+    if (!s.sync.url || !s.sync.token) throw new ScanError('AI_NO_BACKEND');
+    call = () => callScript<{ result: unknown }>(s.sync, 'analyzeMeal', body);
+  }
   if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new ScanError('AI_OFFLINE');
   let timer: ReturnType<typeof setTimeout> | undefined;
   const timeout = new Promise<never>((_, rej) => { timer = setTimeout(() => rej(new ScanError('AI_TIMEOUT')), opts.timeoutMs ?? 120_000); });
   try {
     const res = await Promise.race([
-      callScript<{ result: unknown }>(s.sync, 'analyzeMeal', { image: base64, mediaType: 'image/jpeg', foods: catalog.lines, lang: opts.lang, note: (opts.note ?? '').slice(0, 300) }),
+      call(),
       timeout
     ]);
     return validateAiResult(res.result);
@@ -154,6 +175,7 @@ export async function requestAnalysis(base64: string, catalog: Catalog, opts: { 
     const data = (e as { data?: { retryAfter?: number } }).data;
     if (msg === 'AI_QUOTA_DAY') throw new ScanError(msg, { time: nextQuotaReset().toLocaleTimeString(opts.lang === 'ar' ? 'ar' : 'en', { hour: '2-digit', minute: '2-digit' }) });
     if (msg === 'AI_QUOTA_MINUTE') throw new ScanError(msg, { s: Math.max(1, Math.round(data?.retryAfter ?? 60)) });
+    if (msg === 'AI_USER_LIMIT') throw new ScanError(msg, { n: (data as { limit?: number } | undefined)?.limit ?? 10 });
     if (/^AI_/.test(msg)) throw new ScanError(msg.split(':')[0]);
     if (msg === 'unauthorized') throw new ScanError('AI_UNAUTHORIZED');
     if (msg === 'unknown action') throw new ScanError('AI_OLD_BACKEND');

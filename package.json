@@ -12,7 +12,9 @@
     "typecheck": "tsc -b",
     "e2e:scroll": "node e2e/scroll-test.mjs",
     "e2e:laptop": "node e2e/laptop-setup-test.mjs",
-    "setup:laptop": "node scripts/laptop-setup.mjs"
+    "setup:laptop": "node scripts/laptop-setup.mjs",
+    "e2e:multi": "firebase emulators:exec --project demo-mego --only firestore,auth \"node e2e/multiuser-test.mjs\"",
+    "test:rules": "firebase emulators:exec --project demo-mego --only firestore,auth \"vitest run --config vitest.rules.config.ts\""
   },
   "dependencies": {
     "dexie": "4.0.10",

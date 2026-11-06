@@ -7,6 +7,8 @@ import { autoDailyBackup } from './lib/localBackup';
 import { startReminders } from './lib/reminders';
 import { getSettings } from './lib/repo';
 import { refreshPending, startAutoSync } from './lib/sync';
+import { bootAccount, watchSession } from './lib/account';
+import { onLocalChange } from './lib/repo';
 import './styles.css';
 
 async function boot() {
@@ -16,6 +18,8 @@ async function boot() {
   } catch (e) {
     console.warn('pre-migration backup failed', e);
   }
+  // Accounts: selects this account's own local database (or guest mode) before anything renders.
+  const acc = await bootAccount().catch(() => ({ mode: 'guest' as const }));
   await getSettings(); // creates the default profile on first run
   requestPersistentStorage();
   createRoot(document.getElementById('root')!).render(
@@ -24,7 +28,12 @@ async function boot() {
     </StrictMode>
   );
   refreshPending();
-  startAutoSync();
+  if (acc.mode === 'account') {
+    // signed-in: Firestore sync (own data only); the Google-Sheet Hub sync stays for guest/owner devices
+    watchSession(async (uid) => { const { startCloudSync } = await import('./lib/cloudSync'); startCloudSync(uid, (fn) => onLocalChange(fn)); });
+  } else {
+    startAutoSync();
+  }
   startReminders();
   autoDailyBackup().catch(() => {});
   registerSW({ immediate: true });

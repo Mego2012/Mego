@@ -63,7 +63,7 @@ export function subscribeSync(fn: StatusListener) {
   return () => listeners.delete(fn);
 }
 
-function setStatus(s: Partial<SyncStatus>) {
+export function setStatus(s: Partial<SyncStatus>) {
   status = { ...status, ...s };
   listeners.forEach((fn) => fn(status));
 }

@@ -1,1 +1,73 @@
-rules_version = "2"; service cloud.firestore { match /databases/{database}/documents { match /{d=**} { allow read, write: if false; } } }
+rules_version = '2';
+// MEGO — Firestore security rules (enforced by Google's servers on every request).
+//  * users/{uid}/**  : private data. Only the owner, only while the account is active. Admins have NO access.
+//                      An older copy can never overwrite a newer one (updatedAt must not go back).
+//  * profiles/{uid}  : account card (name, email, status, country, lastActiveAt). Owner reads/creates/updates a
+//                      fixed set of fields; admins read all and may change ONLY the status.
+//  * admins/{uid}    : admin list. Readable by that user only. Written only from the Firebase console / setup script.
+//  * foods/{id}      : shared verified food database. Any signed-in active user reads; only admins write.
+//  * foodSubmissions : users propose foods; owner and admins read; admins review.
+//  * errorReports    : users may create small error reports (no personal data); only admins read.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    function profile(uid) { return get(/databases/$(database)/documents/profiles/$(uid)); }
+    function isActive() {
+      return signedIn() && exists(/databases/$(database)/documents/profiles/$(request.auth.uid))
+        && profile(request.auth.uid).data.status == 'active';
+    }
+    function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+
+    match /users/{uid}/{table}/{key} {
+      allow read: if isOwner(uid) && isActive();
+      allow create: if isOwner(uid) && isActive() && validRecord();
+      allow update: if isOwner(uid) && isActive() && validRecord()
+        && request.resource.data.updatedAt >= resource.data.updatedAt;
+      allow delete: if isOwner(uid) && isActive();
+      function validRecord() {
+        return request.resource.data.keys().hasOnly(['data', 'updatedAt', 'deleted'])
+          && request.resource.data.updatedAt is int
+          && request.resource.data.data is string && request.resource.data.data.size() < 300000
+          && (!('deleted' in request.resource.data) || request.resource.data.deleted is bool)
+          && table in ['entries', 'body', 'days', 'recipes', 'templates', 'plans', 'plannedDays', 'fasts', 'kv', 'settings', 'foodChanges', 'foods'];
+      }
+    }
+
+    match /profiles/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid)
+        && request.resource.data.keys().hasOnly(['displayName', 'email', 'status', 'country', 'ageConfirmed', 'createdAt', 'lastActiveAt'])
+        && request.resource.data.status == 'active' && request.resource.data.ageConfirmed == true
+        && request.resource.data.email == request.auth.token.email;
+      allow update: if (isOwner(uid) && profile(uid).data.status == 'active'
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'country', 'lastActiveAt']))
+        || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          && request.resource.data.status in ['active', 'suspended']);
+      allow delete: if isOwner(uid);
+    }
+
+    match /admins/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
+    match /foods/{id} {
+      allow read: if isActive();
+      allow write: if isAdmin();
+    }
+
+    match /foodSubmissions/{id} {
+      allow read: if isAdmin() || (isActive() && resource.data.ownerUid == request.auth.uid);
+      allow create: if isActive() && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == 'pending';
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (isActive() && resource.data.ownerUid == request.auth.uid && resource.data.status == 'pending');
+    }
+
+    match /errorReports/{id} {
+      allow create: if signedIn() && request.resource.data.keys().hasOnly(['at', 'kind', 'message', 'app'])
+        && request.resource.data.message is string && request.resource.data.message.size() < 500;
+      allow read, delete: if isAdmin();
+    }
+  }
+}

@@ -421,3 +421,23 @@ button.chip { min-height: 36px; }
 .equation .op { color: var(--faint); font-weight: 600; }
 .equation .v { font-size: var(--fs-lg); font-weight: 600; }
 .equation .k { font-size: 11.5px; color: var(--muted); }
+
+/* ---------- accounts: landing, onboarding, legal */
+.welcome { min-height: 100dvh; background: var(--hero-bg); display: grid; place-items: center; padding: calc(24px + env(safe-area-inset-top)) max(16px, env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left, 0px)); }
+.welcome-inner { width: 100%; max-width: 440px; }
+.welcome-brand { display: flex; align-items: center; gap: 12px; color: var(--primary); margin-bottom: 26px; }
+.welcome-brand .brand-word { color: var(--text); }
+.welcome-title { font-size: clamp(28px, 7vw, 38px); line-height: 1.12; letter-spacing: -0.025em; margin: 0 0 10px; font-weight: 600; }
+.welcome-sub { color: var(--muted); font-size: 16px; line-height: 1.6; margin: 0 0 18px; max-width: 60ch; }
+.welcome-points { list-style: none; padding: 0; margin: 0 0 24px; display: grid; gap: 10px; }
+.welcome-points li { display: flex; gap: 10px; align-items: flex-start; font-size: 14.5px; }
+.welcome-points li::before { content: ""; flex: none; width: 18px; height: 18px; margin-top: 2px; border-radius: 50%; background: var(--primary-soft); box-shadow: inset 0 0 0 5px var(--primary-soft), inset 0 0 0 9px var(--primary); }
+.welcome-h2 { font-size: var(--fs-xl); margin: 0 0 4px; text-transform: none; letter-spacing: -0.015em; color: var(--text); }
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.steps i { height: 4px; border-radius: 4px; background: var(--surface-3); transition: background .3s var(--ease); }
+.steps i.on { background: var(--primary); }
+.legal { max-width: 68ch; margin: 0 auto; padding: 8px 0 24px; }
+.legal h1 { font-size: var(--fs-2xl); margin: 8px 0; }
+.legal h3 { font-size: 15px; margin: 18px 0 4px; text-transform: none; letter-spacing: 0; color: var(--text); }
+.legal p { line-height: 1.7; margin: 0; }
+.welcome .legal, .welcome-inner .legal { padding: 0; }

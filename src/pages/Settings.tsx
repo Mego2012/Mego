@@ -8,6 +8,9 @@ import { differsFromRecommendation, recommend } from '../lib/goals';
 import { listPreMigrationBackups, restoreLocalBackup, saveLocalBackup } from '../lib/localBackup';
 import { GOAL_TYPES, type GoalType, type Profile } from '../lib/types';
 import { DIET_TAGS } from '../lib/intelCatalog';
+import { lazy, Suspense } from 'react';
+const AccountCard = lazy(() => import('./Account').then((m) => ({ default: m.AccountCard })));
+function AccountCardLazy() { return <Suspense fallback={null}><AccountCard /></Suspense>; }
 import { backupToDrive, downloadBackup, restoreBackup } from '../lib/backup';
 import { db } from '../lib/db';
 import { exportDiaryCSV } from '../lib/exporters';
@@ -23,6 +26,7 @@ export default function Settings() {
   const { settings } = useApp();
   return (
     <div data-testid="settings-page">
+      <AccountCardLazy />
       <Preferences />
       <ProfileForm key={'p' + settings.updatedAt} />
       <TargetsForm key={'t' + settings.updatedAt} />

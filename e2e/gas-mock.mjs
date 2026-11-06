@@ -114,7 +114,7 @@ export function createGas({ foodRows = [], token = 'test-token', spreadsheetName
       },
       getActiveSpreadsheet: () => { throw new Error('standalone script: no active spreadsheet'); }
     },
-    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props.get(k) ?? null, setProperty: (k, v) => props.set(k, v), deleteProperty: (k) => props.delete(k) }) },
+    PropertiesService: { getScriptProperties: () => ({ getProperty: (k) => props.get(k) ?? null, setProperty: (k, v) => props.set(k, v), deleteProperty: (k) => props.delete(k), getProperties: () => Object.fromEntries(props), getKeys: () => [...props.keys()] }) },
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (t) => ({ text: t, setMimeType() { return this; } }) },
     Utilities: {

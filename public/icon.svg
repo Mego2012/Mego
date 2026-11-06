@@ -1,1 +1,11 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><rect width="512" height="512" rx="112" fill="#0f766e"/><circle cx="256" cy="256" r="150" fill="none" stroke="#ecfdf5" stroke-width="40" stroke-dasharray="700 300" stroke-linecap="round" transform="rotate(-90 256 256)"/><path d="M226 180v80a30 30 0 0 0 60 0v-80M256 260v90" stroke="#ecfdf5" stroke-width="22" stroke-linecap="round" fill="none"/></svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="20%" r="90%"><stop offset="0" stop-color="#17282b"/><stop offset="1" stop-color="#080d0f"/></radialGradient>
+    <linearGradient id="arc" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#3ddcb0"/><stop offset="1" stop-color="#5cc7ff"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <circle cx="256" cy="268" r="150" fill="none" stroke="#1d2a2f" stroke-width="44" stroke-linecap="round" stroke-dasharray="706.9 942.5" transform="rotate(135 256 268)"/>
+  <circle cx="256" cy="268" r="150" fill="none" stroke="url(#arc)" stroke-width="44" stroke-linecap="round" stroke-dasharray="471 942.5" transform="rotate(135 256 268)"/>
+  <path d="M256 268 L352 186" stroke="#e8f1ef" stroke-width="26" stroke-linecap="round"/>
+  <circle cx="256" cy="268" r="30" fill="#e8f1ef"/>
+</svg>

@@ -436,11 +436,20 @@ async function setupCloud(adminEmail) {
     }
   }
   // publish the config with the app (GitHub Pages)
+  // a fresh Git install has no name/e-mail: commit with a neutral identity (no personal e-mail is published)
+  const ident = ['-c', 'user.name=MEGO setup', '-c', 'user.email=Mego2012@users.noreply.github.com'];
   const g = spawnSync('git', ['add', 'public/firebase-config.json'], { cwd: ROOT, encoding: 'utf8' });
-  const c = spawnSync('git', ['commit', '-m', 'Enable public accounts (Firebase config: public identifiers only)'], { cwd: ROOT, encoding: 'utf8' });
-  const p = spawnSync('git', ['push'], { cwd: ROOT, encoding: 'utf8' });
-  if (g.status === 0 && p.status === 0) ok('config pushed — GitHub Pages redeploys in ~2 minutes');
-  else log('   Could not push automatically (' + ((c.stderr || '') + (p.stderr || '')).trim().slice(0, 120) + '). Commit public/firebase-config.json and push it.');
+  const c = spawnSync('git', [...ident, 'commit', '-m', 'Enable public accounts (Firebase config: public identifiers only)', '--', 'public/firebase-config.json'], { cwd: ROOT, encoding: 'utf8' });
+  const nothing = /nothing to commit|no changes added/i.test((c.stdout || '') + (c.stderr || ''));
+  const p = spawnSync('git', ['push', 'origin', 'HEAD'], { cwd: ROOT, encoding: 'utf8' });
+  // verify that GitHub really has the file (a push that sends nothing also exits 0)
+  const rem = spawnSync('git', ['ls-remote', 'origin', 'HEAD'], { cwd: ROOT, encoding: 'utf8' });
+  const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
+  const branch = spawnSync('git', ['rev-parse', '--abbrev-ref', 'HEAD'], { cwd: ROOT, encoding: 'utf8' }).stdout.trim();
+  const remoteBranch = spawnSync('git', ['ls-remote', 'origin', 'refs/heads/' + branch], { cwd: ROOT, encoding: 'utf8' }).stdout.split(/\s/)[0];
+  void rem;
+  const pushed = g.status === 0 && (c.status === 0 || nothing) && p.status === 0 && remoteBranch === head;
+  record('Firebase config published to GitHub (' + branch + ')', pushed, pushed ? 'GitHub Pages redeploys in ~2 minutes' : ((c.stderr || '') + (p.stderr || '')).trim().slice(0, 200));
 }
 
 /** After --cloud: wait until the live site serves the new config, then run the real-account verification. */

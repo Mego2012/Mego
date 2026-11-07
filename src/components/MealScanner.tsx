@@ -1,3 +1,4 @@
+import { Icon } from './icons';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../app/AppContext';
@@ -35,8 +36,8 @@ export function ScanButtons({ date, meal, compact }: { date?: string; meal?: Mea
   return (
     <>
       <div className={`scan-buttons${compact ? ' compact' : ''}`} data-testid="scan-buttons">
-        <button className="btn primary grow" onClick={() => camRef.current?.click()} data-testid="scan-camera">📷 {t('scanTakePhoto')}</button>
-        <button className="btn grow" onClick={() => galRef.current?.click()} data-testid="scan-gallery">🖼️ {t('scanFromGallery')}</button>
+        <button className="btn primary grow" onClick={() => camRef.current?.click()} data-testid="scan-camera"><Icon name="camera" /> {t('scanTakePhoto')}</button>
+        <button className="btn grow" onClick={() => galRef.current?.click()} data-testid="scan-gallery"><Icon name="image" /> {t('scanFromGallery')}</button>
       </div>
       <input ref={camRef} type="file" accept="image/*" capture="environment" hidden onChange={pick} data-testid="scan-camera-input" />
       <input ref={galRef} type="file" accept="image/*" hidden onChange={pick} data-testid="scan-gallery-input" />
@@ -137,7 +138,7 @@ export function MealScannerSheet({ file, date: initialDate, meal: initialMeal, o
     }
   };
 
-  const title = `📷 ${t('scanTitle')}`;
+  const title = t('scanTitle');
   const blockReasons = [...new Set(blocks.map((b) => b.reason))];
 
   return (

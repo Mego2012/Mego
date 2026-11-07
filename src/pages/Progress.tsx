@@ -4,6 +4,7 @@ import { db } from '../lib/db';
 import { addPhoto, compressImage, deletePhoto } from '../lib/repo';
 import { progressEstimate } from '../lib/reports';
 import type { ProgressPhoto } from '../lib/types';
+import { Icon } from '../components/icons';
 import { useApp } from '../app/AppContext';
 import { useBody } from '../app/hooks';
 import { WeightChart } from '../components/charts';
@@ -42,29 +43,45 @@ export default function Progress() {
     return { latest, startWeight, points, waistPts, week, month, weeks, waistFirst: waists[0], waistLast: waists[waists.length - 1], est };
   }, [body, range, date, settings]);
 
+  const cur = view.latest?.weight ?? settings.profile.currentWeight;
+  const target = settings.profile.targetWeight;
+  const change = view.latest?.weight && view.startWeight ? round(view.latest.weight - view.startWeight, 1) : null;
+  const span = (view.startWeight ?? cur) - target;
+  const goalPct = span !== 0 ? Math.max(0, Math.min(100, (((view.startWeight ?? cur) - cur) / span) * 100)) : 0;
   return (
     <div data-testid="progress-page">
-      <button className="btn primary block" style={{ marginBottom: 12 }} onClick={() => setEditing('new')} data-testid="add-measurement">+ {t('addMeasurement')}</button>
-      <div className="grid2" style={{ marginBottom: 12 }}>
-        <div className="stat"><div className="k">{t('currentWeight')}</div><div className="v num" data-testid="progress-current">{n(view.latest?.weight ?? settings.profile.currentWeight, 1)} {t('kg')}</div></div>
-        <div className="stat"><div className="k">{t('changeFromStart')} ({n(view.startWeight, 1)})</div><div className="v">
-          <Delta value={view.latest?.weight && view.startWeight ? round(view.latest.weight - view.startWeight, 1) : null} unit={` ${t('kg')}`} /></div></div>
-        <div className="stat"><div className="k">{t('weeklyAverage')}</div><div className="v num" data-testid="progress-week-avg">{n(view.week.average, 2)}</div><div className="tiny muted">{t('weighIns', { n: view.week.count })}</div></div>
-        <div className="stat"><div className="k">{t('monthlyAverage')}</div><div className="v num">{n(view.month.average, 2)}</div><div className="tiny muted">{t('weighIns', { n: view.month.count })}</div></div>
-        <div className="stat"><div className="k">{t('targetWeight')}</div><div className="v num">{n(settings.profile.targetWeight, 1)}</div></div>
-        <div className="stat"><div className="k">{t('waistTrend')} ({t('startWaist')} {n(settings.profile.startWaist ?? view.waistFirst?.waist ?? null, 1)})</div><div className="v">
-          {view.waistLast ? <>{n(view.waistLast.waist, 1)} <Delta value={(settings.profile.startWaist ?? view.waistFirst?.waist) ? round(view.waistLast.waist! - (settings.profile.startWaist ?? view.waistFirst!.waist!), 1) : null} unit={` ${t('cm')}`} /></> : '—'}</div></div>
-      </div>
-
-      <Card title={t('rate')}>
-        <div className="grid2" data-testid="progress-estimate">
-          <div className="stat"><div className="k">{t('rate')}</div><div className="v num">{view.est.ratePerWeek === null ? '—' : `${view.est.ratePerWeek > 0 ? '+' : ''}${n(view.est.ratePerWeek, 2)} ${t('kg')}${t('perWeek')}`}</div>
-            {view.est.ratePctPerWeek !== null && <div className="tiny muted num">{n(view.est.ratePctPerWeek, 2)}%{t('perWeek')}</div>}</div>
+      <section className="weight-hero">
+        <div className="wh-top">
+          <div>
+            <div className="k-label">{t('currentWeight')}</div>
+            <div className="wh-now num" data-testid="progress-current">{n(cur, 1)} <span className="unit">{t('kg')}</span></div>
+            <div className="row wrap" style={{ gap: 6, marginTop: 4 }}>
+              <span className="chip">{t('changeFromStart')}: <Delta value={change} unit={` ${t('kg')}`} /></span>
+              {view.est.ratePerWeek !== null && <span className="chip num">{view.est.ratePerWeek > 0 ? '+' : ''}{n(view.est.ratePerWeek, 2)} {t('kg')}{t('perWeek')}</span>}
+            </div>
+          </div>
+          <button className="add-fab big" onClick={() => setEditing('new')} data-testid="add-measurement" aria-label={t('addMeasurement')}><Icon name="plus" /><span>{t('addMeasurement')}</span></button>
+        </div>
+        <div className="goal-line" aria-hidden="true">
+          <div className="gl-track"><i style={{ width: `${goalPct}%` }} /><b style={{ insetInlineStart: `${goalPct}%` }} /></div>
+          <div className="gl-labels num"><span>{n(view.startWeight, 1)}</span><span>{t('targetWeight')} {n(target, 1)}</span></div>
+        </div>
+        <div className="grid2 wh-stats" data-testid="progress-estimate">
           <div className="stat"><div className="k">{t('eta')}</div><div className="v num">{view.est.etaDate ? d(view.est.etaDate, { day: 'numeric', month: 'short', year: 'numeric' }) : '—'}</div>
             {view.est.weeksToTarget !== null && <div className="tiny muted">{t('weeksToGo', { n: view.est.weeksToTarget })}</div>}</div>
+          <div className="stat"><div className="k">{t('rate')}</div><div className="v num">{view.est.ratePerWeek === null ? '—' : `${view.est.ratePerWeek > 0 ? '+' : ''}${n(view.est.ratePerWeek, 2)} ${t('kg')}${t('perWeek')}`}</div>
+            {view.est.ratePctPerWeek !== null && <div className="tiny muted num">{n(view.est.ratePctPerWeek, 2)}%{t('perWeek')}</div>}</div>
         </div>
-        <div className={`tiny ${view.est.pace === 'fast' || view.est.pace === 'away' ? 'delta pos' : 'muted'}`} style={{ marginTop: 6 }}>{t('pace_' + view.est.pace)}</div>
-      </Card>
+        <div className={`tiny ${view.est.pace === 'fast' || view.est.pace === 'away' ? 'delta pos' : 'muted'}`}>{t('pace_' + view.est.pace)}</div>
+      </section>
+
+      <div className="mini-stats">
+        <div className="stat"><div className="k">{t('weeklyAverage')}</div><div className="v num" data-testid="progress-week-avg">{n(view.week.average, 2)}</div><div className="tiny muted">{t('weighIns', { n: view.week.count })}</div></div>
+        <div className="stat"><div className="k">{t('monthlyAverage')}</div><div className="v num">{n(view.month.average, 2)}</div><div className="tiny muted">{t('weighIns', { n: view.month.count })}</div></div>
+        <div className="stat"><div className="k">{t('waistTrend')}</div><div className="v">
+          {view.waistLast ? <><span className="num">{n(view.waistLast.waist, 1)}</span> <Delta value={(settings.profile.startWaist ?? view.waistFirst?.waist) ? round(view.waistLast.waist! - (settings.profile.startWaist ?? view.waistFirst!.waist!), 1) : null} unit={` ${t('cm')}`} /></> : '—'}</div>
+          <div className="tiny muted">{t('startWaist')} {n(settings.profile.startWaist ?? view.waistFirst?.waist ?? null, 1)}</div></div>
+      </div>
 
       <Card title={t('weightTrendChart')}>
         <Segmented value={range} options={[{ value: '30', label: '30' }, { value: '90', label: '90' }, { value: '365', label: '365' }, { value: 'all', label: t('all') }]} onChange={setRange} />
@@ -86,11 +103,15 @@ export default function Progress() {
 
       <Card title={t('weightHistory')}>
         <ul className="list" data-testid="body-history">
-          {[...body].reverse().slice(0, 120).map((b) => (
+          {[...body].reverse().slice(0, 120).map((b, i, arr) => (
             <li key={b.id} className="clickable" onClick={() => setEditing(b)} data-testid="body-row">
+              <span className="date-badge"><b className="num">{d(b.date, { day: 'numeric' })}</b><small>{d(b.date, { month: 'short' })}</small></span>
               <div className="grow"><div className="bold">{d(b.date, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' })}</div>
                 <div className="tiny muted">{FIELDS.filter((f) => f !== 'weight' && b[f]).map((f) => `${t(f)} ${n(b[f], 1)}`).join(' · ')}{b.notes ? ` · ${b.notes}` : ''}</div></div>
-              <span className="num bold">{b.weight ? `${n(b.weight, 1)} ${t('kg')}` : '—'}</span>
+              <div style={{ textAlign: 'end' }}>
+                <div className="num bold">{b.weight ? `${n(b.weight, 1)} ${t('kg')}` : '—'}</div>
+                {b.weight && arr.slice(i + 1).find((x) => x.weight) && <div className="tiny"><Delta value={round(b.weight - arr.slice(i + 1).find((x) => x.weight)!.weight!, 1)} /></div>}
+              </div>
             </li>
           ))}
           {!body.length && <li className="empty">{t('noData')}</li>}
@@ -109,7 +130,7 @@ function PhotosCard() {
   const [del, setDel] = useState<ProgressPhoto | null>(null);
   const { run } = useAsync();
   return (
-    <Card title={`📷 ${t('photos')}`} actions={<button className="btn sm" onClick={() => fileRef.current?.click()} data-testid="add-photo">+ {t('addPhoto')}</button>}>
+    <Card title={<><Icon name="camera" />{t('photos')}</>} actions={<button className="btn sm" onClick={() => fileRef.current?.click()} data-testid="add-photo">+ {t('addPhoto')}</button>}>
       <div className="tiny muted" style={{ marginBottom: 8 }}>{t('photosPrivate')}</div>
       <input ref={fileRef} type="file" accept="image/*" capture="environment" hidden data-testid="photo-input"
         onChange={async (e) => { const f = e.target.files?.[0]; e.target.value = ''; if (f) await run(async () => addPhoto(today(), await compressImage(f))); }} />

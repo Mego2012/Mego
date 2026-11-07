@@ -59,26 +59,48 @@ export default function Reports({ kind }: { kind: 'week' | 'month' }) {
       </div>
       <h2 className="center" style={{ display: 'none' }}>{title}</h2>
 
-      <Card title={t('summary')}>
-        <div className="row wrap" style={{ gap: 6, marginBottom: 10 }}>
+      <section className="report-cover">
+        <div className="row wrap" style={{ gap: 6 }}>
           <span className="chip status-complete" data-testid="complete-days">{t('completeDays')}: {r.completeDays}</span>
           <span className="chip status-partial" data-testid="partial-days">{t('partialDays')}: {r.partialDays}</span>
           <span className="chip status-empty" data-testid="empty-days">{t('emptyDays')}: {r.emptyDays}</span>
         </div>
-        <div className="tiny muted" style={{ marginBottom: 10 }}>{t('averagesExcludePartial')}</div>
-        <div className="grid2" data-testid="report-stats">
-          <Stat k={t('avgKcal')} v={`${n(r.averages?.kcal)} / ${n(r.averageTarget?.kcal)}`} delta={cmp.delta.kcal} testId="avg-kcal" />
-          <Stat k={t('avgProtein')} v={`${n(r.averages?.protein, 1)} / ${n(r.averageTarget?.protein)}`} delta={cmp.delta.protein} invert testId="avg-protein" />
-          <Stat k={t('avgCarbs')} v={`${n(r.averages?.carbs, 1)} / ${n(r.averageTarget?.carbs)}`} delta={cmp.delta.carbs} testId="avg-carbs" />
-          <Stat k={t('avgFat')} v={`${n(r.averages?.fat, 1)} / ${n(r.averageTarget?.fat)}`} delta={cmp.delta.fat} testId="avg-fat" />
-          <Stat k={t('daysInCalorieTarget')} v={`${r.caloriesInRangeDays} / ${r.completeDays}`} testId="days-cal" />
-          <Stat k={t('daysProteinTarget')} v={`${r.proteinHitDays} / ${r.completeDays}`} testId="days-protein" />
-          <Stat k={t('calorieConsistency')} v={r.calorieConsistencyPct === null ? '—' : `${r.calorieConsistencyPct}%`} delta={cmp.delta.calorieConsistency} unit="%" invert testId="cal-consistency" />
-          <Stat k={t('proteinConsistency')} v={r.proteinConsistencyPct === null ? '—' : `${r.proteinConsistencyPct}%`} delta={cmp.delta.proteinConsistency} unit="%" invert testId="protein-consistency" />
-          <Stat k={t('goalCompletion')} v={r.goalCompletionPct === null ? '—' : `${r.goalCompletionPct}%`} testId="goal-completion" />
-          <Stat k={t('daysOverCalories')} v={`${r.overCalorieDays}`} />
+        <div className={`ledger ${kind}`} aria-label={t('nav_diary')}>
+          {r.days.map((x) => (
+            <span key={x.date} className={`lg-day ${x.status} ${x.overCalories ? 'over' : ''}`} title={`${d(x.date)} · ${t('status_' + x.status)}`}>
+              <small className="num">{Number(x.date.slice(8))}</small>
+            </span>
+          ))}
         </div>
-      </Card>
+        <div className="ledger-key tiny muted">
+          <span><i className="lg-day complete" /> {t('status_complete')}</span><span><i className="lg-day partial" /> {t('status_partial')}</span>
+          <span><i className="lg-day empty" /> {t('status_empty')}</span><span><i className="lg-day complete over" /> {t('daysOverCalories')}</span>
+        </div>
+        <div className="tiny muted">{t('averagesExcludePartial')}</div>
+      </section>
+
+      <div className="macro-gauges" data-testid="report-stats">
+        {([['kcal', 'avgKcal', 'avg-kcal', 0, false], ['protein', 'avgProtein', 'avg-protein', 1, true], ['carbs', 'avgCarbs', 'avg-carbs', 1, false], ['fat', 'avgFat', 'avg-fat', 1, false]] as const).map(([k, label, id, dg, inv]) => {
+          const avg = r.averages?.[k] ?? null, tgt = r.averageTarget?.[k] ?? null;
+          const pct = avg !== null && tgt ? Math.min(130, (avg / tgt) * 100) : 0;
+          return (
+            <div key={k} className="mg" style={{ ['--c' as string]: `var(--${k})` }}>
+              <div className="mg-k">{t(label)}</div>
+              <div className="mg-v num" data-testid={id}>{`${n(avg, dg)} / ${n(tgt)}`}</div>
+              <div className="mg-bar"><i style={{ width: `${Math.min(100, pct / 1.3)}%` }} /><b style={{ insetInlineStart: `${100 / 1.3}%` }} /></div>
+              <div className="tiny">{t('vsPrevious')}: <Delta value={cmp.delta[k]} invert={inv} /></div>
+            </div>
+          );
+        })}
+        <ul className="adherence">
+          <li><span>{t('daysInCalorieTarget')}</span><b className="num" data-testid="days-cal">{`${r.caloriesInRangeDays} / ${r.completeDays}`}</b></li>
+          <li><span>{t('daysProteinTarget')}</span><b className="num" data-testid="days-protein">{`${r.proteinHitDays} / ${r.completeDays}`}</b></li>
+          <li><span>{t('calorieConsistency')}</span><b className="num" data-testid="cal-consistency">{r.calorieConsistencyPct === null ? '—' : `${r.calorieConsistencyPct}%`}</b><Delta value={cmp.delta.calorieConsistency} unit="%" invert /></li>
+          <li><span>{t('proteinConsistency')}</span><b className="num" data-testid="protein-consistency">{r.proteinConsistencyPct === null ? '—' : `${r.proteinConsistencyPct}%`}</b><Delta value={cmp.delta.proteinConsistency} unit="%" invert /></li>
+          <li><span>{t('goalCompletion')}</span><b className="num" data-testid="goal-completion">{r.goalCompletionPct === null ? '—' : `${r.goalCompletionPct}%`}</b></li>
+          <li><span>{t('daysOverCalories')}</span><b className="num">{r.overCalorieDays}</b></li>
+        </ul>
+      </div>
 
       <Card title={t('weight')}>
         <div className="grid2">
@@ -93,8 +115,8 @@ export default function Reports({ kind }: { kind: 'week' | 'month' }) {
       </Card>
 
       <Card title={`${t('macroSplit')} · ${t('water')} · ${t('fiberIndicator')}`}>
-        <div className="grid3" data-testid="report-extra">
-          <div className="stat"><div className="k">{t('macroSplit')}</div><div className="small num">{r.macroSplit ? `${t('pShort')} ${r.macroSplit.protein}% · ${t('cShort')} ${r.macroSplit.carbs}% · ${t('fShort')} ${r.macroSplit.fat}%` : '—'}</div></div>
+        <div className="grid3 report-extra" data-testid="report-extra">
+          <div className="stat"><div className="k">{t('macroSplit')}</div>{r.macroSplit && <span className="macro-split" style={{ width: '100%', height: 8 }}><i style={{ flexGrow: r.macroSplit.protein, background: 'var(--protein)' }} /><i style={{ flexGrow: r.macroSplit.carbs, background: 'var(--carbs)' }} /><i style={{ flexGrow: r.macroSplit.fat, background: 'var(--fat)' }} /></span>}<div className="small num">{r.macroSplit ? `${t('pShort')} ${r.macroSplit.protein}% · ${t('cShort')} ${r.macroSplit.carbs}% · ${t('fShort')} ${r.macroSplit.fat}%` : '—'}</div></div>
           <div className="stat"><div className="k">{t('avgWater')}</div><div className="v num">{r.avgWaterMl === null ? '—' : `${n(r.avgWaterMl)} ${t('ml')}`}</div><div className="tiny muted">{r.waterDays} / {r.dates.length}</div></div>
           <div className="stat"><div className="k">{t('fiberIndicator')}</div><div className="tiny">{r.avgFiber !== null ? (r.avgFiber < 25 ? t('fiberLow', { v: n(r.avgFiber, 1) }) : t('fiberOk', { v: n(r.avgFiber, 1) })) : t('fiberUnknown', { pct: r.fiberCoveragePct })}</div></div>
         </div>

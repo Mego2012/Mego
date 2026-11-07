@@ -10,6 +10,7 @@ import { refreshPending, startAutoSync } from './lib/sync';
 import { bootAccount, watchSession } from './lib/account';
 import { onLocalChange } from './lib/repo';
 import './styles.css';
+import './screens.css';
 
 async function boot() {
   // Protect existing data before Dexie upgrades the schema.
@@ -28,6 +29,8 @@ async function boot() {
     </StrictMode>
   );
   refreshPending();
+  // screenshot/audit builds only (VITE_DEMO=1): production builds drop this branch and the demo module entirely
+  if (import.meta.env.VITE_DEMO === '1') (window as unknown as Record<string, unknown>).__megoSeedDemo = () => import('./lib/demoSeed').then((m) => m.seedDemo());
   if (acc.mode === 'account') {
     // signed-in: Firestore sync (own data only); the Google-Sheet Hub sync stays for guest/owner devices
     watchSession(async (uid) => { const { startCloudSync } = await import('./lib/cloudSync'); startCloudSync(uid, (fn) => onLocalChange(fn)); });

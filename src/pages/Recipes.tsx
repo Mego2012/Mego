@@ -49,7 +49,7 @@ function RecipeList() {
           <button className="btn sm primary" onClick={() => setLogging(r)} data-testid="recipe-add-diary">{t('addToDiary')}</button>
         </>}>
           <div className="small"><b className="num">{n(r.perServing.kcal)}</b> {t('kcalUnit')} / {t('unit_serving')} · <MacroLine m={r.perServing} /></div>
-          {r.libraryId && <div className="tiny muted">📚 {t('library')}</div>}
+          {r.libraryId && <div className="tiny muted lib-tag"><Icon name="book" /> {t('library')}</div>}
           <div className="tiny muted">{r.ingredients.length} {t('ingredients')} · {t('servings')}: {n(r.servings, 1)} · {t('total')}: {n(r.totals.kcal)} {t('kcalUnit')}</div>
         </Card>
       ))}

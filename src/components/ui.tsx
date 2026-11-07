@@ -36,9 +36,9 @@ export function Ring({ value, max, size = 150, stroke = 14, color = 'var(--kcal)
   return (
     <div className="ring-wrap" style={{ width: size, height: size }}>
       <svg width={size} height={size} style={{ transform: 'rotate(-90deg)' }}>
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--surface-2)" strokeWidth={stroke} />
-        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={over ? 'var(--danger)' : color} strokeWidth={stroke} strokeLinecap="round"
-          strokeDasharray={`${c * pct} ${c}`} style={{ transition: 'stroke-dasharray .4s' }} />
+        <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--dial-track)" strokeWidth={stroke} />
+        {pct > 0 && <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke={over ? 'var(--danger)' : color} strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={`${c * pct} ${c}`} style={{ transition: 'stroke-dasharray .4s' }} />}
       </svg>
       <div className="ring-label">{children}</div>
     </div>

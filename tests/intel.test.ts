@@ -43,7 +43,8 @@ describe('Food Intelligence', () => {
     for (const k of RANKINGS) {
       const r = rankFoods(foods, k, 'maintain');
       expect(r.length).toBeGreaterThan(5);
-      for (let i = 1; i < r.length; i++) expect(r[i - 1].score).toBeGreaterThanOrEqual(r[i].score);
+      // ordered by score inside each group (fully measured first, then partial data)
+      for (let i = 1; i < r.length; i++) if ((r[i - 1].coverage >= 0.999) === (r[i].coverage >= 0.999)) expect(r[i - 1].score).toBeGreaterThanOrEqual(r[i].score);
       expect(r[0].rank).toBe(1);
     }
     expect(rankFoods(foods, 'lowCalorie', 'maintain')[0].food.kcal).toBeLessThan(25);
@@ -55,5 +56,40 @@ describe('Food Intelligence', () => {
     expect(pc.pros.map((p) => p.key)).toEqual(expect.arrayContaining(['pc_highProtein', 'pc_proteinDense', 'pc_completeAA']));
     expect(prosCons(F('White rice, cooked')).cons.map((p) => p.key)).toEqual(expect.arrayContaining(['pc_limitingAA', 'pc_refined', 'pc_lowFiber']));
     expect(prosCons(F('Salmon (farmed), cooked')).pros.map((p) => p.key)).toContain('pc_epaDha');
+  });
+});
+
+describe('Food Intelligence — data completeness (release audit)', () => {
+  it('foods with every indicator measured always rank before foods with missing data', () => {
+    for (const k of RANKINGS) for (const g of ['cut', 'maintain', 'build'] as const) {
+      const r = rankFoods(foods, k, g);
+      const firstPartial = r.findIndex((x) => x.coverage < 0.999);
+      if (firstPartial >= 0) expect(r.slice(firstPartial).every((x) => x.coverage < 0.999)).toBe(true);
+    }
+  });
+  it('missing amino-acid data is never filled in: whey and shrimp are ranked in the partial-data group', () => {
+    const r = rankFoods(foods, 'protein', 'cut');
+    for (const en of ['Whey protein powder', 'Shrimp, cooked']) {
+      const x = r.find((y) => y.food.item.en === en)!;
+      expect(x.aas).toBeUndefined();
+      expect(x.coverage).toBeLessThan(1);
+      expect(x.subs.find((s) => s.key === 'aminoScore')!.value).toBeUndefined();
+    }
+    expect(r[0].coverage).toBe(1);
+  });
+  it('animal foods without a reported fibre value count as 0 g (animal tissue has no dietary fibre); no guess for other foods', () => {
+    expect(subScores(F('Shrimp, cooked')).fiberDensity).toBe(0);
+    expect(subScores(F('Chicken breast, roasted (skinless)')).fiberDensity).toBe(0);
+  });
+});
+
+import { ARTICLES, SOURCES } from '../src/lib/education';
+describe('Education Center — traceable sources (release audit)', () => {
+  it('every evidence statement cites at least one known source; every source links to a specific document (no landing pages)', () => {
+    for (const a of ARTICLES) for (const s of a.sections) if (s.level === 'established') {
+      expect(s.sources?.length ?? 0).toBeGreaterThan(0);
+      for (const id of s.sources!) expect(SOURCES[id]).toBeDefined();
+    }
+    for (const src of Object.values(SOURCES)) expect(src.url).not.toMatch(/^https:\/\/(www\.who\.int\/publications|iris\.who\.int|www\.fao\.org\/publications)\/?$/);
   });
 });

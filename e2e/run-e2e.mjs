@@ -764,7 +764,7 @@ await check('LAYOUT', 'No horizontal overflow on any screen (phone width)', asyn
   for (const h of ['/', '/diary', '/recipes', '/recipes?tab=suggest', '/recipes?tab=cook', '/recipes?tab=recipes', '/foods', '/planner', '/progress', '/habits', '/reports/week', '/reports/month', '/settings']) {
     await go(page, h);
     await page.waitForTimeout(300);
-    const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth, wide: [...document.querySelectorAll('main *')].filter((e) => { const r = e.getBoundingClientRect(); return (r.right > window.innerWidth + 1 || r.left < -1) && getComputedStyle(e).position !== 'fixed' && !e.closest('.table-wrap,.segmented,.chart,.vchart'); }).map((e) => `${e.tagName.toLowerCase()}.${String(e.className).split(' ')[0]}${e.dataset.testid ? '#' + e.dataset.testid : ''}`) }));
+    const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth, wide: [...document.querySelectorAll('main *')].filter((e) => { const r = e.getBoundingClientRect(); return (r.right > window.innerWidth + 1 || r.left < -1) && getComputedStyle(e).position !== 'fixed' && !e.closest('.table-wrap,.segmented,.chart,.vchart,.tool-row'); }).map((e) => `${e.tagName.toLowerCase()}.${String(e.className).split(' ')[0]}${e.dataset.testid ? '#' + e.dataset.testid : ''}`) }));
     if (w.wide.length > 0) bad.push(`${h}: ${w.wide.length} element(s) wider than the screen (${[...new Set(w.wide)].slice(0, 4).join(', ')})`);
   }
   if (bad.length) throw new Error(bad.join('; '));
@@ -781,7 +781,7 @@ await check('DARK', 'Dark mode renders', async () => {
 
 await ctx.close();
 server.kill();
-rmSync(PROFILE, { recursive: true, force: true });
+if (!process.env.KEEP_PROFILE) rmSync(PROFILE, { recursive: true, force: true });
 const failed = results.filter((r) => !r.ok);
 console.log(`\n${results.length - failed.length}/${results.length} checks passed`);
 process.exit(failed.length ? 1 : 0);

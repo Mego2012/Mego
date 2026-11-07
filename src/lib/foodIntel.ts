@@ -120,7 +120,11 @@ export function nrf93(f: IntelFood): number | undefined {
 /* ------------------------------------------------------------------ scoring */
 
 export interface SubScore { key: string; value: number | undefined; weight: number }
-export interface Ranked { food: IntelFood; score: number; subs: SubScore[]; rank: number; aas?: AminoScore; nrf?: number }
+/**
+ * coverage = share of the ranking's indicator weight that has data (1 = every indicator measured). Foods with missing
+ * indicators are never given an estimated value: they are ranked AFTER all fully measured foods, in their own group.
+ */
+export interface Ranked { food: IntelFood; score: number; subs: SubScore[]; rank: number; aas?: AminoScore; nrf?: number; coverage: number }
 export type RankingKind = 'protein' | 'carb' | 'fat' | 'fiber' | 'lowCalorie' | 'proteinPerCalorie' | 'nutrientDense' | 'cutting' | 'building';
 export const RANKINGS: RankingKind[] = ['protein', 'carb', 'fat', 'fiber', 'lowCalorie', 'proteinPerCalorie', 'nutrientDense', 'cutting', 'building'];
 
@@ -154,7 +158,8 @@ export function subScores(f: IntelFood): Record<string, number | undefined> {
     proteinAmount: clamp(f.protein / 30),
     aminoScore: aas?.score,
     lowSatFat: f.satFat === undefined ? undefined : 1 - clamp((per100kcal(f.satFat, f.kcal) ?? 0) / 3),
-    fiberDensity: f.fiber === undefined ? undefined : clamp((per100kcal(f.fiber, f.kcal) ?? 0) / 4),
+    // animal tissue contains no dietary fibre: when the source omits fibre for an animal food it is 0 g, not unknown
+    fiberDensity: f.fiber === undefined ? (f.item.origin === 'animal' && !/powder/i.test(f.item.en) ? 0 : undefined) : clamp((per100kcal(f.fiber, f.kcal) ?? 0) / 4),
     lowEnergyDensity: 1 - clamp(f.kcal / 400),
     carbAmount: clamp(f.carbs / 70),
     wholeFood: f.item.whole ? 1 : 0,
@@ -164,19 +169,20 @@ export function subScores(f: IntelFood): Record<string, number | undefined> {
   };
 }
 
-function weighted(f: IntelFood, weights: Record<string, number>): { score: number; subs: SubScore[] } {
+function weighted(f: IntelFood, weights: Record<string, number>): { score: number; subs: SubScore[]; coverage: number } {
   const s = subScores(f);
   const subs: SubScore[] = Object.entries(weights).map(([key, weight]) => ({ key, value: s[key], weight }));
   const usable = subs.filter((x) => x.value !== undefined);
   const wsum = usable.reduce((a, x) => a + x.weight, 0);
+  const total = subs.reduce((a, x) => a + x.weight, 0);
   const score = wsum > 0 ? (usable.reduce((a, x) => a + x.value! * x.weight, 0) / wsum) * 100 : 0;
-  return { score: Math.round(score * 10) / 10, subs };
+  return { score: Math.round(score * 10) / 10, subs, coverage: total > 0 ? Math.round((wsum / total) * 100) / 100 : 0 };
 }
 
 /** Ranks the catalog for one ranking kind and goal. Pure function — same inputs, same order. */
 export function rankFoods(foods: IntelFood[], kind: RankingKind, goal: GoalClass): Ranked[] {
   const inGroup = (g: IntelGroup) => foods.filter((f) => f.item.groups.includes(g));
-  let list: Omit<Ranked, 'rank'>[];
+  let list: (Omit<Ranked, 'rank' | 'coverage'> & { coverage?: number })[];
   switch (kind) {
     case 'protein':
     case 'carb':
@@ -209,7 +215,10 @@ export function rankFoods(foods: IntelFood[], kind: RankingKind, goal: GoalClass
       list = foods.filter((f) => f.protein >= 5).map((f) => ({ food: f, ...weighted(f, { proteinAmount: 0.35, aminoScore: 0.35, proteinDensity: 0.15, carbAmount: 0.15 }), aas: aminoAcidScore(f) }));
       break;
   }
-  return list.sort((a, b) => b.score - a.score || a.food.kcal - b.food.kcal).map((x, i) => ({ ...x, rank: i + 1 }));
+  const full = (x: { coverage?: number }) => (x.coverage ?? 1) >= 0.999;
+  return list
+    .sort((a, b) => Number(full(b)) - Number(full(a)) || b.score - a.score || a.food.kcal - b.food.kcal)
+    .map((x, i) => ({ ...x, coverage: x.coverage ?? 1, rank: i + 1 }));
 }
 
 /* ------------------------------------------------------------------ explanations (generated from the data) */

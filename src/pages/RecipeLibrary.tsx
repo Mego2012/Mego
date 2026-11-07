@@ -71,7 +71,7 @@ export function LibraryTab() {
               <span>⏱ {c.totalTime} {t('min')}</span>
               {c.derived.map((d) => <span key={d} className="chip good">{t('tag_' + d.replace(/-/g, '_'))}</span>)}
               {c.isEstimate && <span className="chip warn">{t('estimatedBadge')}</span>}
-              {meta.favorites.has(c.lib.id) && <span>⭐</span>}
+              {meta.favorites.has(c.lib.id) && <span className="fav-star"><Icon name="star" filled /></span>}
               {meta.ratings[c.lib.id] ? <span>{'★'.repeat(meta.ratings[c.lib.id])}</span> : null}
             </div>
           </div>
@@ -122,7 +122,7 @@ export function RecipeDetail({ c, onClose, servingsHint = 1 }: { c: ComputedReci
               onClick={() => kvSet('recipeRatings', { ...meta.ratings, [L.id]: s === rating ? 0 : s })}><Icon name="star" filled={s <= rating} /></button>
           ))}
           <button className={`chip ${fav ? 'active' : ''}`} data-testid="recipe-fav"
-            onClick={() => { const f = new Set(meta.favorites); if (fav) f.delete(L.id); else f.add(L.id); kvSet('recipeFavorites', [...f]); }}>⭐ {t('favorite')}</button>
+            onClick={() => { const f = new Set(meta.favorites); if (fav) f.delete(L.id); else f.add(L.id); kvSet('recipeFavorites', [...f]); }}><Icon name="star" filled={fav} /> {t('favorite')}</button>
         </div>
         <h3 className="small bold" style={{ margin: '6px 0 0' }}>{t('ingredients')}</h3>
         <ul className="list">

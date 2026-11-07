@@ -11,6 +11,7 @@ import { displayName, toggleFavoriteFood } from '../lib/repo';
 import { filterFoods } from '../lib/search';
 import type { DiaryEntry, EntryBasis, Food, MealTemplate, Recipe, Unit } from '../lib/types';
 import { Icon } from './icons';
+import { FoodThumb } from './FoodThumb';
 import { MacroLine, OptionalNutrientsLine, Segmented, Sheet, StateChip, useAsync } from './ui';
 
 type Tab = 'search' | 'recent' | 'frequent' | 'favorites' | 'history' | 'meals' | 'recipes';
@@ -80,15 +81,16 @@ export function FoodPicker({ onPickFood, onPickRecipe, onPickTemplate, onPickHis
 
   return (
     <div className="stack">
-      <div className="row">
-        <div className="grow" style={{ position: 'relative' }}>
+      <div className="picker-tools">
+        <div className="grow search-field">
+          <Icon name="search" />
           <input className="input" autoFocus placeholder={tab === 'history' ? t('searchHistory') : t('search') + '…'} value={q}
             onChange={(e) => { setQ(e.target.value); if (tab !== 'search' && tab !== 'favorites' && tab !== 'history') setTab('search'); }} data-testid="food-search" />
         </div>
         <button className="icon-btn" onClick={() => setScan(true)} aria-label={t('scanBarcode')} title={t('scanBarcode')} data-testid="open-barcode">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.9} strokeLinecap="round"><path d="M4 7V5h3M17 5h3v2M20 17v2h-3M7 19H4v-2M7 9v6M10 9v6M13 9v6M16 9v6" /></svg>
         </button>
-        <select className="input" style={{ width: 'auto' }} value={state} onChange={(e) => setState(e.target.value as Food['state'] | '')} aria-label={t('state')} data-testid="state-filter">
+        <select className="chip-select" value={state} onChange={(e) => setState(e.target.value as Food['state'] | '')} aria-label={t('state')} data-testid="state-filter">
           <option value="">{t('all')}</option>
           <option value="raw">{t('state_raw')}</option>
           <option value="cooked">{t('state_cooked')}</option>
@@ -136,15 +138,20 @@ export function FoodPicker({ onPickFood, onPickRecipe, onPickTemplate, onPickHis
       {(tab === 'search' || tab === 'recent' || tab === 'frequent' || tab === 'favorites') && (
         <ul className="list" data-testid="food-results">
           {list.map((f) => (
-            <li key={f.id} className="clickable" onClick={() => onPickFood(f)} data-testid="food-option">
+            <li key={f.id} className="clickable food-row" onClick={() => onPickFood(f)} data-testid="food-option">
+              <FoodThumb food={f} size={48} />
               <div className="grow" style={{ minWidth: 0 }}>
                 <div className="row" style={{ gap: 6 }}>
-                  <span className="bold ellipsis">{displayName(f, lang)}</span>
+                  <span className="fr-name bold ellipsis">{displayName(f, lang)}</span>
                   <StateChip state={f.state} label={f.stateLabel} />
                 </div>
-                <div className="tiny muted">{f.incomplete ? t('incompleteFood') : <>{n(f.per100.kcal)} {t('kcalUnit')} · {t('per100')} · <MacroLine m={f.per100} compact /></>}</div>
+                {f.incomplete ? <div className="tiny muted">{t('incompleteFood')}</div> : <>
+                  <MacroSplit m={f.per100} />
+                  <div className="tiny muted num"><MacroLine m={f.per100} compact /> · <SourceTag source={f.source} /></div>
+                </>}
               </div>
-              <button className="icon-btn" style={{ color: f.favorite ? 'var(--warn)' : 'var(--muted)' }} onClick={(e) => { e.stopPropagation(); toggleFavoriteFood(f.id); }} aria-label={t('favorites')}>
+              <div className="fr-kcal num">{f.incomplete ? '—' : n(f.per100.kcal)}<small>{t('kcalUnit')} / 100{t('g')}</small></div>
+              <button className="icon-btn fr-fav" style={{ color: f.favorite ? 'var(--carbs)' : 'var(--faint)' }} onClick={(e) => { e.stopPropagation(); toggleFavoriteFood(f.id); }} aria-label={t('favorites')}>
                 <Icon name="star" filled={f.favorite} />
               </button>
             </li>
@@ -155,22 +162,24 @@ export function FoodPicker({ onPickFood, onPickRecipe, onPickTemplate, onPickHis
       {searching && (
         <div className="stack" data-testid="ref-section">
           <div className="row between">
-            <span className="small bold">{t('refDb')} <span className="chip">{t('usdaBadge')}</span></span>
+            <span className="section-label" style={{ margin: 0 }}>{t('refDb')} <span className="src-tag usda">{t('usdaBadge')}</span></span>
             {refState === 'ready' && <span className="tiny muted num">{refResults.length}</span>}
           </div>
           {refState === 'loading' && <div className="tiny muted">{t('refDbLoading')}</div>}
           {refState === 'error' && <div className="tiny muted">{t('refDbOffline')}</div>}
           <ul className="list" data-testid="ref-results">
             {refResults.map((rf) => (
-              <li key={rf.id} className="clickable" onClick={() => pickRef(rf)} data-testid="ref-option">
+              <li key={rf.id} className="clickable food-row" onClick={() => pickRef(rf)} data-testid="ref-option">
+                <FoodThumb food={{ nameEn: rf.name, sourceRef: rf.source }} category={rf.category} size={48} />
                 <div className="grow" style={{ minWidth: 0 }}>
                   <div className="row" style={{ gap: 6 }}>
-                    <span className="bold" dir="ltr" style={{ overflowWrap: 'anywhere' }}>{rf.name}</span>
+                    <span className="fr-name bold" dir="ltr" style={{ overflowWrap: 'anywhere' }}>{rf.name}</span>
                     {rf.state !== 'other' && <StateChip state={rf.state} />}
                   </div>
-                  <div className="tiny muted">{n(rf.per100.kcal)} {t('kcalUnit')} · {t('per100')} · <MacroLine m={rf.per100} compact /> · {rf.category}</div>
+                  <MacroSplit m={rf.per100} />
+                  <div className="tiny muted num"><MacroLine m={rf.per100} compact /> · {rf.category}</div>
                 </div>
-                <span className="chip">+</span>
+                <div className="fr-kcal num">{n(rf.per100.kcal)}<small>{t('kcalUnit')} / 100{t('g')}</small></div>
               </li>
             ))}
           </ul>
@@ -181,7 +190,7 @@ export function FoodPicker({ onPickFood, onPickRecipe, onPickTemplate, onPickHis
               <button className="btn sm" disabled={off.state === 'loading'} data-testid="off-search" onClick={async () => {
                 setOff({ state: 'loading', items: [] });
                 try { setOff({ state: 'done', items: await searchOFF(q.trim()) }); } catch { setOff({ state: 'error', items: [] }); }
-              }}>🌐 {t('offSearch')}</button>
+              }}><Icon name="globe" /> {t('offSearch')}</button>
             </div>
           </div>
           {off.state === 'error' && <div className="tiny muted">{t('offError')}</div>}
@@ -236,18 +245,20 @@ export function QuantityForm({ food, initial, submitLabel, onSubmit, onBack }: {
   const quick = unit === 'g' || unit === 'ml' ? [50, 100, 150, 200, 250] : [0.5, 1, 2, 3, 4];
   return (
     <div className="stack" data-testid="quantity-form">
-      <div className="row between">
-        <div className="grow">
-          <div className="bold" style={{ fontSize: 17 }}>{displayName(food, lang)}</div>
-          <div className="row wrap small muted" style={{ gap: 6 }}>
+      <div className="food-hero">
+        <FoodThumb food={food} size={68} />
+        <div className="grow" style={{ minWidth: 0 }}>
+          <div className="fh-name">{displayName(food, lang)}</div>
+          <div className="row wrap small muted" style={{ gap: 6, marginTop: 2 }}>
             <StateChip state={food.state} label={food.stateLabel} />
-            {food.stateLabel && <span>{food.stateLabel}</span>}
-            {food.prep && food.prep !== '—' && <span>· {food.prep}</span>}
+            <SourceTag source={food.source} />
+            {food.prep && food.prep !== '—' && <span className="tiny">{food.prep}</span>}
           </div>
+          <MacroSplit m={food.per100} />
+          <div className="tiny muted num">{t('per100')}: {n(food.per100.kcal)} {t('kcalUnit')} · <MacroLine m={food.per100} compact />{food.pieceGrams ? ` · ${t('unit_piece')} = ${n(food.pieceGrams)}${t('g')}` : ''}</div>
         </div>
-        {onBack && <button className="btn sm" onClick={onBack}>{t('previous')}</button>}
+        {onBack && <button className="icon-btn flip" onClick={onBack} aria-label={t('previous')}><Icon name="back" /></button>}
       </div>
-      <div className="tiny muted">{t('per100')}: {n(food.per100.kcal)} {t('kcalUnit')} · <MacroLine m={food.per100} compact />{food.pieceGrams ? ` · ${t('unit_piece')} = ${n(food.pieceGrams)}${t('g')}` : ''}</div>
       {food.state !== 'other' && <div className="banner info tiny" style={{ margin: 0 }}>{t('rawCookedWarning')} ({t('state_' + food.state)})</div>}
       <div className="grid2">
         <label className="field">
@@ -272,12 +283,16 @@ export function QuantityForm({ food, initial, submitLabel, onSubmit, onBack }: {
         {quick.map((v) => <button key={v} className={`chip ${qty === v ? 'active' : ''}`} onClick={() => setQty(v)}>{n(v, 1)}</button>)}
       </div>
       {preview && (
-        <div className="stat" data-testid="qty-preview">
-          <div className="row between">
-            <span className="big num" data-testid="preview-kcal">{n(preview.macros.kcal)} <span className="small muted">{t('kcalUnit')}</span></span>
+        <div className="qty-preview" data-testid="qty-preview">
+          <div className="row between" style={{ alignItems: 'baseline' }}>
+            <span className="qp-kcal num" data-testid="preview-kcal">{n(preview.macros.kcal)} <span className="small muted">{t('kcalUnit')}</span></span>
             {preview.grams > 0 && <span className="small muted num">{n(preview.grams, 1)} {t('g')}</span>}
           </div>
-          <MacroLine m={preview.macros} />
+          <div className="qp-macros">
+            {(['protein', 'carbs', 'fat'] as const).map((k) => (
+              <div key={k} className="qp-m" style={{ ['--c' as string]: `var(--${k})` }}><b className="num">{n(preview!.macros[k], 1)}</b><span>{t(k)} · {t('g')}</span></div>
+            ))}
+          </div>
           <OptionalNutrientsLine m={preview.macros} />
         </div>
       )}
@@ -301,4 +316,24 @@ function uniqueHistory(list: DiaryEntry[], q: string): DiaryEntry[] {
     out.push(e);
   }
   return out;
+}
+
+/** Energy split of a food (protein / carbs / fat share of calories) — a compact "fingerprint" bar. */
+export function MacroSplit({ m }: { m: { protein: number; carbs: number; fat: number } }) {
+  const p = m.protein * 4, c = m.carbs * 4, f = m.fat * 9, sum = p + c + f;
+  if (!(sum > 0)) return null;
+  return (
+    <span className="macro-split" aria-hidden="true">
+      <i style={{ flexGrow: p / sum, background: 'var(--protein)' }} />
+      <i style={{ flexGrow: c / sum, background: 'var(--carbs)' }} />
+      <i style={{ flexGrow: f / sum, background: 'var(--fat)' }} />
+    </span>
+  );
+}
+
+/** Where a food's values come from. */
+export function SourceTag({ source }: { source: Food['source'] }) {
+  const { t } = useApp();
+  const label = source === 'usda' ? t('usdaBadge') : source === 'openfoodfacts' ? 'Open Food Facts' : source === 'sheet' ? 'Hub' : t('srcMine');
+  return <span className={`src-tag ${source}`}>{label}</span>;
 }

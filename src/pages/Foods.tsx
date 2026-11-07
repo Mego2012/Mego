@@ -2,6 +2,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { Icon } from '../components/icons';
+import { FoodThumb } from '../components/FoodThumb';
+import { MacroSplit, SourceTag } from '../components/FoodPicker';
 import { Card, Confirm, MacroLine, NumField, Sheet, StateChip, TextField, useAsync } from '../components/ui';
 import { db } from '../lib/db';
 import { exportFoodsCSV, exportFoodsXLSX } from '../lib/exporters';
@@ -43,12 +45,20 @@ export default function Foods() {
 
   return (
     <div data-testid="foods-page">
-      <Card>
-        <div className="row">
-          <input className="input grow" placeholder={t('search') + '…'} value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} data-testid="foods-search" />
-          <button className={`icon-btn ${showFilters ? 'active' : ''}`} onClick={() => setShowFilters((x) => !x)} aria-label={t('filters')}><Icon name="search" /></button>
-          <button className="btn primary" onClick={() => setEditing('new')} data-testid="new-food">+ {t('newFood')}</button>
+      <div className="picker-tools" style={{ marginBottom: 10 }}>
+        <div className="grow search-field">
+          <Icon name="search" />
+          <input className="input" placeholder={t('search') + '…'} value={f.q} onChange={(e) => setF({ ...f, q: e.target.value })} data-testid="foods-search" />
         </div>
+        <button className={`icon-btn ${showFilters ? 'on' : ''}`} onClick={() => setShowFilters((x) => !x)} aria-label={t('filters')} aria-pressed={showFilters}><Icon name="filter" /></button>
+        <button className="btn primary" onClick={() => setEditing('new')} data-testid="new-food"><Icon name="plus" /> {t('newFood')}</button>
+      </div>
+      <div className="tool-row cat-row">
+        <button className={`chip clickable ${!f.category && !f.favoritesOnly ? 'on' : ''}`} onClick={() => setF({ ...f, category: '', favoritesOnly: false })}>{t('all')}</button>
+        <button className={`chip clickable ${f.favoritesOnly ? 'on' : ''}`} onClick={() => setF({ ...f, favoritesOnly: !f.favoritesOnly })}><Icon name="star" filled={!!f.favoritesOnly} /> {t('favorites')}</button>
+        {categories.slice(0, 24).map((c) => <button key={c} className={`chip clickable ${f.category === c ? 'on' : ''}`} onClick={() => setF({ ...f, category: f.category === c ? '' : c })}>{c}</button>)}
+      </div>
+      <Card className="filters-card">
         {showFilters && (
           <div className="stack" style={{ marginTop: 10 }}>
             <div className="grid2">
@@ -71,23 +81,26 @@ export default function Foods() {
             </div>
           </div>
         )}
-        <div className="tiny muted" style={{ marginTop: 8 }} data-testid="foods-count">{t('foodCount', { n: list.length })} / {active.length}</div>
+        <div className="tiny muted" data-testid="foods-count">{t('foodCount', { n: list.length })} / {active.length}</div>
       </Card>
 
-      <Card>
+      <Card className="list-card">
         <ul className="list" data-testid="foods-list">
           {list.slice(0, 300).map((x) => (
-            <li key={x.id} className="clickable" onClick={() => setEditing(x)} data-testid="food-row">
+            <li key={x.id} className="clickable food-row" onClick={() => setEditing(x)} data-testid="food-row">
+              <FoodThumb food={x} size={48} />
               <div className="grow" style={{ minWidth: 0 }}>
                 <div className="row" style={{ gap: 6 }}>
-                  <span className="bold ellipsis">{displayName(x, lang)}</span>
+                  <span className="fr-name bold ellipsis">{displayName(x, lang)}</span>
                   <StateChip state={x.state} label={x.stateLabel} />
                   {x.archived && <span className="chip">{t('archived')}</span>}
                   {x.incomplete && <span className="chip warn">!</span>}
                 </div>
-                <div className="tiny muted">{x.category} · {n(x.per100.kcal)} {t('kcalUnit')} · <MacroLine m={x.per100} compact />{x.source === 'openfoodfacts' ? ' · OFF' : ''}</div>
+                <MacroSplit m={x.per100} />
+                <div className="tiny muted num ellipsis"><MacroLine m={x.per100} compact /> · <SourceTag source={x.source} />{x.category ? ` · ${x.category}` : ''}</div>
               </div>
-              <button className="icon-btn" style={{ color: x.favorite ? 'var(--warn)' : 'var(--muted)' }} onClick={(e) => { e.stopPropagation(); toggleFavoriteFood(x.id); }} aria-label={t('favorites')}><Icon name="star" filled={x.favorite} /></button>
+              <div className="fr-kcal num">{n(x.per100.kcal)}<small>{t('kcalUnit')} / 100{t('g')}</small></div>
+              <button className="icon-btn fr-fav" style={{ color: x.favorite ? 'var(--carbs)' : 'var(--faint)' }} onClick={(e) => { e.stopPropagation(); toggleFavoriteFood(x.id); }} aria-label={t('favorites')}><Icon name="star" filled={x.favorite} /></button>
             </li>
           ))}
           {!list.length && <li className="empty">{foods.length ? t('noResults') : t('importFile')}</li>}
@@ -95,7 +108,7 @@ export default function Foods() {
       </Card>
 
       <Card title={t('issues')}>
-        <div className="grid3">
+        <div className="grid3 quality">
           <div className="stat"><div className="k">{t('issue_zeroValues')}</div><div className="v num">{issues.incomplete}</div></div>
           <div className="stat"><div className="k">{t('issue_energyMismatch')}</div><div className="v num">{issues.energy}</div></div>
           <div className="stat"><div className="k">{t('issue_flaggedInNotes')}</div><div className="v num">{issues.flagged}</div></div>
@@ -103,7 +116,7 @@ export default function Foods() {
       </Card>
 
       <Card title={t('importExport')}>
-        <div className="row wrap">
+        <div className="io-grid">
           <button className="btn" onClick={() => fileRef.current?.click()} data-testid="import-file"><Icon name="upload" /> {t('importFile')}</button>
           <button className="btn" onClick={() => exportFoodsCSV(active)}><Icon name="download" /> {t('exportCSV')}</button>
           <button className="btn" onClick={() => exportFoodsXLSX(active)}><Icon name="download" /> {t('exportXLSX')}</button>
@@ -164,7 +177,7 @@ function ImportPreview({ data, onClose }: { data: { foods: ParsedFood[]; source:
 const STATE_LABEL_AR: Record<FoodState, string> = { raw: 'نيء', cooked: 'مطبوخ', other: '—' };
 
 export function FoodEditor({ food, onClose, initialName, onSaved }: { food: Food | null; onClose: () => void; initialName?: string; onSaved?: (f: Food) => void }) {
-  const { t, n, d } = useApp();
+  const { t, n, d, lang } = useApp();
   const [v, setV] = useState(() => ({
     nameAr: food?.nameAr ?? (initialName && /[\u0600-\u06FF]/.test(initialName) ? initialName : ''), nameEn: food?.nameEn ?? (initialName && !/[\u0600-\u06FF]/.test(initialName) ? initialName : ''), category: food?.category ?? '', state: food?.state ?? ('raw' as FoodState),
     stateLabel: food?.stateLabel ?? '', prep: food?.prep ?? '', notes: food?.notes ?? '',
@@ -225,6 +238,17 @@ export function FoodEditor({ food, onClose, initialName, onSaved }: { food: Food
         </ul>
       ) : (
         <div className="stack" data-testid="food-editor">
+          {food && (
+            <div className="food-hero editor-hero">
+              <FoodThumb food={food} size={64} />
+              <div className="grow" style={{ minWidth: 0 }}>
+                <div className="fh-name">{displayName(food, lang)}</div>
+                <div className="row wrap" style={{ gap: 6, marginTop: 2 }}><StateChip state={food.state} label={food.stateLabel} /><SourceTag source={food.source} />{food.sourceRef && <span className="tiny muted" dir="ltr">{food.sourceRef}</span>}</div>
+                <MacroSplit m={food.per100} />
+                <div className="tiny muted num">{n(food.per100.kcal)} {t('kcalUnit')} · <MacroLine m={food.per100} compact /> / 100 {t('g')}</div>
+              </div>
+            </div>
+          )}
           <div className="grid2">
             <TextField label={t('nameAr')} value={v.nameAr} onChange={(x) => setV({ ...v, nameAr: x })} dir="rtl" testId="fe-nameAr" />
             <TextField label={t('nameEn')} value={v.nameEn} onChange={(x) => setV({ ...v, nameEn: x })} dir="ltr" testId="fe-nameEn" />

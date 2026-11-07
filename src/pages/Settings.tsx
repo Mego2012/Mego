@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
+import { Icon } from '../components/icons';
 import { useApp } from '../app/AppContext';
 import { useSyncStatus } from '../components/Layout';
 import { Card, Confirm, NumField, Segmented, TextField, useAsync } from '../components/ui';
@@ -22,19 +23,48 @@ import backendManifest from '../../apps-script/appsscript.json?raw';
 import { checkHubFoods, HUB_ID, HUB_NAME, parseConnectionCode, pullAll, pullFoodsFromSheet, pushNow, queueFullUpload, setAiKey, testConnection, type HubFoodCheck } from '../lib/sync';
 import type { Lang, Macros, ThemeMode } from '../lib/types';
 
-export default function Settings() {
-  const { settings } = useApp();
+/** Who this device belongs to and the targets in force — the first thing on the settings screen. */
+function SettingsHeader() {
+  const { t, n, settings } = useApp();
+  const p = settings.profile;
+  const tg = settings.targets.training;
+  const initials = (p.name ?? '').trim().split(/\s+/).map((w) => w[0]).join('').slice(0, 2).toUpperCase();
   return (
-    <div data-testid="settings-page">
-      <AccountCardLazy />
-      <Preferences />
-      <ProfileForm key={'p' + settings.updatedAt} />
-      <TargetsForm key={'t' + settings.updatedAt} />
-      <DietForm />
-      <SyncForm />
-      <AiScannerCard />
-      <DataSafety />
-      <LocalBackups />
+    <section className="settings-head">
+      <span className="avatar" aria-hidden="true">{initials || <Icon name="user" />}</span>
+      <div className="grow" style={{ minWidth: 0 }}>
+        <div className="sh-name">{p.name || t('profile')}</div>
+        <div className="tiny muted">{t('goal_' + p.goalType)}{p.currentWeight ? ` · ${n(p.currentWeight, 1)} ${t('kg')} → ${n(p.targetWeight, 1)} ${t('kg')}` : ''}</div>
+        <div className="row wrap" style={{ gap: 4, marginTop: 6 }}>
+          <span className="chip num">{n(tg.kcal)} {t('kcalUnit')}</span>
+          <span className="chip num" style={{ color: 'var(--protein)' }}>{t('pShort')} {n(tg.protein)}</span>
+          <span className="chip num" style={{ color: 'var(--carbs)' }}>{t('cShort')} {n(tg.carbs)}</span>
+          <span className="chip num" style={{ color: 'var(--fat)' }}>{t('fShort')} {n(tg.fat)}</span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export default function Settings() {
+  const { settings, t } = useApp();
+  return (
+    <div data-testid="settings-page" className="settings">
+      <SettingsHeader />
+      <nav className="tool-row settings-index" aria-label={t('nav_settings')}>
+        {([['s-account', 'user', 'acc_title'], ['s-look', 'globe', 'language'], ['s-profile', 'scale', 'profile'], ['s-targets', 'target', 'nutritionTargets'],
+          ['s-diet', 'leaf', 'diet_title'], ['s-sync', 'sync', 'syncTitle'], ['s-ai', 'camera', 'aiScannerStatus'], ['s-data', 'shield', 'dataSafety']] as const).map(([id, icon, key]) => (
+          <a key={id} className="chip clickable" href={`#${id}`} onClick={(e) => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}><Icon name={icon} /> {t(key)}</a>
+        ))}
+      </nav>
+      <div id="s-account"><AccountCardLazy /></div>
+      <div id="s-look"><Preferences /></div>
+      <div id="s-profile"><ProfileForm key={'p' + settings.updatedAt} /></div>
+      <div id="s-targets"><TargetsForm key={'t' + settings.updatedAt} /></div>
+      <div id="s-diet"><DietForm /></div>
+      <div id="s-sync"><SyncForm /></div>
+      <div id="s-ai"><AiScannerCard /></div>
+      <div id="s-data"><DataSafety /><LocalBackups /></div>
     </div>
   );
 }
@@ -42,7 +72,7 @@ export default function Settings() {
 function Preferences() {
   const { t, settings } = useApp();
   return (
-    <Card title={`${t('language')} · ${t('theme')}`}>
+    <Card title={<><Icon name="globe" />{t('language')} · {t('theme')}</>}>
       <div className="stack">
         <Segmented<Lang> value={settings.lang} options={[{ value: 'ar', label: 'العربية' }, { value: 'en', label: 'English' }]}
           onChange={(lang) => saveSettings((s) => { s.lang = lang; })} />
@@ -63,7 +93,7 @@ function ProfileForm() {
   const cur = settings.targets.training;
   const fmt = (m: { kcal: number; protein: number; carbs: number; fat: number }) => `${n(m.kcal)} ${t('kcalUnit')} · ${n(m.protein)}/${n(m.carbs)}/${n(m.fat)} ${t('g')}`;
   return (
-    <Card title={t('profile')}>
+    <Card title={<><Icon name="user" />{t('profile')}</>}>
       <div style={{ marginBottom: 10 }}><TextField label={t('yourName')} value={p.name ?? ''} onChange={(v) => setP({ ...p, name: v.slice(0, 30) })} testId="profile-name" /></div>
       <label className="field" style={{ marginBottom: 10 }}>
         <span>{t('goalType')}</span>
@@ -130,7 +160,7 @@ function TargetsForm() {
   const [v, setV] = useState({ targets: settings.targets, trainingWeekdays: settings.trainingWeekdays, tolerance: settings.tolerance, autoCompletePastDays: settings.autoCompletePastDays, weekStartsOn: settings.weekStartsOn, completeThresholdPct: settings.completeThresholdPct, waterTargetMl: settings.waterTargetMl });
   const { run } = useAsync();
   return (
-    <Card title={t('nutritionTargets')}>
+    <Card title={<><Icon name="target" />{t('nutritionTargets')}</>}>
       <div className="stack">
         <div className="small bold">{t('trainingTargets')}</div>
         <MacroInputs prefix="tt" value={v.targets.training} onChange={(m) => setV({ ...v, targets: { ...v.targets, training: m } })} />
@@ -208,10 +238,10 @@ function SyncForm() {
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <Card title={<span id="sync">{t('syncTitle')}</span>}>
+    <Card title={<span id="sync"><Icon name="sync" />{t('syncTitle')}</span>}>
       <div className="stack" data-testid="sync-form">
         <div className="stat" data-testid="hub-info">
-          <div className="bold">🗂️ {HUB_NAME}</div>
+          <div className="bold row" style={{ gap: 6 }}><Icon name="grid" /> {HUB_NAME}</div>
           <div className="tiny muted num" dir="ltr" style={{ wordBreak: 'break-all' }}>{t('hubSource')}: {HUB_ID}</div>
           {settings.sync.hubNativeId && <div className="tiny muted num" dir="ltr" style={{ wordBreak: 'break-all' }} data-testid="hub-native">{t('hubNative')}: {settings.sync.hubNativeId}</div>}
           <div className="tiny muted">{t('hubOnly')}</div>
@@ -285,7 +315,7 @@ function AiScannerCard() {
     testConnection(settings.sync).then((r) => setState({ on: !!r.aiScanner, model: r.aiModel })).catch(() => setState(null));
   }, [connected]); // eslint-disable-line react-hooks/exhaustive-deps
   return (
-    <Card title={`📷 ${t('aiScannerStatus')} — ${t('aiFree')}`}>
+    <Card title={<><Icon name="camera" />{t('aiScannerStatus')} — {t('aiFree')}</>}>
       <div className="stack" data-testid="ai-card">
         <div className="small" data-testid="ai-state">{!connected ? t('AI_NO_BACKEND') : state === null ? '…' : state.on ? `✓ ${t('aiScannerOn')} (${state.model})` : t('aiScannerOff')}</div>
         <div className="tiny muted">{t('aiFreeNote')}</div>
@@ -317,7 +347,7 @@ function DietForm() {
   const { t, settings } = useApp();
   const ex = new Set(settings.foodExclusions ?? []);
   return (
-    <Card title={`🥗 ${t('diet_title')}`}>
+    <Card title={<><Icon name="leaf" />{t('diet_title')}</>}>
       <div className="stack" data-testid="diet-form">
         <Segmented value={settings.diet ?? 'any'} onChange={(v) => saveSettings((s) => { s.diet = v; })}
           options={[{ value: 'any', label: t('diet_any') }, { value: 'vegetarian', label: t('diet_vegetarian') }, { value: 'vegan', label: t('diet_vegan') }]} />
@@ -350,7 +380,7 @@ function DataSafety() {
     navigator.storage?.persisted?.().then(setPersisted).catch(() => setPersisted(null));
   }, []);
   return (
-    <Card title={t('dataSafety')}>
+    <Card title={<><Icon name="shield" />{t('dataSafety')}</>}>
       <div className="stack">
         <div className="small" data-testid="persisted">{persisted ? '✓ ' + t('storagePersisted') : t('storageNotPersisted')}</div>
         <div className="row wrap">
@@ -378,7 +408,7 @@ function LocalBackups() {
   const { run } = useAsync();
   useEffect(() => { listPreMigrationBackups().then((x) => setPre(x.map(({ at, fromSchema }) => ({ at, fromSchema })))).catch(() => {}); }, []);
   return (
-    <Card title={t('localBackups')} actions={<button className="btn sm" onClick={() => run(() => saveLocalBackup('manual'), t('saved'))} data-testid="backup-now">{t('backupNow')}</button>}>
+    <Card title={<><Icon name="cloud" />{t('localBackups')}</>} actions={<button className="btn sm" onClick={() => run(() => saveLocalBackup('manual'), t('saved'))} data-testid="backup-now">{t('backupNow')}</button>}>
       <ul className="list" data-testid="local-backups">
         {list.map((b) => (
           <li key={b.id}>
@@ -414,8 +444,8 @@ function BackendHelper() {
       <div className="small bold">{t('backendSetup')}</div>
       <div className="tiny muted" style={{ marginBottom: 6 }}>{t('backendSetupHint')}</div>
       <div className="row wrap">
-        <button className="btn sm" onClick={() => copy(backendCode)} data-testid="copy-code">📋 Code.gs</button>
-        <button className="btn sm" onClick={() => copy(backendManifest)} data-testid="copy-manifest">📋 appsscript.json</button>
+        <button className="btn sm" onClick={() => copy(backendCode)} data-testid="copy-code"><Icon name="clipboard" /> Code.gs</button>
+        <button className="btn sm" onClick={() => copy(backendManifest)} data-testid="copy-manifest"><Icon name="clipboard" /> appsscript.json</button>
         <a className="btn sm" href="https://script.google.com/home/projects/create" target="_blank" rel="noreferrer">↗ script.google.com</a>
       </div>
     </div>

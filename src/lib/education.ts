@@ -6,9 +6,9 @@
 export interface Source { id: string; cite: string; url: string }
 export const SOURCES: Record<string, Source> = {
   who_diet: { id: 'who_diet', cite: 'World Health Organization. Healthy diet — Fact sheet.', url: 'https://www.who.int/news-room/fact-sheets/detail/healthy-diet' },
-  who_carb: { id: 'who_carb', cite: 'World Health Organization (2023). Carbohydrate intake for adults and children: WHO guideline.', url: 'https://www.who.int/publications' },
-  who_protein: { id: 'who_protein', cite: 'WHO/FAO/UNU (2007). Protein and amino acid requirements in human nutrition. WHO Technical Report Series 935.', url: 'https://iris.who.int' },
-  fao_protein: { id: 'fao_protein', cite: 'FAO (2013). Dietary protein quality evaluation in human nutrition. FAO Food and Nutrition Paper 92.', url: 'https://www.fao.org/publications' },
+  who_carb: { id: 'who_carb', cite: 'World Health Organization (2023). Carbohydrate intake for adults and children: WHO guideline.', url: 'https://www.who.int/publications/i/item/9789240073593' },
+  who_protein: { id: 'who_protein', cite: 'WHO/FAO/UNU (2007). Protein and amino acid requirements in human nutrition. WHO Technical Report Series 935.', url: 'https://iris.who.int/handle/10665/43411' },
+  fao_protein: { id: 'fao_protein', cite: 'FAO (2013). Dietary protein quality evaluation in human nutrition. FAO Food and Nutrition Paper 92.', url: 'https://openknowledge.fao.org/handle/20.500.14283/i3124e' },
   issn_protein: { id: 'issn_protein', cite: 'Jäger R, et al. (2017). International Society of Sports Nutrition position stand: protein and exercise. J Int Soc Sports Nutr 14:20.', url: 'https://doi.org/10.1186/s12970-017-0177-8' },
   morton: { id: 'morton', cite: 'Morton RW, et al. (2018). Protein supplementation and resistance training-induced gains in muscle mass and strength: systematic review and meta-analysis. Br J Sports Med 52:376–384.', url: 'https://doi.org/10.1136/bjsports-2017-097608' },
   helms: { id: 'helms', cite: 'Helms ER, Aragon AA, Fitschen PJ (2014). Evidence-based recommendations for natural bodybuilding contest preparation: nutrition and supplementation. J Int Soc Sports Nutr 11:20.', url: 'https://doi.org/10.1186/1550-2783-11-20' },

@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
+import { Icon } from '../components/icons';
 import { useApp } from '../app/AppContext';
 import { useDayLog } from '../app/hooks';
 import { Card, Confirm, NumField, ProgressBar, useAsync } from '../components/ui';
@@ -28,7 +29,7 @@ function WaterCard() {
   const [custom, setCustom] = useState<number | ''>('');
   const { run } = useAsync();
   return (
-    <Card title={`💧 ${t('water')}`}>
+    <Card title={<><Icon name="water" />{t('water')}</>}>
       <div className="big num center" data-testid="water-total">{n(water)} <span className="small muted">/ {n(settings.waterTargetMl)} {t('ml')}</span></div>
       <div style={{ margin: '8px 0' }}><ProgressBar value={water} max={settings.waterTargetMl} color="var(--info)" /></div>
       <div className="row wrap" style={{ gap: 6, justifyContent: 'center' }}>
@@ -66,7 +67,7 @@ function HabitsCard() {
       {active.map((h) => (
         <label key={h.id} className="check" data-testid="habit-row">
           <input type="checkbox" checked={!!log?.habits?.[h.id]} onChange={() => toggleHabit(date, h.id)} data-testid="habit-check" />
-          <span className="grow">{h.name} <span className="tiny muted" data-testid="habit-streak">🔥 {t('streak', { n: habitStreak(allDays, h.id) })}</span></span>
+          <span className="grow">{h.name} <span className="tiny muted" data-testid="habit-streak"><Icon name="flame" /> {t('streak', { n: habitStreak(allDays, h.id) })}</span></span>
           <button className="icon-btn" aria-label={t('delete')} onClick={(e) => { e.preventDefault(); saveSettings((s) => { s.habits = s.habits.map((x) => (x.id === h.id ? { ...x, active: false } : x)); }); }}>×</button>
         </label>
       ))}

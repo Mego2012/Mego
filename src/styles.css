@@ -309,7 +309,7 @@ body.scroll-locked { overflow: hidden; }
 
 /* accessibility */
 :focus-visible { outline: 2px solid var(--primary); outline-offset: 3px; border-radius: 10px; }
-.btn, .icon-btn, .chip, .bottom-nav a, .bottom-nav button { min-height: 44px; }
+.btn, .icon-btn, .bottom-nav a, .bottom-nav button { min-height: 44px; }
 button.chip { min-height: 36px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
@@ -403,15 +403,6 @@ button.chip { min-height: 36px; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* ---------- coach */
-.coach-msg { padding: 12px 14px; border-radius: 16px; background: var(--surface-2); font-size: 14px; }
-.coach-msg.warn { background: color-mix(in srgb, var(--warn) 9%, var(--surface-2)); }
-.coach-msg.good { background: color-mix(in srgb, var(--good) 9%, var(--surface-2)); }
-.coach-combo { padding: 12px; border-radius: 16px; background: var(--surface-2); }
-.rank-list > li { background: var(--surface); border-radius: 16px; padding: 12px; margin-bottom: 8px; box-shadow: var(--shadow-1) !important; }
-.rank-no { font-family: var(--font-display); font-weight: 600; font-size: 20px; color: var(--faint); width: 30px; text-align: center; flex: none; font-variant-numeric: tabular-nums; }
-.rank-list > li:nth-child(-n+3) .rank-no { color: var(--primary); }
-.learn-card { text-align: start; border: 0; cursor: pointer; display: flex; flex-direction: column; gap: 6px; color: var(--text); margin: 0; transition: transform .15s var(--ease); }
-.learn-card:active { transform: scale(.98); }
 .learn-icon { font-size: 22px; }
 .article-sec p { line-height: 1.7; }
 

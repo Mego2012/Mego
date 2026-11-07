@@ -5,8 +5,11 @@ import { useDayLog, useEntries } from '../app/hooks';
 import { FoodPicker, QuantityForm, UnitOptions } from '../components/FoodPicker';
 import { ScanButtons } from '../components/MealScanner';
 import { Icon } from '../components/icons';
-import { Card, Confirm, DateNav, MacroBars, MacroLine, NumField, OptionalNutrientsLine, Segmented, Sheet, StateChip, useAsync } from '../components/ui';
-import { addDays, isValidISODate, today } from '../lib/dates';
+import { FoodThumb } from '../components/FoodThumb';
+import { MealGlyph } from '../components/instrument';
+import { useLiveQuery } from 'dexie-react-hooks';
+import { Confirm, DateNav, Ring, MacroBars, MacroLine, NumField, OptionalNutrientsLine, Segmented, Sheet, StateChip, useAsync } from '../components/ui';
+import { addDays, isValidISODate, startOfWeek, today, weekDates } from '../lib/dates';
 import { availableUnits, macrosFor } from '../lib/nutrition';
 import { db } from '../lib/db';
 import {
@@ -46,67 +49,91 @@ export default function Diary() {
   const byMeal = (m: MealType) => entries.filter((e) => e.meal === m);
 
   return (
-    <div data-testid="diary">
+    <div data-testid="diary" className="diary">
       <DateNav date={date} onChange={setDate} testId="diary-date" />
+      <WeekStrip date={date} onPick={setDate} />
 
-      <Card>
-        <div className="row between wrap" style={{ marginBottom: 8, gap: 6 }}>
-          <div className="row" style={{ gap: 6 }}>
-            <select className="input" style={{ width: 'auto', minHeight: 34, padding: '4px 10px' }} value={log?.dayType ?? ''} aria-label={t('dayType')}
-              onChange={(e) => updateDayLog(date, { dayType: (e.target.value || undefined) as never })} data-testid="daytype-select">
-              <option value="">{t(day.dayType)} ({t('useDefault')})</option>
-              <option value="training">{t('training')}</option>
-              <option value="rest">{t('rest')}</option>
-            </select>
-            <button className="btn sm ghost" onClick={() => setShowTargets(true)}>{t('targetsForDay')}</button>
+      <section className="day-panel trio">
+        <div className="day-panel-top">
+          <Ring value={day.totals.kcal} max={day.target.kcal} size={104} stroke={10}>
+            <div className="num ring-v">{n(day.totals.kcal)}</div>
+            <div className="tiny muted">/ {n(day.target.kcal)}</div>
+          </Ring>
+          <div className="grow" style={{ minWidth: 0 }}>
+            <div className="k-label">{day.target.kcal - day.totals.kcal >= 0 ? t('remaining') : t('over')}</div>
+            <div className="day-left num">{n(Math.abs(day.target.kcal - day.totals.kcal))} <span className="unit">{t('kcalUnit')}</span></div>
+            <div className="row wrap" style={{ gap: 6, marginTop: 6 }}>
+              <span className={`chip status-${day.status}`} data-testid="day-status">{t('status_' + day.status)}</span>
+              <select className="chip-select" value={log?.dayType ?? ''} aria-label={t('dayType')}
+                onChange={(e) => updateDayLog(date, { dayType: (e.target.value || undefined) as never })} data-testid="daytype-select">
+                <option value="">{t(day.dayType)} ({t('useDefault')})</option>
+                <option value="training">{t('training')}</option>
+                <option value="rest">{t('rest')}</option>
+              </select>
+            </div>
           </div>
-          <span className={`chip status-${day.status}`} data-testid="day-status">{t('status_' + day.status)}</span>
         </div>
-        <MacroBars totals={day.totals} target={day.target} keys={['kcal', 'protein', 'carbs', 'fat']} />
+        <MacroBars totals={day.totals} target={day.target} keys={['protein', 'carbs', 'fat']} />
         <OptionalNutrientsLine m={day.totals} coverage={day.coverage} total={day.entryCount} />
-        <div className="row between" style={{ marginTop: 8 }}>
-          <span className="small">💧 <b className="num" data-testid="diary-water">{n(day.waterMl)}</b> / {n(settings.waterTargetMl)} {t('ml')}</span>
-          <div className="row" style={{ gap: 4 }}>
-            <button className="btn sm" onClick={() => run(() => addWater(date, 250))} data-testid="water-250">+250</button>
-            <button className="btn sm" onClick={() => run(() => addWater(date, 500))}>+500</button>
-          </div>
+        <div className="water-line">
+          <Icon name="water" />
+          <span className="small"><b className="num" data-testid="diary-water">{n(day.waterMl)}</b> <span className="muted">/ {n(settings.waterTargetMl)} {t('ml')}</span></span>
+          <div className="water-mini" aria-hidden="true"><i style={{ width: `${Math.min(100, settings.waterTargetMl ? (day.waterMl / settings.waterTargetMl) * 100 : 0)}%` }} /></div>
+          <button className="btn sm" onClick={() => run(() => addWater(date, 250))} data-testid="water-250">+250</button>
+          <button className="btn sm" onClick={() => run(() => addWater(date, 500))}>+500</button>
         </div>
-        {day.status === 'empty' && <div className="tiny muted" style={{ marginTop: 8 }}>{t('dayIsEmpty')}</div>}
-        <div style={{ marginTop: 10 }}><ScanButtons date={date} /></div>
-        <div className="row wrap" style={{ marginTop: 10, gap: 6 }}>
-          <button className="btn sm" onClick={() => guardedCopy(date, () => copyDay(addDays(date, -1), date))} data-testid="copy-yesterday">
-            <Icon name="copy" /> {t('copyFromYesterday')}
-          </button>
-          <button className="btn sm" onClick={() => setCopyTarget({ kind: 'day' })} disabled={!entries.length}>{t('copyDayTo')}</button>
-          {day.status !== 'complete' && entries.length > 0 && <button className="btn sm" onClick={() => updateDayLog(date, { status: 'complete' })} data-testid="mark-complete"><Icon name="check" /> {t('markComplete')}</button>}
-          {day.status !== 'partial' && entries.length > 0 && <button className="btn sm" onClick={() => updateDayLog(date, { status: 'partial' })} data-testid="mark-partial">{t('markPartial')}</button>}
-          {log?.status && <button className="btn sm ghost" onClick={() => updateDayLog(date, { status: undefined })}>{t('clearStatus')}</button>}
-        </div>
-      </Card>
+        {day.status === 'empty' && <div className="tiny muted">{t('dayIsEmpty')}</div>}
+      </section>
 
-      {MEALS.map((m) => (
-        <Card key={m} className="meal-card"
-          title={<span>{t(m)} <span className="small muted num">· {n(day.byMeal[m].kcal)} {t('kcalUnit')}</span></span>}
-          actions={<>
-            {byMeal(m).length > 0 && <button className="icon-btn" onClick={() => setCopyTarget({ kind: 'meal', meal: m })} aria-label={t('copyMealTo')} title={t('copyMealTo')}><Icon name="copy" /></button>}
-            {byMeal(m).length > 0 && <button className="icon-btn" onClick={() => setSaveMeal(m)} aria-label={t('saveAsMeal')} title={t('saveAsMeal')}><Icon name="star" /></button>}
-            <button className="btn sm primary" onClick={() => setAddMeal(m)} data-testid={`add-${m}`}>+ {t('add')}</button>
-          </>}>
-          <div data-testid={`meal-${m}`}>
-            {byMeal(m).map((e) => (
-              <div key={e.id} className="entry" onClick={() => setEditing(e)} data-testid="entry">
+      <div className="scan-strip"><ScanButtons date={date} /></div>
+
+      <div className="tool-row" role="toolbar" aria-label={t('quickActions')}>
+        <button className="chip clickable" onClick={() => guardedCopy(date, () => copyDay(addDays(date, -1), date))} data-testid="copy-yesterday"><Icon name="copy" /> {t('copyFromYesterday')}</button>
+        <button className="chip clickable" onClick={() => setCopyTarget({ kind: 'day' })} disabled={!entries.length}>{t('copyDayTo')}</button>
+        {day.status !== 'complete' && entries.length > 0 && <button className="chip clickable" onClick={() => updateDayLog(date, { status: 'complete' })} data-testid="mark-complete"><Icon name="check" /> {t('markComplete')}</button>}
+        {day.status !== 'partial' && entries.length > 0 && <button className="chip clickable" onClick={() => updateDayLog(date, { status: 'partial' })} data-testid="mark-partial">{t('markPartial')}</button>}
+        {log?.status && <button className="chip clickable" onClick={() => updateDayLog(date, { status: undefined })}>{t('clearStatus')}</button>}
+        <button className="chip clickable" onClick={() => setShowTargets(true)}>{t('targetsForDay')}</button>
+      </div>
+
+      <div className="timeline">
+        {MEALS.map((m) => {
+          const list = byMeal(m);
+          const mm = day.byMeal[m];
+          return (
+            <section key={m} className="meal-block">
+              <header className="meal-head">
+                <MealGlyph meal={m} />
                 <div className="grow" style={{ minWidth: 0 }}>
-                  <div className="row" style={{ gap: 6 }}><span className="ellipsis bold" data-testid="entry-name">{e.name}</span>{e.state !== 'other' && <StateChip state={e.state} />}</div>
-                  <div className="tiny muted num">{n(e.quantity, 2)} {t('unit_' + e.unit)}{e.unit !== 'g' && e.grams ? ` (${n(e.grams)} ${t('g')})` : ''} · <MacroLine m={e.macros} compact /></div>
+                  <h2>{t(m)}</h2>
+                  <div className="tiny muted num">{list.length ? <MacroLine m={mm} compact /> : t('noEntries')}</div>
                 </div>
-                <span className="num bold" data-testid="entry-kcal">{n(e.macros.kcal)}</span>
+                <span className="meal-kcal num">{n(mm.kcal)}<small> {t('kcalUnit')}</small></span>
+                <button className="add-fab" onClick={() => setAddMeal(m)} data-testid={`add-${m}`} aria-label={`${t('add')} — ${t(m)}`}><Icon name="plus" /><span>{t('add')}</span></button>
+              </header>
+              <div className="meal-entries" data-testid={`meal-${m}`}>
+                {list.map((e) => (
+                  <div key={e.id} className="entry" onClick={() => setEditing(e)} data-testid="entry">
+                    <FoodThumb food={{ nameEn: e.name, nameAr: e.name }} size={42} />
+                    <div className="grow" style={{ minWidth: 0 }}>
+                      <div className="row" style={{ gap: 6 }}><span className="ellipsis e-name" data-testid="entry-name">{e.name}</span>{e.state !== 'other' && <StateChip state={e.state} />}</div>
+                      <div className="tiny muted num">{n(e.quantity, 2)} {t('unit_' + e.unit)}{e.unit !== 'g' && e.grams ? ` (${n(e.grams)} ${t('g')})` : ''} · <MacroLine m={e.macros} compact /></div>
+                    </div>
+                    <span className="e-kcal num" data-testid="entry-kcal">{n(e.macros.kcal)}</span>
+                  </div>
+                ))}
+                {!list.length && <button className="entry-empty" onClick={() => setAddMeal(m)}>{t('tapToAdd', { meal: t(m) })}</button>}
               </div>
-            ))}
-            {!byMeal(m).length && <div className="tiny muted">{t('noEntries')}</div>}
-          </div>
-        </Card>
-      ))}
-
+              {list.length > 0 && (
+                <div className="meal-foot">
+                  <button className="link-btn" onClick={() => setCopyTarget({ kind: 'meal', meal: m })} aria-label={t('copyMealTo')}><Icon name="copy" /> {t('copyMealTo')}</button>
+                  <button className="link-btn" onClick={() => setSaveMeal(m)} aria-label={t('saveAsMeal')}><Icon name="star" /> {t('saveAsMeal')}</button>
+                </div>
+              )}
+            </section>
+          );
+        })}
+      </div>
       {addMeal && <AddSheet date={date} meal={addMeal} onMeal={setAddMeal} onClose={() => setAddMeal(null)} />}
       {editing && <EditEntrySheet entry={editing} onClose={() => setEditing(null)} />}
       {copyTarget && (
@@ -132,6 +159,40 @@ export default function Diary() {
         <Confirm message={t('confirmCopyIntoNonEmpty', { date: pendingCopy.to, n: pendingCopy.n })} onNo={() => setPendingCopy(null)}
           onYes={async () => { const p = pendingCopy; setPendingCopy(null); await doCopy(p.exec); }} />
       )}
+    </div>
+  );
+}
+
+/** Seven days around the selected date with a small ring each: how much of the target was eaten. */
+function WeekStrip({ date, onPick }: { date: string; onPick: (d: string) => void }) {
+  const { settings, d } = useApp();
+  const start = startOfWeek(date, settings.weekStartsOn);
+  const days = weekDates(start);
+  const kcal = useLiveQuery(async () => {
+    const list = await db.entries.where('date').between(days[0], days[6], true, true).toArray();
+    const m: Record<string, number> = {};
+    for (const e of list) if (!e.deleted) m[e.date] = (m[e.date] ?? 0) + e.macros.kcal;
+    return m;
+  }, [days[0]], {} as Record<string, number>);
+  const target = settings.targets.training.kcal || 1;
+  const now = today();
+  return (
+    <div className="week-strip" role="tablist">
+      {days.map((x) => {
+        const pct = Math.min(1, (kcal[x] ?? 0) / target);
+        const C = 2 * Math.PI * 15;
+        return (
+          <button key={x} role="tab" aria-selected={x === date} className={`ws-day ${x === date ? 'on' : ''} ${x === now ? 'today' : ''}`} onClick={() => onPick(x)}>
+            <span className="ws-wd">{d(x, { weekday: 'narrow' })}</span>
+            <svg viewBox="0 0 36 36" aria-hidden="true">
+              <circle cx="18" cy="18" r="15" fill="none" stroke="var(--dial-track)" strokeWidth="3" />
+              {pct > 0 && <circle cx="18" cy="18" r="15" fill="none" stroke={(kcal[x] ?? 0) > target * 1.05 ? 'var(--warn)' : 'var(--primary)'} strokeWidth="3" strokeLinecap="round"
+                strokeDasharray={`${C * pct} ${C}`} transform="rotate(-90 18 18)" />}
+              <text x="18" y="22.5" textAnchor="middle" className="ws-num">{Number(x.slice(8))}</text>
+            </svg>
+          </button>
+        );
+      })}
     </div>
   );
 }

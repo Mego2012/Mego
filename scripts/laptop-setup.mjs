@@ -7,6 +7,7 @@
  *   node scripts/laptop-setup.mjs --photo meal.jpg   use your own photo for the real AI test
  *   node scripts/laptop-setup.mjs --ai-key-from-clipboard   read the Gemini key you copied (never typed into a chat)
  *   --auto   no keyboard prompts (also automatic when not run in a terminal): waits for Google screens by polling
+ *   --verify  re-run the live account verification (scripts/live-verify.mjs) against the deployed site
  *   --cloud [admin-email]   ALSO set up the public multi-user platform on Firebase's free Spark plan:
  *            project, web app, Firestore (security rules deployed), email sign-in, admin account, public config
  *
@@ -365,6 +366,28 @@ async function setupCloud(adminEmail) {
   else log('   Could not push automatically (' + ((c.stderr || '') + (p.stderr || '')).trim().slice(0, 120) + '). Commit public/firebase-config.json and push it.');
 }
 
+/** After --cloud: wait until the live site serves the new config, then run the real-account verification. */
+async function liveVerify() {
+  step('Live verification of accounts, isolation, sync, logging and reports (real Firebase, disposable test accounts)');
+  const want = state.fbProject;
+  for (let i = 0; i < 60; i++) {
+    const r = await fetch(APP_URL + 'firebase-config.json', { cache: 'no-store' }).catch(() => null);
+    const j = r?.ok ? await r.json().catch(() => null) : null;
+    if (j?.projectId === want) break;
+    if (i === 0) log('   waiting for GitHub Pages to publish the new config (usually 1–3 minutes)…');
+    if (i === 59) { record('live site serves the Firebase config', false, 'not published yet — run again later with --verify'); return; }
+    await new Promise((res) => setTimeout(res, 10000));
+  }
+  let ok = spawnSync('node', ['-e', "require('playwright')"], { cwd: ROOT }).status === 0;
+  if (!ok) {
+    log('   installing the test browser (Playwright, free, local only)…');
+    spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--no-save', 'playwright@1.63.0'], { cwd: ROOT, stdio: 'inherit' });
+    spawnSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['playwright', 'install', 'chromium'], { cwd: ROOT, stdio: 'inherit' });
+  }
+  const v = spawnSync('node', [path.join(ROOT, 'scripts/live-verify.mjs'), APP_URL], { cwd: ROOT, stdio: 'inherit', env: { ...process.env, MEGO_BACKEND_DIR: WORK } });
+  record('live verification with real accounts (see live-verify report)', v.status === 0, v.status === 0 ? '' : 'one or more live checks failed');
+}
+
 /* ------------------------------------------------------------------ main */
 
 try {
@@ -385,6 +408,7 @@ try {
   const info = await liveTests();
   await gemini(info);
   if (args.includes('--cloud') && !FAKE_BACKEND) await setupCloud(args[args.indexOf('--cloud') + 1]?.includes('@') ? args[args.indexOf('--cloud') + 1] : '');
+  if ((args.includes('--cloud') || args.includes('--verify')) && !FAKE_BACKEND && state.fbProject) await liveVerify();
   connectApp();
   const failed = results.filter((r) => !r.pass);
   const report = [`# MEGO live check ${new Date().toISOString()}`, '', `Backend: ${state.url.replace(/\/s\/.{8}/, '/s/…')}`, `Hub: ${state.nativeId || ''}`, '',

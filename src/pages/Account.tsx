@@ -361,11 +361,13 @@ export function Suspended() {
 
 export function LegalPage({ kind }: { kind: 'privacy' | 'terms' }) {
   const { t } = useApp();
-  const keys = kind === 'privacy' ? ['pp_1', 'pp_2', 'pp_3', 'pp_4', 'pp_5', 'pp_6', 'pp_7', 'pp_8'] : ['tos_1', 'tos_2', 'tos_3', 'tos_4', 'tos_5', 'tos_6'];
+  const keys = kind === 'privacy'
+    ? ['pp_0', 'pp_1', 'pp_9', 'pp_2', 'pp_11', 'pp_3', 'pp_10', 'pp_4', 'pp_12', 'pp_5', 'pp_13', 'pp_6', 'pp_7', 'pp_8', 'pp_14']
+    : ['tos_1', 'tos_2', 'tos_3', 'tos_4', 'tos_7', 'tos_8', 'tos_5', 'tos_9', 'tos_10', 'tos_11', 'tos_6'];
   return (
     <div className="legal" data-testid={`legal-${kind}`}>
       <h1>{t(kind)}</h1>
-      <p className="tiny muted">{t('legal_draft')}</p>
+      <p className="tiny muted">{t('legal_version')} · {t('legal_draft')}</p>
       {keys.map((k) => <section key={k}><h3>{t(k + '_h')}</h3><p>{t(k)}</p></section>)}
       <Link to="/" className="btn">{t('previous')}</Link>
     </div>

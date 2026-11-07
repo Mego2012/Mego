@@ -1,5 +1,7 @@
 # MEGO — release status (1.1)
 
+> Superseded by **docs/PRODUCTION-STATUS.md** (verified per-service status).
+
 Three columns are kept strictly apart: **Done & tested here**, **Done, needs your account to go live**, **Not done**.
 "Tested here" means automated tests in this repository's cloud workspace (real code, real browser engine; Google,
 Firebase and Gemini replaced by emulators or scripted stand-ins). Nothing below is claimed as live on a real

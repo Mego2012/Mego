@@ -16,7 +16,8 @@ const { chromium, devices } = pw;
 const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname), '..');
 const SHOTS = path.join(ROOT, 'e2e', 'screens');
 const PROFILE = path.join(ROOT, 'e2e', '.profile');
-const URL_BASE = 'http://localhost:4173/';
+/** E2E_BASE=https://mego2012.github.io/Mego/ runs the same checks against the live deployment (no local server). */
+const URL_BASE = process.env.E2E_BASE || 'http://localhost:4173/';
 const SCRIPT_URL = 'https://script.google.com/macros/s/TEST-DEPLOYMENT/exec';
 const TOKEN = 'e2eToken' + '0123456789abcdef'.repeat(3) + 'abcdefgh';
 mkdirSync(SHOTS, { recursive: true });
@@ -84,8 +85,8 @@ async function mockOFF(route) {
 }
 
 // ---------- server
-const server = spawn(path.join(ROOT, 'node_modules/.bin/vite'), ['preview', '--port', '4173', '--strictPort'], { cwd: ROOT, stdio: 'pipe' });
-await new Promise((resolve, reject) => {
+const server = process.env.E2E_BASE ? { kill() {}, stdout: { on() {} } } : spawn(path.join(ROOT, 'node_modules/.bin/vite'), ['preview', '--port', '4173', '--strictPort'], { cwd: ROOT, stdio: 'pipe' });
+if (!process.env.E2E_BASE) await new Promise((resolve, reject) => {
   const to = setTimeout(() => reject(new Error('preview did not start')), 20000);
   server.stdout.on('data', (d) => { if (String(d).includes('4173')) { clearTimeout(to); resolve(); } });
 });

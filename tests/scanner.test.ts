@@ -163,6 +163,10 @@ describe('AI meal scanner', () => {
     expect(gas.post({ action: 'ping', token: TOKEN }).aiScanner).toBe(true);
     gas.post({ action: 'setAiKey', token: TOKEN, remove: true });
     expect(gas.props.has('GEMINI_API_KEY')).toBe(false);
+    // Google's newer key format (AQ.…) is not rejected locally: it is sent to Google for the real check
+    const before = gas.aiRequests.length;
+    gas.post({ action: 'setAiKey', token: TOKEN, key: 'AQ.Ab8TestOnlyNotARealKey_0123456789abcdefXYZ' });
+    expect(gas.aiRequests.length).toBe(before + 1);
   });
 
   it('free quota: daily → clear message with reset time; per-minute → wait seconds; never retried elsewhere', async () => {

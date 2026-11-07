@@ -798,7 +798,8 @@ function setAiKey_(req) {
   var key = String(req.key || '').trim();
   var props = PropertiesService.getScriptProperties();
   if (req.remove === true) { props.deleteProperty('GEMINI_API_KEY'); return { ok: true, aiScanner: false }; }
-  if (!/^[A-Za-z0-9_\-]{20,200}$/.test(key)) return { ok: false, error: 'AI_KEY_INVALID' };
+  // classic keys (AIza…) and Google's newer auth keys (AQ.…); Google itself validates the key just below
+  if (!/^[A-Za-z0-9_.\-]{20,200}$/.test(key)) return { ok: false, error: 'AI_KEY_INVALID' };
   var res;
   try {
     res = UrlFetchApp.fetch(AI_BASE + aiModel_(), { method: 'get', headers: { 'x-goog-api-key': key }, muteHttpExceptions: true });

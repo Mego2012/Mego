@@ -241,7 +241,8 @@ async function gemini(foodsInfo) {
       if (AUTO) { log('   Then run: node scripts/laptop-setup.mjs --test --ai-key-from-clipboard'); return; }
       key = (await rl.question('   Paste the key here (or press Enter to skip the AI scanner for now): ')).trim();
     }
-    if (!/^AIza[\w-]{30,}$/.test(key)) { log(keyFromClipboard ? '   the clipboard does not contain a Gemini key (starts with AIza) — copy it and run again' : '   skipped'); return; }
+    // classic keys start with "AIza", newer Google auth keys with "AQ."
+    if (!/^(AIza[\w-]{30,}|AQ\.[\w.-]{30,})$/.test(key)) { log(keyFromClipboard ? '   the clipboard does not contain a Gemini key (starts with AIza or AQ.) — copy it and run again' : '   skipped'); return; }
     const r = await call(state.url, { action: 'setAiKey', token: state.token, key });
     record('Gemini key accepted by Google and stored only in Script Properties', r.ok === true, r.error || r.aiModel);
     if (!r.ok) return;

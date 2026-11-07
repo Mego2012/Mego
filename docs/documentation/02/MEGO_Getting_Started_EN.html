@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Getting_Started_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Getting Started</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-09</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>New users</td></tr>
+<tr><td>Related documents</td><td>MEGO_User_Manual, MEGO_Registration_and_Login_Guide, MEGO_Profile_and_Goals_Guide, MEGO_Food_Tracking_Guide, MEGO_Platforms_and_System_Requirements</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>A short, practical start for first-time users: open MEGO, install it on the phone, decide between a guest session and an account, set your first daily targets and log your first food. It takes about ten minutes.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Open MEGO and install it as an app</li>
+<li>Guest or account?</li>
+<li>Set your first targets</li>
+<li>Log your first food</li>
+<li>What to do next</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Open MEGO and install it as an app</h2>
+<p>MEGO is a web app (a "PWA") — there is no app-store download. It runs in the browser and can be added to the home screen so it opens full-screen like a normal app.</p>
+<ol>
+<li>On an Android phone open <b>Chrome</b> and go to <b>https://mego2012.github.io/Mego/</b>.</li>
+<li>Tap the Chrome menu <b>⋮</b> → <b>Add to Home screen</b> (Chrome may call it <b>Install app</b>) → confirm.</li>
+<li>Open MEGO from the new icon. It opens full-screen with the MEGO splash screen and no browser bar.</li>
+</ol>
+<p>Why install? Installed apps are more likely to receive <i>persistent storage</i> from the browser, which protects data saved on the phone. Settings → Data &amp; backups shows "Persistent storage granted" or "Persistent storage not granted by the browser (install the app to improve this)."</p>
+<p>MEGO also works offline: everything you log is saved on the phone and synchronised when the connection returns.</p>
+
+<h2>2. Guest or account?</h2>
+<p>On first opening, the welcome screen offers three buttons: <b>Create account</b>, <b>Sign in</b>, and <b>Continue without an account (this device only)</b>.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th></th><th>Guest (no account)</th><th>Account</th></tr>
+<tr><td>Where data lives</td><td>Only in this browser on this device</td><td>On the device and in the cloud (Google Firebase), private to your account</td></tr>
+<tr><td>Several devices</td><td>No</td><td>Yes — sign in on another device and your diary syncs</td></tr>
+<tr><td>If the phone is lost or browser data is cleared</td><td>Data is lost unless you made a backup file</td><td>Data is restored after signing in again</td></tr>
+<tr><td>Age requirement</td><td>—</td><td>18 or older (confirmed at registration)</td></tr>
+<tr><td>AI meal scanner</td><td>Needs the owner's private backend (owner setup)</td><td>Uses the shared MEGO backend with your sign-in</td></tr>
+</table>
+<p>You can start as a guest and create an account later: Settings → Account → <b>Sign in / Create account</b>. During sign-in or registration MEGO offers to copy the guest diary into the new account (see MEGO_Registration_and_Login_Guide).</p>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/welcome-ar-light.png" width="280" alt="Welcome screen (screenshot available in Arabic only)"></p>
+
+<h2>3. Set your first targets</h2>
+<h3>3.1 With an account</h3>
+<p>Registration step 2 ("About you") asks for sex, age, height, current weight, target weight, activity level and goal. Step 3 ("Your daily targets") shows calculated calories, protein, carbs and fat. You can edit each number before pressing <b>Create my account</b>.</p>
+<h3>3.2 As a guest</h3>
+<ol>
+<li>Open <b>More → Settings</b> and scroll to <b>Profile</b>.</li>
+<li>Choose your <b>Goal</b>, fill in sex, age, height, current/start/target weight and <b>Activity level</b>.</li>
+<li>Under "Recommended for this goal" check the suggested values. Press <b>Save</b>, then <b>Use these targets</b> and confirm — this replaces both the training-day and rest-day targets.</li>
+<li>Optional: in <b>Nutrition targets</b> set different training-day and rest-day values and tick your training weekdays. Press <b>Save</b>.</li>
+</ol>
+<p>How the numbers are calculated is explained in MEGO_Profile_and_Goals_Guide. They are a starting point only — adjust them according to your weekly average weight.</p>
+
+<h2>4. Log your first food</h2>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/add-food-en-light.png" width="300" alt="Add food sheet"></p>
+<ol>
+<li>On the Dashboard tap <b>Add food</b> (or open <b>Diary</b> and tap <b>Add</b> next to a meal).</li>
+<li>Choose the meal at the top (Breakfast, Lunch, Dinner, Snacks).</li>
+<li>Type at least two letters, e.g. "egg" or «بيض». Results come from your own foods and from the built-in food database (USDA).</li>
+<li>Tap a food. Check the raw/cooked chip — "Make sure you weighed it in the same state as this record."</li>
+<li>Enter the <b>Quantity</b> and choose the <b>Unit</b> (for example 2 piece, or 120 g). The preview shows calories and macros.</li>
+<li>Tap <b>Log food</b>. A message "Added: …" appears with <b>Undo</b>.</li>
+</ol>
+<p>The Dashboard dial now shows calories remaining. Add water with the <b>+250 ml</b> quick button.</p>
+
+<h2>5. What to do next</h2>
+<ul>
+<li>Log all meals of the day; past days count as "Fully logged" automatically when they reach 60% of the calorie target (adjustable), or mark them yourself (MEGO_Food_Tracking_Guide).</li>
+<li>Weigh in a few times a week from <b>Progress → Add measurement</b>.</li>
+<li>Try <b>Suggestions</b> on the Dashboard or the <b>Meal Planner</b> (MEGO_Meal_Planning_Guide).</li>
+<li>Guests: download a backup file regularly (Settings → Data &amp; backups → <b>Download backup file</b>).</li>
+</ul>
+
+<h2>6. Verification status</h2>
+<ul>
+<li><b>Verified live</b>: the public address works; account registration, sign-in and food logging work in production (scripts/live-verify.mjs 14/14).</li>
+<li><b>Tested on emulators only</b>: the guest flow and first-food flow (browser suite 44/44 on Pixel 7 / Galaxy viewports).</li>
+<li><b>Not verified</b>: "Add to Home screen" on a real Android device (checklist A1 in docs/ANDROID-TEST.md is still open); installation on iPhone/Safari.</li>
+</ul>
+
+<h2>7. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

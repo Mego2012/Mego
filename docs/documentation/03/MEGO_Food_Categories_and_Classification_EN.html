@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Food_Categories_and_Classification_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Food Categories and Classification</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-22</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Developers, food-database administrators, nutrition reviewers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Food_Database_Documentation, MEGO_Nutritional_Values_and_Units_Reference, MEGO_Food_Rankings_and_Coach_Methodology, MEGO_Food_Search_and_Database_Guide</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>MEGO classifies foods along several independent axes: a free-text <b>category</b>, a weighing <b>state</b> (raw / cooked / other), a <b>photo group</b> used for pictures and placeholders, and — for the 83 foods of the Food Intelligence catalog — <b>nutrient groups</b>, <b>origin</b>, a <b>whole-food</b> flag and <b>diet/allergen tags</b>. This document describes each axis exactly as implemented in <code>src/lib/types.ts</code>, <code>refFoods.ts</code>, <code>sheetImport.ts</code>, <code>foodPhotos.ts</code> and <code>intelCatalog.ts</code>. None of these classifications changes nutrition values.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Categories in the data</li>
+<li>Food state: raw, cooked, other</li>
+<li>Photo groups</li>
+<li>Food Intelligence catalog classification</li>
+<li>Diet and allergen tags</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Categories in the data</h2>
+<h3>1.1 User foods</h3>
+<p><code>Food.category</code> is a free-text string. It is not an enumeration; its value depends on the source:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Source</th><th>Category value</th></tr>
+<tr><td>Owner Hub (sheet)</td><td>Column <code>category</code> of Food_Database, as typed by the owner (Arabic). The full list of Hub category values is not stored in the repository.</td></tr>
+<tr><td>USDA reference food</td><td>The USDA category name (see 1.2), copied when the food is materialized</td></tr>
+<tr><td>AI photo estimate added as food</td><td>«تقدير من صورة» ("estimate from photo")</td></tr>
+<tr><td>Custom / Open Food Facts</td><td>Whatever the user enters (may be empty)</td></tr>
+</table>
+<p>The category is used for: filtering reference search results (<code>RefFilter.category</code>), choosing a placeholder photo group (section 3), and in the energy check <code>explainEnergy</code>, where a category matching <code>/(خضار|فاكهة|veg|fruit)/i</code> marks a food as vegetable/fruit.</p>
+
+<h3>1.2 USDA reference database categories</h3>
+<p><code>public/fooddb/usda.json</code> stores categories once in <code>meta.categories</code> (195 entries); each row stores the index. There are 24 SR Legacy food groups and 171 FNDDS "WWEIA" categories (the two sets do not overlap). The 24 SR Legacy groups:</p>
+<pre>Baked Products · Snacks · Sweets · Vegetables and Vegetable Products ·
+American Indian/Alaska Native Foods · Restaurant Foods · Beverages · Fats and Oils ·
+Sausages and Luncheon Meats · Dairy and Egg Products · Poultry Products · Pork Products ·
+Breakfast Cereals · Legumes and Legume Products · Finfish and Shellfish Products ·
+Fruits and Fruit Juices · Cereal Grains and Pasta · Nut and Seed Products · Beef Products ·
+Meals, Entrees, and Side Dishes · Fast Foods · Spices and Herbs ·
+Soups, Sauces, and Gravies · Lamb, Veal, and Game Products</pre>
+<p>"Quality Control Materials" and "Baby Foods" are excluded by the build script. FNDDS examples: "Milk, whole", "Yogurt, Greek", "Plant-based milk", "Dips, gravies, other sauces", "Baby food: mixtures". Largest categories in the shipped file: Beef Products 954, Vegetables and Vegetable Products 814, Baked Products 517, Lamb, Veal, and Game Products 464, Poultry Products 383, Beverages 366.</p>
+<p><b>Ranking use</b>: reference search gives +1.5 to rows whose category starts with a basic group (<code>Poultry|Beef|Pork|Lamb|Finfish|Dairy and Egg|Fruits|Vegetables|Cereal Grains|Legume|Nut and Seed|Fats and Oils|Breakfast Cereals|Spices|Beverages|Sweets|Baked Products|Snacks</code>) and treats "Fast Foods", "Restaurant Foods" or "Branded" categories as branded (−4 unless the query names a brand).</p>
+
+<h2>2. Food state: raw, cooked, other</h2>
+<p>Type <code>FoodState = 'raw' | 'cooked' | 'other'</code>: raw = weighed raw/dry; cooked = weighed after cooking; other = prepared/processed/powder/not applicable. The engine <b>never converts between raw and cooked weights</b> (<code>toGrams</code>); duplicates are judged by name <i>and</i> state, so "rice, raw" and "rice, cooked" can coexist.</p>
+<h3>2.1 Inference for USDA foods (<code>inferState</code>, refFoods.ts)</h3>
+<ol>
+<li>If the name contains the word raw, dry, unprepared or uncooked → <b>raw</b>.</li>
+<li>Else if it contains cooked, roasted, boiled, grilled, broiled, fried, baked, braised, stewed, steamed, poached, microwaved, scrambled, toasted, sauteed, simmered, pan-browned, pan-fried, smoked or canned → <b>cooked</b>.</li>
+<li>Otherwise → <b>other</b>.</li>
+</ol>
+<p>Result over the shipped 12,879 rows: other 7,253 · cooked 3,590 · raw 2,036. The materialized food gets stateLabel نيء / مطبوخ / محضّر.</p>
+<h3>2.2 Inference for sheet/imported foods (<code>normalizeState</code>, sheetImport.ts)</h3>
+<p>The Hub's <code>state</code> column is used when it is exactly raw/cooked/other; otherwise the label is normalized in this order:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Order</th><th>Label contains</th><th>State</th></tr>
+<tr><td>0</td><td>empty, "—" or "-"</td><td>other</td></tr>
+<tr><td>1</td><td>نيء, نيئ, ني (at end), خام, raw, جاف, dry, uncooked</td><td>raw</td></tr>
+<tr><td>2</td><td>مصنّع, مصنع, محضّر, محضر, مسحوق, processed, prepared, powder</td><td>other</td></tr>
+<tr><td>3</td><td>مطبوخ, مطهي, مقلي, مشوي, مسلوق, cooked, boiled, grilled, fried, baked</td><td>cooked</td></tr>
+<tr><td>4</td><td>anything else</td><td>other</td></tr>
+</table>
+<p>Because "processed" is tested before "cooked", a label like «مطبوخ/مصنّع» becomes <b>other</b>. The original text is kept in <code>stateLabel</code>.</p>
+
+<h2>3. Photo groups</h2>
+<p><code>PhotoGroup = 'protein' | 'dairy' | 'legume' | 'grain' | 'fruit' | 'veg' | 'fat' | 'nut' | 'sweet' | 'drink' | 'other'</code> (<code>src/lib/foodPhotos.ts</code>). A food gets a photo only when the match is unambiguous (74 Wikimedia Commons photos, credits in <code>public/food-img/CREDITS.md</code>):</p>
+<ol>
+<li>By FDC id (from sourceRef "USDA FDC 171477 …" or an id like S171477) against each key's list.</li>
+<li>By English name regex, unless the name looks like a dish/mixture/processed product (e.g. with, sauce, soup, salad, fried, juice, powder, baby food…) or a non-listed oil.</li>
+<li>By Arabic whole-word regex on the normalized name, unless excluded (e.g. مع, صلصه, شوربه, عصير, مقلي…).</li>
+</ol>
+<p>The first matching key wins (specific keys before generic ones). Without a photo, a designed placeholder is shown, its group guessed from category + name by <code>groupFromText</code>, checked in this order:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Group</th><th>Keywords (normalized text)</th></tr>
+<tr><td>protein</td><td>لحم, دجاج, فراخ, سمك, اسماك, بروتين, بيض, meat, poultry, fish, seafood, protein, egg</td></tr>
+<tr><td>dairy</td><td>البان, حليب, جبن, زبادي, dairy, milk, cheese, yogurt</td></tr>
+<tr><td>legume</td><td>بقول, عدس, فول, حمص, legume, bean, lentil</td></tr>
+<tr><td>grain</td><td>نشويات, حبوب, خبز, رز, ارز, مكرونه, grain, cereal, bread, rice, pasta, baked</td></tr>
+<tr><td>fruit</td><td>فواكه, فاكهه, fruit</td></tr>
+<tr><td>veg</td><td>خضار, خضروات, vegetable, veg</td></tr>
+<tr><td>nut</td><td>مكسرات, بذور, nut, seed</td></tr>
+<tr><td>fat</td><td>دهون, زيوت, زيت, fat, oil</td></tr>
+<tr><td>sweet</td><td>حلويات, سكر, sweet, sugar, dessert</td></tr>
+<tr><td>drink</td><td>مشروبات, عصير, drink, beverage</td></tr>
+<tr><td>other</td><td>no match</td></tr>
+</table>
+
+<h2>4. Food Intelligence catalog classification</h2>
+<p><code>INTEL_CATALOG</code> (<code>src/lib/intelCatalog.ts</code>) lists 83 foods; each points to exactly one USDA record (values are read from the shipped database, never typed). Forms are chosen as usually eaten: meats, fish, grains and legumes cooked; fruit, vegetables, nuts and dairy as sold.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Attribute</th><th>Values</th><th>Use</th></tr>
+<tr><td>groups</td><td>'protein' | 'carb' | 'fat' | 'fiber' (a food may be in several, e.g. lentils = protein, carb, fiber)</td><td>Which ranking lists the food appears in</td></tr>
+<tr><td>origin</td><td>'animal' | 'plant'</td><td>Shown only, never used to rank</td></tr>
+<tr><td>whole</td><td>true = minimally processed whole food (grains: whole grain); false e.g. white rice, pasta, oils, butter, canned tuna, protein powders</td><td>Displayed / used by the ranking methodology (see MEGO_Food_Rankings_and_Coach_Methodology)</td></tr>
+</table>
+
+<h2>5. Diet and allergen tags</h2>
+<p><code>DIET_TAGS = ['meat', 'poultry', 'fish', 'shellfish', 'dairy', 'egg', 'nuts', 'peanut', 'soy', 'gluten', 'sesame']</code>. Tags are assigned per catalog id (foods without tags have none):</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Tag</th><th>Catalog foods</th></tr>
+<tr><td>poultry</td><td>chicken breast, turkey breast</td></tr>
+<tr><td>fish</td><td>tuna canned, tuna cooked, cod, tilapia, haddock, salmon, mackerel, sardines</td></tr>
+<tr><td>shellfish</td><td>shrimp</td></tr>
+<tr><td>meat</td><td>ground beef 95%, top sirloin, lamb leg</td></tr>
+<tr><td>egg</td><td>hard-boiled egg, egg white</td></tr>
+<tr><td>dairy</td><td>Greek yogurt nonfat and lowfat, cottage cheese 1%, feta, skim milk, 1% milk, whey protein, butter</td></tr>
+<tr><td>soy</td><td>tofu, tempeh, edamame, soy protein powder</td></tr>
+<tr><td>gluten</td><td>whole-wheat bread, whole-wheat pita, bulgur, pasta, whole-wheat pasta, couscous, barley, oats (oats: "often cross-contaminated with gluten unless certified")</td></tr>
+<tr><td>nuts</td><td>almonds, walnuts, pistachios, cashews</td></tr>
+<tr><td>peanut</td><td>peanut butter</td></tr>
+<tr><td>sesame</td><td>tahini</td></tr>
+</table>
+<p><b>Exclusion logic</b> (<code>excludedTags(diet, exclude)</code>): start with the user's excluded tags (<code>Settings.foodExclusions</code>); vegetarian adds meat, poultry, fish, shellfish; vegan additionally adds dairy and egg. Foods carrying an excluded tag are left out of Coach / Food Intelligence suggestions. These preferences are never used by the nutrition engine. Tags exist only for the 83 catalog foods; other foods are not tagged.</p>
+
+<h2>6. Verification status</h2>
+<ul>
+<li>Verified in repository: all rules, lists and counts above (from code and the shipped usda.json).</li>
+<li>Not verified: the actual category values in the owner's live Hub (not stored in the repository). Allergen tags are a convenience filter, not a medical allergen guarantee; completeness of tagging for real products is not verified.</li>
+</ul>
+
+<h2>7. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

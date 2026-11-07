@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MEGO_Technical_Architecture_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Technical Architecture</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-31</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Developers, maintainers, technical reviewers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Frontend_Architecture, MEGO_Backend_Architecture, MEGO_Firebase_Integration, MEGO_Google_Sheets_Integration_and_Sync, MEGO_Gemini_AI_Integration, MEGO_Database_Schema_and_Relationships, MEGO_Security_Architecture, MEGO_Production_Deployment_Guide</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes the overall system architecture of MEGO: which components exist, where they run, how they talk to each other, and how data flows in the two operating modes (guest/owner device and signed-in account). It is the entry point for developers; each component is described in more detail in the related documents. Everything here was checked against the code on branch <code>claude/nutrition-tracking-app-989rku</code> (mainly <code>src/main.tsx</code>, <code>src/lib/account.ts</code>, <code>src/lib/firebase.ts</code>, <code>src/lib/cloudSync.ts</code>, <code>src/lib/sync.ts</code>, <code>src/lib/db.ts</code>, <code>apps-script/Code.gs</code>, <code>vite.config.ts</code> and <code>.github/workflows/deploy.yml</code>).</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>System overview</li>
+<li>System context diagram</li>
+<li>Components</li>
+<li>Operating modes and boot sequence</li>
+<li>Data flows</li>
+<li>Offline operation and the service worker</li>
+<li>Free-tier limits and constraints</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. System overview</h2>
+<p>MEGO is a Progressive Web App (PWA) built with Vite, React 18 and TypeScript. It is a static site published on GitHub Pages (<code>https://mego2012.github.io/Mego/</code>). There is <b>no custom application server</b>: every piece of server-side logic runs on managed Google services:</p>
+<ul>
+<li><b>Local-first storage</b> — all user data is first written to IndexedDB on the device (Dexie, <code>src/lib/db.ts</code>). The app works fully without a network connection.</li>
+<li><b>Firebase (Spark plan)</b> — Authentication (e-mail/password) and Cloud Firestore for signed-in accounts. Access control is enforced by <code>firebase/firestore.rules</code> on Google's servers.</li>
+<li><b>Google Apps Script web app</b> (<code>apps-script/Code.gs</code>) — the owner's private backend: two-way sync with the Google Sheet "MEGO Nutrition Hub", Drive backups, and the proxy to the Gemini API for the AI meal scanner (for both the owner and signed-in public accounts).</li>
+<li><b>Static reference data</b> — USDA FoodData Central database shipped with the app (<code>public/fooddb/usda.json</code>, plus <code>usda-extra.json</code>).</li>
+<li><b>Open Food Facts</b> — public API called directly from the browser for barcode lookup and packaged-product text search (<code>src/lib/barcode.ts</code>).</li>
+</ul>
+
+<h2>2. System context diagram</h2>
+<pre>
+                         +--------------------------------------------+
+                         |  User's phone / browser                    |
+                         |  MEGO PWA (React + TS, HashRouter)         |
+                         |  +-------------------+  +----------------+ |
+                         |  | IndexedDB (Dexie) |  | Service worker | |
+                         |  | mego-nutrition    |  | (Workbox)      | |
+                         |  | mego-u-&lt;uid&gt;      |  | precache+cache | |
+                         |  +-------------------+  +----------------+ |
+                         +----+---------+-----------+--------+--------+
+          static files (HTTPS)|         |           |        | HTTPS (direct)
+   +--------------------------+         |           |        +----------------------+
+   v                                    |           |                               v
++---------------------+   Firebase SDK  |           | POST text/plain        +-----------------+
+| GitHub Pages        |   (account mode)|           | (token or ID token)    | Open Food Facts |
+| index.html, JS/CSS, |                 v           v                        | public API      |
+| fooddb/usda.json,   |   +------------------+   +---------------------------+-----------------+
+| firebase-config.json|   | Firebase (Spark) |   | Google Apps Script web app (Code.gs)    |
++---------------------+   | - Authentication |   | runs as the owner                       |
+                          | - Cloud Firestore|&lt;--| - verifies Firebase ID tokens (Identity  |
+                          |   (me-central2)  |   |   Toolkit), reads profiles with the     |
+                          +------------------+   |   user's own token                      |
+                                                 | - Hub sync  ---&gt; Google Sheet "MEGO     |
+                                                 |               Nutrition Hub" (Drive)    |
+                                                 | - Drive backups (JSON, Hub copies)      |
+                                                 | - Gemini proxy ---&gt; Gemini API (free)   |
+                                                 +-----------------------------------------+
+</pre>
+
+<h2>3. Components</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Component</th><th>Technology / location</th><th>Responsibility</th></tr>
+<tr><td>PWA client</td><td>Vite 5, React 18.3, TypeScript 5.6, react-router-dom 6 (HashRouter); <code>src/</code></td><td>All UI, nutrition calculations, reports, search, local storage, sync clients</td></tr>
+<tr><td>Local database</td><td>Dexie 4 over IndexedDB; <code>src/lib/db.ts</code></td><td>Tables foods, foodChanges, entries, recipes, templates, plans, plannedDays, body, days, settings, outbox, kv, fasts, photos, backups (schema version 2)</td></tr>
+<tr><td>Service worker</td><td>vite-plugin-pwa 0.21 (Workbox); <code>vite.config.ts</code></td><td>Precache of the app shell and <code>fooddb/usda.json</code>; runtime caching of photos, fonts and the extra food DB</td></tr>
+<tr><td>Hosting</td><td>GitHub Pages; <code>.github/workflows/deploy.yml</code></td><td>Builds on push to <code>main</code> or the release branch (runs <code>npm test</code>, then <code>npm run build</code> with <code>BASE_PATH=/&lt;repo&gt;/</code>) and publishes <code>dist</code></td></tr>
+<tr><td>Accounts &amp; cloud data</td><td>Firebase JS SDK 13.1; <code>src/lib/firebase.ts</code>, <code>account.ts</code>, <code>cloudSync.ts</code></td><td>Registration, sign-in, profiles, per-user records, shared foods, admin aggregates</td></tr>
+<tr><td>Security rules</td><td><code>firebase/firestore.rules</code></td><td>Owner-only access to <code>users/{uid}/**</code>, active-status checks, no-older-overwrite rule, admin limits</td></tr>
+<tr><td>Owner backend</td><td>Google Apps Script V8, web app (execute as deploying user, anonymous access + secret token); <code>apps-script/Code.gs</code>, <code>appsscript.json</code></td><td>Hub sync (ping, foods, push, pull, saveFoods, backup, meta), installation/bootstrap, Gemini proxy (analyzeMeal, setAiKey, aiStats), setCloudConfig</td></tr>
+<tr><td>Google Sheet Hub</td><td>"MEGO Nutrition Hub" (native Google Sheet converted from the original Excel file)</td><td>Owner's single source of truth for the food table and readable copies of the owner's records</td></tr>
+<tr><td>AI model</td><td>Gemini API free tier, default model <code>gemini-3.8-flash</code> (allowed: gemini-3.8-flash, gemini-3.6-flash, gemini-3.5-flash-lite)</td><td>Identifies foods and estimates grams in a meal photo; nutrition values are computed by the app from its database</td></tr>
+<tr><td>Reference food data</td><td>USDA FoodData Central (SR Legacy + FNDDS) built by <code>scripts/build-food-db.mjs</code></td><td>Static, offline-capable reference search</td></tr>
+<tr><td>Packaged products</td><td>Open Food Facts API (<code>world.openfoodfacts.org</code>)</td><td>Barcode lookup and text search, labelled as external data</td></tr>
+</table>
+
+<h2>4. Operating modes and boot sequence</h2>
+<h3>4.1 Modes</h3>
+<p><code>src/lib/account.ts</code> defines three modes in <code>AccountState.mode</code>:</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Mode</th><th>When</th><th>Local database</th><th>Remote sync</th></tr>
+<tr><td><code>guest</code></td><td><code>firebase-config.json</code> is missing/invalid, or the user chose "continue as guest" (localStorage <code>mego.guest</code>)</td><td><code>mego-nutrition</code></td><td>Optional Google Sheet Hub sync via Apps Script (owner devices)</td></tr>
+<tr><td><code>welcome</code></td><td>Cloud is configured, no active account and guest mode not chosen</td><td>—</td><td>None; the public landing (welcome, login, registration) is shown</td></tr>
+<tr><td><code>account</code></td><td>localStorage <code>mego.activeUid</code> is set</td><td><code>mego-u-&lt;uid&gt;</code> (one database per account on the device)</td><td>Firestore sync (<code>cloudSync.ts</code>)</td></tr>
+</table>
+
+<h3>4.2 Boot sequence (<code>src/main.tsx</code>)</h3>
+<pre>
+boot()
+ 1. preMigrationBackup()        copy old IndexedDB stores to "mego-nutrition-premigration" if a schema upgrade is due
+ 2. bootAccount()               fetch BASE_URL + "firebase-config.json" (no-cache)
+       no config  -&gt; mode guest (cloud=false)
+       config     -&gt; initCloud(); if mego.activeUid -&gt; select "mego-u-&lt;uid&gt;", optional guest-data import,
+                     apply pending registration setup -&gt; mode account
+                     else -&gt; mode guest (if chosen) or welcome
+ 3. getSettings()               creates the default settings record on first run
+ 4. requestPersistentStorage()  navigator.storage.persist()
+ 5. render &lt;App/&gt;
+ 6. refreshPending()            outbox counter for the sync badge
+ 7. account mode -&gt; watchSession(): confirm Firebase user, load profile/admin flag, then
+                    dynamic import cloudSync.startCloudSync(uid)
+    otherwise    -&gt; startAutoSync() (Hub sync, only acts if a connection is configured)
+ 8. startReminders(); autoDailyBackup(); registerSW({ immediate: true })
+</pre>
+<p>Switching account (<code>enterAccount</code>, <code>leaveAccount</code>, <code>chooseGuest</code>) writes localStorage and reloads the page, so the correct database is selected before anything renders. If the Firebase session ends or belongs to another user, <code>watchSession</code> clears <code>mego.activeUid</code> and reloads.</p>
+
+<h2>5. Data flows</h2>
+<h3>5.1 Local write path (both modes)</h3>
+<p>Every repository write in <code>src/lib/repo.ts</code> stores the record in its Dexie table and adds an item <code>{table, key, op: 'upsert'|'delete', payload, at}</code> to the <code>outbox</code> table, then notifies <code>onLocalChange</code> listeners. The sync engine of the current mode drains the outbox.</p>
+
+<h3>5.2 Guest / owner device — Google Sheet Hub</h3>
+<pre>
+UI -&gt; repo.ts -&gt; Dexie table + outbox
+                     |
+          startAutoSync(): debounce 2.5 s after a change, 0.5 s on "online"/visible, every 60 s
+                     v
+pushNow(): assertHub(ping) -&gt; batches of 300 outbox items -&gt; coalesce -&gt;
+           POST {action:"push", changes, clientSchema, token}  --&gt;  Code.gs push_()
+                                                                   - validates, timestamp check
+                                                                   - writes structured tabs
+                                                                   - soft delete -&gt; Deleted_Records
+           &lt;-- {applied, conflicts[], dataVersion}
+           conflicts &gt; 0 -&gt; pullAll() (newer sheet copies win)
+</pre>
+<p>Food values are owned by the Hub's <code>Food_Database</code> tab; foods are imported with <code>pullFoodsFromSheet()</code>. Details: MEGO_Google_Sheets_Integration_and_Sync.</p>
+
+<h3>5.3 Signed-in account — Firestore</h3>
+<pre>
+UI -&gt; repo.ts -&gt; Dexie (mego-u-&lt;uid&gt;) + outbox
+                     |
+     startCloudSync(): debounce 1.5 s after a change, 0.3 s on "online"
+                     v
+pushCloud(): coalesce -&gt; setDoc users/{uid}/{table}/{key} = {data: JSON string, updatedAt, deleted?}
+             permission-denied -&gt; counted as conflict (server holds a newer copy, or account suspended)
+
+Firestore --onSnapshot(updatedAt &gt; last seen)--&gt; applyRemote(): newer remote copy replaces local
+Firestore /foods --onSnapshot--&gt; importParsedFoods(..., "sheet")  (shared verified foods)
+</pre>
+<p>Details: MEGO_Firebase_Integration.</p>
+
+<h3>5.4 AI meal scanner</h3>
+<p><code>src/lib/mealScanner.ts</code> chooses the route by mode: in account mode it POSTs <code>{action: "analyzeMeal", idToken, image, foods, lang, note}</code> to <code>aiBackendUrl</code> from <code>firebase-config.json</code>; on guest/owner devices it uses the configured Hub backend with the app token. Both reach the same Apps Script function <code>analyzeMeal_()</code>, which calls Gemini with the key stored only in Script Properties. The scanner never saves automatically. Details: MEGO_Gemini_AI_Integration and MEGO_Backend_Architecture.</p>
+
+<h3>5.5 Reference and external food data</h3>
+<ul>
+<li><code>fooddb/usda.json</code> is fetched by <code>src/lib/refFoods.ts</code> and precached by the service worker; <code>fooddb/usda-extra.json</code> is fetched by <code>src/lib/foodIntel.ts</code> and cached at runtime.</li>
+<li>Open Food Facts is called directly from the browser: product endpoint <code>/api/v2/product/{code}.json</code> and search endpoint <code>/cgi/search.pl</code>. These calls need a network connection.</li>
+</ul>
+
+<h2>6. Offline operation and the service worker</h2>
+<p>The service worker is generated by <code>vite-plugin-pwa</code> with <code>registerType: 'autoUpdate'</code> and registered in <code>main.tsx</code> with <code>registerSW({ immediate: true })</code>. Configuration from <code>vite.config.ts</code>:</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Rule</th><th>Setting</th></tr>
+<tr><td>Precache</td><td><code>**/*.{js,css,html,svg,png,woff2}</code> and <code>fooddb/usda.json</code>; maximum file size 3 MB</td></tr>
+<tr><td>Navigation fallback</td><td><code>index.html</code>; denylist <code>/^\/macros\//</code> (Apps Script paths are never served from cache)</td></tr>
+<tr><td><code>fooddb/usda-extra.json</code></td><td>StaleWhileRevalidate, cache <code>mego-fooddb-extra</code></td></tr>
+<tr><td><code>food-img/*.webp</code></td><td>CacheFirst, cache <code>mego-food-img</code>, max 200 entries, 1 year</td></tr>
+<tr><td><code>food-img/manifest.json</code></td><td>StaleWhileRevalidate, cache <code>mego-food-img-manifest</code></td></tr>
+<tr><td>Google Fonts CSS / files</td><td>StaleWhileRevalidate (<code>google-fonts-css</code>) / CacheFirst (<code>google-fonts</code>, 20 entries, 1 year)</td></tr>
+</table>
+<p>Offline behaviour: all reads and writes go to IndexedDB; outbox items wait until the browser reports <code>online</code>. Both sync engines set the status <code>offline</code> when <code>navigator.onLine</code> is false. The Hub engine retries failures with exponential backoff (5 s, 10 s, 20 s … capped at 5 minutes) except for permanent errors (<code>unauthorized</code>, <code>WRONG_SPREADSHEET</code>, <code>HUB_IS_XLSX</code>). Firestore listeners resume automatically when the connection returns. Barcode lookup, Open Food Facts search and the AI scanner require a network.</p>
+
+<h2>7. Free-tier limits and constraints</h2>
+<ul>
+<li>No billing account is used. Firebase Spark and the Gemini free tier stop serving when their daily quotas are reached; the app shows an error and does not fall back to a paid service.</li>
+<li>Apps Script runs every request as the owner and serialises Hub writes with <code>LockService</code> (wait up to 25 s).</li>
+<li>AI limits in <code>Code.gs</code>: global daily cap <code>AI_DAILY_LIMIT</code> (default 40 when the property is unset), per-user cap for public accounts <code>AI_USER_DAILY_LIMIT</code> (default 10). <code>setCloudConfig</code> can set them within 1–1500 and 1–50.</li>
+<li>Firestore records are limited by the rules to a <code>data</code> string under 300,000 characters; Hub push requests to 500 changes and 45,000 characters per payload.</li>
+<li>Google Sheets was rejected as the multi-user database (no row-level security; every request runs as the owner) — it remains the owner's personal Hub (<code>docs/ARCHITECTURE.md</code>).</li>
+</ul>
+
+<h2>8. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>PWA live on GitHub Pages; deploy workflow green</td><td>Verified live (browser suite 44/44, touch suite 103/103 against the live URL)</td></tr>
+<tr><td>Firebase Auth + Firestore (project mego-473920, me-central2), rules deployed</td><td>Verified live (<code>scripts/live-verify.mjs</code> 14/14)</td></tr>
+<tr><td>Apps Script backend and Hub sync (token, Hub identity, push/pull, conflict rule, soft delete)</td><td>Verified live (laptop-setup live tests)</td></tr>
+<tr><td>Gemini scanner</td><td>Verified live once (one real photo analysed); free tier can return AI_BUSY or quota errors</td></tr>
+<tr><td>Multi-user isolation, two devices, admin functions</td><td>Tested on Firebase emulators (rules 14, multi-user 8); production checks in live-verify</td></tr>
+<tr><td>Offline behaviour on a real Android device</td><td>Not verified — only emulated devices were used</td></tr>
+</table>
+
+<h2>9. Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

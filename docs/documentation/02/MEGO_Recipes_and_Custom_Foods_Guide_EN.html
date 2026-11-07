@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Recipes_and_Custom_Foods_Guide_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Recipes and Custom Foods Guide</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-15</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>End users</td></tr>
+<tr><td>Related documents</td><td>MEGO_Food_Search_and_Database_Guide, MEGO_Meal_Planning_Guide, MEGO_Food_Tracking_Guide, MEGO_Backup_and_Export_Guide, MEGO_Food_Database_Administration</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This guide covers the <b>Recipes</b> screen (<code>#/recipes</code>) — the built-in recipe library of 101 recipes, Suggestions, "What can I cook?", My recipes and Saved meals — and the management of your own (custom) foods: editing, duplicating, change history, deleting/restoring, exporting and importing personal foods, and suggesting a food for the shared database.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>The Recipes screen</li>
+<li>Recipe library (101 recipes)</li>
+<li>Suggestions</li>
+<li>What can I cook?</li>
+<li>My recipes and servings</li>
+<li>Saved meals</li>
+<li>Custom foods: edit, duplicate, history, delete</li>
+<li>Export / import personal foods</li>
+<li>Suggest a food for the shared database</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. The Recipes screen</h2>
+<p>Open <b>Recipes</b> from the navigation. A segmented control at the top has five tabs:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Tab</th><th>Purpose</th></tr>
+<tr><td>Recipe library</td><td>101 built-in recipes, searchable and filterable</td></tr>
+<tr><td>Suggestions</td><td>recipes that fit what is left of today's targets</td></tr>
+<tr><td>What can I cook?</td><td>recipes from the ingredients you have at home</td></tr>
+<tr><td>My recipes</td><td>your own editable recipes</td></tr>
+<tr><td>Saved meals</td><td>groups of foods you log together</td></tr>
+</table>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/recipes-en-light.png" width="300" alt="Recipe library"></p>
+
+<h2>2. Recipe library (101 recipes)</h2>
+<h3>2.1 How nutrition is calculated</h3>
+<p>Library recipes contain no stored nutrition numbers. Each ingredient refers to a food of <b>your own food database</b> by its exact Arabic name, with a gram weight in the state of that food (e.g. raw rice = dry weight). MEGO calculates totals and per-serving values at runtime ("Calculated from your food database").</p>
+<ul>
+<li>If an ingredient is not in your database: "Missing from your food database: … — nutrition can't be calculated." The ingredient names match the 160-food MEGO Nutrition Hub list; users who have not imported those foods will see missing ingredients for many recipes.</li>
+<li>Seasonings not in the database are listed as "Not counted (seasonings not in your database): … ≈ … kcal/serving".</li>
+<li>If an ingredient is marked estimated/unverified, the recipe shows the <b>Estimate</b> badge.</li>
+<li>The tags High protein (≥ 25 g protein and ≥ 30% of calories from protein per serving), Low calorie (≤ 400 kcal per serving) and Low carb (≤ 20 g carbs per serving) are computed from these values, not hand-labelled.</li>
+</ul>
+<h3>2.2 Browse and filter</h3>
+<ol>
+<li>Type in the search box (recipe name or ingredient).</li>
+<li>Tap a filter chip: All, Favorites, High protein, Low calorie, Low carb, Chicken, Eggs, Rice, Fish &amp; seafood, Meat, Sandwiches &amp; wraps, Quick (≤ 20 min), Meal prep, High fiber (by ingredients), Vegetarian, Breakfast.</li>
+<li>Optionally choose a meal: All / Breakfast / Lunch / Dinner / Snacks. The counter shows "shown / 101".</li>
+</ol>
+<h3>2.3 Recipe details</h3>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/recipe-en-light.png" width="300" alt="Recipe details"></p>
+<p>Tap a recipe to see Prep / Cook time (min), Difficulty (Easy / Medium), servings, cooking methods (Air fryer, Oven, Pan, Pot, Grill, No cooking, Blender), calories and macros per serving and total, fiber, Ingredients with grams, Steps, and Tips &amp; alternatives. You can give <b>Your rating</b> (1–5) and mark it as <b>Favorite</b>. Actions:</p>
+<ul>
+<li><b>Add to diary</b> — choose date, meal and number of servings ("Servings"), then confirm. An <b>Undo</b> appears in the toast.</li>
+<li><b>Add to plan</b> — adds the recipe to a day of the meal planner (see MEGO_Meal_Planning_Guide).</li>
+<li><b>Save to my recipes (editable)</b> — creates your own copy in My recipes, built from your food records (only once per library recipe; reused afterwards).</li>
+</ul>
+
+<h2>3. Suggestions</h2>
+<p>The Suggestions tab shows "Remaining now: … kcal · P … g · C … g · F … g" for today and lists recipes that fit. A recipe is suggested only if it fits the remaining calories <i>and</i> contributes meaningfully to remaining protein. Serving size is scaled (0.5–2×, shown as "× n serving"), with reasons such as "covers protein", "fits calories", "within carbs", "within fat", "quick". Filters: meal, Max kcal, Min protein, Max carbs, Max fat, Max time (min), Only with these ingredients. If you have reached your target: "You have reached today's calorie target." If nothing fits: "No recipe fits the remaining budget with these filters."</p>
+
+<h2>4. What can I cook?</h2>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/cook-en-light.png" width="300" alt="What can I cook"></p>
+<ol>
+<li>Open <b>What can I cook?</b> — "Tick what you have in the fridge and pantry. Oil and butter are assumed."</li>
+<li>Tick ingredients (search box and "Show all" help with long lists). The counter shows "n selected".</li>
+<li>Optional filters: meal, Cooking method, Max time (min).</li>
+<li>MEGO lists recipes where you have at least 50% of the main ingredients (practical substitutes count), best matches first, with a serving size that fits today's remaining calories and a "Missing" list.</li>
+</ol>
+<p>Only recipes that can be fully calculated from your database are considered.</p>
+
+<h2>5. My recipes and servings</h2>
+<ol>
+<li>Tab <b>My recipes</b> → <b>+ New recipe</b>.</li>
+<li>Enter <b>Recipe name</b> and <b>Servings</b> (how many portions the whole pot makes).</li>
+<li><b>+ Add ingredient</b>: search a food (same search as the Add food sheet), enter quantity and unit, tap <b>Add</b>. Each ingredient shows quantity, grams, raw/cooked chip and calories.</li>
+<li>The card shows <b>Total</b> (whole recipe, with total weight) and <b>Per serving</b> = Total ÷ Servings.</li>
+<li>Add Notes and tap <b>Save</b>.</li>
+</ol>
+<p>Each recipe card offers <b>Edit</b>, <b>Duplicate</b> (creates a copy — "Duplicated") and <b>Add to diary</b> (date, meal, number of servings). Library-based recipes carry a "Recipe library" tag. Delete is available inside the editor.</p>
+<p><b>Example:</b> ingredients totalling 1,600 kcal with Servings = 4 → 400 kcal per serving; logging 1.5 servings records 600 kcal.</p>
+
+<h2>6. Saved meals</h2>
+<p>Tab <b>Saved meals</b> → <b>+ New saved meal</b>: give a name, add foods per meal, save. On the card, <b>Log</b> adds all items to today (with Undo). Saved meals are also available in the Add food sheet tab "Saved meals". You can also create one from the diary with "Save as saved meal".</p>
+
+<h2>7. Custom foods: edit, duplicate, history, delete</h2>
+<p>Open <b>Foods</b>, tap a food to open <b>Edit food</b>:</p>
+<ul>
+<li><b>Edit</b> tab — change names, category, raw/cooked state, values (per 100 g / per 100 ml / per serving), optional nutrients, piece weight, density, custom serving sizes, barcode, brand, notes; <b>Save</b>.</li>
+<li><b>Change history</b> tab ("Change history (n)") — every change with action, date/time and before → after values (kcal/protein/carbs/fat), plus the current Version.</li>
+<li><b>Duplicate</b> — creates a copy named "… (2)" as your own food (useful for a cooked variant of a raw food).</li>
+<li><b>Delete (archive)</b> — "Delete "…"? Past diary entries keep their saved values. You can restore it later." Deleted foods are shown with <i>Show deleted</i> in the filters and can be brought back with <b>Restore</b>.</li>
+</ul>
+<p>Diary entries store a snapshot of the values at logging time, so editing a food never changes past days.</p>
+
+<h2>8. Export / import personal foods</h2>
+<p>Foods → card <b>Import / export</b>:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Button</th><th>What it does</th></tr>
+<tr><td>Export my foods (JSON)</td><td>downloads <code>mego-my-foods.json</code> with all your non-deleted foods except foods that came from the Google Sheet Hub (custom, label, Open Food Facts and used USDA foods)</td></tr>
+<tr><td>Import my foods (JSON)</td><td>reads such a file; invalid rows are rejected, foods with the same name and state as an existing food are skipped; toast "Imported n food(s)"</td></tr>
+<tr><td>Import CSV / Excel</td><td>imports a food table with an Import preview (counts by state and data issues) — a local backup is taken first; nothing is deleted</td></tr>
+<tr><td>Export CSV / Export Excel</td><td>exports all active foods as a table</td></tr>
+</table>
+
+<h2>9. Suggest a food for the shared database</h2>
+<p>Only when you are signed in with an account: in <b>Edit food</b> for one of your own foods (not a Hub food) the button <b>Suggest for the shared database</b> appears. Tapping it sends the food's names, category, values per 100 g, state, piece weight, notes and source to the review queue; the button changes to "Sent for review". An administrator checks the values against the label or a reliable source before approving; approved foods become visible to every user (see MEGO_Food_Database_Administration).</p>
+
+<h2>10. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Labels, tabs, calculation rules, 101 recipes</td><td>Verified in source (src/pages/Recipes.tsx, RecipeLibrary.tsx, Foods.tsx, src/lib/recipeEngine.ts, recipeLibraryData*.ts, customFoods.ts); unit test checks ≥ 100 unique recipes</td></tr>
+<tr><td>Library, what-can-I-cook, recipe duplicate, food history, per-serving entry</td><td>Covered by browser e2e (44/44) — emulated devices</td></tr>
+<tr><td>Suggest for the shared database</td><td>Tested in the multi-user suite on emulators (8/8); admin approval in production not yet exercised (no admin account exists yet)</td></tr>
+<tr><td>Export/import personal foods JSON on a real phone</td><td>Not verified on a real device</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Food_Database_Documentation_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Food Database Documentation</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-21</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Developers, food-database administrators, technical reviewers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Food_Categories_and_Classification, MEGO_Nutritional_Values_and_Units_Reference, MEGO_Food_Database_Import_and_Update_Procedures, MEGO_Food_Data_Validation_and_Quality_Control, MEGO_Food_Search_and_Database_Guide, MEGO_Google_Sheets_Integration_and_Sync, MEGO_Gemini_AI_Integration</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes every source of food data in MEGO, the exact data structures used to store foods, and how a food from a read-only reference source becomes part of a user's own food list. All structures are copied from the code (<code>src/lib/types.ts</code>, <code>src/lib/refFoods.ts</code>, <code>src/lib/barcode.ts</code>, <code>src/lib/mealScanner.ts</code>, <code>scripts/build-food-db.mjs</code>, <code>apps-script/Code.gs</code>).</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Overview of food sources</li>
+<li>The user foods table (Food record)</li>
+<li>Owner's Google Sheets Hub (160 foods)</li>
+<li>USDA FoodData Central reference database (usda.json)</li>
+<li>Extra nutrients file (usda-extra.json)</li>
+<li>Open Food Facts (barcode and text search)</li>
+<li>Custom foods and AI estimates</li>
+<li>Materializing a reference food into user foods</li>
+<li>source and sourceRef</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Overview of food sources</h2>
+<pre>
+ +-------------------+   +-----------------------+   +-------------------+
+ | Owner Hub (Sheet) |   | USDA reference DB     |   | Open Food Facts   |
+ | 160 foods         |   | public/fooddb/usda.json|  | (internet, no key)|
+ +---------+---------+   +-----------+-----------+   +---------+---------+
+           | pull (sync)             | copy once when used     | user saves product
+           v                         v                         v
+ +------------------------------------------------------------------------+
+ |  User foods table  (Dexie/IndexedDB table "foods", type Food)          |
+ |  source: 'sheet' | 'usda' | 'openfoodfacts' | 'custom'                 |
+ +------------------------------------------------------------------------+
+           ^                                   ^
+           | user creates / imports JSON       | AI scanner "add as new food"
+       custom foods                         (labelled as unverified estimate)
+</pre>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Source</th><th>Where</th><th>Read-only?</th><th>Value of <code>source</code></th></tr>
+<tr><td>Owner Hub "MEGO Nutrition Hub", tab Food_Database</td><td>Google Sheet via Apps Script (<code>src/lib/sync.ts</code>, <code>sheetImport.ts</code>)</td><td>Values owned by the Sheet</td><td><code>sheet</code></td></tr>
+<tr><td>USDA FoodData Central (SR Legacy + FNDDS)</td><td><code>public/fooddb/usda.json</code>, shipped with the app, cached offline</td><td>Yes (copied on use)</td><td><code>usda</code></td></tr>
+<tr><td>Open Food Facts</td><td>Public API, barcode + text search (<code>src/lib/barcode.ts</code>)</td><td>External community data</td><td><code>openfoodfacts</code></td></tr>
+<tr><td>Custom foods</td><td>Created in the food editor or imported (<code>customFoods.ts</code>)</td><td>No</td><td><code>custom</code></td></tr>
+<tr><td>AI photo estimates</td><td>Meal scanner, only for items not in the database</td><td>No — flagged as estimate</td><td><code>custom</code> (default), category «تقدير من صورة»</td></tr>
+</table>
+
+<h2>2. The user foods table (Food record)</h2>
+<p>Every food the user can log lives in the local table <code>foods</code> (guest database <code>mego-nutrition</code> or per-account database <code>mego-u-&lt;uid&gt;</code>). The interface from <code>src/lib/types.ts</code>:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Type</th><th>Meaning</th></tr>
+<tr><td>id</td><td>string</td><td>Unique id (crypto.randomUUID)</td></tr>
+<tr><td>nameAr / nameEn</td><td>string</td><td>Arabic and English names (at least one required)</td></tr>
+<tr><td>category</td><td>string</td><td>Free-text category</td></tr>
+<tr><td>per100</td><td>Macros</td><td>Nutrients per 100 g (kcal, protein, carbs, fat, optional fiber, sugar, sodium mg, satFat)</td></tr>
+<tr><td>state</td><td>'raw' | 'cooked' | 'other'</td><td>Weighing state</td></tr>
+<tr><td>stateLabel</td><td>string</td><td>Original state label (e.g. «مطبوخ/مصنّع»)</td></tr>
+<tr><td>prep, notes</td><td>string</td><td>Preparation method; notes (source notes, warnings)</td></tr>
+<tr><td>pieceGrams?</td><td>number</td><td>Weight of one piece / slice</td></tr>
+<tr><td>gramsPerMl?</td><td>number</td><td>Density; when absent 1 ml = 1 g</td></tr>
+<tr><td>servings</td><td>CustomServing[] {id, name, grams}</td><td>Named servings</td></tr>
+<tr><td>favorite</td><td>boolean</td><td>Favorite flag</td></tr>
+<tr><td>source</td><td>'sheet' | 'custom' | 'openfoodfacts' | 'usda'</td><td>Origin</td></tr>
+<tr><td>sourceRef?</td><td>string</td><td>Where values come from, shown to the user</td></tr>
+<tr><td>barcode?, brand?</td><td>string</td><td>Packaged products</td></tr>
+<tr><td>sheetKey?, sheetRow?</td><td>string, number</td><td>Hub record key and row used for sync</td></tr>
+<tr><td>incomplete</td><td>boolean</td><td>True when kcal, protein, carbs and fat are all 0 (<code>isIncompleteMacros</code>)</td></tr>
+<tr><td>archived</td><td>boolean</td><td>Soft-hidden</td></tr>
+<tr><td>version, createdAt, updatedAt</td><td>number</td><td>Record versioning (ms timestamps)</td></tr>
+<tr><td>lastUsedAt?, useCount</td><td>number</td><td>Usage statistics for recents/sorting</td></tr>
+</table>
+<p><b>Creation rules</b> (<code>createFood</code> in <code>src/lib/repo.ts</code>): values must pass <code>validateMacros</code>; a name is required; unless <code>allowDuplicate</code> is set, a food with the same normalized Arabic or English name <i>and</i> the same state is rejected as <code>DUPLICATE:&lt;id&gt;</code>; default <code>source</code> is <code>custom</code>; every creation is written to the change log (<code>foodChanges</code>) and the sync outbox.</p>
+<p><b>Diary snapshots:</b> when a food is logged, its basis (per100, pieceGrams, gramsPerMl, servings) is copied into the diary entry (<code>EntryBasis</code>). Later edits to the food never change past entries.</p>
+
+<h2>3. Owner's Google Sheets Hub (160 foods)</h2>
+<p>The owner's personal food list is kept in the native Google Sheet "MEGO Nutrition Hub", tab <b>Food_Database</b>, which holds 160 foods with stable ids <code>F0001…</code> (verified live: 160 foods, 0 numeric problems). The columns written by <code>apps-script/Code.gs</code>:</p>
+<pre>food_id, name_ar, name_en, category, kcal_100g, protein_100g, carbs_100g, fat_100g,
+fiber_100g, sugar_100g, sodium_mg_100g, piece_g, state, state_label, prep, source,
+verification, barcode, notes, active</pre>
+<p>The app parses this tab with <code>parseStructuredFoods</code> (<code>src/lib/sheetImport.ts</code>). Required columns: <code>food_id, name_ar, kcal_100g, protein_100g, carbs_100g, fat_100g</code>. Rows with <code>active = no</code> are skipped. A blank or unreadable required value marks the food <i>missingValues</i> (imported but blocked from logging). Notes containing ⚠, «غير محقق», «تقريبي», «تقديري» or «للمراجعة» raise the issue <code>flaggedInNotes</code>. The <code>verification</code> column takes values verified-usda / estimated / unverified / user (docs/HUB.md). Food values are owned by the Sheet: the app does not overwrite them unless the owner enables write-back. This source is only used on the owner's/guest device connected to the Hub, not by Firebase accounts.</p>
+
+<h2>4. USDA FoodData Central reference database (usda.json)</h2>
+<p>Built by <code>node scripts/build-food-db.mjs &lt;usda-dir&gt;</code> from the official CSV downloads. Values are copied exactly as published (per 100 g edible portion); nothing is estimated or "fixed"; foods without a published energy value or without protein/fat/carbs are skipped. The file's <code>meta</code> block (as shipped):</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>meta field</th><th>Value</th></tr>
+<tr><td>format / version</td><td>mego-fooddb / 1</td></tr>
+<tr><td>builtAt</td><td>2026-11-06</td></tr>
+<tr><td>sources</td><td>S = USDA FoodData Central — SR Legacy (release 2018-04); N = USDA FoodData Central — FNDDS (Survey foods) (release 2024-10-31); license: Public domain (U.S. Government work)</td></tr>
+<tr><td>basis</td><td>per 100 g edible portion</td></tr>
+<tr><td>stats</td><td>sr 7,448 · fndds 5,431 · skippedNoEnergyOrMacros 1 · energyFlagged 211</td></tr>
+<tr><td>rows</td><td>12,879</td></tr>
+<tr><td>categories</td><td>195 (24 SR Legacy food groups + 171 FNDDS WWEIA categories)</td></tr>
+</table>
+<p>SR Legacy groups "Quality Control Materials" and "Baby Foods" are excluded. Row format (type <code>RefRow</code>):</p>
+<pre>[id, name, categoryIndex, kcal, protein, carbs, fat, fiber|null, sugar|null,
+ satFat|null, sodiumMg|null, portions[[label, grams]...], energyFlag 0|1]
+
+Example:
+["S171477","Chicken, broilers or fryers, breast, meat only, cooked, roasted",10,
+ 165,31.02,0,3.57,0,0,1.01,74,
+ [["1 cup, chopped or diced",140],["1 unit (yield from 1 lb ready-to-cook chicken)",52],
+  ["0.5 breast, bone and skin removed",86]],0]</pre>
+<ul>
+<li><b>id</b>: "S" + FDC id (SR Legacy) or "N" + FDC id (FNDDS).</li>
+<li><b>Energy</b>: nutrient 1008 (kcal), falling back to Atwater energy 2048 then 2047. Sugar: 2000, fallback 1063.</li>
+<li><b>Portions</b>: up to 6 distinct USDA household measures (label ≤ 60 characters, grams rounded to 0.01).</li>
+<li><b>energyFlag = 1</b> when kcal &gt; 40 and |4P + 4C + 9F − kcal| / kcal &gt; 25%. Flagged values are not changed.</li>
+<li>Coverage of optional nutrients in the shipped file: fiber 12,347 rows, sugar 11,125, satFat 12,560, sodium 12,796; 12,582 rows have at least one portion.</li>
+</ul>
+<p>The app loads the file once (<code>loadRefFoods</code>), checks <code>meta.format === 'mego-fooddb'</code>, and the service worker caches it for offline use.</p>
+
+<h2>5. Extra nutrients file (usda-extra.json)</h2>
+<p>Format <code>mego-fooddb-extra</code>, version 1, basis per 100 g, one array per reference id (12,879 entries). Used by Food Intelligence rankings, loaded on demand. Columns:</p>
+<pre>mufa g, pufa g, ALA 18:3 n-3 g (or total 18:3 when n-3 not reported), EPA g, DHA g, DPA g,
+calcium mg, iron mg, magnesium mg, potassium mg, zinc mg, vitamin A µg RAE, vitamin E mg,
+vitamin C mg, vitamin B12 µg, folate µg DFE,
+essential amino acids g/100 g food [His, Ile, Leu, Lys, Met, Cys, Phe, Tyr, Thr, Trp, Val]</pre>
+<p>Missing values are <code>null</code>. The amino-acid array is present only when all 11 values exist (4,789 foods).</p>
+
+<h2>6. Open Food Facts (barcode and text search)</h2>
+<ul>
+<li>Barcode lookup: <code>https://world.openfoodfacts.org/api/v2/product/&lt;code&gt;.json</code>; text search: <code>/cgi/search.pl</code> (page_size 20). No API key.</li>
+<li>Manual barcodes are validated (EAN-8, UPC-A/EAN-13/14 check digit). The local foods table is searched first (<code>findLocalByBarcode</code>).</li>
+<li>Mapping (<code>toProduct</code>): kcal = <code>energy-kcal_100g</code>, or <code>energy_100g</code> (kJ) / 4.184; protein, carbs, fat, fiber, sugars, saturated-fat per 100 g; sodium g × 1000 → mg; <code>serving_quantity</code> → serving grams.</li>
+<li>A product is "complete" only when kcal, protein, carbs and fat are all published; text search drops incomplete products.</li>
+<li>Values are community data and are labelled external; stored with <code>source = 'openfoodfacts'</code>, barcode and brand.</li>
+</ul>
+
+<h2>7. Custom foods and AI estimates</h2>
+<p><b>Custom foods</b> are entered in the food editor (<code>source = 'custom'</code>). Users can export their non-sheet foods as JSON (format <code>mego-custom-foods</code>, version 1) and import them back; invalid rows are rejected and duplicates (same name + state) are skipped.</p>
+<p><b>AI estimates</b>: the Gemini meal scanner matches photographed items to the user's own database first; database values are always primary. For items not in the database it may give an estimated per-100 g basis (<code>estPer100</code>), always labelled as an estimate. The scanner never auto-saves. If the user chooses to add such an item as a new food, it is created with category «تقدير من صورة» and the note «⚠ تقدير ذكاء اصطناعي من صورة — غير محقق، يُرجى المراجعة / AI photo estimate — unverified, please review».</p>
+
+<h2>8. Materializing a reference food into user foods</h2>
+<p>Reference foods are read-only. When the user logs one, <code>materializeRefFood</code> copies it <b>once</b> into the foods table so diary snapshots, recipes, sync and reports work unchanged:</p>
+<ol>
+<li>Look for an existing non-archived food with <code>source = 'usda'</code> and the same <code>sourceRef</code>; if found, reuse it.</li>
+<li>Otherwise create a food: nameAr '' , nameEn = USDA name, category = USDA category, per100 copied unchanged (optional nutrients only when not null), state inferred from the name, stateLabel نيء / مطبوخ / محضّر, servings = USDA portions (ids p0, p1, …), notes = sourceRef plus "⚠ calories vs macros differ in the source data" when energyFlag = 1.</li>
+</ol>
+
+<h2>9. source and sourceRef</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>source</th><th>sourceRef example</th></tr>
+<tr><td>usda</td><td><code>USDA FDC 171477 (SR Legacy)</code> or <code>USDA FDC &lt;id&gt; (FNDDS (Survey foods))</code> — built as "USDA FDC " + id without prefix + source name after "— "</td></tr>
+<tr><td>sheet</td><td>none; record linked by sheetKey (food_id)</td></tr>
+<tr><td>openfoodfacts</td><td>barcode and brand fields identify the product</td></tr>
+<tr><td>custom</td><td>optional (kept from imported files)</td></tr>
+</table>
+<p>The FDC id lets anyone check values at <code>https://fdc.nal.usda.gov/food-details/&lt;id&gt;/nutrients</code>.</p>
+
+<h2>10. Verification status</h2>
+<ul>
+<li>Verified in repository: all structures, counts and meta values above (read from the code and the shipped JSON files).</li>
+<li>Verified live: the Hub Food_Database contains 160 foods with 0 numeric problems; read Hub → phone works (laptop-setup live tests).</li>
+<li>Covered by unit tests (109 vitest tests) — individual test names are not listed here.</li>
+<li>Not verified: Open Food Facts availability and data accuracy (third-party service); accuracy of AI estimates.</li>
+</ul>
+
+<h2>11. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

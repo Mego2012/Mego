@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Product_Overview_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — نظرة عامة على المنتج</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>معرّف المستند</td><td>MEGO-DOC-01</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-07</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-07</td></tr>
+<tr><td>المالك</td><td>مالك مشروع MEGO (MEGO Project Owner)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>الجميع: المالك، أصحاب المصلحة، أعضاء الفريق الجدد، المختبرون، الدعم الفني</td></tr>
+<tr><td>مستندات ذات صلة</td><td>MEGO_Documentation_Index، MEGO_Features_and_Capabilities، MEGO_Product_Requirements_PRD، MEGO_Technical_Architecture، MEGO_Product_Roadmap</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">يشرح هذا المستند في صفحات قليلة ماهية تطبيق MEGO، ولمن صُمِّم، وما الذي يقدّمه اليوم، وكيف بُني، وما حالة إصداره الحالية. وهو نقطة الدخول إلى مجموعة الوثائق الرسمية، أما التفاصيل فموجودة في المستندات المدرجة في MEGO_Documentation_Index.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">ما هو MEGO</li>
+<li dir="rtl">لمن صُمِّم</li>
+<li dir="rtl">القدرات الرئيسية</li>
+<li dir="rtl">كيف بُني MEGO</li>
+<li dir="rtl">أوضاع التشغيل</li>
+<li dir="rtl">مبادئ التصميم</li>
+<li dir="rtl">حالة الإصدار الحالية</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. ما هو MEGO</h2>
+<p dir="rtl">MEGO (الاسم في ملف التطبيق «MEGO — Nutrition» والاسم المختصر «MEGO») متتبّع تغذية مصمَّم للجوال أولًا، قابل للتثبيت ويعمل دون اتصال، ويُقدَّم كتطبيق ويب تقدّمي (Progressive Web App – PWA). يغطي تسجيل الطعام، والسعرات والمغذيات الكبرى (Macronutrients)، ووزن الجسم والقياسات، والماء والعادات والصيام، والوصفات، وتخطيط الوجبات، والإرشاد (Coach)، والتقارير الأسبوعية والشهرية. ولا يغطي التمارين الرياضية عن قصد.</p>
+<p dir="rtl">التطبيق ثنائي اللغة: العربية باتجاه كامل من اليمين إلى اليسار (RTL)، والإنجليزية من اليسار إلى اليمين، مع سمات فاتحة وداكنة وتلقائية حسب النظام. وتشغيله مجاني بالكامل: الاستضافة والحسابات وقاعدة البيانات والمسح بالذكاء الاصطناعي كلها على خطط مجانية دون حساب فوترة.</p>
+<ul dir="rtl">
+<li dir="rtl">التطبيق المنشور: <code dir="ltr">https://mego2012.github.io/Mego/</code> (GitHub Pages)</li>
+<li dir="rtl">الشيفرة المصدرية: المستودع <code dir="ltr">Mego2012/Mego</code>، الفرع <code dir="ltr">claude/nutrition-tracking-app-989rku</code></li>
+</ul>
+<p dir="rtl"><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/home-ar-light.png" width="300" alt="الشاشة الرئيسية لتطبيق MEGO (عربي، فاتح)"></p>
+
+<h2 dir="rtl">2. لمن صُمِّم</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المستخدم</th><th>ما يحصل عليه</th></tr>
+<tr><td>الزائر (Guest)</td><td>التطبيق كاملًا على جهاز واحد دون حساب؛ تبقى البيانات في قاعدة البيانات المحلية للمتصفح.</td></tr>
+<tr><td>المستخدم المسجَّل</td><td>حساب سحابي خاص (Firebase)، والبيانات نفسها على عدة أجهزة بمزامنة فورية، واستعادة كلمة المرور، والتصدير، وحذف الحساب.</td></tr>
+<tr><td>مالك المشروع</td><td>جدول Google الشخصي «MEGO Nutrition Hub» متزامن عبر خادم خلفي خاص مبني على Apps Script؛ ويتحكم في مفتاح Gemini وإعدادات السحابة.</td></tr>
+<tr><td>المسؤول (Administrator)</td><td>لوحة إدارة: أعداد المستخدمين، قائمة الحسابات، الإيقاف وإعادة التفعيل، مراجعة الأطعمة المقترحة، تقارير الأخطاء — دون أي وصول إلى السجلات الخاصة لأي مستخدم. (لا يوجد مسؤول حتى الآن — انظر القسم 7.)</td></tr>
+</table>
+
+<h2 dir="rtl">3. القدرات الرئيسية</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المجال</th><th>الملخص</th></tr>
+<tr><td>الرئيسية (Dashboard)</td><td>حلقة السعرات (الهدف − الطعام = المتبقي)، أشرطة البروتين والكربوهيدرات والدهون، ملخص كل وجبة، الماء، الوزن، الاتجاهات الأسبوعية، الملاحظات الذكية.</td></tr>
+<tr><td>يوميات الطعام</td><td>الفطور والغداء والعشاء والوجبات الخفيفة في أي تاريخ؛ الوحدات g وkg وml وL والكوب والملعقة الكبيرة والصغيرة والقطعة والشريحة والحصص المخصّصة؛ تعديل ونسخ وتراجع؛ وجبات محفوظة؛ أيام مسجَّلة كليًا أو جزئيًا.</td></tr>
+<tr><td>قاعدة بيانات الأطعمة</td><td>12,879 طعامًا مرجعيًا من USDA FoodData Central مضمّنة في التطبيق، والأطعمة الـ160 المتحقَّق منها لدى المالك، والأطعمة المخصّصة، وبحث عربي/إنجليزي، والبحث بالباركود عبر Open Food Facts، و74 صورة طعام.</td></tr>
+<tr><td>ماسح الوجبات بالذكاء الاصطناعي</td><td>صورة ← عناصر متعرَّف عليها مع تقدير الجرامات ومطابقتها مع قاعدة البيانات؛ مراجعة وتأكيد قبل حفظ أي شيء (الخطة المجانية لـ Gemini).</td></tr>
+<tr><td>المدرّب وذكاء الأطعمة</td><td>إرشاد يومي وأسبوعي وشهري من سجلات المستخدم نفسه، وترتيب شفاف للأطعمة (درجة الأحماض الأمينية، NRF9.3)، ومقارنة الأطعمة، و13 مقالًا تثقيفيًا بمصادرها.</td></tr>
+<tr><td>الوصفات والمخطِّط</td><td>101 وصفة مدمجة محسوبة من قاعدة البيانات، «ماذا أطبخ اليوم؟»، مخطط أسبوعي، خطة أسبوع تلقائية، قائمة تسوق.</td></tr>
+<tr><td>الجسم والتقدّم</td><td>الوزن والخصر وقياسات أخرى، اتجاه مع متوسط 7 أيام، متوسطات أسبوعية وشهرية، صور تقدّم محفوظة على الجهاز فقط.</td></tr>
+<tr><td>العادات</td><td>هدف الماء، عادات مخصّصة، مؤقّت صيام، تذكيرات.</td></tr>
+<tr><td>التقارير</td><td>تقارير أسبوعية وشهرية مع مقارنة بالفترة السابقة؛ تصدير CSV وExcel والطباعة إلى PDF.</td></tr>
+<tr><td>أمان البيانات</td><td>قاعدة بيانات محلية تعمل دون اتصال، نسخ احتياطية تلقائية على الجهاز، تنزيل ملف النسخة الاحتياطية واستعادته، ومزامنة سحابية.</td></tr>
+</table>
+<p dir="rtl">الجرد الكامل موجود في MEGO_Features_and_Capabilities.</p>
+
+<h2 dir="rtl">4. كيف بُني MEGO</h2>
+<pre dir="ltr">
+ Phone / browser (PWA, works offline)
+ +---------------------------------------+
+ | React 18 + TypeScript (Vite)          |
+ | Dexie / IndexedDB  = local database   |
+ | Service worker (Workbox) = offline    |
+ +---------------------------------------+
+     |                 |                 |
+     | accounts        | owner device    | barcode lookup
+     v                 v                 v
+ Firebase Auth +   Apps Script web app   Open Food Facts
+ Cloud Firestore   -> Google Sheet Hub   (free public API)
+ (Spark, me-central2) -> Gemini API (free tier, AI scanner)
+</pre>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الجزء</th><th>التقنية / الخدمة</th><th>التكلفة</th></tr>
+<tr><td>استضافة التطبيق</td><td>GitHub Pages، يُنشر عبر <code dir="ltr">.github/workflows/deploy.yml</code></td><td>مجاني</td></tr>
+<tr><td>الحسابات والبيانات السحابية الخاصة</td><td>المصادقة (Firebase Authentication) بالبريد وكلمة المرور + قاعدة البيانات السحابية (Cloud Firestore)، خطة Spark، المنطقة <code dir="ltr">me-central2</code> (الدمام)</td><td>مجاني (تنطبق حدود Spark)</td></tr>
+<tr><td>مركز المالك (Hub)</td><td>تطبيق ويب Google Apps Script + جدول Google «MEGO Nutrition Hub»</td><td>مجاني (حصص Apps Script)</td></tr>
+<tr><td>ماسح الوجبات</td><td>الخطة المجانية لـ Gemini API، النموذج <code dir="ltr">gemini-3.8-flash</code>، يُستدعى من Apps Script فقط</td><td>مجاني؛ يتوقف عند نفاد الحصة ولا يمكنه الفوترة</td></tr>
+<tr><td>بيانات الأطعمة المرجعية</td><td>USDA FoodData Central (ملكية عامة)، ملف ثابت مخزَّن للعمل دون اتصال</td><td>مجاني</td></tr>
+</table>
+<p dir="rtl">يُفرض الوصول إلى البيانات الخاصة على خوادم Google عبر قواعد الأمان <code dir="ltr">firebase/firestore.rules</code>: لا يستطيع أي مستخدم قراءة أو كتابة سوى سجلاته. التفاصيل في MEGO_Technical_Architecture وMEGO_Security_Architecture.</p>
+
+<h2 dir="rtl">5. أوضاع التشغيل</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الوضع</th><th>متى</th><th>قاعدة البيانات المحلية</th><th>السحابة</th></tr>
+<tr><td>الترحيب (Welcome)</td><td>السحابة مُعدّة، والمستخدم غير مسجَّل الدخول ولم يختر وضع الزائر</td><td>—</td><td>تظهر صفحات الترحيب وتسجيل الدخول وإنشاء الحساب والصفحات القانونية</td></tr>
+<tr><td>الزائر (Guest)</td><td>اختار المستخدم «المتابعة كزائر»، أو لا تتوفر إعدادات سحابية</td><td><code dir="ltr">mego-nutrition</code></td><td>مزامنة اختيارية مع مركز المالك (تُضبط من الإعدادات)</td></tr>
+<tr><td>الحساب (Account)</td><td>المستخدم مسجَّل الدخول</td><td><code dir="ltr">mego-u-&lt;uid&gt;</code> (قاعدة لكل حساب على كل جهاز)</td><td>مزامنة فورية مع Cloud Firestore</td></tr>
+</table>
+<p dir="rtl">المصدر: <code dir="ltr">src/lib/account.ts</code> (الأوضاع <code dir="ltr">guest | account | welcome</code>).</p>
+
+<h2 dir="rtl">6. مبادئ التصميم</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>أرقام المستخدم أولًا:</b> تُحسب القيم الغذائية دائمًا بمحرّك التطبيق من قاعدة بيانات الأطعمة؛ تقديرات الذكاء الاصطناعي موسومة ولا تحل محل قيم قاعدة البيانات.</li>
+<li dir="rtl"><b>لا شيء يحدث بصمت:</b> لا تُطبَّق توصيات الأهداف دون تأكيد؛ الماسح لا يحفظ تلقائيًا؛ يتوفر التراجع لعمليات التسجيل.</li>
+<li dir="rtl"><b>بيانات صادقة:</b> اليوم بلا إدخالات «فارغ» وليس يومًا بصفر سعرات؛ القيم الغذائية المجهولة لا تُعامل كصفر.</li>
+<li dir="rtl"><b>العمل دون اتصال أولًا:</b> قاعدة البيانات المحلية هي المخزن الحي؛ تجري المزامنة عند توفر الاتصال.</li>
+<li dir="rtl"><b>الخصوصية من التصميم:</b> لا يستطيع المسؤولون قراءة سجلات المستخدمين؛ صور التقدّم لا تغادر الجهاز؛ الصور المرسلة للذكاء الاصطناعي تُصغَّر ويُعاد ترميزها (فتُزال بيانات EXIF/GPS) ولا تُخزَّن.</li>
+<li dir="rtl"><b>تكلفة صفرية:</b> لا واجهات برمجية ولا قواعد بيانات ولا استضافة ولا اشتراكات مدفوعة.</li>
+</ul>
+
+<h2 dir="rtl">7. حالة الإصدار الحالية (7 نوفمبر 2026)</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>التطبيق العام على GitHub Pages</td><td>منشور ويعمل</td></tr>
+<tr><td>مشروع Firebase (المصادقة + Firestore + القواعد)</td><td>يعمل؛ التحقق على بيئة الإنتاج 14/14</td></tr>
+<tr><td>مركز Google Sheets + خادم Apps Script</td><td>يعمل (160 طعامًا، وأُنشئت نسخة احتياطية قبل الترحيل)</td></tr>
+<tr><td>ماسح الوجبات Gemini</td><td>يعمل؛ نجح تحليل حقيقي واحد، وأعاد تشغيل لاحق «الخدمة مشغولة» (ضغط مؤقت لدى Google)</td></tr>
+<tr><td>حساب المسؤول</td><td>بانتظار تسجيل المالك وتشغيل سكربت الإعداد مع <code dir="ltr">--cloud</code></td></tr>
+<tr><td>اختبار على جهاز Android حقيقي</td><td>لم يُنفَّذ (أجهزة محاكاة فقط)؛ قائمة الفحص في <code dir="ltr">docs/ANDROID-TEST.md</code></td></tr>
+<tr><td>سياسة الخصوصية والشروط</td><td>مسودات داخل التطبيق تحتاج مراجعة قانونية</td></tr>
+<tr><td>إيداعات (Commits) عامة قديمة تكشف ملف بيانات أطعمة</td><td>طلب دعم لـ GitHub جاهز ولم يُرسَل بعد</td></tr>
+<tr><td>تدوير مفتاح Gemini ورابط الخادم الخلفي</td><td>موصى به (عُرضا في محادثة أثناء الإعداد)</td></tr>
+</table>
+<p dir="rtl">الاختبارات الآلية الناجحة على الشيفرة النهائية: وحدات 109، قواعد Firestore/السحابة 14، اختبار المتصفح الشامل للزائر 44، اللمس والتمرير 103، تعدد المستخدمين 8، إعداد اللابتوب 10، التحقق الحي على الإنتاج 14.</p>
+
+<h2 dir="rtl">8. حالة التحقق</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>متحقَّق منه على بيئة حية:</b> توفر التطبيق، والتسجيل والعزل والمزامنة والتقارير والحذف في Firebase (live-verify 14/14)، والقراءة والكتابة في المركز والحماية من التعارض، وتحليل حقيقي واحد عبر Gemini.</li>
+<li dir="rtl"><b>مُختبَر على المحاكيات فقط:</b> سلوك Android (أجهزة Pixel 7 / Galaxy في Playwright مع أحداث لمس)، وسيناريوهات تعدد المستخدمين في المتصفح (محاكيات Firebase).</li>
+<li dir="rtl"><b>غير مُتحقَّق منه:</b> أجهزة Android أو iOS حقيقية، ووصول رسائل استعادة كلمة المرور إلى البريد، ومسح الباركود بالكاميرا على هاتف حقيقي، والسلامة القانونية للمسودات.</li>
+</ul>
+
+<h2 dir="rtl">9. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

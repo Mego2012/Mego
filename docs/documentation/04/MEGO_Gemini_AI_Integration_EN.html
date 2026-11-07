@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Gemini_AI_Integration_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Gemini AI Integration (AI Meal Scanner)</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-36</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Developers, maintainers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Backend_Architecture, MEGO_API_Documentation, MEGO_Gemini_API_Setup_Guide, MEGO_Error_Handling_and_Logging, MEGO_Configuration_and_Environment, MEGO_User_Data_Protection</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes how the MEGO AI Meal Scanner uses the Google Gemini API (free tier only): which code is involved, what data leaves the phone, how the request and response are structured, how the result is matched to the food database and reviewed by the user, and which errors and limits exist. Sources: <code>src/lib/mealScanner.ts</code>, <code>src/components/MealScanner.tsx</code>, the "AI meal scanner" and "public accounts — AI proxy" sections of <code>apps-script/Code.gs</code>, and the AI error texts in <code>src/lib/i18n2.ts</code>.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Design principles</li>
+<li>Architecture and data flow</li>
+<li>Image preparation (resize and EXIF removal)</li>
+<li>Request to the backend and to Gemini</li>
+<li>Response schema and validation</li>
+<li>Matching to the food database and estimates</li>
+<li>Review and save flow</li>
+<li>Limits, quotas and region restrictions</li>
+<li>Error codes and messages</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Design principles</h2>
+<ul>
+<li><b>Free tier only, no paid fallback.</b> The backend only allows the models in <code>AI_FREE_MODELS</code> = <code>gemini-3.8-flash</code> (default, <code>AI_DEFAULT_MODEL</code>), <code>gemini-3.6-flash</code>, <code>gemini-3.5-flash-lite</code>. The optional Script Property <code>AI_MODEL</code> is ignored unless it is one of these. There is no fallback model and no other AI service; a quota error is shown to the user, nothing is retried elsewhere.</li>
+<li><b>The key never reaches the phone.</b> The Gemini key is stored only in the Apps Script Script Property <code>GEMINI_API_KEY</code>. The app sends it once through the <code>setAiKey</code> action and does not keep it.</li>
+<li><b>The AI identifies, the app calculates.</b> The model only identifies foods, estimates grams, state and cooking method and picks the matching database row. All nutrition values are computed in the app with the same engine as manual logging (<code>macrosFor</code> on the food's per-100 g basis).</li>
+<li><b>Nothing is saved automatically.</b> The meal is written to the diary only when the user presses "Confirm and save".</li>
+</ul>
+
+<h2>2. Architecture and data flow</h2>
+<pre>
+ Phone (PWA)                         Apps Script web app (Code.gs)          Google Gemini API
+ ───────────                         ─────────────────────────────          ─────────────────
+ photo ─► prepareImage()  (JPEG,
+          ≤1024 px, no EXIF)
+ buildCatalog(foods) ─► requestAnalysis()
+   owner/guest device: action analyzeMeal + APP token ─► doPost ─► analyzeMeal_()
+   signed-in account:  action analyzeMeal + Firebase ID token ─► publicAi_()
+                                       verify token (Identity Toolkit)
+                                       profile status/country (Firestore,
+                                       with the user's own token)
+                                       per-user counter ─► analyzeMeal_()
+                                       global daily counter
+                                       POST models/{model}:generateContent ─────►
+                                       ◄──────────────── JSON (response schema)
+ validateAiResult() ◄── {ok, model, result}
+ toScanItems() ─► review sheet ─► user confirms ─► logScannedMeal() ─► diary
+</pre>
+<p>Owner/guest devices use the private Hub backend configured in Settings (URL + token from the connection code). Signed-in public accounts use <code>aiBackendUrl</code> from <code>public/firebase-config.json</code> and authenticate with their own Firebase ID token. If neither is available the scanner fails with <code>AI_NO_BACKEND</code>.</p>
+
+<h2>3. Image preparation (resize and EXIF removal)</h2>
+<ol>
+<li><code>prepareImage(file, max = 1024)</code> rejects non-image files (<code>AI_BAD_IMAGE</code>).</li>
+<li>The photo is drawn on a canvas via <code>compressImage</code> (<code>src/lib/repo.ts</code>): longest side scaled to at most 1024 px, re-encoded as JPEG at quality 0.82. Re-encoding through a canvas drops all metadata (EXIF: GPS location, device, time) — only pixels are sent.</li>
+<li>If the browser cannot decode/re-encode the image, the original file is never sent (<code>AI_BAD_IMAGE</code>).</li>
+<li>If the result is larger than 1,500,000 bytes it is re-encoded at 768 px.</li>
+<li>The JPEG is converted to base64. The backend rejects images larger than <code>AI_MAX_IMAGE_CHARS</code> = 2,800,000 base64 characters (≈ 2 MB) or containing non-base64 characters.</li>
+</ol>
+
+<h2>4. Request to the backend and to Gemini</h2>
+<h3>4.1 What the app sends</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Content</th></tr>
+<tr><td><code>action</code></td><td><code>analyzeMeal</code></td></tr>
+<tr><td><code>image</code></td><td>base64 JPEG (EXIF removed)</td></tr>
+<tr><td><code>mediaType</code></td><td><code>image/jpeg</code> (backend accepts jpeg/png/webp, anything else becomes jpeg)</td></tr>
+<tr><td><code>foods</code></td><td>catalog lines <code>{k, ar, en, s, c}</code>: short key (f1, f2…), Arabic name, English name, state, category — only non-archived, complete foods. No diary, weight or profile data.</td></tr>
+<tr><td><code>lang</code></td><td><code>ar</code> or <code>en</code></td></tr>
+<tr><td><code>note</code></td><td>optional user note, max 300 characters</td></tr>
+<tr><td><code>token</code> or <code>idToken</code></td><td>owner APP token (private backend) or Firebase ID token (public accounts)</td></tr>
+</table>
+<p>Privacy note from <code>Code.gs</code>: on the free tier Google may use requests to improve its products and human reviewers may see them; therefore the request contains only the meal photo and food names. Nothing about the meal is stored by the backend.</p>
+<h3>4.2 Gemini call (backend)</h3>
+<ul>
+<li>Endpoint: <code>https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent</code>, key in the <code>x-goog-api-key</code> header.</li>
+<li><code>systemInstruction</code>: the fixed prompt <code>AI_SYSTEM</code> (identify every visible food incl. oil/sauces, estimate edible grams as shown with a low–high range, raw/cooked/other, cooking method, match to the database in the same state or leave <code>food_key</code> empty, confidence below 0.6 for uncertain items, no people/places in the output).</li>
+<li><code>contents</code>: the image as <code>inlineData</code> plus a text part with the user language, optional note and the database lines <code>key | Arabic | English | state | category</code> (max <code>AI_MAX_FOODS</code> = 800 rows, each field max 120 chars, <code>|</code> and newlines removed).</li>
+<li><code>generationConfig</code>: <code>responseMimeType: application/json</code>, <code>responseJsonSchema: AI_SCHEMA</code>, <code>maxOutputTokens: 8192</code>, <code>temperature: 0.2</code>, <code>thinkingConfig.thinkingLevel: MEDIUM</code>.</li>
+<li>The call runs outside the script lock because it can take ~10–40 s. The app times out after 120 s (<code>AI_TIMEOUT</code>).</li>
+</ul>
+
+<h2>5. Response schema and validation</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Type / values</th></tr>
+<tr><td><code>is_food, meal_name_ar, meal_name_en, notes</code></td><td>boolean, strings</td></tr>
+<tr><td><code>items[].name_ar, name_en</code></td><td>strings</td></tr>
+<tr><td><code>items[].food_key</code></td><td>catalog key or "" when not in the database</td></tr>
+<tr><td><code>items[].grams, grams_low, grams_high</code></td><td>numbers</td></tr>
+<tr><td><code>items[].state</code></td><td>raw | cooked | other</td></tr>
+<tr><td><code>items[].cooking_method</code></td><td>none, grilled, fried, deep_fried, air_fried, boiled, steamed, baked, roasted, sauteed, stewed, unknown</td></tr>
+<tr><td><code>items[].kind</code></td><td>food | oil_or_fat | sauce_or_dressing | drink</td></tr>
+<tr><td><code>items[].confidence</code></td><td>0..1</td></tr>
+<tr><td><code>items[].reason</code></td><td>one short sentence</td></tr>
+<tr><td><code>items[].est_per100</code></td><td>{kcal, protein, carbs, fat} — only when <code>food_key</code> is ""</td></tr>
+</table>
+<p>Backend handling: <code>promptFeedback.blockReason</code> or a finish reason other than STOP → <code>AI_REFUSED</code>; MAX_TOKENS → <code>AI_TRUNCATED</code>; no candidate or invalid JSON → <code>AI_BAD_OUTPUT</code>; "thought" parts are ignored. On success: <code>{ok:true, model, result}</code>.</p>
+<p>App re-validation (<code>validateAiResult</code>): strings cut to 300 chars, at most 30 items, unknown enum values replaced (state → other, method → unknown, kind → food), grams rounded and clamped to 0–3000 (<code>MAX_GRAMS</code>), confidence clamped to 0–1, items without a name or with 0 g dropped.</p>
+
+<h2>6. Matching to the food database and estimates</h2>
+<p><code>toScanItems</code> converts each AI item into an editable <code>ScanItem</code> and sets flags:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Flag</th><th>Condition</th><th>Effect</th></tr>
+<tr><td><code>badKey</code></td><td>food_key not in the catalog</td><td>treated as not in the database</td></tr>
+<tr><td><code>stateMismatch</code></td><td>database food raw and AI says cooked (or vice versa)</td><td>match removed — the app never converts raw ↔ cooked</td></tr>
+<tr><td><code>notInDb</code></td><td>no valid match</td><td>AI estimate used only if it passes <code>validateMacros</code> and kcal &gt; 0</td></tr>
+<tr><td><code>lowConfidence</code></td><td>confidence &lt; 0.6 (<code>LOW_CONFIDENCE</code>)</td><td>user must tick "I checked this item"</td></tr>
+<tr><td><code>hiddenFat</code></td><td>kind oil_or_fat or sauce_or_dressing</td><td>user must tick "I checked this item"</td></tr>
+</table>
+<p>Nutrition per item (<code>itemNutrition</code>): database food → <code>macrosFor(basisFromFood(food), grams, 'g')</code> (labelled "from database"); otherwise the AI per-100 g estimate scaled by grams/100 (labelled "estimate", shown with "~"). Meal totals show a warning when estimates are included. For unmatched items <code>suggestFoods</code> proposes up to 3 database foods with matching name words (same state scores higher); suggestions are only applied when the user taps them.</p>
+
+<h2>7. Review and save flow</h2>
+<ol>
+<li>The user takes a photo or picks one from the gallery (<code>ScanButtons</code>), optionally writes a note and taps Analyse. Stages: ready → preparing → analyzing → review (or error). Analysis can be cancelled.</li>
+<li>In review the user can change grams, cooking method, state (unmatched items), choose/change the database food, remove items, add ingredients via the food picker, and change meal (suggested from the time of day) and date.</li>
+<li>The save button stays disabled while <code>blockers()</code> returns reasons: <code>empty</code>, <code>grams</code> (≤ 0 or &gt; 3000), <code>unmatched</code> (no food and not "add as new"), <code>unconfirmed</code>.</li>
+<li><code>logScannedMeal</code>: unmatched items the user chose to add become new foods with category «تقدير من صورة» and the note "AI photo estimate — unverified, please review"; grams of the same food are merged into one entry; saving is all-or-nothing (entries already added are deleted on failure).</li>
+<li>A toast offers Undo: it deletes the entries and archives the foods created by the scan.</li>
+</ol>
+
+<h2>8. Limits, quotas and region restrictions</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Limit</th><th>Where</th><th>Value</th></tr>
+<tr><td>Global daily cap (own)</td><td>Script Property <code>AI_DAILY_LIMIT</code>, counter <code>AI_USED_&lt;UTC date&gt;</code></td><td>default 40 in code; <code>setCloudConfig</code> accepts 1–1500 (laptop-setup sends 200)</td></tr>
+<tr><td>Per-user daily cap (public accounts)</td><td><code>AI_USER_DAILY_LIMIT</code>, counter <code>AI_U_&lt;date&gt;_&lt;uid&gt;</code> (under a script lock)</td><td>default 10; accepted range 1–50</td></tr>
+<tr><td>Google free quota per minute</td><td>Gemini HTTP 429</td><td>message shows the retry delay from Google (default 60 s)</td></tr>
+<tr><td>Google free quota per day</td><td>Gemini HTTP 429 with "PerDay"</td><td>reset shown as next midnight America/Los_Angeles converted to the user's local time (<code>nextQuotaReset</code>)</td></tr>
+<tr><td>Region</td><td><code>AI_RESTRICTED</code> list in Code.gs and <code>AI_RESTRICTED_COUNTRIES</code> in firebase.ts</td><td>EU/EEA countries, Switzerland and the UK (32 codes) → <code>AI_REGION_RESTRICTED</code> for accounts whose profile country is in the list</td></tr>
+</table>
+<p>The global counter is incremented after each Gemini call attempt that reached Google; the per-user counter before the call. The optional function <code>cleanupAiCounters()</code> (manual or time trigger) deletes counters older than 8 days. Account requests also require the profile <code>status</code> to be <code>active</code>.</p>
+
+<h2>9. Error codes and messages</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Code</th><th>Origin</th><th>English message (i18n2.ts)</th></tr>
+<tr><td>AI_NO_BACKEND</td><td>app</td><td>The AI scanner needs your private backend…</td></tr>
+<tr><td>AI_OFFLINE</td><td>app</td><td>You are offline… your photo is kept.</td></tr>
+<tr><td>AI_TIMEOUT</td><td>app (120 s)</td><td>The analysis took too long…</td></tr>
+<tr><td>AI_NETWORK</td><td>app / backend</td><td>Could not reach your backend…</td></tr>
+<tr><td>AI_NOT_CONFIGURED</td><td>backend (no key)</td><td>The free AI scanner is not set up yet…</td></tr>
+<tr><td>AI_KEY_INVALID</td><td>401/403 or invalid key</td><td>Google rejected the Gemini key…</td></tr>
+<tr><td>AI_QUOTA_DAY</td><td>429 PerDay</td><td>…It resets at {time} (your time). Nothing is charged…</td></tr>
+<tr><td>AI_QUOTA_MINUTE</td><td>429</td><td>Please wait {s} seconds… (no charge)</td></tr>
+<tr><td>AI_REGION</td><td>Google location error</td><td>…not available from the backend's location.</td></tr>
+<tr><td>AI_REGION_RESTRICTED</td><td>profile country</td><td>…not offered in your country (Google free-tier terms)…</td></tr>
+<tr><td>AI_USER_LIMIT</td><td>per-user cap</td><td>You have used your {n} free scans for today…</td></tr>
+<tr><td>AI_DAILY_LIMIT</td><td>global cap</td><td>Your own daily scan limit is reached…</td></tr>
+<tr><td>AI_MODEL_UNAVAILABLE</td><td>404</td><td>The free Gemini model is not available…</td></tr>
+<tr><td>AI_BUSY</td><td>5xx</td><td>The AI service is busy right now…</td></tr>
+<tr><td>AI_BAD_IMAGE, AI_REFUSED, AI_TRUNCATED, AI_BAD_OUTPUT</td><td>image / model output</td><td>Try another photo / try again</td></tr>
+<tr><td>AI_UNAUTHORIZED, AI_OLD_BACKEND</td><td>backend <code>unauthorized</code> / <code>unknown action</code></td><td>Check the token / update Code.gs and redeploy</td></tr>
+<tr><td>AI_HTTP_&lt;code&gt;, AI_ERROR</td><td>other</td><td>Analysis failed. Please try again.</td></tr>
+</table>
+<p>Arabic texts for every code exist in the same file. Codes without a translation are displayed as <code>AI_ERROR</code>.</p>
+
+<h2>10. Verification status</h2>
+<ul>
+<li><b>Verified live (7 Nov 2026):</b> Gemini key stored only in Script Properties; one real photo analysis with <code>gemini-3.8-flash</code> succeeded (6 items, ~72 s); a later run returned <code>AI_BUSY</code> (transient Google overload). Key formats <code>AIza…</code> and <code>AQ.…</code> are accepted; Google validates the key with a model metadata call.</li>
+<li><b>Tested with automated tests only:</b> scanner logic and backend paths in <code>tests/scanner.test.ts</code> (part of the 109 unit tests), e.g. the admin-only <code>aiStats</code>.</li>
+<li><b>Not verified:</b> real scans by public (Firebase) accounts in production; the region restriction against real accounts; quota reset timing against Google; scanning on a real Android device.</li>
+</ul>
+
+<h2>11. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

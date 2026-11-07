@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Documentation_Index_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Documentation Index</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-02</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>All readers of the MEGO documentation</td></tr>
+<tr><td>Related documents</td><td>MEGO_Product_Overview and every document listed below</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This index lists all 77 official MEGO documents, the Google Drive folder each one lives in, its purpose and its intended audience. Every document exists twice: an English version (file name ending in <code>_EN</code>) and an Arabic version (ending in <code>_AR</code>) with the same content. A local HTML copy of each is kept in the repository under <code>docs/documentation/&lt;folder-number&gt;/</code>.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>How the documentation is organised</li>
+<li>Folder structure</li>
+<li>Complete document register</li>
+<li>Merged topics</li>
+<li>Reading paths by role</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. How the documentation is organised</h2>
+<ul>
+<li><b>Location:</b> Google Drive folder "MEGO – Official Documentation", split into 13 numbered sub-folders (00–12).</li>
+<li><b>Naming:</b> <code>MEGO_&lt;Topic&gt;_EN</code> and <code>MEGO_&lt;Topic&gt;_AR</code>. Cross-references always use the base file name (without the language suffix).</li>
+<li><b>Document IDs:</b> MEGO-DOC-01 … MEGO-DOC-77.</li>
+<li><b>Standard structure:</b> title and metadata table, purpose and scope, table of contents, numbered sections, verification status, revision history.</li>
+<li><b>Status values:</b> "Approved for internal use", "Draft – requires owner approval", "Draft – requires legal review".</li>
+<li><b>Source of truth:</b> every statement is checked against the repository (<code>Mego2012/Mego</code>, branch <code>claude/nutrition-tracking-app-989rku</code>) or the verified live status of 7 November 2026; anything that could not be checked is marked "Not verified".</li>
+</ul>
+
+<h2>2. Folder structure</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Folder</th><th>Content</th><th>Documents</th></tr>
+<tr><td>00 – Project Overview</td><td>Entry point and index</td><td>01–02</td></tr>
+<tr><td>01 – Product Documentation</td><td>Requirements, features, roadmap, platforms, user journeys</td><td>03–07</td></tr>
+<tr><td>02 – User Guides</td><td>How to use the app</td><td>08–18</td></tr>
+<tr><td>03 – Nutrition &amp; Food Database</td><td>Food data, calculations, rankings</td><td>21–30</td></tr>
+<tr><td>04 – Technical Documentation</td><td>Architecture, integrations, API, configuration</td><td>31–40</td></tr>
+<tr><td>05 – Database &amp; Architecture</td><td>Data schema, authentication architecture</td><td>41–42</td></tr>
+<tr><td>06 – Security &amp; Privacy</td><td>Security, data protection, backup, retention, risks</td><td>43–49</td></tr>
+<tr><td>07 – Installation &amp; Deployment</td><td>Setup, deployment, release, rollback, verification</td><td>50–57</td></tr>
+<tr><td>08 – Testing &amp; Quality Assurance</td><td>Test strategy, suites, device tests, known issues</td><td>58–66</td></tr>
+<tr><td>09 – Administration &amp; User Management</td><td>Admin manual and operations</td><td>67–71</td></tr>
+<tr><td>10 – Troubleshooting &amp; FAQs</td><td>FAQ and troubleshooting</td><td>19–20</td></tr>
+<tr><td>11 – Maintenance &amp; Future Development</td><td>Future recommendations</td><td>72</td></tr>
+<tr><td>12 – Legal &amp; Policies</td><td>Draft legal texts (require legal review)</td><td>73–77</td></tr>
+</table>
+
+<h2>3. Complete document register</h2>
+<p>Audience codes: <b>U</b> end users · <b>O</b> project owner · <b>A</b> administrators · <b>D</b> developers · <b>T</b> testers/QA · <b>S</b> support · <b>L</b> legal reviewers.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>File base name</th><th>Folder</th><th>Purpose</th><th>Audience</th></tr>
+<tr><td>01</td><td>MEGO_Product_Overview</td><td>00</td><td>What MEGO is, who it is for, architecture and status in brief</td><td>All</td></tr>
+<tr><td>02</td><td>MEGO_Documentation_Index</td><td>00</td><td>This register of all documents</td><td>All</td></tr>
+<tr><td>03</td><td>MEGO_Product_Requirements_PRD</td><td>01</td><td>Goals, personas, functional and non-functional requirements with implementation status</td><td>O, D, T</td></tr>
+<tr><td>04</td><td>MEGO_Features_and_Capabilities</td><td>01</td><td>Complete inventory of implemented features</td><td>All</td></tr>
+<tr><td>05</td><td>MEGO_Product_Roadmap</td><td>01</td><td>Open items and proposed next features</td><td>O, D</td></tr>
+<tr><td>06</td><td>MEGO_Platforms_and_System_Requirements</td><td>01</td><td>Supported browsers/devices, PWA install, offline, developer requirements</td><td>U, D, S</td></tr>
+<tr><td>07</td><td>MEGO_Workflow_and_User_Journey</td><td>01</td><td>Guest and account journeys, onboarding, daily loop</td><td>O, D, T, S</td></tr>
+<tr><td>08</td><td>MEGO_User_Manual</td><td>02</td><td>Complete screen-by-screen manual</td><td>U</td></tr>
+<tr><td>09</td><td>MEGO_Getting_Started</td><td>02</td><td>First steps: open, install, choose guest or account</td><td>U</td></tr>
+<tr><td>10</td><td>MEGO_Registration_and_Login_Guide</td><td>02</td><td>Registration, sign-in, password reset, sign-out, account deletion</td><td>U</td></tr>
+<tr><td>11</td><td>MEGO_Profile_and_Goals_Guide</td><td>02</td><td>Profile, goals, recommended targets, training/rest days</td><td>U</td></tr>
+<tr><td>12</td><td>MEGO_Food_Tracking_Guide</td><td>02</td><td>Logging foods, units, editing, copying, AI scanner</td><td>U</td></tr>
+<tr><td>13</td><td>MEGO_Meal_Planning_Guide</td><td>02</td><td>Week planner, suggested plans, shopping list</td><td>U</td></tr>
+<tr><td>14</td><td>MEGO_Food_Search_and_Database_Guide</td><td>02</td><td>Searching foods, filters, barcode, food details</td><td>U</td></tr>
+<tr><td>15</td><td>MEGO_Recipes_and_Custom_Foods_Guide</td><td>02</td><td>Recipe library, own recipes, saved meals, custom foods</td><td>U</td></tr>
+<tr><td>16</td><td>MEGO_Reports_Guide</td><td>02</td><td>Weekly/monthly reports and exports</td><td>U</td></tr>
+<tr><td>17</td><td>MEGO_Progress_and_Insights_Guide</td><td>02</td><td>Body measurements, trends, insights, coach</td><td>U</td></tr>
+<tr><td>18</td><td>MEGO_Backup_and_Export_Guide</td><td>02</td><td>Backups, restore, CSV/Excel/JSON export</td><td>U</td></tr>
+<tr><td>19</td><td>MEGO_FAQ</td><td>10</td><td>Frequently asked questions</td><td>U, S</td></tr>
+<tr><td>20</td><td>MEGO_Troubleshooting_Manual</td><td>10</td><td>Symptoms, causes and fixes</td><td>U, S, O</td></tr>
+<tr><td>21</td><td>MEGO_Food_Database_Documentation</td><td>03</td><td>Food sources (USDA, owner's 160 foods, Open Food Facts, custom) and fields</td><td>O, D, A</td></tr>
+<tr><td>22</td><td>MEGO_Food_Categories_and_Classification</td><td>03</td><td>Categories and raw/cooked/ready states</td><td>O, A, D</td></tr>
+<tr><td>23</td><td>MEGO_Nutritional_Values_and_Units_Reference</td><td>03</td><td>Nutrient fields and units reference</td><td>U, D</td></tr>
+<tr><td>24</td><td>MEGO_Calorie_and_Macronutrient_Calculation_Methodology</td><td>03</td><td>How calories, protein, carbohydrate and fat are calculated</td><td>D, T, O</td></tr>
+<tr><td>25</td><td>MEGO_Daily_Calorie_Target_Calculation</td><td>03</td><td>BMR, TDEE and goal-based targets</td><td>U, D, T</td></tr>
+<tr><td>26</td><td>MEGO_Portion_and_Measurement_Conversion_Rules</td><td>03</td><td>Unit, density, piece and serving conversion</td><td>D, T</td></tr>
+<tr><td>27</td><td>MEGO_Food_Database_Import_and_Update_Procedures</td><td>03</td><td>Importing and updating food data</td><td>O, A, D</td></tr>
+<tr><td>28</td><td>MEGO_Food_Data_Validation_and_Quality_Control</td><td>03</td><td>Validation rules and quality checks</td><td>O, D, T</td></tr>
+<tr><td>29</td><td>MEGO_Missing_and_Duplicate_Foods_Management</td><td>03</td><td>Handling missing and duplicate foods</td><td>O, A</td></tr>
+<tr><td>30</td><td>MEGO_Food_Rankings_and_Coach_Methodology</td><td>03</td><td>Ranking scores and coaching logic</td><td>D, O</td></tr>
+<tr><td>31</td><td>MEGO_Technical_Architecture</td><td>04</td><td>System architecture overview</td><td>D</td></tr>
+<tr><td>32</td><td>MEGO_Frontend_Architecture</td><td>04</td><td>React PWA structure, routing, i18n, styling</td><td>D</td></tr>
+<tr><td>33</td><td>MEGO_Backend_Architecture</td><td>04</td><td>Firebase and Apps Script back ends</td><td>D</td></tr>
+<tr><td>34</td><td>MEGO_Firebase_Integration</td><td>04</td><td>Auth, Firestore, cloud sync</td><td>D</td></tr>
+<tr><td>35</td><td>MEGO_Google_Sheets_Integration_and_Sync</td><td>04</td><td>Owner Hub and sync protocol</td><td>D, O</td></tr>
+<tr><td>36</td><td>MEGO_Gemini_AI_Integration</td><td>04</td><td>AI meal scanner pipeline and limits</td><td>D, O</td></tr>
+<tr><td>37</td><td>MEGO_API_Documentation</td><td>04</td><td>Apps Script actions and data contracts</td><td>D</td></tr>
+<tr><td>38</td><td>MEGO_Configuration_and_Environment</td><td>04</td><td>Configuration files, Script Properties, build variables</td><td>D, O</td></tr>
+<tr><td>39</td><td>MEGO_State_Management</td><td>04</td><td>App state, local database, sync state</td><td>D</td></tr>
+<tr><td>40</td><td>MEGO_Error_Handling_and_Logging</td><td>04</td><td>Error messages, error boundary, error reports</td><td>D, S</td></tr>
+<tr><td>41</td><td>MEGO_Database_Schema_and_Relationships</td><td>05</td><td>IndexedDB tables and Firestore collections</td><td>D</td></tr>
+<tr><td>42</td><td>MEGO_Authentication_and_Authorization_Architecture</td><td>05</td><td>Identity, roles and rule-based authorization</td><td>D</td></tr>
+<tr><td>43</td><td>MEGO_Security_Architecture</td><td>06</td><td>Security model and controls</td><td>D, O</td></tr>
+<tr><td>44</td><td>MEGO_User_Data_Protection</td><td>06</td><td>How personal data is protected (references the privacy policy draft, 74)</td><td>O, L, D</td></tr>
+<tr><td>45</td><td>MEGO_Access_Control_and_Permissions</td><td>06</td><td>Who can read/write what</td><td>D, A</td></tr>
+<tr><td>46</td><td>MEGO_Authentication_and_Session_Management</td><td>06</td><td>Sign-in sessions, sign-out, password handling</td><td>D</td></tr>
+<tr><td>47</td><td>MEGO_Data_Backup_and_Recovery</td><td>06</td><td>Backup design and operational recovery procedures</td><td>O, D, S</td></tr>
+<tr><td>48</td><td>MEGO_Data_Retention_and_Deletion</td><td>06</td><td>What is kept, for how long, and how it is deleted</td><td>O, L</td></tr>
+<tr><td>49</td><td>MEGO_Security_Audit_and_Known_Risks</td><td>06</td><td>Audit findings and open risks</td><td>O, D</td></tr>
+<tr><td>50</td><td>MEGO_Developer_Setup_and_Local_Installation</td><td>07</td><td>Developer environment and running locally</td><td>D</td></tr>
+<tr><td>51</td><td>MEGO_Production_Deployment_Guide</td><td>07</td><td>Deploying to GitHub Pages</td><td>D, O</td></tr>
+<tr><td>52</td><td>MEGO_Firebase_Setup_Guide</td><td>07</td><td>Firebase project setup</td><td>O, D</td></tr>
+<tr><td>53</td><td>MEGO_Apps_Script_Setup_Guide</td><td>07</td><td>Apps Script backend and Hub setup</td><td>O, D</td></tr>
+<tr><td>54</td><td>MEGO_Gemini_API_Setup_Guide</td><td>07</td><td>Creating and storing the Gemini key</td><td>O</td></tr>
+<tr><td>55</td><td>MEGO_Build_and_Release_Procedures</td><td>07</td><td>Build, test and release steps</td><td>D</td></tr>
+<tr><td>56</td><td>MEGO_Update_and_Rollback_Procedures</td><td>07</td><td>Updating and rolling back</td><td>D, O</td></tr>
+<tr><td>57</td><td>MEGO_Production_Verification_Checklist</td><td>07</td><td>Checks after each deployment</td><td>O, T</td></tr>
+<tr><td>58</td><td>MEGO_Testing_Strategy</td><td>08</td><td>Overall test approach</td><td>T, D</td></tr>
+<tr><td>59</td><td>MEGO_Unit_Testing</td><td>08</td><td>Unit test suite</td><td>D, T</td></tr>
+<tr><td>60</td><td>MEGO_Integration_Testing</td><td>08</td><td>Rules, cloud and Hub integration tests</td><td>D, T</td></tr>
+<tr><td>61</td><td>MEGO_Acceptance_Testing</td><td>08</td><td>Browser end-to-end acceptance tests</td><td>T, O</td></tr>
+<tr><td>62</td><td>MEGO_Nutrition_Calculation_Accuracy_Tests</td><td>08</td><td>Tests of nutrition and target calculations</td><td>T, D</td></tr>
+<tr><td>63</td><td>MEGO_Multi_User_Testing</td><td>08</td><td>Isolation and multi-device tests</td><td>T, D</td></tr>
+<tr><td>64</td><td>MEGO_Android_Device_Testing</td><td>08</td><td>Real-device test checklist (not yet run)</td><td>T, O</td></tr>
+<tr><td>65</td><td>MEGO_Known_Bugs_and_Limitations</td><td>08</td><td>Known issues and limits</td><td>All</td></tr>
+<tr><td>66</td><td>MEGO_Release_Readiness_Checklist</td><td>08</td><td>Go/no-go checklist</td><td>O, T</td></tr>
+<tr><td>67</td><td>MEGO_Admin_User_Manual</td><td>09</td><td>Using the admin dashboard</td><td>A</td></tr>
+<tr><td>68</td><td>MEGO_User_Management_Procedures</td><td>09</td><td>Creating admins, suspending/reactivating accounts</td><td>A, O</td></tr>
+<tr><td>69</td><td>MEGO_Food_Database_Administration</td><td>09</td><td>Reviewing submissions, publishing shared foods</td><td>A</td></tr>
+<tr><td>70</td><td>MEGO_Monitoring_and_Maintenance</td><td>09</td><td>Routine monitoring and maintenance tasks</td><td>O, A</td></tr>
+<tr><td>71</td><td>MEGO_Support_and_Incident_Management</td><td>09</td><td>Handling support requests and incidents</td><td>S, O</td></tr>
+<tr><td>72</td><td>MEGO_Future_Development_Recommendations</td><td>11</td><td>Technical and product recommendations</td><td>O, D</td></tr>
+<tr><td>73</td><td>MEGO_Terms_of_Service_Draft</td><td>12</td><td>Draft terms of service</td><td>L, O</td></tr>
+<tr><td>74</td><td>MEGO_Privacy_Policy_Draft</td><td>12</td><td>Draft privacy policy</td><td>L, O</td></tr>
+<tr><td>75</td><td>MEGO_Nutrition_Disclaimer</td><td>12</td><td>Draft nutrition disclaimer</td><td>L, O, U</td></tr>
+<tr><td>76</td><td>MEGO_Medical_Disclaimer</td><td>12</td><td>Draft medical disclaimer</td><td>L, O, U</td></tr>
+<tr><td>77</td><td>MEGO_Acceptable_Use_Policy</td><td>12</td><td>Draft acceptable use policy</td><td>L, O, U</td></tr>
+</table>
+<p>Note: documents 19–20 are numbered with the user guides but are stored in folder 10 (Troubleshooting &amp; FAQs).</p>
+
+<h2>4. Merged topics</h2>
+<p>Some requested topics overlap; to avoid duplicate, diverging documents they were merged:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Topic</th><th>Where it is covered</th></tr>
+<tr><td>Protein, Carbohydrates and Fat Calculation</td><td>MEGO_Calorie_and_Macronutrient_Calculation_Methodology (24)</td></tr>
+<tr><td>Local Installation</td><td>MEGO_Developer_Setup_and_Local_Installation (50)</td></tr>
+<tr><td>Privacy Policy Draft (also needed under Security &amp; Privacy)</td><td>Exists once: MEGO_Privacy_Policy_Draft (74, folder 12); referenced from folder 06</td></tr>
+<tr><td>Data Backup and Recovery / Backup and Recovery Procedures</td><td>One document: MEGO_Data_Backup_and_Recovery (47)</td></tr>
+</table>
+
+<h2>5. Reading paths by role</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Role</th><th>Start with</th></tr>
+<tr><td>New user</td><td>09 Getting Started → 08 User Manual → 19 FAQ</td></tr>
+<tr><td>Project owner</td><td>01 → 05 Roadmap → 52/53/54 setup guides → 68 User Management → 49 Known Risks</td></tr>
+<tr><td>Administrator</td><td>67 Admin User Manual → 68 → 69</td></tr>
+<tr><td>Developer</td><td>31 Technical Architecture → 50 Developer Setup → 41 Schema → 55 Build and Release</td></tr>
+<tr><td>Tester</td><td>58 Testing Strategy → 61 Acceptance → 64 Android Device Testing → 66 Release Readiness</td></tr>
+<tr><td>Legal reviewer</td><td>73–77 drafts → 44 User Data Protection → 48 Retention and Deletion</td></tr>
+</table>
+
+<h2>6. Verification status</h2>
+<ul>
+<li><b>Verified:</b> the register above matches the agreed documentation plan; folder ids were provided by the owner's Drive setup.</li>
+<li><b>Not verified in this document:</b> the content of the other documents — each carries its own verification status section.</li>
+</ul>
+
+<h2>7. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

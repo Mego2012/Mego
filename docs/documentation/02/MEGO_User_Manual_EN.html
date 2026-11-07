@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_User_Manual_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — User Manual</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-08</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>End users of the MEGO app (non-technical)</td></tr>
+<tr><td>Related documents</td><td>MEGO_Getting_Started, MEGO_Registration_and_Login_Guide, MEGO_Profile_and_Goals_Guide, MEGO_Food_Tracking_Guide, MEGO_Meal_Planning_Guide, MEGO_Reports_Guide, MEGO_Progress_and_Insights_Guide, MEGO_Backup_and_Export_Guide, MEGO_FAQ</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This manual describes every screen of the MEGO nutrition app (web address <b>https://mego2012.github.io/Mego/</b>) as it works in the released version. It explains what each screen shows and what each button does, using the exact button labels of the English interface. Detailed step-by-step guides for individual tasks are listed under "Related documents". Arabic is the default interface language; you can switch to English in <b>Settings → Language · Theme</b>.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Navigation and common elements</li>
+<li>Dashboard (home)</li>
+<li>Diary</li>
+<li>Adding food: search, barcode and AI meal scanner</li>
+<li>Foods (food database)</li>
+<li>My Recipes (library, suggestions, "What can I cook?", saved meals)</li>
+<li>Meal Planner</li>
+<li>Water &amp; habits (water, habits, fasting, reminders)</li>
+<li>Progress</li>
+<li>Weekly and Monthly Reports</li>
+<li>Coach (Today, Week, Month, Rankings, Learn)</li>
+<li>Settings</li>
+<li>Account screens</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Navigation and common elements</h2>
+<p>On a phone, a <b>bottom bar</b> shows four screens plus <b>More</b>. On a wide screen (tablet/desktop) all screens are listed in a side menu.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Bottom bar</th><th>Under "More"</th></tr>
+<tr><td>Dashboard · Diary · My Recipes · Progress</td><td>Coach · Foods · Meal Planner · Water &amp; habits · Weekly Report · Monthly Report · Settings</td></tr>
+</table>
+<p>The header shows the screen name and a <b>sync chip</b> with the current state: "Sync not configured", "Synced", "Syncing…", "Sync error" or "Offline — changes are saved on this device". When the phone is offline a banner says: "You are offline. Everything you log is saved and will sync when you reconnect."</p>
+<p>Most actions show a short message at the bottom of the screen (a "toast"). After adding, copying or deleting food the toast offers <b>Undo</b>.</p>
+
+<h2>2. Dashboard (home)</h2>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/home-en-light.png" width="300" alt="Dashboard"></p>
+<ul>
+<li><b>Greeting and date</b> with two chips: the day status (Fully logged / Partially logged / No entries) and the day type (Training day / Rest day).</li>
+<li><b>Calorie dial</b>: calories remaining (or "Over") and the percentage of the target. Below it: <i>Goal − Food = Remaining</i>.</li>
+<li><b>Macro bars</b> for protein, carbs and fat, plus fiber/sugar/sodium when the foods contain them.</li>
+<li><b>Suggestions</b> button showing "Remaining now: … kcal · P … g · C … g · F … g"; it opens recipe suggestions that fit what is left.</li>
+<li><b>Quick actions</b>: Add food, +250 ml (water), Coach, Weigh-in.</li>
+<li><b>Scan a meal (AI)</b>: Take a photo / Upload from gallery (see section 4.3).</li>
+<li><b>Coach</b> card with one message for today (or the tip of the day).</li>
+<li><b>Meal tiles</b> (Breakfast, Lunch, Dinner, Snacks) with calories; tap one to open it in the Diary. Below: "Meals logged" (out of 4) and "Daily goal completion".</li>
+<li><b>Water</b> card (amount / target, +500 button), <b>Goal progress</b> (current vs target weight, weekly weight trend, estimated weeks to target), <b>This week</b> summary with a 7-day calorie chart, and <b>Smart insights</b> (based only on your saved data from the last 7 days).</li>
+</ul>
+
+<h2>3. Diary</h2>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/diary-en-light.png" width="300" alt="Diary"></p>
+<ul>
+<li><b>Date navigation</b> and a <b>week strip</b>: each day has a small ring showing how much of the calorie target was eaten (it turns to the warning colour above 105%).</li>
+<li><b>Day panel</b>: calorie ring (eaten / target), remaining or over, status chip, and a <b>Day type</b> selector (default, Training day, Rest day). Macro bars and a water line with +250 / +500.</li>
+<li><b>Scan buttons</b> for the AI meal scanner.</li>
+<li><b>Tool row</b>: Copy yesterday · Copy day to… · Mark day complete · Mark day partial · Auto status · Targets for this day.</li>
+<li><b>Meal sections</b> (Breakfast, Lunch, Dinner, Snacks), each with an <b>Add</b> button. Under a meal with entries: <b>Copy meal to…</b> and <b>Save as saved meal</b>.</li>
+<li>Tap an entry to edit it: Quantity, Unit, Meal, Date, then <b>Save</b>; or <b>Duplicate</b>, <b>Copy to date…</b>, <b>Delete</b>. Note shown: "Values are saved with this entry at logging time and do not change if the food is edited later."</li>
+</ul>
+<p>A day with no entries is shown as "Nothing logged — not counted as a zero-calorie day". Full details: MEGO_Food_Tracking_Guide.</p>
+
+<h2>4. Adding food</h2>
+<h3>4.1 The "Add food" sheet</h3>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/add-food-en-light.png" width="300" alt="Add food"></p>
+<p>The sheet has a meal selector, scan buttons, a search box, a barcode button and a raw/cooked filter (All, Raw, Cooked, Ready / processed). Tabs: <b>All</b>, <b>Recent</b>, <b>Frequent</b>, <b>Favorites</b>, <b>History</b>, <b>Saved meals</b>, <b>Recipes</b>. Typing two or more letters searches your own foods and the built-in <b>Food database</b> (USDA, about 12,900 foods, Arabic and English search). If nothing fits you can <b>Create "…" as my food</b> or <b>Search packaged products online (Open Food Facts)</b>.</p>
+<h3>4.2 Quantity</h3>
+<p>After choosing a food, enter a Quantity and a Unit (g, kg, ml, L, cup, tbsp, tsp; piece/slice when the food has a piece weight; serving when it has custom servings). Quick buttons (50–250 g, or 0.5–4 units) and a live preview of calories and macros are shown. Press <b>Log food</b>.</p>
+<h3>4.3 AI meal scanner and barcode</h3>
+<p><b>Take a photo</b> or <b>Upload from gallery</b> → optional note → <b>Analyse photo</b> → review every detected item (weight, food match, "I checked this item") → choose meal and date → <b>Confirm &amp; add to diary</b>. Nothing is saved before you confirm. The barcode button looks a product up in your own foods first, then in Open Food Facts; you check the values and press <b>Save food &amp; log</b>. Details in MEGO_Food_Tracking_Guide.</p>
+
+<h2>5. Foods (food database)</h2>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/foods-en-light.png" width="300" alt="Foods"></p>
+<p>Your personal food list. You can search, filter (Min protein, Max kcal, Max carbs, Max fat, raw/cooked), add a <b>New food</b>, edit a food (names in Arabic and English, raw/cooked state, preparation method, values per 100 g / per 100 ml / per serving from the label, piece/slice weight, density, custom serving sizes, optional fiber/sugar/sodium), view its <b>Change history</b>, and <b>Delete (archive)</b> it — past diary entries keep their values and the food can be restored via <b>Show deleted</b>. <b>Import / export</b> offers Import CSV / Excel, Export CSV, Export Excel, Export my foods (JSON) and Import my foods (JSON). <b>Data issues</b> flags foods with missing values, calories that do not match the macros, duplicate names and similar. Signed-in users can <b>Suggest for the shared database</b>; an administrator reviews the suggestion. See MEGO_Food_Search_and_Database_Guide and MEGO_Recipes_and_Custom_Foods_Guide.</p>
+
+<h2>6. My Recipes</h2>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/recipes-en-light.png" width="300" alt="Recipes"></p>
+<p>Five tabs:</p>
+<ul>
+<li><b>Recipe library</b> — 101 ready recipes with filters (High protein, Low calorie, Low carb, Chicken, Eggs, Rice, Fish &amp; seafood, Meat, Sandwiches &amp; wraps, Quick (≤ 20 min), Meal prep, High fiber, Vegetarian, Breakfast, Favorites). A recipe page shows ingredients, steps, tips, prep/cook time, difficulty and nutrition per serving calculated from the food database. Buttons: Add to diary, Add to plan, Save to my recipes (editable), Favorite and Your rating.</li>
+<li><b>Suggestions</b> — recipes that fit the calories and macros remaining today, with reasons such as "covers protein" or "fits calories".</li>
+<li><b>What can I cook?</b> — tick the ingredients you have (oil and butter are assumed); matching recipes are listed with what is missing.</li>
+<li><b>My recipes</b> — your own recipes: New recipe, ingredients, servings, totals per serving, Duplicate, Add to diary.</li>
+<li><b>Saved meals</b> — groups of foods saved from the Diary or created with New saved meal; press Log to add them.</li>
+</ul>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/cook-en-light.png" width="280" alt="What can I cook"></p>
+
+<h2>7. Meal Planner</h2>
+<p>Week view with previous/next arrows. Buttons: <b>Suggest a week plan</b>, <b>Shopping list</b>, <b>Copy last week's plan</b>. Each day shows Planned vs Actual calories and buttons Edit, Copy plan to…, Log planned meals and Clear. The card <b>Reusable day plans</b> holds named plans you can apply to several days. Full guide: MEGO_Meal_Planning_Guide.</p>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/planner-en-light.png" width="300" alt="Planner"></p>
+
+<h2>8. Water &amp; habits</h2>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/habits-en-light.png" width="300" alt="Water and habits"></p>
+<ul>
+<li><b>Water</b>: buttons +150, +250, +330, +500, +750 ml and −250 to correct; progress toward the daily target (default 3,000 ml, editable in Settings) and the last 14 days.</li>
+<li><b>Daily habits</b>: tick habits each day (three examples are pre-filled), <b>Add habit</b>, delete; a streak counter and the day completion are shown.</li>
+<li><b>Fasting timer</b>: set the Fasting goal (hours, default 16), <b>Start fast</b> / <b>End fast</b>; the running time and "Goal reached" are shown, plus a Fasting history.</li>
+<li><b>Reminders</b>: water, meal and weigh-in reminders with a time; <b>Allow notifications</b>. Note from the app: reminders fire while the app is open or in the background; Android may delay them when the app is fully closed.</li>
+</ul>
+
+<h2>9. Progress</h2>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/progress-en-light.png" width="300" alt="Progress"></p>
+<p><b>Add measurement</b> saves weight, waist, chest, hips, arm, thigh, neck and body fat % for a date (one record per date — saving again updates it). The screen shows the weight chart (daily weigh-ins and a 7-day average line), weekly and monthly averages, change from start, waist trend, rate of change per week with a pace message, and an estimated target date (needs at least 6 weigh-ins over at least 2 weeks). <b>Progress photos</b> stay on the phone only. See MEGO_Progress_and_Insights_Guide.</p>
+
+<h2>10. Weekly and Monthly Reports</h2>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/week-en-light.png" width="300" alt="Weekly report"></p>
+<p>Use Previous / Next to move between weeks or months. The report shows average calories and macros, days within the calorie target, days hitting protein, consistency percentages, weight start/end/average and change, waist change, daily calorie and macro charts, macro split, top foods, average water, a fiber indicator, best and lowest consistency days and a comparison with the previous period. <b>Averages use fully logged days only</b>; partial and empty days are excluded (never counted as zero). Export: Export CSV, Export Excel, Print / save PDF. See MEGO_Reports_Guide.</p>
+
+<h2>11. Coach</h2>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/coach-en-light.png" width="300" alt="Coach"></p>
+<ul>
+<li><b>Today</b> — "Your day so far", "Complete my macros" with exact gram options, and the tip of the day.</li>
+<li><b>Week</b> / <b>Month</b> — reviews based on fully logged days (at least 3 per week, at least 8 per month). Suggestions only: "MEGO never changes your targets automatically."</li>
+<li><b>Rankings</b> — food rankings by Protein, Carbohydrates, Healthy fats, Fibre, Low calorie, High protein low calorie, Nutrient dense, For cutting, For muscle building; rank for Fat loss / Maintenance / Muscle gain; Compare up to 3 foods; tap a food for the score breakdown and amino-acid chart.</li>
+<li><b>Learn</b> — short articles with sources (educational information, not medical advice).</li>
+</ul>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/rankings-en-light.png" width="280" alt="Rankings"></p>
+
+<h2>12. Settings</h2>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/settings-en-light.png" width="300" alt="Settings"></p>
+<p>Shortcut chips at the top jump to each section:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Section</th><th>What it contains</th></tr>
+<tr><td>Account</td><td>Name, email, "member since", Export my data, Sign out, Delete account (guests see "Sign in / Create account")</td></tr>
+<tr><td>Language · Theme</td><td>العربية / English; System / Light / Dark</td></tr>
+<tr><td>Profile</td><td>Name, goal, sex, age, height, weights, activity, training days, recommended targets (MEGO_Profile_and_Goals_Guide)</td></tr>
+<tr><td>Nutrition targets</td><td>Training-day and rest-day targets, training weekdays, tolerances, week start, auto-complete rule, water target</td></tr>
+<tr><td>Food preferences</td><td>No restriction / Vegetarian / Vegan and exclusions (used by Coach and rankings only)</td></tr>
+<tr><td>MEGO Nutrition Hub — sync &amp; backup</td><td>Owner's Google Sheet connection (owner/guest device only; see MEGO_Google_Sheets_Integration_and_Sync)</td></tr>
+<tr><td>AI meal scanner</td><td>Status of the free Gemini scanner and key management for the owner's backend</td></tr>
+<tr><td>Data &amp; backups</td><td>Download backup file, Restore from backup file, Export full diary (CSV), automatic backups on this phone (MEGO_Backup_and_Export_Guide)</td></tr>
+<tr><td>Photo credits</td><td>Licences of the Wikimedia Commons food photos</td></tr>
+</table>
+
+<h2>13. Account screens</h2>
+<p>When the app is opened without being signed in, a welcome screen offers <b>Create account</b>, <b>Sign in</b> and <b>Continue without an account (this device only)</b>. Registration has 3 steps (account, about you, daily targets). A suspended account sees "Account suspended" with only a Sign out button. Privacy policy and Terms of use pages are drafts. Full guide: MEGO_Registration_and_Login_Guide.</p>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/welcome-ar-light.png" width="280" alt="Welcome (Arabic only screenshot)"></p>
+
+<h2>14. Verification status</h2>
+<ul>
+<li><b>Verified live</b> (production, 7 Nov 2026): the app is published at the address above; registration, sign-in/out, food logging saved under the owner, second-device sync, weekly and monthly reports, password-reset request (HTTP 200), account deletion (scripts/live-verify.mjs 14/14); one real AI photo analysis succeeded.</li>
+<li><b>Tested on emulators/automated browsers only</b>: all screens and buttons described here (guest browser suite 44/44, touch/scroll suite 103/103 on Pixel 7 / Galaxy viewports). No real Android device test has been done yet (docs/ANDROID-TEST.md).</li>
+<li><b>Not verified</b>: notification delivery on a real phone when the app is closed; the AI scanner per-user daily limit value on the shared backend; reset e-mail delivery to an inbox.</li>
+</ul>
+
+<h2>15. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Product_Overview_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Product Overview</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-01</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Everyone: owner, stakeholders, new team members, testers, support</td></tr>
+<tr><td>Related documents</td><td>MEGO_Documentation_Index, MEGO_Features_and_Capabilities, MEGO_Product_Requirements_PRD, MEGO_Technical_Architecture, MEGO_Product_Roadmap</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document explains in a few pages what MEGO is, who it is for, what it does today, how it is built and what its current release status is. It is the entry point to the official documentation set; details are in the documents listed in MEGO_Documentation_Index.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>What MEGO is</li>
+<li>Who it is for</li>
+<li>Main capabilities</li>
+<li>How MEGO is built</li>
+<li>Operating modes</li>
+<li>Design principles</li>
+<li>Current release status</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. What MEGO is</h2>
+<p>MEGO («MEGO — Nutrition», short name «MEGO» in the web-app manifest) is a mobile-first, installable, offline-capable nutrition tracker delivered as a Progressive Web App (PWA). It covers food logging, calories and macronutrients, body weight and measurements, water, habits and fasting, recipes, meal planning, coaching and weekly/monthly reports. It deliberately does <b>not</b> cover workouts.</p>
+<p>The app is bilingual: Arabic with full right-to-left (RTL) layout and English left-to-right, each with light, dark and system themes. It is free to run: hosting, accounts, database and AI scanning all use free tiers without a billing account.</p>
+<ul>
+<li>Live app: <code>https://mego2012.github.io/Mego/</code> (GitHub Pages)</li>
+<li>Source: repository <code>Mego2012/Mego</code>, branch <code>claude/nutrition-tracking-app-989rku</code></li>
+</ul>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/home-en-light.png" width="300" alt="MEGO home screen (English, light)"></p>
+
+<h2>2. Who it is for</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>User</th><th>What they get</th></tr>
+<tr><td>Guest user</td><td>Full app on one device without an account; data stays in the browser's local database.</td></tr>
+<tr><td>Registered user</td><td>Private cloud account (Firebase), same data on several devices with live sync, password reset, export and account deletion.</td></tr>
+<tr><td>Project owner</td><td>Personal "MEGO Nutrition Hub" Google Sheet synchronised through a private Apps Script backend; controls the Gemini AI key and the cloud configuration.</td></tr>
+<tr><td>Administrator</td><td>Admin dashboard: user counts, account list, suspend/reactivate, review of submitted foods, error reports — with no access to anyone's private records. (No administrator exists yet — see section 7.)</td></tr>
+</table>
+
+<h2>3. Main capabilities</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Area</th><th>Summary</th></tr>
+<tr><td>Dashboard</td><td>Calorie ring (Goal − Food = Remaining), protein/carb/fat bars, per-meal summaries, water, weight, weekly trends, insights.</td></tr>
+<tr><td>Food diary</td><td>Breakfast, lunch, dinner, snacks on any date; units g, kg, ml, L, cup, tbsp, tsp, piece, slice and custom servings; edit, copy, undo; saved meals; fully/partially logged days.</td></tr>
+<tr><td>Food database</td><td>12,879 USDA FoodData Central reference foods shipped with the app, the owner's verified 160 foods, custom foods, Arabic/English search, barcode lookup through Open Food Facts, 74 food photos.</td></tr>
+<tr><td>AI meal scanner</td><td>Photo → recognised items with gram estimates, matched to the food database; review and confirm before anything is saved (Gemini free tier).</td></tr>
+<tr><td>Coach &amp; food intelligence</td><td>Daily/weekly/monthly coaching from the user's own logs, transparent food rankings (amino-acid score, NRF9.3), food comparison, 13 education articles with sources.</td></tr>
+<tr><td>Recipes &amp; planner</td><td>101 built-in recipes calculated from the food database, "What can I cook today?", week planner, automatic week plan, shopping list.</td></tr>
+<tr><td>Body &amp; progress</td><td>Weight, waist and other measurements, trend with 7-day average, weekly/monthly averages, progress photos stored on the device only.</td></tr>
+<tr><td>Habits</td><td>Water target, custom habits, fasting timer, reminders.</td></tr>
+<tr><td>Reports</td><td>Weekly and monthly reports with previous-period comparison; CSV, Excel and print-to-PDF.</td></tr>
+<tr><td>Data safety</td><td>Offline-first local database, automatic on-device backups, backup file download/restore, cloud sync.</td></tr>
+</table>
+<p>The complete inventory is in MEGO_Features_and_Capabilities.</p>
+
+<h2>4. How MEGO is built</h2>
+<pre>
+ Phone / browser (PWA, works offline)
+ +---------------------------------------+
+ | React 18 + TypeScript (Vite)          |
+ | Dexie / IndexedDB  = local database   |
+ | Service worker (Workbox) = offline    |
+ +---------------------------------------+
+     |                 |                 |
+     | accounts        | owner device    | barcode lookup
+     v                 v                 v
+ Firebase Auth +   Apps Script web app   Open Food Facts
+ Cloud Firestore   -> Google Sheet Hub   (free public API)
+ (Spark, me-central2) -> Gemini API (free tier, AI scanner)
+</pre>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Part</th><th>Technology / service</th><th>Cost</th></tr>
+<tr><td>App hosting</td><td>GitHub Pages, deployed by <code>.github/workflows/deploy.yml</code></td><td>Free</td></tr>
+<tr><td>Accounts and private cloud data</td><td>Firebase Authentication (Email/Password) + Cloud Firestore, Spark plan, region <code>me-central2</code> (Dammam)</td><td>Free (Spark limits apply)</td></tr>
+<tr><td>Owner's Hub</td><td>Google Apps Script web app + Google Sheet "MEGO Nutrition Hub"</td><td>Free (Apps Script quotas)</td></tr>
+<tr><td>AI meal scanner</td><td>Gemini API free tier, model <code>gemini-3.8-flash</code>, called only from Apps Script</td><td>Free; stops at quota, cannot bill</td></tr>
+<tr><td>Reference food data</td><td>USDA FoodData Central (public domain), static file cached offline</td><td>Free</td></tr>
+</table>
+<p>Access to private data is enforced on Google's servers by <code>firebase/firestore.rules</code>: each user can read and write only their own records. Details: MEGO_Technical_Architecture, MEGO_Security_Architecture.</p>
+
+<h2>5. Operating modes</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Mode</th><th>When</th><th>Local database</th><th>Cloud</th></tr>
+<tr><td>Welcome</td><td>Cloud configured, user signed out and has not chosen guest mode</td><td>—</td><td>Shows welcome, sign-in, registration and legal pages</td></tr>
+<tr><td>Guest</td><td>User chose "continue as guest", or no cloud configuration is available</td><td><code>mego-nutrition</code></td><td>Optional owner Hub sync (connection configured in Settings)</td></tr>
+<tr><td>Account</td><td>User signed in</td><td><code>mego-u-&lt;uid&gt;</code> (one per account on each device)</td><td>Live sync with Cloud Firestore</td></tr>
+</table>
+<p>Source: <code>src/lib/account.ts</code> (modes <code>guest | account | welcome</code>).</p>
+
+<h2>6. Design principles</h2>
+<ul>
+<li><b>User's numbers first:</b> nutrition is always computed by the app's own engine from the food database; AI estimates are labelled and never replace database values.</li>
+<li><b>Nothing silent:</b> goal recommendations are never applied without confirmation; the AI scanner never auto-saves; undo is offered for logging actions.</li>
+<li><b>Honest data:</b> a day with no entries is "empty", not zero calories; unknown nutrient values are not treated as 0.</li>
+<li><b>Offline first:</b> the local database is the live store; sync runs when online.</li>
+<li><b>Privacy by design:</b> administrators cannot read users' records; progress photos never leave the device; photos sent to the AI are downscaled and re-encoded (removing EXIF/GPS) and are not stored.</li>
+<li><b>Zero cost:</b> no paid API, database, hosting or subscription.</li>
+</ul>
+
+<h2>7. Current release status (7 November 2026)</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Public app on GitHub Pages</td><td>Live</td></tr>
+<tr><td>Firebase project (Auth + Firestore + rules)</td><td>Live; production verification 14/14</td></tr>
+<tr><td>Google Sheets Hub + Apps Script backend</td><td>Live (160 foods, backup created before migration)</td></tr>
+<tr><td>Gemini meal scanner</td><td>Live; one real analysis succeeded, a later run returned "AI busy" (transient Google overload)</td></tr>
+<tr><td>Administrator account</td><td>Waiting for the owner to register and run the setup script with <code>--cloud</code></td></tr>
+<tr><td>Real Android device test</td><td>Not done (emulated devices only); checklist in <code>docs/ANDROID-TEST.md</code></td></tr>
+<tr><td>Privacy policy and terms</td><td>Drafts in the app, need legal review</td></tr>
+<tr><td>Old public commits exposing a food fixture</td><td>GitHub support request prepared, not yet sent</td></tr>
+<tr><td>Gemini key and backend link rotation</td><td>Recommended (they were shown in a chat during setup)</td></tr>
+</table>
+<p>Automated tests passing on the final code: unit 109, Firestore rules/cloud 14, guest browser end-to-end 44, touch/scroll 103, multi-user 8, laptop setup 10, live production verification 14.</p>
+
+<h2>8. Verification status</h2>
+<ul>
+<li><b>Verified live:</b> app availability, Firebase registration/isolation/sync/reports/deletion (live-verify 14/14), Hub read/write and conflict protection, one real Gemini analysis.</li>
+<li><b>Tested only on emulators:</b> Android behaviour (Playwright Pixel 7 / Galaxy viewports with touch events), multi-user browser flows (Firebase emulators).</li>
+<li><b>Not verified:</b> real Android or iOS devices, delivery of password-reset e-mails to an inbox, camera barcode scanning on a real phone, legal compliance of the draft legal pages.</li>
+</ul>
+
+<h2>9. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Food_Database_Documentation_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — توثيق قاعدة بيانات الأطعمة</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>القيمة</th></tr>
+<tr><td>رقم المستند</td><td>MEGO-DOC-21</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-07</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-07</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>المطوّرون، مسؤولو قاعدة بيانات الأطعمة، المراجعون التقنيون</td></tr>
+<tr><td>مستندات ذات صلة</td><td dir="ltr">MEGO_Food_Categories_and_Classification, MEGO_Nutritional_Values_and_Units_Reference, MEGO_Food_Database_Import_and_Update_Procedures, MEGO_Food_Data_Validation_and_Quality_Control, MEGO_Food_Search_and_Database_Guide, MEGO_Google_Sheets_Integration_and_Sync, MEGO_Gemini_AI_Integration</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">يشرح هذا المستند جميع مصادر بيانات الأطعمة في MEGO، وهياكل البيانات الفعلية المستخدمة لتخزين الأطعمة، وكيف يتحول طعام من مصدر مرجعي للقراءة فقط إلى جزء من قائمة أطعمة المستخدم. جميع الهياكل منقولة من الشيفرة: <code dir="ltr">src/lib/types.ts</code> و<code dir="ltr">src/lib/refFoods.ts</code> و<code dir="ltr">src/lib/barcode.ts</code> و<code dir="ltr">src/lib/mealScanner.ts</code> و<code dir="ltr">scripts/build-food-db.mjs</code> و<code dir="ltr">apps-script/Code.gs</code>.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">نظرة عامة على مصادر الأطعمة</li>
+<li dir="rtl">جدول أطعمة المستخدم (سجل Food)</li>
+<li dir="rtl">مركز المالك في Google Sheets (160 طعامًا)</li>
+<li dir="rtl">قاعدة USDA المرجعية (usda.json)</li>
+<li dir="rtl">ملف العناصر الغذائية الإضافية (usda-extra.json)</li>
+<li dir="rtl">Open Food Facts (الباركود والبحث النصي)</li>
+<li dir="rtl">الأطعمة المخصصة وتقديرات الذكاء الاصطناعي</li>
+<li dir="rtl">نسخ طعام مرجعي إلى أطعمة المستخدم</li>
+<li dir="rtl">الحقلان source و sourceRef</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. نظرة عامة على مصادر الأطعمة</h2>
+<pre dir="ltr">
+ +-------------------+   +-----------------------+   +-------------------+
+ | Owner Hub (Sheet) |   | USDA reference DB     |   | Open Food Facts   |
+ | 160 foods         |   | public/fooddb/usda.json|  | (internet, no key)|
+ +---------+---------+   +-----------+-----------+   +---------+---------+
+           | pull (sync)             | copy once when used     | user saves product
+           v                         v                         v
+ +------------------------------------------------------------------------+
+ |  User foods table  (Dexie/IndexedDB table "foods", type Food)          |
+ |  source: 'sheet' | 'usda' | 'openfoodfacts' | 'custom'                 |
+ +------------------------------------------------------------------------+
+           ^                                   ^
+           | user creates / imports JSON       | AI scanner "add as new food"
+       custom foods                         (labelled as unverified estimate)
+</pre>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المصدر</th><th>المكان</th><th>للقراءة فقط؟</th><th>قيمة <code dir="ltr">source</code></th></tr>
+<tr><td>مركز المالك «MEGO Nutrition Hub»، تبويب Food_Database</td><td>جدول Google عبر Apps Script (<code dir="ltr">src/lib/sync.ts</code>، <code dir="ltr">sheetImport.ts</code>)</td><td>القيم مملوكة للجدول</td><td><code dir="ltr">sheet</code></td></tr>
+<tr><td>USDA FoodData Central (SR Legacy + FNDDS)</td><td><code dir="ltr">public/fooddb/usda.json</code> يُشحن مع التطبيق ويُخزَّن للعمل دون اتصال</td><td>نعم (يُنسخ عند الاستخدام)</td><td><code dir="ltr">usda</code></td></tr>
+<tr><td>Open Food Facts</td><td>واجهة عامة، باركود وبحث نصي (<code dir="ltr">src/lib/barcode.ts</code>)</td><td>بيانات مجتمعية خارجية</td><td><code dir="ltr">openfoodfacts</code></td></tr>
+<tr><td>أطعمة مخصصة</td><td>تُنشأ في محرر الطعام أو تُستورد (<code dir="ltr">customFoods.ts</code>)</td><td>لا</td><td><code dir="ltr">custom</code></td></tr>
+<tr><td>تقديرات صور الذكاء الاصطناعي</td><td>ماسح الوجبات، فقط للعناصر غير الموجودة في القاعدة</td><td>لا — موسومة كتقدير</td><td><code dir="ltr">custom</code> (افتراضي)، الفئة «تقدير من صورة»</td></tr>
+</table>
+
+<h2 dir="rtl">2. جدول أطعمة المستخدم (سجل Food)</h2>
+<p dir="rtl">كل طعام يمكن تسجيله موجود في الجدول المحلي <code dir="ltr">foods</code> (قاعدة الضيف <code dir="ltr">mego-nutrition</code> أو قاعدة الحساب <code dir="ltr">mego-u-&lt;uid&gt;</code>). الحقول من <code dir="ltr">src/lib/types.ts</code>:</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>النوع</th><th>المعنى</th></tr>
+<tr><td dir="ltr">id</td><td dir="ltr">string</td><td>معرّف فريد (crypto.randomUUID)</td></tr>
+<tr><td dir="ltr">nameAr / nameEn</td><td dir="ltr">string</td><td>الاسم العربي والإنجليزي (أحدهما إلزامي)</td></tr>
+<tr><td dir="ltr">category</td><td dir="ltr">string</td><td>فئة نصية حرة</td></tr>
+<tr><td dir="ltr">per100</td><td dir="ltr">Macros</td><td>العناصر لكل 100 غ (سعرات، بروتين، كربوهيدرات، دهون، واختياريًا ألياف وسكر وصوديوم ملغ ودهون مشبعة)</td></tr>
+<tr><td dir="ltr">state</td><td dir="ltr">'raw' | 'cooked' | 'other'</td><td>حالة الوزن (نيء/مطبوخ/أخرى)</td></tr>
+<tr><td dir="ltr">stateLabel</td><td dir="ltr">string</td><td>تسمية الحالة الأصلية (مثل «مطبوخ/مصنّع»)</td></tr>
+<tr><td dir="ltr">prep, notes</td><td dir="ltr">string</td><td>طريقة التحضير؛ ملاحظات (مصدر، تحذيرات)</td></tr>
+<tr><td dir="ltr">pieceGrams?</td><td dir="ltr">number</td><td>وزن الحبة/الشريحة</td></tr>
+<tr><td dir="ltr">gramsPerMl?</td><td dir="ltr">number</td><td>الكثافة؛ عند غيابها 1 مل = 1 غ</td></tr>
+<tr><td dir="ltr">servings</td><td dir="ltr">CustomServing[] {id, name, grams}</td><td>حصص مسمّاة</td></tr>
+<tr><td dir="ltr">favorite</td><td dir="ltr">boolean</td><td>مفضّل</td></tr>
+<tr><td dir="ltr">source</td><td dir="ltr">'sheet' | 'custom' | 'openfoodfacts' | 'usda'</td><td>المنشأ</td></tr>
+<tr><td dir="ltr">sourceRef?</td><td dir="ltr">string</td><td>مرجع مصدر القيم، يُعرض للمستخدم</td></tr>
+<tr><td dir="ltr">barcode?, brand?</td><td dir="ltr">string</td><td>للمنتجات المعبأة</td></tr>
+<tr><td dir="ltr">sheetKey?, sheetRow?</td><td dir="ltr">string, number</td><td>مفتاح السجل وصفّه في المركز للمزامنة</td></tr>
+<tr><td dir="ltr">incomplete</td><td dir="ltr">boolean</td><td>صحيح عندما تكون السعرات والبروتين والكربوهيدرات والدهون كلها 0 (<code dir="ltr">isIncompleteMacros</code>)</td></tr>
+<tr><td dir="ltr">archived</td><td dir="ltr">boolean</td><td>مخفي (أرشفة ناعمة)</td></tr>
+<tr><td dir="ltr">version, createdAt, updatedAt</td><td dir="ltr">number</td><td>إصدار السجل وطوابع زمنية (ملّي ثانية)</td></tr>
+<tr><td dir="ltr">lastUsedAt?, useCount</td><td dir="ltr">number</td><td>إحصاءات الاستخدام للأحدث/الترتيب</td></tr>
+</table>
+<p dir="rtl"><b>قواعد الإنشاء</b> (<code dir="ltr">createFood</code> في <code dir="ltr">src/lib/repo.ts</code>): يجب أن تجتاز القيم <code dir="ltr">validateMacros</code>؛ الاسم إلزامي؛ ما لم يُفعَّل <code dir="ltr">allowDuplicate</code> يُرفض الطعام الذي له الاسم العربي أو الإنجليزي نفسه (بعد التطبيع) <i>والحالة نفسها</i> بالرمز <code dir="ltr">DUPLICATE:&lt;id&gt;</code>؛ قيمة <code dir="ltr">source</code> الافتراضية هي <code dir="ltr">custom</code>؛ وكل إنشاء يُسجَّل في سجل التغييرات (<code dir="ltr">foodChanges</code>) وطابور المزامنة.</p>
+<p dir="rtl"><b>لقطات اليوميات:</b> عند تسجيل طعام تُنسخ قاعدته (per100 وpieceGrams وgramsPerMl وservings) داخل قيد اليوميات (<code dir="ltr">EntryBasis</code>)، فلا تغيّر التعديلات اللاحقة على الطعام القيود السابقة.</p>
+
+<h2 dir="rtl">3. مركز المالك في Google Sheets (160 طعامًا)</h2>
+<p dir="rtl">قائمة أطعمة المالك الشخصية محفوظة في جدول Google الأصلي «MEGO Nutrition Hub»، تبويب <b>Food_Database</b>، ويضم 160 طعامًا بمعرّفات ثابتة <code dir="ltr">F0001…</code> (تحقق مباشر: 160 طعامًا و0 مشكلات رقمية). الأعمدة التي يكتبها <code dir="ltr">apps-script/Code.gs</code>:</p>
+<pre dir="ltr">food_id, name_ar, name_en, category, kcal_100g, protein_100g, carbs_100g, fat_100g,
+fiber_100g, sugar_100g, sodium_mg_100g, piece_g, state, state_label, prep, source,
+verification, barcode, notes, active</pre>
+<p dir="rtl">يقرأ التطبيق هذا التبويب بالدالة <code dir="ltr">parseStructuredFoods</code> (<code dir="ltr">src/lib/sheetImport.ts</code>). الأعمدة الإلزامية: <code dir="ltr">food_id, name_ar, kcal_100g, protein_100g, carbs_100g, fat_100g</code>. تُتجاهل الصفوف التي فيها <code dir="ltr">active = no</code>. القيمة الإلزامية الفارغة أو غير المقروءة تجعل الطعام <i dir="ltr">missingValues</i> (يُستورد لكن يُمنع تسجيله). الملاحظات التي تحتوي ⚠ أو «غير محقق» أو «تقريبي» أو «تقديري» أو «للمراجعة» تولّد المشكلة <code dir="ltr">flaggedInNotes</code>. عمود <code dir="ltr">verification</code> يأخذ القيم verified-usda / estimated / unverified / user (docs/HUB.md). قيم الأطعمة مملوكة للجدول: لا يكتب التطبيق فوقها إلا إذا فعّل المالك الكتابة العكسية (write-back). يُستخدم هذا المصدر فقط على جهاز المالك/الضيف المتصل بالمركز، وليس في حسابات Firebase.</p>
+
+<h2 dir="rtl">4. قاعدة USDA المرجعية (usda.json)</h2>
+<p dir="rtl">تُبنى بالأمر <code dir="ltr">node scripts/build-food-db.mjs &lt;usda-dir&gt;</code> من ملفات CSV الرسمية. القيم منسوخة كما نُشرت تمامًا (لكل 100 غ من الجزء الصالح للأكل)؛ لا تقدير ولا «تصحيح»؛ ويُستبعد أي طعام بلا قيمة طاقة منشورة أو بلا بروتين/دهون/كربوهيدرات. كتلة <code dir="ltr">meta</code> في الملف المشحون:</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>حقل meta</th><th>القيمة</th></tr>
+<tr><td dir="ltr">format / version</td><td dir="ltr">mego-fooddb / 1</td></tr>
+<tr><td dir="ltr">builtAt</td><td dir="ltr">2026-11-06</td></tr>
+<tr><td dir="ltr">sources</td><td>S = USDA FoodData Central — SR Legacy (إصدار 2018-04)؛ N = USDA FoodData Central — FNDDS (Survey foods) (إصدار 2024-10-31)؛ الترخيص: ملكية عامة (عمل حكومي أمريكي)</td></tr>
+<tr><td dir="ltr">basis</td><td>لكل 100 غ من الجزء الصالح للأكل</td></tr>
+<tr><td dir="ltr">stats</td><td dir="ltr">sr 7,448 · fndds 5,431 · skippedNoEnergyOrMacros 1 · energyFlagged 211</td></tr>
+<tr><td dir="ltr">rows</td><td>12,879 صفًا</td></tr>
+<tr><td dir="ltr">categories</td><td>195 فئة (24 مجموعة SR Legacy + 171 فئة FNDDS WWEIA)</td></tr>
+</table>
+<p dir="rtl">تُستبعد مجموعتا SR Legacy «Quality Control Materials» و«Baby Foods». صيغة الصف (النوع <code dir="ltr">RefRow</code>):</p>
+<pre dir="ltr">[id, name, categoryIndex, kcal, protein, carbs, fat, fiber|null, sugar|null,
+ satFat|null, sodiumMg|null, portions[[label, grams]...], energyFlag 0|1]
+
+Example:
+["S171477","Chicken, broilers or fryers, breast, meat only, cooked, roasted",10,
+ 165,31.02,0,3.57,0,0,1.01,74,
+ [["1 cup, chopped or diced",140],["1 unit (yield from 1 lb ready-to-cook chicken)",52],
+  ["0.5 breast, bone and skin removed",86]],0]</pre>
+<ul dir="rtl">
+<li dir="rtl"><b>المعرّف</b>: «S» + رقم FDC (SR Legacy) أو «N» + رقم FDC (FNDDS).</li>
+<li dir="rtl"><b>الطاقة</b>: العنصر 1008 (kcal)، وإن غاب فطاقة Atwater 2048 ثم 2047. السكر: 2000 ثم 1063 كبديل.</li>
+<li dir="rtl"><b>الحصص</b>: حتى 6 مقاييس منزلية مختلفة من USDA (التسمية ≤ 60 حرفًا، الغرامات مقرّبة إلى 0.01).</li>
+<li dir="rtl"><b>energyFlag = 1</b> عندما تكون السعرات &gt; 40 و |4P + 4C + 9F − kcal| / kcal &gt; 25%. لا تُعدَّل القيم الموسومة.</li>
+<li dir="rtl">تغطية العناصر الاختيارية في الملف: الألياف 12,347 صفًا، السكر 11,125، الدهون المشبعة 12,560، الصوديوم 12,796؛ و12,582 صفًا لها حصة واحدة على الأقل.</li>
+</ul>
+<p dir="rtl">يحمّل التطبيق الملف مرة واحدة (<code dir="ltr">loadRefFoods</code>) ويتحقق من <code dir="ltr">meta.format === 'mego-fooddb'</code>، ويخزّنه عامل الخدمة (Service Worker) للعمل دون اتصال.</p>
+
+<h2 dir="rtl">5. ملف العناصر الغذائية الإضافية (usda-extra.json)</h2>
+<p dir="rtl">الصيغة <code dir="ltr">mego-fooddb-extra</code>، الإصدار 1، لكل 100 غ، مصفوفة لكل معرّف مرجعي (12,879 مدخلًا). تستخدمه تصنيفات ذكاء الأطعمة (Food Intelligence) ويُحمَّل عند الحاجة. الأعمدة:</p>
+<pre dir="ltr">mufa g, pufa g, ALA 18:3 n-3 g (or total 18:3 when n-3 not reported), EPA g, DHA g, DPA g,
+calcium mg, iron mg, magnesium mg, potassium mg, zinc mg, vitamin A µg RAE, vitamin E mg,
+vitamin C mg, vitamin B12 µg, folate µg DFE,
+essential amino acids g/100 g food [His, Ile, Leu, Lys, Met, Cys, Phe, Tyr, Thr, Trp, Val]</pre>
+<p dir="rtl">القيم المفقودة تُكتب <code dir="ltr">null</code>. مصفوفة الأحماض الأمينية موجودة فقط عند توفر القيم الإحدى عشرة كلها (4,789 طعامًا).</p>
+
+<h2 dir="rtl">6. Open Food Facts (الباركود والبحث النصي)</h2>
+<ul dir="rtl">
+<li dir="rtl">البحث بالباركود: <code dir="ltr">https://world.openfoodfacts.org/api/v2/product/&lt;code&gt;.json</code>؛ البحث النصي: <code dir="ltr">/cgi/search.pl</code> (20 نتيجة). بلا مفتاح API.</li>
+<li dir="rtl">يُتحقق من الباركود المُدخل يدويًا (رقم التحقق لـ EAN-8 وUPC-A/EAN-13/14)، ويُبحث أولًا في جدول الأطعمة المحلي (<code dir="ltr">findLocalByBarcode</code>).</li>
+<li dir="rtl">التحويل (<code dir="ltr">toProduct</code>): السعرات = <code dir="ltr">energy-kcal_100g</code> أو <code dir="ltr">energy_100g</code> (كيلوجول) ÷ 4.184؛ البروتين والكربوهيدرات والدهون والألياف والسكريات والدهون المشبعة لكل 100 غ؛ الصوديوم غ × 1000 ← ملغ؛ <code dir="ltr">serving_quantity</code> ← غرامات الحصة.</li>
+<li dir="rtl">يُعدّ المنتج «مكتملًا» فقط إذا نُشرت السعرات والبروتين والكربوهيدرات والدهون كلها؛ ويستبعد البحث النصي المنتجات غير المكتملة.</li>
+<li dir="rtl">القيم بيانات مجتمعية وتوسم بأنها خارجية؛ تُحفظ بقيمة <code dir="ltr">source = 'openfoodfacts'</code> مع الباركود والعلامة التجارية.</li>
+</ul>
+
+<h2 dir="rtl">7. الأطعمة المخصصة وتقديرات الذكاء الاصطناعي</h2>
+<p dir="rtl"><b>الأطعمة المخصصة</b> تُدخل من محرر الطعام (<code dir="ltr">source = 'custom'</code>). يمكن تصدير الأطعمة غير القادمة من الجدول إلى JSON (الصيغة <code dir="ltr">mego-custom-foods</code>، الإصدار 1) واستيرادها لاحقًا؛ تُرفض الصفوف غير الصالحة وتُتخطى المكررات (الاسم + الحالة نفسها).</p>
+<p dir="rtl"><b>تقديرات الذكاء الاصطناعي</b>: يطابق ماسح الوجبات (Gemini) العناصر المصوّرة مع قاعدة المستخدم أولًا، وقيم القاعدة هي الأساس دائمًا. للعناصر غير الموجودة قد يعطي قاعدة تقديرية لكل 100 غ (<code dir="ltr">estPer100</code>) موسومة دائمًا بأنها تقدير. لا يحفظ الماسح شيئًا تلقائيًا. إذا اختار المستخدم إضافة العنصر كطعام جديد، يُنشأ بفئة «تقدير من صورة» وملاحظة «⚠ تقدير ذكاء اصطناعي من صورة — غير محقق، يُرجى المراجعة / AI photo estimate — unverified, please review».</p>
+
+<h2 dir="rtl">8. نسخ طعام مرجعي إلى أطعمة المستخدم</h2>
+<p dir="rtl">الأطعمة المرجعية للقراءة فقط. عند تسجيل أحدها تنسخه الدالة <code dir="ltr">materializeRefFood</code> <b>مرة واحدة</b> إلى جدول الأطعمة، فتعمل لقطات اليوميات والوصفات والمزامنة والتقارير دون تغيير:</p>
+<ol dir="rtl">
+<li dir="rtl">البحث عن طعام غير مؤرشف له <code dir="ltr">source = 'usda'</code> و<code dir="ltr">sourceRef</code> نفسه؛ إن وُجد يُعاد استخدامه.</li>
+<li dir="rtl">وإلا يُنشأ طعام: nameAr فارغ، nameEn = اسم USDA، الفئة = فئة USDA، per100 منسوخ دون تغيير (العناصر الاختيارية فقط إن لم تكن null)، الحالة مستنتجة من الاسم، stateLabel نيء / مطبوخ / محضّر، الحصص = حصص USDA (المعرّفات p0 وp1 …)، الملاحظات = sourceRef مع «⚠ calories vs macros differ in the source data» عندما energyFlag = 1.</li>
+</ol>
+
+<h2 dir="rtl">9. الحقلان source و sourceRef</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th dir="ltr">source</th><th>مثال sourceRef</th></tr>
+<tr><td dir="ltr">usda</td><td><code dir="ltr">USDA FDC 171477 (SR Legacy)</code> أو <code dir="ltr">USDA FDC &lt;id&gt; (FNDDS (Survey foods))</code> — يُبنى من «USDA FDC » + الرقم دون البادئة + اسم المصدر بعد «— »</td></tr>
+<tr><td dir="ltr">sheet</td><td>لا يوجد؛ يُربط السجل بـ sheetKey (food_id)</td></tr>
+<tr><td dir="ltr">openfoodfacts</td><td>الباركود والعلامة التجارية يحددان المنتج</td></tr>
+<tr><td dir="ltr">custom</td><td>اختياري (يُحفظ من الملفات المستوردة)</td></tr>
+</table>
+<p dir="rtl">يتيح رقم FDC لأي شخص مراجعة القيم على <code dir="ltr">https://fdc.nal.usda.gov/food-details/&lt;id&gt;/nutrients</code>.</p>
+
+<h2 dir="rtl">10. حالة التحقق</h2>
+<ul dir="rtl">
+<li dir="rtl">مُتحقَّق منه في المستودع: جميع الهياكل والأعداد وقيم meta أعلاه (مقروءة من الشيفرة وملفات JSON المشحونة).</li>
+<li dir="rtl">مُتحقَّق منه مباشرة: تبويب Food_Database في المركز يضم 160 طعامًا و0 مشكلات رقمية؛ القراءة من المركز إلى الهاتف تعمل (اختبارات laptop-setup الحية).</li>
+<li dir="rtl">مغطى باختبارات الوحدة (109 اختبارات vitest) — لا تُذكر أسماء الاختبارات هنا.</li>
+<li dir="rtl">غير مُتحقَّق منه: توفر Open Food Facts ودقة بياناته (خدمة خارجية)؛ دقة تقديرات الذكاء الاصطناعي.</li>
+</ul>
+
+<h2 dir="rtl">11. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

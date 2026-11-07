@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Food_Search_and_Database_Guide_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Food Search and Database Guide</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-14</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>End users (guest and account users)</td></tr>
+<tr><td>Related documents</td><td>MEGO_Food_Tracking_Guide, MEGO_Recipes_and_Custom_Foods_Guide, MEGO_Food_Database_Documentation, MEGO_Portion_and_Measurement_Conversion_Rules, MEGO_FAQ</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This guide explains, step by step, how to find a food in MEGO: searching in Arabic or English (including dialect words and transliterations), using the built-in USDA reference database, filtering by raw/cooked state, using the Recent / Frequent / Favorites tabs, searching packaged products on Open Food Facts, scanning a barcode, and creating a new food from a nutrition label (per 100 g, per 100 ml or per serving). Labels are quoted exactly as they appear in the English interface.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Where food search appears</li>
+<li>Searching in Arabic and English</li>
+<li>The USDA reference database</li>
+<li>Raw / cooked filter</li>
+<li>Recent, Frequent, Favorites and History</li>
+<li>Searching packaged products (Open Food Facts)</li>
+<li>Scanning a barcode</li>
+<li>Creating a food from a nutrition label</li>
+<li>The Foods screen (your own database)</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Where food search appears</h2>
+<p>Search is available in two places:</p>
+<ul>
+<li><b>Add food sheet</b> — opened from the Diary when you add something to Breakfast, Lunch, Dinner or Snacks. Choosing a food here leads to the quantity form and then to the diary.</li>
+<li><b>Foods</b> screen (<code>#/foods</code>, menu item "Foods") — your own food database, for browsing, editing and importing/exporting.</li>
+</ul>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/add-food-en-light.png" width="300" alt="Add food sheet"></p>
+<p>The top of the Add food sheet contains: the search box ("Search…"), a barcode button ("Scan barcode"), and a state selector (All / Raw / Cooked / Ready / processed). Below it are tabs: <b>All</b>, <b>Recent</b>, <b>Frequent</b>, <b>Favorites</b>, and — depending on where you opened it — <b>History</b>, <b>Saved meals</b> and <b>Recipes</b>.</p>
+
+<h2>2. Searching in Arabic and English</h2>
+<h3>2.1 How to search</h3>
+<ol>
+<li>Open the Add food sheet and type at least two characters in the search box.</li>
+<li>Your own foods appear first (list at the top). Each row shows the name, a Raw/Cooked chip, a coloured macro split bar, protein/carbs/fat per 100 g, the source tag (USDA, Open Food Facts, Hub or "My food") and calories per 100 g.</li>
+<li>Below, the section <b>Food database</b> with the <b>USDA</b> badge lists matches from the reference database.</li>
+<li>Tap a row to open the quantity form.</li>
+</ol>
+<h3>2.2 What the search understands</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Feature</th><th>Example</th></tr>
+<tr><td>Arabic words are translated to the English vocabulary of the USDA database (only the words, never the values)</td><td>«صدر دجاج مشوي» → chicken breast roasted/grilled</td></tr>
+<tr><td>Dialect words (Egyptian, Gulf, Levantine)</td><td>«فراخ», «فروج», «جاج» → chicken; «عيش» → bread; «بندورة», «قوطة» → tomato; «روبيان» → shrimp; «طعمية» → falafel</td></tr>
+<tr><td>Transliterations</td><td>foul / ful → fava; taameya → falafel; roz → rice; farakh → chicken; labneh → cream cheese</td></tr>
+<tr><td>English words also find your Arabic-named foods</td><td>"chicken breast" finds «صدر دجاج» in your own list</td></tr>
+<tr><td>Arabic article and prefixes are ignored; plural endings tolerated</td><td>«الدجاج», «بالدجاج»</td></tr>
+<tr><td>Partial words (3+ letters) and simple English plurals</td><td>"pota" → potato; "eggs" = egg</td></tr>
+<tr><td>Small typos (words of 4+ letters, 1 letter; 8+ letters, 2 letters)</td><td>"chiken" → chicken</td></tr>
+<tr><td>Preparation words</td><td>«مسلوق» → boiled/cooked; «نيء» → raw; «مقلي» → fried; «معلب» → canned</td></tr>
+</table>
+<p>All words of the query must match (each word may match any of its translations). Results are ranked by match quality; generic foods are placed before brand or restaurant items unless your query names a brand (e.g. "KFC", «ماكدونالدز»).</p>
+
+<h2>3. The USDA reference database</h2>
+<ul>
+<li>Source: USDA FoodData Central (public domain) — SR Legacy (7,448 foods) and FNDDS survey foods (5,431 foods): <b>12,879 foods</b> in total, shipped with the app as <code>public/fooddb/usda.json</code>.</li>
+<li>It loads on your first search ("Loading the food database…") and is then cached so it also works offline. If it cannot be loaded you see "The food database could not be loaded — your own foods still work."</li>
+<li>USDA names are in English. Values are per 100 g, with fiber, sugar, saturated fat and sodium when USDA publishes them, plus USDA portion sizes (e.g. "1 cup") which become selectable servings.</li>
+<li>The raw/cooked state of a USDA food is inferred from its name: words such as raw, dry, uncooked → Raw; cooked, roasted, boiled, grilled, fried, baked, canned… → Cooked; otherwise Ready / processed.</li>
+<li>When you pick a USDA food for the first time, MEGO copies it <b>once</b> into your own foods (source "USDA", with the FDC id as reference). Later picks reuse that copy. Values are not changed. 211 USDA foods carry a note that calories and macros differ in the source data.</li>
+</ul>
+
+<h2>4. Raw / cooked filter</h2>
+<p>Raw and cooked weights of the same food have very different values (cooked rice holds water; raw meat loses water when cooked). Use the state selector next to the search box:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Option</th><th>Shows</th></tr>
+<tr><td>All</td><td>every state</td></tr>
+<tr><td>Raw</td><td>only foods recorded as raw</td></tr>
+<tr><td>Cooked</td><td>only cooked foods</td></tr>
+<tr><td>Ready / processed</td><td>products eaten as sold (bread, yogurt, packaged foods)</td></tr>
+</table>
+<p>The filter applies to your own foods and to USDA results. In the quantity form a reminder appears for raw or cooked foods: "Make sure you weighed it in the same state as this record."</p>
+
+<h2>5. Recent, Frequent, Favorites and History</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Tab</th><th>Content</th></tr>
+<tr><td>Recent</td><td>up to 30 foods you used most recently</td></tr>
+<tr><td>Frequent</td><td>up to 30 foods ordered by how often you logged them</td></tr>
+<tr><td>Favorites</td><td>foods you marked with the star; the search box filters them</td></tr>
+<tr><td>History</td><td>past diary entries (same food and quantity) — "Search what you ate before…"; each row shows quantity, calories and "last &lt;date&gt;". Tapping re-logs the entry with the current food values.</td></tr>
+<tr><td>Saved meals / Recipes</td><td>your saved meals and recipes, logged as a whole</td></tr>
+</table>
+<p>To mark a favourite, tap the star at the end of any food row (Add food sheet or Foods screen). Favourites and frequently used foods are also ranked higher in search results.</p>
+
+<h2>6. Searching packaged products (Open Food Facts)</h2>
+<ol>
+<li>Type the product name (2+ characters). Under the USDA results a box appears: "Not found? Add it now from the nutrition label — it is saved in your own foods."</li>
+<li>Tap <b>Search packaged products online (Open Food Facts)</b>. MEGO sends only the words you typed to Open Food Facts (free, no key).</li>
+<li>Up to 20 results are requested; products without complete calories/protein/carbs/fat are hidden. Each shows name, brand, kcal per 100 g and macros.</li>
+<li>Tap a product. A review form opens with the note "Source: Open Food Facts (external, community data) — check against the label." Correct the values if needed and tap <b>Save food &amp; log</b>.</li>
+</ol>
+<p>Messages: "No product found online." / "Online search is not available right now." (e.g. offline).</p>
+
+<h2>7. Scanning a barcode</h2>
+<ol>
+<li>In the Add food sheet tap the barcode icon ("Scan barcode").</li>
+<li>If your browser supports camera scanning (BarcodeDetector API, e.g. Chrome on Android), the rear camera opens and reads EAN-13, EAN-8, UPC-A and UPC-E codes automatically. Otherwise you see "Camera scanning is not supported in this browser — type the barcode instead."</li>
+<li>You can always type the number in "Enter barcode manually" and tap <b>Look up</b>. The button is enabled only for a valid code (8, 12, 13 or 14 digits with a correct check digit).</li>
+<li>MEGO first checks your own foods: if a food with this barcode exists you see "Already in your database" and it is selected directly.</li>
+<li>Otherwise the product is looked up on Open Food Facts. Review the name, brand, per-100 g values, optional fiber/sugar/sodium and piece weight, then tap <b>Save food &amp; log</b>. Saving requires a name and calories &gt; 0.</li>
+<li>If not found: "No product found for this barcode. Add it manually." If offline: "Lookup failed (offline?). Add it manually." In both cases an empty form opens so you can type the label values.</li>
+</ol>
+
+<h2>8. Creating a food from a nutrition label</h2>
+<ol>
+<li>Search for the food. If it is missing, tap <b>+ Create "&lt;your text&gt;" as my food</b> (or tap <b>New food</b> on the Foods screen). The name you typed is pre-filled in the Arabic or English name field.</li>
+<li>Fill in Arabic name and/or English name, Category and Raw / cooked.</li>
+<li>Choose <b>Values entered per</b>: <i>per 100 g</i>, <i>per 100 ml</i> or <i>per serving (nutrition label)</i>.</li>
+<li>Type Calories, Protein, Carbs, Fat exactly as printed on the label. Optional: Fiber, Sugar, Saturated fat (g) and Sodium (mg).</li>
+<li>Optional: Piece / slice weight (g), Density (g per ml), Custom serving sizes, Preparation method, Barcode, Brand, Notes.</li>
+<li>Tap <b>Save</b>.</li>
+</ol>
+<h3>8.1 Conversion to per 100 g</h3>
+<p>MEGO always stores values per 100 g. The line "Saved per 100 g: …" shows the result before you save.</p>
+<pre>
+per serving of S g :  value per 100 g = label value × 100 / S
+per 100 ml         :  value per 100 g = label value ÷ density (g/ml)
+                      (no density entered → 1 ml = 1 g is assumed)
+</pre>
+<p><b>Example:</b> a label says 1 serving = 30 g, 120 kcal, 3 g protein. Per 100 g: 120 × 100/30 = 400 kcal, 3 × 100/30 = 10 g protein. With "per serving", a serving named "Label serving" of 30 g is added automatically so you can log "1 serving".</p>
+<h3>8.2 Checks</h3>
+<ul>
+<li>Energy check: "4P + 4C + 9F = … kcal (stored …)". If the difference is explained by fiber, nuts or animal-food factors a neutral note is shown; otherwise "Calories differ from macros by …% — worth checking the source."</li>
+<li>A food with the same name and the same raw/cooked state cannot be created twice ("A food with the same name and raw/cooked state already exists.").</li>
+<li>Save is disabled until a name and all four main values are filled.</li>
+</ul>
+
+<h2>9. The Foods screen (your own database)</h2>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/foods-en-light.png" width="300" alt="Foods screen"></p>
+<ul>
+<li>Search box with the same bilingual search; <b>New food</b> button; category chips and a <b>Favorites</b> chip.</li>
+<li>Filter button: Category, Raw / cooked, Max kcal, Min protein, Max carbs, Max fat, Favorites, Show deleted.</li>
+<li>Counter "&lt;n&gt; foods / total".</li>
+<li><b>Data issues</b> card: counts of foods with no nutrition values (0/0/0/0), calories not matching macros (&gt;15%), and foods marked unverified/estimated in notes.</li>
+<li><b>Import / export</b> card — see MEGO_Recipes_and_Custom_Foods_Guide.</li>
+</ul>
+<p>The Foods screen lists only your own foods (including USDA foods you have already used); the 12,879 USDA foods are searched from the Add food sheet.</p>
+
+<h2>10. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Labels, search rules, USDA counts, conversion formula</td><td>Verified in source code (src/lib/foodSearch.ts, refFoods.ts, barcode.ts, components/FoodPicker.tsx, BarcodeSheet.tsx, pages/Foods.tsx) and public/fooddb/usda.json</td></tr>
+<tr><td>Bilingual search, USDA pick, state filter, create-from-search, per-serving label entry, barcode manual entry</td><td>Covered by the browser e2e suite (44/44) run against the live app — emulated devices only. Open Food Facts online search is not covered by an automated test.</td></tr>
+<tr><td>Camera barcode scanning on a real Android phone</td><td>Not verified (no real-device test yet; see MEGO_Android_Device_Testing)</td></tr>
+<tr><td>Open Food Facts data quality</td><td>Not verified — external community data; always compare with the label</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

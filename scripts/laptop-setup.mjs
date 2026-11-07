@@ -378,11 +378,29 @@ async function setupCloud(adminEmail) {
   ok('web app ' + state.fbAppId);
   // Firestore database (location is permanent: Dammam, then Doha, then Europe)
   if (!state.fbDb) {
-    for (const loc of ['me-central2', 'me-central1', 'eur3']) {
-      const r = firebase(['firestore:databases:create', '(default)', '--location', loc, '--project', P], { allowFail: true });
-      if (r.status === 0 || /already exists/i.test(r.out)) { state.fbDb = loc; saveState(state); break; }
+    // 1) turn on the Cloud Firestore API for the new project (free; new projects start with it off)
+    const en = await gapi(`https://serviceusage.googleapis.com/v1/projects/${P}/services/firestore.googleapis.com:enable`, 'POST', {}, P);
+    if (!en.ok) log('   Google says (enable Firestore API): ' + (en.json?.error?.message || en.text).slice(0, 300));
+    await new Promise((res) => setTimeout(res, 15000));
+    // 2) create the (default) database — location is permanent: Dammam, then Doha, then Europe
+    const why = [];
+    for (let attempt = 0; attempt < 4 && !state.fbDb; attempt++) {
+      for (const loc of ['me-central2', 'me-central1', 'eur3']) {
+        const r = await gapi(`https://firestore.googleapis.com/v1/projects/${P}/databases?databaseId=(default)`, 'POST', { locationId: loc, type: 'FIRESTORE_NATIVE' }, P);
+        const msg = r.json?.error?.message || '';
+        if (r.ok || /already exists/i.test(msg) || r.json?.error?.status === 'ALREADY_EXISTS') { state.fbDb = loc; saveState(state); break; }
+        why.push(`${loc}: ${msg || r.status}`);
+        if (/has not been used|is disabled|SERVICE_DISABLED/i.test(msg)) break; // API still switching on: wait and retry
+      }
+      if (!state.fbDb) { log('   Google says: ' + why.slice(-2).join(' | ').slice(0, 400)); await new Promise((res) => setTimeout(res, 30000)); }
     }
-    if (!state.fbDb) throw new Error('could not create the Firestore database');
+    if (!state.fbDb) throw new Error('could not create the Firestore database — ' + why.slice(-3).join(' | ').slice(0, 500));
+    // wait until the new database answers
+    for (let i = 0; i < 20; i++) {
+      const g = await gapi(`https://firestore.googleapis.com/v1/projects/${P}/databases/(default)`, 'GET', null, P);
+      if (g.ok && g.json?.name) break;
+      await new Promise((res) => setTimeout(res, 5000));
+    }
   }
   ok('Firestore (' + state.fbDb + ')');
   firebase(['deploy', '--only', 'firestore:rules,firestore:indexes', '--project', P]);

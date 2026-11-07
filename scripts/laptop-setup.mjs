@@ -109,7 +109,19 @@ function safeJson(t) { try { return JSON.parse(t); } catch { const m = /\{[\s\S]
 
 /** POST like the app does (text/plain avoids CORS preflight); follows Apps Script's redirect. */
 async function call(url, body) {
-  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' });
+  // network hiccups (Wi-Fi, antivirus, Google's redirect) are retried 4 times; the real cause is shown if it keeps failing
+  let res;
+  for (let i = 0; ; i++) {
+    try {
+      res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(body), redirect: 'follow' });
+      break;
+    } catch (e) {
+      const why = [e?.message, e?.cause?.code, e?.cause?.message].filter(Boolean).join(' · ');
+      if (i >= 4) throw new Error('network error talking to Google: ' + why);
+      log(`   (network error: ${why} — retrying in ${3 * (i + 1)} s)`);
+      await new Promise((r) => setTimeout(r, 3000 * (i + 1)));
+    }
+  }
   const text = await res.text();
   try { return JSON.parse(text); } catch { return { ok: false, error: 'NOT_JSON', status: res.status, html: text.slice(0, 300) }; }
 }

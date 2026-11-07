@@ -336,10 +336,37 @@ async function setupCloud(adminEmail) {
     run('npx', [...FB, 'login'], { cwd: ROOT, stdio: 'inherit' });
   }
   if (!state.fbProject) {
-    const id = 'mego-' + randomBytes(3).toString('hex');
-    firebase(['projects:create', id, '--display-name', 'MEGO Nutrition']);
-    state.fbProject = id; saveState(state);
-    ok('project ' + id);
+    // reuse a MEGO project from an earlier attempt (Firebase project, or a Cloud project Firebase could not be added to yet)
+    const list = firebase(['projects:list'], { json: true, allowFail: true }).json?.result ?? [];
+    const found = list.find((x) => x.displayName === 'MEGO Nutrition');
+    if (found) state.fbProject = found.projectId;
+    else {
+      if (!state.fbPending) {
+        // a Cloud project created by an earlier attempt, before Firebase could be added (needs the terms accepted)
+        const cr = await gapi('https://cloudresourcemanager.googleapis.com/v1/projects?filter=' + encodeURIComponent('name:"MEGO Nutrition" lifecycleState:ACTIVE'), 'GET').catch(() => null);
+        const prev = cr?.json?.projects?.find((x) => /^mego-/.test(x.projectId));
+        if (prev) { state.fbPending = prev.projectId; state.fbPendingCreated = true; saveState(state); log('   reusing the Cloud project from the earlier attempt: ' + prev.projectId); }
+      }
+      const id = state.fbPending || 'mego-' + randomBytes(3).toString('hex');
+      state.fbPending = id; saveState(state);
+      const r = state.fbPendingCreated ? { status: 1, out: 'Failed to add Firebase' } : firebase(['projects:create', id, '--display-name', 'MEGO Nutrition'], { allowFail: true });
+      if (r.status !== 0) {
+        if (!/Failed to add Firebase|already exists|ALREADY_EXISTS/i.test(r.out)) throw new Error(r.out.trim().split('\n').slice(-3).join(' | '));
+        state.fbPendingCreated = true; saveState(state);
+        // the Cloud project exists; Firebase needs the account owner's one-time acceptance of the Firebase terms
+        for (let i = 0; ; i++) {
+          const add = firebase(['projects:addfirebase', id], { allowFail: true });
+          if (add.status === 0 || /already/i.test(add.out)) break;
+          if (i === 0) openUrl('https://console.firebase.google.com/');
+          if (i > (AUTO ? 90 : 5)) throw new Error('Firebase could not be added to ' + id + ': ' + add.out.trim().split('\n').slice(-2).join(' | '));
+          log('   Google says: ' + add.out.trim().split('\n').filter(Boolean).slice(-2).join(' | ').slice(0, 300));
+          await pause(`Firebase needs your one-time acceptance (only you can accept legal terms): on the Firebase page that opened,\n   accept the Firebase terms if a dialog shows them. If no dialog appears: "Create a project" → at the bottom choose\n   "Add Firebase to a Google Cloud project" → select "MEGO Nutrition" (${id}) → Continue (Google Analytics: off) → wait until it finishes.`);
+        }
+      }
+      state.fbProject = id;
+    }
+    delete state.fbPending; delete state.fbPendingCreated; saveState(state);
+    ok('project ' + state.fbProject);
   } else ok('project ' + state.fbProject);
   const P = state.fbProject;
   if (!state.fbAppId) {

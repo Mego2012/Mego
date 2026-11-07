@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MEGO_Authentication_and_Session_Management_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Authentication and Session Management</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-46</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Project owner, developers, administrators, security reviewers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Authentication_and_Authorization_Architecture, MEGO_Access_Control_and_Permissions, MEGO_Security_Architecture, MEGO_Registration_and_Login_Guide, MEGO_Data_Retention_and_Deletion, MEGO_Security_Audit_and_Known_Risks, MEGO_Apps_Script_Setup_Guide</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes, exactly as implemented in the code, how MEGO authenticates people and keeps their sessions: registration and its validation, password rules, sign-in, persistent sessions, sign-out, password reset, re-authentication before account deletion, suspended accounts, and the separate secret token that protects the owner's Google Sheets Hub backend (Apps Script), including where it is stored and how to rotate it. It covers two independent mechanisms:</p>
+<ul>
+<li><b>Public accounts</b> — Firebase Authentication (Email/Password) on the free Spark plan, project <code>mego-473920</code>. Code: <code>src/lib/firebase.ts</code>, <code>src/lib/account.ts</code>, <code>src/pages/Account.tsx</code>.</li>
+<li><b>Owner Hub connection</b> — a 256-bit shared secret (<code>APP_TOKEN</code>) checked by <code>apps-script/Code.gs</code> for guest/owner devices that sync with the Google Sheet «MEGO Nutrition Hub». Code: <code>src/lib/sync.ts</code>, <code>apps-script/Code.gs</code>.</li>
+</ul>
+<p>No secret value (keys, tokens, URLs of the web app, connection codes, passwords) appears in this document; secrets are referred to by name only.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Modes and overview</li>
+<li>Registration and validation</li>
+<li>Password rules and error messages</li>
+<li>Sign-in and persistent sessions</li>
+<li>Sign-out</li>
+<li>Password reset (no account enumeration)</li>
+<li>Re-authentication before account deletion</li>
+<li>Suspended accounts</li>
+<li>Apps Script token: handling, storage and rotation</li>
+<li>Credential-rotation procedure (token and Gemini key)</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Modes and overview</h2>
+<p>At start-up <code>bootAccount()</code> (<code>src/lib/account.ts</code>) loads <code>/firebase-config.json</code>. If the file is missing the app runs in guest mode only. If it is present, the app has three modes:</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Mode</th><th>How it is selected</th><th>Local database</th><th>Sync</th></tr>
+<tr><td>welcome</td><td>No active account and no guest choice stored</td><td>—</td><td>—</td></tr>
+<tr><td>guest</td><td>localStorage key <code>mego.guest</code> = 1</td><td><code>mego-nutrition</code></td><td>Optional owner Hub (Apps Script, token)</td></tr>
+<tr><td>account</td><td>localStorage key <code>mego.activeUid</code> = Firebase uid</td><td><code>mego-u-&lt;uid&gt;</code></td><td>Cloud Firestore (own records only)</td></tr>
+</table>
+<pre>
+ App start ─► firebase-config.json? ──no──► guest only
+                  │yes
+                  ▼
+        mego.activeUid set? ──yes──► open mego-u-&lt;uid&gt; ─► watchSession(): Firebase confirms user
+                  │no                                         ├─ same uid  → load profile, admin flag, start sync
+                  ▼                                           └─ no user / other uid → clear activeUid, reload
+        mego.guest set? ──yes──► guest     no──► Welcome screen
+</pre>
+<p>Because every account uses its own local IndexedDB database, two people who share a phone do not see each other's data inside the app.</p>
+
+<h2>2. Registration and validation</h2>
+<p>Registration is a 3-step flow (<code>RegisterFlow</code> in <code>src/pages/Account.tsx</code>).</p>
+<h3>2.1 Step 1 — identity (client-side checks)</h3>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Rule enforced in the app</th></tr>
+<tr><td>Display name</td><td>Not empty; trimmed and cut to 40 characters when saved</td></tr>
+<tr><td>E-mail</td><td>Must match the pattern <code>.+@.+\..+</code>; Firebase validates it again (<code>auth/invalid-email</code>)</td></tr>
+<tr><td>Password</td><td>At least 8 characters, at least one digit and one Latin letter (see section 3)</td></tr>
+<tr><td>Country</td><td>Chosen from a list; "Other" is stored as <code>ZZ</code>. Countries where Google's free-tier Gemini terms do not allow the scanner show a notice</td></tr>
+<tr><td>18+ confirmation</td><td>Required checkbox; <code>register()</code> also throws <code>AGE_REQUIRED</code> if not confirmed</td></tr>
+<tr><td>Privacy policy and terms</td><td>Required checkbox (links to the draft pages)</td></tr>
+</table>
+<h3>2.2 Steps 2 and 3 — body data and targets</h3>
+<p>Step 2 requires age ≥ 18, height &gt; 100 cm and weight &gt; 30 kg before continuing. Step 3 shows the recommended targets, which the user may edit. These answers are kept temporarily in localStorage under <code>mego.pendingSetup.&lt;uid&gt;</code> and applied once to the new account's settings at the next start, then removed.</p>
+<h3>2.3 What happens on "Finish"</h3>
+<ol>
+<li><code>createUserWithEmailAndPassword</code> creates the Firebase user (Firebase enforces its own password policy and e-mail uniqueness).</li>
+<li>The display name is set on the Firebase user.</li>
+<li>A profile document <code>profiles/{uid}</code> is written: displayName, email, status <code>active</code>, country, ageConfirmed, createdAt, lastActiveAt. The Firestore rules accept the creation only if the fields are exactly these, status is <code>active</code>, ageConfirmed is true and the e-mail equals the e-mail in the sign-in token.</li>
+<li>A verification e-mail is requested (<code>sendEmailVerification</code>); failures are ignored. <b>E-mail verification is not enforced</b>: neither the app nor the Firestore rules check <code>email_verified</code> (see MEGO_Security_Audit_and_Known_Risks).</li>
+<li>Optionally, the device's guest data is copied once into the new account (the guest database itself is left untouched).</li>
+<li><code>enterAccount()</code> stores <code>mego.activeUid</code> and reloads the app.</li>
+</ol>
+
+<h2>3. Password rules and error messages</h2>
+<p>The app's own rule (hint key <code>reg_pwRule</code>): "At least 8 characters, including a letter and a number." The "Next" button stays disabled until the rule is met. Firebase Authentication applies its own server-side policy as well; the project's Firebase password-policy settings were not inspected (Not verified). Passwords are handled only by Firebase Authentication and are never stored by MEGO.</p>
+<p>Firebase error codes are mapped to translated messages (<code>authErr_*</code> keys in <code>src/lib/i18n2.ts</code>); unknown codes show <code>authErr_generic</code>.</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Firebase code</th><th>i18n key</th><th>English message</th></tr>
+<tr><td>email-already-in-use</td><td>authErr_email_already_in_use</td><td>An account with this email already exists. Sign in instead.</td></tr>
+<tr><td>invalid-email</td><td>authErr_invalid_email</td><td>Please enter a valid email address.</td></tr>
+<tr><td>weak-password</td><td>authErr_weak_password</td><td>Choose a stronger password (at least 8 characters with a letter and a number).</td></tr>
+<tr><td>invalid-credential / user-not-found / wrong-password</td><td>authErr_invalid_credential, authErr_user_not_found, authErr_wrong_password</td><td>Email or password is incorrect. (one identical message for all three)</td></tr>
+<tr><td>too-many-requests</td><td>authErr_too_many_requests</td><td>Too many attempts. Please wait a few minutes and try again.</td></tr>
+<tr><td>network-request-failed</td><td>authErr_network_request_failed</td><td>No connection. Check your internet and try again.</td></tr>
+<tr><td>user-disabled</td><td>authErr_user_disabled</td><td>This account has been disabled.</td></tr>
+<tr><td>requires-recent-login</td><td>authErr_requires_recent_login</td><td>Please sign in again and retry.</td></tr>
+<tr><td>AGE_REQUIRED (app)</td><td>authErr_AGE_REQUIRED</td><td>You must be 18 or older to create an account.</td></tr>
+<tr><td>any other</td><td>authErr_generic</td><td>Something went wrong. Please try again.</td></tr>
+</table>
+<p>Note: at sign-in, "user not found" and "wrong password" deliberately produce the same message. At registration, <code>email-already-in-use</code> does reveal that an address is registered — this is inherent to sign-up and is listed as a low risk in the audit.</p>
+
+<h2>4. Sign-in and persistent sessions</h2>
+<ol>
+<li>The user enters e-mail and password (<code>LoginForm</code>); <code>signInWithEmailAndPassword</code> is called.</li>
+<li>If the device holds guest diary entries, the user may tick "import guest data" (copied once).</li>
+<li><code>enterAccount(uid)</code> writes <code>mego.activeUid</code>, removes <code>mego.guest</code> and reloads.</li>
+<li>On every start, <code>watchSession()</code> waits for Firebase's <code>onAuthStateChanged</code>. If no user is returned, or a different uid, the app removes <code>mego.activeUid</code> and reloads to the welcome screen (session expired or signed out elsewhere).</li>
+<li>If the user matches, the profile and admin flag (<code>admins/{uid}</code> exists) are read, <code>lastActiveAt</code> is refreshed, and Firestore sync starts — unless the account is suspended.</li>
+</ol>
+<p><b>Persistence:</b> the code does not call <code>setPersistence</code>, so the Firebase Web SDK default applies (the session is kept in the browser's storage until sign-out). The app does not implement an idle timeout. Firebase ID tokens are short-lived and refreshed automatically by the SDK.</p>
+
+<h2>5. Sign-out</h2>
+<p>"Sign out" in the account card (and on the suspended screen) calls Firebase <code>signOut()</code>, then <code>leaveAccount()</code>, which removes <code>mego.activeUid</code> and reloads.</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Item</th><th>After sign-out</th></tr>
+<tr><td>Firebase session on this browser</td><td>Cleared (signOut)</td></tr>
+<tr><td><code>mego.activeUid</code></td><td>Removed</td></tr>
+<tr><td>Local database <code>mego-u-&lt;uid&gt;</code></td><td><b>Kept on the device</b> (not encrypted, not deleted). It is reused at the next sign-in of the same account; the app does not show it to other accounts, but anyone with access to the browser's storage could read it.</td></tr>
+<tr><td>localStorage sync cursors <code>mego.cloud.&lt;uid&gt;.&lt;table&gt;</code></td><td>Kept (timestamps only)</td></tr>
+<tr><td>Guest database <code>mego-nutrition</code></td><td>Unchanged</td></tr>
+</table>
+<p>Recommendation: on shared devices, users who want no local copy left should use "Delete account" or clear the site data in the browser. A "remove this device's copy on sign-out" option does not exist yet.</p>
+
+<h2>6. Password reset (no account enumeration)</h2>
+<ol>
+<li>"Forgot password?" opens <code>ResetForm</code>; the user enters an e-mail.</li>
+<li><code>sendPasswordResetEmail</code> is called.</li>
+<li>On success the app always shows the same text (<code>auth_resetSent</code>): "If an account exists for this email, a reset link has been sent. Check your inbox and spam folder." The code comment states the intent: the same message whether or not the address exists.</li>
+<li>On any error only <code>authErr_generic</code> is shown — no code-specific text.</li>
+</ol>
+<p>Whether Firebase itself returns an error for unknown addresses depends on the project's e-mail-enumeration-protection setting, which was not inspected (Not verified). Live verification confirmed only that a reset request for an existing account was accepted (HTTP 200); delivery to a real inbox was not checked.</p>
+
+<h2>7. Re-authentication before account deletion</h2>
+<p>Deletion (Settings → Account → "Delete account") requires the current password. <code>deleteMyAccount()</code> first calls <code>reauthenticateWithCredential</code>; nothing is deleted if the password is wrong. Only then are the cloud records, the profile and the Firebase login removed, followed by the local account database. Full details are in MEGO_Data_Retention_and_Deletion.</p>
+
+<h2>8. Suspended accounts</h2>
+<ul>
+<li>An administrator can set <code>profiles/{uid}.status</code> to <code>suspended</code> (rules allow admins to change only the status field).</li>
+<li>Server side: every rule for private data (<code>users/{uid}/**</code>), shared foods and food submissions requires <code>isActive()</code>, so a suspended account can neither read nor write its records — enforced by Google's servers. The Apps Script AI proxy also refuses non-active profiles.</li>
+<li>Client side: <code>watchSession()</code> sets <code>suspended</code>, sync is not started, and the app shows the "Account suspended" screen: "This account has been suspended by the administrator. Your data is kept and nothing has been deleted." The only action offered is sign-out.</li>
+<li>Consequence: a suspended user cannot delete their own records through the app, because the delete rule also requires an active account. Reactivation by an administrator restores access.</li>
+</ul>
+
+<h2>9. Apps Script token: handling, storage and rotation</h2>
+<p>The owner Hub backend is an Apps Script web app deployed with "Execute as: owner, access: anyone" (a PWA cannot send Google login cookies). Every request except two must carry the secret <code>APP_TOKEN</code>.</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Aspect</th><th>Implementation (verified in code)</th></tr>
+<tr><td>Generation</td><td><code>setup()</code> creates it once from two UUIDs without dashes (64 hex characters, 256 bits) and keeps an existing token</td></tr>
+<tr><td>Server storage</td><td>Script Properties of the Apps Script project, key <code>APP_TOKEN</code> — never in the repository or the app's public code</td></tr>
+<tr><td>Check</td><td><code>doPost</code> rejects any request whose <code>token</code> differs (<code>unauthorized</code>). Exceptions: <code>bootstrap</code> (one-time, checked against a SHA-256 hash of a one-time secret, disabled after use by <code>BOOTSTRAP_DONE</code>) and the public-account AI actions <code>analyzeMeal</code>/<code>aiStats</code> sent with a Firebase <code>idToken</code>, which is verified by Google Identity Toolkit</td></tr>
+<tr><td>Device storage</td><td>In the local IndexedDB settings record (<code>settings.sync.token</code>) of the device that connected</td></tr>
+<tr><td>Never exported</td><td>Backups (<code>snapshot()</code>) strip <code>settings.sync</code>; Hub upload strips it; Firestore sync strips it; restores keep the local value</td></tr>
+<tr><td>Laptop copy</td><td><code>scripts/laptop-setup.mjs</code> keeps the URL and token in <code>~/.mego-backend/</code> (outside the repository, file mode 600)</td></tr>
+<tr><td>Transport</td><td>HTTPS; delivered to the phone as a connection code (<code>MEGO1|&lt;url&gt;|&lt;token&gt;</code>) or a QR deep link; the app removes the code from the address bar after connecting</td></tr>
+<tr><td>Exposure surfaces</td><td>The Settings token field is a plain text field; the connection code is printed in the Apps Script log and in the terminal of the laptop setup</td></tr>
+</table>
+<p>The Gemini API key is a separate secret stored only in Script Properties (<code>GEMINI_API_KEY</code>), set through the token-protected action <code>setAiKey</code>; it is never sent to the phone.</p>
+
+<h2>10. Credential-rotation procedure</h2>
+<p>During setup, the owner's Gemini key and the backend connection link were shown in a chat. <b>Rotating both is recommended.</b></p>
+<h3>10.1 Rotate the Apps Script token</h3>
+<ol>
+<li>Open the Apps Script project (script.google.com) under the owner's account.</li>
+<li>Run the function <code>rotateToken()</code> — it deletes <code>APP_TOKEN</code> and calls <code>setup()</code>, which creates and logs a new token.</li>
+<li>Run <code>installMego()</code> again (safe to re-run) to print the new connection code, or build it from the logged token.</li>
+<li>On each owner device: Settings → Hub connection → paste the new code → test connection. Old tokens are refused immediately.</li>
+<li>Update <code>~/.mego-backend/</code> on the laptop (the stored token is now stale, so <code>laptop-setup.mjs --test</code> will report "unauthorized" until it is updated). The exact update step for that file is Not verified.</li>
+<li>Delete any chat messages, notes or screenshots containing the old code.</li>
+</ol>
+<p>Optional: creating a new web-app deployment changes the URL as well; the old deployment can then be archived in Apps Script.</p>
+<h3>10.2 Rotate the Gemini API key</h3>
+<ol>
+<li>In Google AI Studio create a new API key.</li>
+<li>Store it with the owner app (Settings → AI scanner key, which calls <code>setAiKey</code>) or with <code>node scripts/laptop-setup.mjs --ai-key-from-clipboard</code>.</li>
+<li>Test one scan, then delete the old key in Google AI Studio.</li>
+</ol>
+<h3>10.3 Firebase passwords</h3>
+<p>Users change a password through "Forgot password?". There is no in-app "change password" screen.</p>
+
+<h2>11. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Registration (2 accounts), sign-out/sign-in, own profile 200 / other 403, suspended-style restrictions for regular accounts, account deletion</td><td>Verified live (<code>scripts/live-verify.mjs</code>, 14/14, production)</td></tr>
+<tr><td>Password-reset request</td><td>Verified live (HTTP 200); inbox delivery Not verified</td></tr>
+<tr><td>Suspension behaviour, admin status changes, multi-user isolation</td><td>Tested on emulators (rules suite 14, multi-user 8)</td></tr>
+<tr><td>Token accepted / wrong token refused</td><td>Verified live (laptop-setup live tests)</td></tr>
+<tr><td>Token rotation (<code>rotateToken()</code>) and Gemini key rotation</td><td>Code reviewed; rotation not yet performed — Not verified</td></tr>
+<tr><td>Firebase password policy and e-mail-enumeration-protection settings</td><td>Not verified</td></tr>
+<tr><td>Real Android device</td><td>Not done (emulated devices only)</td></tr>
+</table>
+
+<h2>12. Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

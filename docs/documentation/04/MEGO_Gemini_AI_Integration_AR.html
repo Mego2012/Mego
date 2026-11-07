@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Gemini_AI_Integration_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — تكامل الذكاء الاصطناعي Gemini (ماسح الوجبات الذكي)</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>معرّف المستند</td><td>MEGO-DOC-36</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-07</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-07</td></tr>
+<tr><td>المالك</td><td>مالك مشروع MEGO (MEGO Project Owner)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>المطوّرون وفريق الصيانة</td></tr>
+<tr><td>مستندات ذات صلة</td><td dir="ltr">MEGO_Backend_Architecture, MEGO_API_Documentation, MEGO_Gemini_API_Setup_Guide, MEGO_Error_Handling_and_Logging, MEGO_Configuration_and_Environment, MEGO_User_Data_Protection</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">يشرح هذا المستند كيف يستخدم ماسح الوجبات الذكي في MEGO واجهة Google Gemini (الفئة المجانية فقط): الشيفرة المعنية، والبيانات التي تغادر الهاتف، وبنية الطلب والاستجابة، ومطابقة النتيجة مع قاعدة بيانات الأطعمة ومراجعتها من المستخدم، والأخطاء والحدود. المصادر: <code dir="ltr">src/lib/mealScanner.ts</code> و<code dir="ltr">src/components/MealScanner.tsx</code> وقسما «AI meal scanner» و«public accounts — AI proxy» في <code dir="ltr">apps-script/Code.gs</code> ونصوص الأخطاء في <code dir="ltr">src/lib/i18n2.ts</code>.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">مبادئ التصميم</li>
+<li dir="rtl">البنية ومسار البيانات</li>
+<li dir="rtl">تجهيز الصورة (تصغيرها وإزالة بيانات EXIF)</li>
+<li dir="rtl">الطلب إلى الخادم وإلى Gemini</li>
+<li dir="rtl">مخطط الاستجابة والتحقق منها</li>
+<li dir="rtl">المطابقة مع قاعدة الأطعمة والتقديرات</li>
+<li dir="rtl">مسار المراجعة والحفظ</li>
+<li dir="rtl">الحدود والحصص والقيود الجغرافية</li>
+<li dir="rtl">رموز الأخطاء ورسائلها</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. مبادئ التصميم</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>الفئة المجانية فقط ولا بديل مدفوع.</b> يسمح الخادم فقط بالنماذج في <code dir="ltr">AI_FREE_MODELS</code>: <code dir="ltr">gemini-3.8-flash</code> (الافتراضي <code dir="ltr">AI_DEFAULT_MODEL</code>) و<code dir="ltr">gemini-3.6-flash</code> و<code dir="ltr">gemini-3.5-flash-lite</code>. تُتجاهل الخاصية الاختيارية <code dir="ltr">AI_MODEL</code> إن لم تكن أحدها. لا يوجد نموذج احتياطي ولا خدمة ذكاء أخرى؛ عند نفاد الحصة تظهر رسالة للمستخدم ولا يُعاد الطلب في مكان آخر.</li>
+<li dir="rtl"><b>المفتاح لا يصل إلى الهاتف.</b> يُحفظ مفتاح Gemini فقط في خصائص السكربت (Script Properties) باسم <code dir="ltr">GEMINI_API_KEY</code>. يرسله التطبيق مرة واحدة عبر الإجراء <code dir="ltr">setAiKey</code> ولا يحتفظ به.</li>
+<li dir="rtl"><b>الذكاء الاصطناعي يتعرّف، والتطبيق يحسب.</b> يكتفي النموذج بالتعرّف على الأطعمة وتقدير الجرامات والحالة وطريقة الطهي واختيار الصف المطابق في القاعدة. تُحسب كل القيم الغذائية داخل التطبيق بالمحرّك نفسه المستخدم في التسجيل اليدوي (<code dir="ltr">macrosFor</code> على أساس 100 جم للطعام).</li>
+<li dir="rtl"><b>لا شيء يُحفظ تلقائيًا.</b> لا تُكتب الوجبة في اليوميات إلا عند ضغط المستخدم «تأكيد وحفظ».</li>
+</ul>
+
+<h2 dir="rtl">2. البنية ومسار البيانات</h2>
+<pre dir="ltr">
+ Phone (PWA)                         Apps Script web app (Code.gs)          Google Gemini API
+ ───────────                         ─────────────────────────────          ─────────────────
+ photo ─► prepareImage()  (JPEG,
+          ≤1024 px, no EXIF)
+ buildCatalog(foods) ─► requestAnalysis()
+   owner/guest device: action analyzeMeal + APP token ─► doPost ─► analyzeMeal_()
+   signed-in account:  action analyzeMeal + Firebase ID token ─► publicAi_()
+                                       verify token (Identity Toolkit)
+                                       profile status/country (Firestore,
+                                       with the user's own token)
+                                       per-user counter ─► analyzeMeal_()
+                                       global daily counter
+                                       POST models/{model}:generateContent ─────►
+                                       ◄──────────────── JSON (response schema)
+ validateAiResult() ◄── {ok, model, result}
+ toScanItems() ─► review sheet ─► user confirms ─► logScannedMeal() ─► diary
+</pre>
+<p dir="rtl">أجهزة المالك/الضيف تستخدم خادم الـHub الخاص المضبوط في الإعدادات (الرابط والرمز من رمز الربط). أما الحسابات العامة المسجّلة فتستخدم <code dir="ltr">aiBackendUrl</code> من <code dir="ltr">public/firebase-config.json</code> وتُصادَق برمز الهوية (ID token) الخاص بها في Firebase. إن لم يتوفر أيٌّ منهما يفشل الماسح بالرمز <code dir="ltr">AI_NO_BACKEND</code>.</p>
+
+<h2 dir="rtl">3. تجهيز الصورة (تصغيرها وإزالة بيانات EXIF)</h2>
+<ol dir="rtl">
+<li dir="rtl">ترفض الدالة <code dir="ltr">prepareImage(file, max = 1024)</code> الملفات غير الصورية (<code dir="ltr">AI_BAD_IMAGE</code>).</li>
+<li dir="rtl">تُرسم الصورة على لوحة (canvas) عبر <code dir="ltr">compressImage</code> في <code dir="ltr">src/lib/repo.ts</code>: يُصغَّر الضلع الأطول إلى 1024 بكسل كحد أقصى وتُعاد الترميز بصيغة JPEG بجودة 0.82. إعادة الترميز تحذف كل البيانات الوصفية (EXIF: الموقع الجغرافي والجهاز والوقت) — تُرسل البكسلات فقط.</li>
+<li dir="rtl">إذا تعذّر على المتصفح فك الصورة أو إعادة ترميزها فلا يُرسل الملف الأصلي أبدًا (<code dir="ltr">AI_BAD_IMAGE</code>).</li>
+<li dir="rtl">إذا تجاوز الناتج 1,500,000 بايت يُعاد ترميزه بدقة 768 بكسل.</li>
+<li dir="rtl">تُحوَّل الصورة إلى base64. يرفض الخادم الصور الأكبر من <code dir="ltr">AI_MAX_IMAGE_CHARS</code> = 2,800,000 حرف (≈ 2 ميجابايت) أو التي تحوي أحرفًا خارج base64.</li>
+</ol>
+
+<h2 dir="rtl">4. الطلب إلى الخادم وإلى Gemini</h2>
+<h3 dir="rtl">4.1 ما يرسله التطبيق</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>المحتوى</th></tr>
+<tr><td><code dir="ltr">action</code></td><td><code dir="ltr">analyzeMeal</code></td></tr>
+<tr><td><code dir="ltr">image</code></td><td>صورة JPEG بترميز base64 (بدون EXIF)</td></tr>
+<tr><td><code dir="ltr">mediaType</code></td><td><code dir="ltr">image/jpeg</code> (يقبل الخادم jpeg/png/webp وأي نوع آخر يُعامل كـ jpeg)</td></tr>
+<tr><td><code dir="ltr">foods</code></td><td>أسطر الكتالوج <code dir="ltr">{k, ar, en, s, c}</code>: مفتاح قصير (f1، f2…) والاسم العربي والإنجليزي والحالة والفئة — للأطعمة غير المؤرشفة والمكتملة فقط. لا تُرسل يوميات ولا وزن ولا بيانات الملف الشخصي.</td></tr>
+<tr><td><code dir="ltr">lang</code></td><td><code dir="ltr">ar</code> أو <code dir="ltr">en</code></td></tr>
+<tr><td><code dir="ltr">note</code></td><td>ملاحظة اختيارية من المستخدم، 300 حرف كحد أقصى</td></tr>
+<tr><td><code dir="ltr">token</code> أو <code dir="ltr">idToken</code></td><td>رمز التطبيق APP للمالك (الخادم الخاص) أو رمز هوية Firebase (الحسابات العامة)</td></tr>
+</table>
+<p dir="rtl">ملاحظة خصوصية من <code dir="ltr">Code.gs</code>: في الفئة المجانية قد تستخدم Google الطلبات لتحسين منتجاتها وقد يطّلع عليها مراجعون بشريون؛ لذا يحتوي الطلب على صورة الوجبة وأسماء الأطعمة فقط. لا يحفظ الخادم أي شيء عن الوجبة.</p>
+<h3 dir="rtl">4.2 استدعاء Gemini (في الخادم)</h3>
+<ul dir="rtl">
+<li dir="rtl">نقطة النهاية: <code dir="ltr">https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent</code> والمفتاح في الترويسة <code dir="ltr">x-goog-api-key</code>.</li>
+<li dir="rtl"><code dir="ltr">systemInstruction</code>: التعليمات الثابتة <code dir="ltr">AI_SYSTEM</code> (التعرّف على كل طعام ظاهر بما فيه الزيت والصلصات، تقدير الجرامات الصالحة للأكل كما تظهر مع مدى أدنى–أعلى، نيء/مطبوخ/آخر، طريقة الطهي، المطابقة مع صف بنفس الحالة أو ترك <code dir="ltr">food_key</code> فارغًا، ثقة أقل من 0.6 للعناصر غير المؤكدة، وعدم ذكر أشخاص أو أماكن).</li>
+<li dir="rtl"><code dir="ltr">contents</code>: الصورة كـ <code dir="ltr">inlineData</code> ونص يحوي لغة المستخدم والملاحظة وأسطر القاعدة <code dir="ltr">key | Arabic | English | state | category</code> (حد أقصى <code dir="ltr">AI_MAX_FOODS</code> = 800 صف، وكل حقل 120 حرفًا، مع حذف <code dir="ltr">|</code> والأسطر الجديدة).</li>
+<li dir="rtl"><code dir="ltr">generationConfig</code>: <code dir="ltr">responseMimeType: application/json</code> و<code dir="ltr">responseJsonSchema: AI_SCHEMA</code> و<code dir="ltr">maxOutputTokens: 8192</code> و<code dir="ltr">temperature: 0.2</code> و<code dir="ltr">thinkingConfig.thinkingLevel: MEDIUM</code>.</li>
+<li dir="rtl">يجري الاستدعاء خارج قفل السكربت لأنه قد يستغرق نحو 10–40 ثانية. ينتهي انتظار التطبيق بعد 120 ثانية (<code dir="ltr">AI_TIMEOUT</code>).</li>
+</ul>
+
+<h2 dir="rtl">5. مخطط الاستجابة والتحقق منها</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>النوع / القيم</th></tr>
+<tr><td><code dir="ltr">is_food, meal_name_ar, meal_name_en, notes</code></td><td>قيمة منطقية ونصوص</td></tr>
+<tr><td><code dir="ltr">items[].name_ar, name_en</code></td><td>نصوص</td></tr>
+<tr><td><code dir="ltr">items[].food_key</code></td><td>مفتاح الكتالوج أو "" إن لم يكن الطعام في القاعدة</td></tr>
+<tr><td><code dir="ltr">items[].grams, grams_low, grams_high</code></td><td>أرقام</td></tr>
+<tr><td><code dir="ltr">items[].state</code></td><td dir="ltr">raw | cooked | other</td></tr>
+<tr><td><code dir="ltr">items[].cooking_method</code></td><td dir="ltr">none, grilled, fried, deep_fried, air_fried, boiled, steamed, baked, roasted, sauteed, stewed, unknown</td></tr>
+<tr><td><code dir="ltr">items[].kind</code></td><td dir="ltr">food | oil_or_fat | sauce_or_dressing | drink</td></tr>
+<tr><td><code dir="ltr">items[].confidence</code></td><td>من 0 إلى 1</td></tr>
+<tr><td><code dir="ltr">items[].reason</code></td><td>جملة قصيرة واحدة</td></tr>
+<tr><td><code dir="ltr">items[].est_per100</code></td><td><code dir="ltr">{kcal, protein, carbs, fat}</code> — فقط عندما يكون <code dir="ltr">food_key</code> فارغًا</td></tr>
+</table>
+<p dir="rtl">معالجة الخادم: وجود <code dir="ltr">promptFeedback.blockReason</code> أو سبب إنهاء غير STOP ← <code dir="ltr">AI_REFUSED</code>؛ MAX_TOKENS ← <code dir="ltr">AI_TRUNCATED</code>؛ عدم وجود مرشّح أو JSON غير صالح ← <code dir="ltr">AI_BAD_OUTPUT</code>؛ وتُتجاهل أجزاء «التفكير». عند النجاح: <code dir="ltr">{ok:true, model, result}</code>.</p>
+<p dir="rtl">إعادة التحقق في التطبيق (<code dir="ltr">validateAiResult</code>): تُقص النصوص إلى 300 حرف، و30 عنصرًا كحد أقصى، وتُستبدل القيم غير المعروفة (الحالة ← other، الطريقة ← unknown، النوع ← food)، وتُقرَّب الجرامات وتُحصر بين 0 و3000 (<code dir="ltr">MAX_GRAMS</code>)، وتُحصر الثقة بين 0 و1، وتُحذف العناصر بلا اسم أو بوزن صفر.</p>
+
+<h2 dir="rtl">6. المطابقة مع قاعدة الأطعمة والتقديرات</h2>
+<p dir="rtl">تحوّل <code dir="ltr">toScanItems</code> كل عنصر إلى سطر قابل للتعديل (<code dir="ltr">ScanItem</code>) وتضع العلامات التالية:</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>العلامة</th><th>الشرط</th><th>الأثر</th></tr>
+<tr><td><code dir="ltr">badKey</code></td><td>المفتاح غير موجود في الكتالوج</td><td>يُعامل كطعام غير موجود في القاعدة</td></tr>
+<tr><td><code dir="ltr">stateMismatch</code></td><td>طعام القاعدة نيء والنموذج يقول مطبوخ (أو العكس)</td><td>تُلغى المطابقة — التطبيق لا يحوّل بين النيء والمطبوخ</td></tr>
+<tr><td><code dir="ltr">notInDb</code></td><td>لا توجد مطابقة صالحة</td><td>يُستخدم تقدير النموذج فقط إذا اجتاز <code dir="ltr">validateMacros</code> وكانت السعرات أكبر من صفر</td></tr>
+<tr><td><code dir="ltr">lowConfidence</code></td><td>الثقة أقل من 0.6 (<code dir="ltr">LOW_CONFIDENCE</code>)</td><td>يجب أن يؤشّر المستخدم «راجعت هذا العنصر»</td></tr>
+<tr><td><code dir="ltr">hiddenFat</code></td><td>النوع زيت/دهون أو صلصة/تتبيلة</td><td>يجب أن يؤشّر المستخدم «راجعت هذا العنصر»</td></tr>
+</table>
+<p dir="rtl">القيم الغذائية لكل عنصر (<code dir="ltr">itemNutrition</code>): طعام من القاعدة ← <code dir="ltr">macrosFor(basisFromFood(food), grams, 'g')</code> (بوسم «من القاعدة»)؛ وإلا فتقدير النموذج لكل 100 جم مضروبًا في الجرامات/100 (بوسم «تقدير» وعلامة «~»). يظهر تحذير في المجموع إذا تضمّن تقديرات. وللعناصر غير المطابقة تقترح <code dir="ltr">suggestFoods</code> حتى 3 أطعمة من القاعدة تتشابه كلمات أسمائها (مع أفضلية لنفس الحالة)، ولا يُطبَّق الاقتراح إلا إذا نقر عليه المستخدم.</p>
+
+<h2 dir="rtl">7. مسار المراجعة والحفظ</h2>
+<ol dir="rtl">
+<li dir="rtl">يلتقط المستخدم صورة أو يختارها من المعرض (<code dir="ltr">ScanButtons</code>)، ويكتب ملاحظة اختيارية ثم يضغط «تحليل». المراحل: جاهز ← تجهيز ← تحليل ← مراجعة (أو خطأ)، ويمكن إلغاء التحليل.</li>
+<li dir="rtl">في المراجعة يمكن تعديل الجرامات وطريقة الطهي والحالة (للعناصر غير المطابقة)، واختيار الطعام من القاعدة أو تغييره، وحذف عناصر، وإضافة مكوّنات من منتقي الأطعمة، وتغيير الوجبة (المقترحة حسب وقت اليوم) والتاريخ.</li>
+<li dir="rtl">يبقى زر الحفظ معطّلًا ما دامت <code dir="ltr">blockers()</code> تُرجع أسبابًا: <code dir="ltr">empty</code>، <code dir="ltr">grams</code> (≤ 0 أو &gt; 3000)، <code dir="ltr">unmatched</code> (بلا طعام ولم يُختر «إضافة كطعام جديد»)، <code dir="ltr">unconfirmed</code>.</li>
+<li dir="rtl"><code dir="ltr">logScannedMeal</code>: العناصر غير المطابقة التي اختار المستخدم إضافتها تصبح أطعمة جديدة بفئة «تقدير من صورة» وملاحظة «تقدير ذكاء اصطناعي من صورة — غير محقق، يُرجى المراجعة»؛ وتُدمج جرامات الطعام الواحد في إدخال واحد؛ والحفظ إما كله أو لا شيء (تُحذف الإدخالات المضافة عند الفشل).</li>
+<li dir="rtl">تظهر رسالة منبثقة (toast) فيها «تراجع» تحذف الإدخالات وتؤرشف الأطعمة التي أنشأها المسح.</li>
+</ol>
+
+<h2 dir="rtl">8. الحدود والحصص والقيود الجغرافية</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحد</th><th>الموضع</th><th>القيمة</th></tr>
+<tr><td>سقف يومي عام (خاص بالمشروع)</td><td>الخاصية <code dir="ltr">AI_DAILY_LIMIT</code> والعدّاد <code dir="ltr">AI_USED_&lt;UTC date&gt;</code></td><td>الافتراضي في الشيفرة 40؛ يقبل <code dir="ltr">setCloudConfig</code> من 1 إلى 1500 (ويرسل laptop-setup القيمة 200)</td></tr>
+<tr><td>سقف يومي لكل مستخدم (الحسابات العامة)</td><td><code dir="ltr">AI_USER_DAILY_LIMIT</code> والعدّاد <code dir="ltr">AI_U_&lt;date&gt;_&lt;uid&gt;</code> (تحت قفل السكربت)</td><td>الافتراضي 10؛ المدى المقبول 1–50</td></tr>
+<tr><td>حصة Google المجانية في الدقيقة</td><td>استجابة Gemini ‏HTTP 429</td><td>تعرض الرسالة مدة الانتظار من Google (الافتراضي 60 ثانية)</td></tr>
+<tr><td>حصة Google المجانية اليومية</td><td>HTTP 429 مع «PerDay»</td><td>يُعرض موعد التجدد كمنتصف الليل التالي بتوقيت America/Los_Angeles محوّلًا إلى توقيت المستخدم (<code dir="ltr">nextQuotaReset</code>)</td></tr>
+<tr><td>المنطقة</td><td>القائمة <code dir="ltr">AI_RESTRICTED</code> في Code.gs و<code dir="ltr">AI_RESTRICTED_COUNTRIES</code> في firebase.ts</td><td>دول الاتحاد الأوروبي/المنطقة الاقتصادية الأوروبية وسويسرا والمملكة المتحدة (32 رمزًا) ← <code dir="ltr">AI_REGION_RESTRICTED</code> للحسابات التي تقع دولتها في القائمة</td></tr>
+</table>
+<p dir="rtl">يُزاد العدّاد العام بعد كل محاولة استدعاء وصلت إلى Google، ويُزاد عدّاد المستخدم قبل الاستدعاء. الدالة الاختيارية <code dir="ltr">cleanupAiCounters()</code> (يدويًا أو بمشغّل زمني) تحذف العدّادات الأقدم من 8 أيام. كما يُشترط أن تكون حالة الملف الشخصي <code dir="ltr">active</code> لطلبات الحسابات.</p>
+
+<h2 dir="rtl">9. رموز الأخطاء ورسائلها</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الرمز</th><th>المصدر</th><th>الرسالة العربية (i18n2.ts)</th></tr>
+<tr><td dir="ltr">AI_NO_BACKEND</td><td>التطبيق</td><td>يحتاج الماسح الذكي إلى خادمك الخاص…</td></tr>
+<tr><td dir="ltr">AI_OFFLINE</td><td>التطبيق</td><td>أنت غير متصل بالإنترنت… صورتك محفوظة.</td></tr>
+<tr><td dir="ltr">AI_TIMEOUT</td><td>التطبيق (120 ث)</td><td>استغرق التحليل وقتًا طويلًا…</td></tr>
+<tr><td dir="ltr">AI_NETWORK</td><td>التطبيق / الخادم</td><td>تعذّر الوصول إلى خادمك…</td></tr>
+<tr><td dir="ltr">AI_NOT_CONFIGURED</td><td>الخادم (لا يوجد مفتاح)</td><td>الماسح الذكي المجاني غير مُعد بعد…</td></tr>
+<tr><td dir="ltr">AI_KEY_INVALID</td><td>401/403 أو مفتاح غير صالح</td><td>رفضت Google مفتاح Gemini…</td></tr>
+<tr><td dir="ltr">AI_QUOTA_DAY</td><td>429 PerDay</td><td>…تتجدد الساعة {time} (بتوقيتك). لا توجد أي رسوم…</td></tr>
+<tr><td dir="ltr">AI_QUOTA_MINUTE</td><td>429</td><td>انتظر {s} ثانية… (بدون رسوم)</td></tr>
+<tr><td dir="ltr">AI_REGION</td><td>خطأ موقع من Google</td><td>…غير متاحة من موقع الخادم.</td></tr>
+<tr><td dir="ltr">AI_REGION_RESTRICTED</td><td>دولة الملف الشخصي</td><td>…غير متاح في دولتك (شروط الفئة المجانية من Google)…</td></tr>
+<tr><td dir="ltr">AI_USER_LIMIT</td><td>سقف المستخدم</td><td>استخدمت مسحاتك المجانية اليوم ({n})…</td></tr>
+<tr><td dir="ltr">AI_DAILY_LIMIT</td><td>السقف العام</td><td>تم بلوغ حدك اليومي للمسح…</td></tr>
+<tr><td dir="ltr">AI_MODEL_UNAVAILABLE</td><td>404</td><td>نموذج Gemini المجاني غير متاح…</td></tr>
+<tr><td dir="ltr">AI_BUSY</td><td>5xx</td><td>خدمة الذكاء الاصطناعي مشغولة الآن…</td></tr>
+<tr><td dir="ltr">AI_BAD_IMAGE, AI_REFUSED, AI_TRUNCATED, AI_BAD_OUTPUT</td><td>الصورة / مخرجات النموذج</td><td>جرّب صورة أخرى / حاول مجددًا</td></tr>
+<tr><td dir="ltr">AI_UNAUTHORIZED, AI_OLD_BACKEND</td><td>الخادم <code dir="ltr">unauthorized</code> / <code dir="ltr">unknown action</code></td><td>تحقق من الرمز / حدّث Code.gs وأعد النشر</td></tr>
+<tr><td dir="ltr">AI_HTTP_&lt;code&gt;, AI_ERROR</td><td>أخرى</td><td>فشل التحليل. حاول مجددًا.</td></tr>
+</table>
+<p dir="rtl">توجد النصوص الإنجليزية لكل رمز في الملف نفسه. الرموز التي لا ترجمة لها تُعرض كـ <code dir="ltr">AI_ERROR</code>.</p>
+
+<h2 dir="rtl">10. حالة التحقق</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>متحقَّق منه مباشرة (7 نوفمبر 2026):</b> مفتاح Gemini محفوظ فقط في خصائص السكربت؛ نجح تحليل صورة حقيقية واحدة بالنموذج <code dir="ltr">gemini-3.8-flash</code> (6 عناصر، نحو 72 ثانية)؛ وأعادت محاولة لاحقة <code dir="ltr">AI_BUSY</code> (ضغط مؤقت لدى Google). صيغتا المفتاح <code dir="ltr">AIza…</code> و<code dir="ltr">AQ.…</code> مقبولتان وتتحقق Google من المفتاح باستدعاء بيانات النموذج.</li>
+<li dir="rtl"><b>مختبَر بالاختبارات الآلية فقط:</b> منطق الماسح ومسارات الخادم في <code dir="ltr">tests/scanner.test.ts</code> (ضمن 109 اختبار وحدة)، ومنها الإجراء <code dir="ltr">aiStats</code> الخاص بالمشرف.</li>
+<li dir="rtl"><b>غير مُتحقَّق منه:</b> عمليات مسح حقيقية من حسابات عامة (Firebase) في الإنتاج؛ القيد الجغرافي على حسابات حقيقية؛ توقيت تجدد الحصة لدى Google؛ المسح على جهاز Android حقيقي.</li>
+</ul>
+
+<h2 dir="rtl">11. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

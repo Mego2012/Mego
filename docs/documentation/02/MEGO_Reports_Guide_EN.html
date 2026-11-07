@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Reports_Guide_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Reports Guide (Weekly and Monthly)</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-16</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>End users</td></tr>
+<tr><td>Related documents</td><td>MEGO_Food_Tracking_Guide, MEGO_Progress_and_Insights_Guide, MEGO_Profile_and_Goals_Guide, MEGO_Backup_and_Export_Guide, MEGO_Calorie_and_Macronutrient_Calculation_Methodology</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This guide explains the <b>Weekly Report</b> (<code>#/reports/week</code>) and <b>Monthly Report</b> (<code>#/reports/month</code>): how days are classified, how averages and consistency are calculated, how the comparison with the previous period works, and how to export a report as CSV, Excel (XLSX) or PDF.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Opening a report and navigating periods</li>
+<li>Day status and the day ledger</li>
+<li>Averages (fully logged days only)</li>
+<li>Consistency and goal completion</li>
+<li>Weight, water, fiber and top foods</li>
+<li>Charts, comparison and day table</li>
+<li>Monthly extras and insights</li>
+<li>Exporting: CSV, Excel, PDF</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Opening a report and navigating periods</h2>
+<ol>
+<li>Open the menu and choose <b>Weekly Report</b> or <b>Monthly Report</b>.</li>
+<li>The title shows the period (e.g. "1 Nov – 7 Nov 2026" or "November 2026").</li>
+<li>Use the arrows (Previous / Next) to move by one week or one month.</li>
+</ol>
+<p>The week starts on the day set in Settings → "Week starts on" (default: Saturday).</p>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/week-en-light.png" width="300" alt="Weekly report"> <img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/month-en-light.png" width="300" alt="Monthly report"></p>
+
+<h2>2. Day status and the day ledger</h2>
+<p>Every day has one of three statuses. <b>A day without entries is never counted as a zero-calorie day.</b></p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Status</th><th>Rule</th></tr>
+<tr><td>No entries</td><td>nothing logged on that date</td></tr>
+<tr><td>Fully logged</td><td>you marked the day "Mark day complete" in the Diary, <i>or</i> (automatic) it is a past day whose calories reach at least 60% of the calorie target (setting "A past day counts as fully logged at ≥ % of calorie target", default 60) while "Count past days with entries as fully logged" is on (default on)</td></tr>
+<tr><td>Partially logged</td><td>has entries but is not complete (today stays partial until you mark it complete)</td></tr>
+</table>
+<p>A manual choice in the Diary ("Mark day complete" / "Mark day partial") always wins; "Auto status" returns to the automatic rule.</p>
+<p>At the top of the report three chips count <b>Fully logged days</b>, <b>Partially logged days</b> and <b>Days with no entries</b>. Below is a calendar-style <b>ledger</b>: one cell per day, coloured by status, with a marker for "Days over calorie target". In the monthly ledger each date sits under its weekday.</p>
+
+<h2>3. Averages (fully logged days only)</h2>
+<p>The report states: "Averages use fully logged days only. Partial and empty days are excluded (never counted as zero)."</p>
+<pre>
+Average calories = sum of calories on fully logged days ÷ number of fully logged days
+(same for protein, carbs, fat; targets are averaged over the same days)
+</pre>
+<p><b>Example:</b> a week with 4 fully logged days (2,000 / 2,200 / 1,900 / 2,100 kcal), 2 partial days and 1 empty day → average = 8,200 ÷ 4 = 2,050 kcal. The partial and empty days do not lower the average.</p>
+<p>Four gauges show Average calories, Average protein, Average carbs and Average fat as "average / target", each with a "vs previous" difference.</p>
+
+<h2>4. Consistency and goal completion</h2>
+<p>All counts below use fully logged days. Tolerances come from Settings → "Consistency tolerances" (defaults: Calorie range ± 10 %, Protein allowance − 5 %).</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Indicator</th><th>Definition</th></tr>
+<tr><td>Days within calorie target</td><td>|calories − target| ≤ target × 10 %, shown as "days / fully logged days"</td></tr>
+<tr><td>Days hitting protein target</td><td>protein ≥ target × (1 − 5 %)</td></tr>
+<tr><td>Calorie consistency</td><td>days within calorie target ÷ fully logged days × 100</td></tr>
+<tr><td>Protein consistency</td><td>days hitting protein ÷ fully logged days × 100</td></tr>
+<tr><td>Goal completion</td><td>days with both calories in range <i>and</i> protein hit ÷ fully logged days × 100</td></tr>
+<tr><td>Days over calorie target</td><td>calories &gt; target × (1 + 10 %)</td></tr>
+</table>
+<p>If there are no fully logged days, these values show "—".</p>
+
+<h2>5. Weight, water, fiber and top foods</h2>
+<ul>
+<li><b>Weight</b> card: Starting weight, Ending weight, Average weight, Weight change vs previous (difference of average weights), Waist change, number of weigh-ins, and a weight chart with the 7-day average line.</li>
+<li><b>Macro split (% of calories)</b>: share of calories from protein (×4), carbs (×4) and fat (×9) based on the averages.</li>
+<li><b>Average water</b> over days on which water was logged ("days / days in period").</li>
+<li><b>Fiber</b>: shown only if every entry on the fully logged days has fiber data; below 25 g/day shows "below the 25–38 g recommended". Otherwise: "Not enough fiber data…".</li>
+<li><b>Top foods (by calories)</b>: up to 8 foods with count and calories.</li>
+</ul>
+
+<h2>6. Charts, comparison and day table</h2>
+<ul>
+<li><b>Daily calories</b> and <b>Daily macronutrients</b> charts.</li>
+<li><b>Comparison — Current / Previous</b>: table with Average calories, Average protein, Average carbs, Average fat, Calorie consistency, Protein consistency, Average weight and Fully logged days for the current and previous period (previous week / previous month) and the difference.</li>
+<li><b>Diary</b> table: each day with status, calories, protein, carbs, fat (— for empty days; ▲ marks over target) and the target (kcal/protein).</li>
+</ul>
+
+<h2>7. Monthly extras and insights</h2>
+<ul>
+<li>Monthly report only: <b>Best consistency days</b> (fully logged days ranked by a score = share of the four goals — calories, protein, carbs, fat — within tolerance) and, when there are more than 3 such days, <b>Lowest consistency days</b> (3 days).</li>
+<li>The last card shows <b>Smart insights</b> (weekly) or <b>Overall progress summary</b> (monthly), generated from the last 7 days of saved data up to the end of the period. See MEGO_Progress_and_Insights_Guide.</li>
+</ul>
+
+<h2>8. Exporting: CSV, Excel, PDF</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Button</th><th>File / result</th><th>Content</th></tr>
+<tr><td>Export CSV</td><td><code>nutrition-week-&lt;first date&gt;.csv</code> or <code>nutrition-month-…csv</code></td><td>one row per day (date, status, day type, kcal, protein, carbs, fat, target kcal, target protein, calories in range, protein hit — 1/0 for fully logged days), then a summary block (day counts, averages, consistency, goal completion, weight start/end/average, waist change)</td></tr>
+<tr><td>Export Excel</td><td><code>nutrition-week-….xlsx</code></td><td>sheet "Summary" (as CSV) and sheet "Diary" (every entry of the period: date, meal, food, state, quantity, unit, grams, kcal, protein, carbs, fat)</td></tr>
+<tr><td>Print / save PDF</td><td>browser print dialog</td><td>the report page without navigation buttons; choose "Save as PDF" as printer</td></tr>
+</table>
+<p>Column labels follow the current app language. Exports run entirely on your device.</p>
+
+<h2>9. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Rules and formulas</td><td>Verified in src/lib/reports.ts, src/pages/Reports.tsx, src/lib/exporters.ts, src/lib/defaults.ts; covered by unit tests (109)</td></tr>
+<tr><td>Weekly + monthly report for a cloud account</td><td>Verified live in production (scripts/live-verify.mjs, 14/14)</td></tr>
+<tr><td>CSV/XLSX buttons and report UI</td><td>Covered by browser e2e on emulated devices</td></tr>
+<tr><td>PDF printing on a real Android phone</td><td>Not verified — depends on the phone's browser print dialog</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

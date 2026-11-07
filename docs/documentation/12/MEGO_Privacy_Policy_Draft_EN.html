@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MEGO_Privacy_Policy_Draft_EN</title></head>
+<body style="font-family:Arial">
+<p style="background:#fff3cd;border:2px solid #b8860b;padding:10px"><b>DRAFT — requires review by a qualified legal professional before publication</b></p>
+<h1>MEGO — Privacy Policy (Draft)</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-74</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires legal review</td></tr>
+<tr><td>Audience</td><td>Project owner, legal counsel; after approval: all MEGO users</td></tr>
+<tr><td>Related documents</td><td>MEGO_Terms_of_Service_Draft, MEGO_User_Data_Protection, MEGO_Data_Retention_and_Deletion, MEGO_Access_Control_and_Permissions, MEGO_Gemini_AI_Integration, MEGO_Firebase_Integration</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This is the extended draft of the MEGO Privacy Policy. It expands the in-app draft at <code>#/privacy</code> (keys <code>pp_0</code>–<code>pp_14</code> in <code>src/lib/i18n2.ts</code> / <code>src/lib/i18n3.ts</code>) and follows the checklist in <code>docs/LEGAL-REVIEW.md</code>. Every statement was checked against the code and the live configuration (status of 7 November 2026). Bracketed text is a placeholder that only the owner and legal counsel may complete. This draft is not legal advice. It is the single privacy-policy document of the project and is also referenced from folder 06 (Security &amp; Privacy).</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Who operates MEGO</li>
+<li>What data we process</li>
+<li>Health-related data</li>
+<li>Why we use your data</li>
+<li>Where your data is stored</li>
+<li>Who can see your data</li>
+<li>Services that receive data</li>
+<li>Meal photos and AI</li>
+<li>Security</li>
+<li>Your rights and choices</li>
+<li>Retention and deletion</li>
+<li>Age</li>
+<li>Not medical advice</li>
+<li>Changes to this policy</li>
+<li>Verification status</li>
+<li>Decisions required from the owner and legal counsel</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Who operates MEGO</h2>
+<p><b>[Operator name, country and contact email — to be completed by the owner before launch.]</b> Requests about your data go to this contact. [Whether a data-protection officer or local representative is required — to be decided after legal review.]</p>
+
+<h2>2. What data we process</h2>
+<h3>2.1 With a MEGO account</h3>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Category</th><th>Data</th><th>Source</th></tr>
+<tr><td>Account (login)</td><td>E-mail address, password (held only by Google Firebase Authentication, never visible to MEGO)</td><td>You, at registration</td></tr>
+<tr><td>Account card (profile)</td><td>Display name, e-mail, country, account status (active/suspended), confirmation that you are 18+, creation date, last-activity date</td><td>You; last-activity is updated automatically</td></tr>
+<tr><td>Personal settings</td><td>Optional first name, sex, age, height, start/current/target weight, weekly change goal, goal type, training days, activity level, optional starting waist, daily targets, app preferences</td><td>You</td></tr>
+<tr><td>Diary and records</td><td>Food diary entries, custom foods, body measurements (weight, waist, chest, hips, arm, thigh, neck, body fat, notes), water, habits, day notes, fasting periods, recipes, meal templates, meal plans and planned days</td><td>You</td></tr>
+<tr><td>Food proposals</td><td>Foods you choose to submit to the shared database, linked to your account id</td><td>You (optional)</td></tr>
+<tr><td>Error reports</td><td>Error type and error message (max. 400 characters) and a timestamp — no diary content</td><td>The app, on a synchronisation error</td></tr>
+<tr><td>AI scanner usage counter</td><td>Number of scans per account per day (counts only, keyed by account id)</td><td>The backend, when you use the scanner</td></tr>
+<tr><td>Technical data</td><td>IP address and browser details received by the hosting and font providers when the app loads</td><td>Your browser</td></tr>
+</table>
+<h3>2.2 Without an account (guest mode)</h3>
+<p>Your records stay in your browser's storage on that device only. They are not sent to MEGO's cloud. The services in section 7 that load the app (GitHub Pages, Google Fonts) and Open Food Facts lookups still apply.</p>
+<h3>2.3 What we do not collect</h3>
+<p>MEGO has no advertising and no analytics or tracking tools. Photos taken with the scanner are not stored by MEGO. MEGO does not ask for your location; photo location metadata is removed on your device before upload.</p>
+
+<h2>3. Health-related data</h2>
+<p>Weight, body measurements, food intake and goals can reveal information about your health. They are used only to show your own diary, reports and suggestions, never for advertising, and are not sold or shared (<code>pp_9</code>). [Whether these data are "sensitive" or "health" data under the applicable law, and whether explicit consent wording is required at registration — to be decided after legal review. Today registration asks only for the 18+ confirmation and acceptance of the terms and this policy.]</p>
+
+<h2>4. Why we use your data</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Purpose</th><th>Data used</th><th>Legal basis</th></tr>
+<tr><td>Create and secure your account; sign-in; password reset</td><td>E-mail, password, profile</td><td>[to be decided after legal review]</td></tr>
+<tr><td>Show your diary, targets, reports, coach suggestions; synchronise your devices</td><td>Settings and records</td><td>[to be decided after legal review]</td></tr>
+<tr><td>Estimate a meal from a photo (only when you use the scanner)</td><td>Photo, food names list, optional note, language</td><td>[to be decided after legal review]</td></tr>
+<tr><td>Prevent abuse; enforce daily scanner limits; suspend accounts</td><td>Account status, usage counters</td><td>[to be decided after legal review]</td></tr>
+<tr><td>Fix technical errors</td><td>Error reports</td><td>[to be decided after legal review]</td></tr>
+<tr><td>Review and publish proposed foods</td><td>Food proposals</td><td>[to be decided after legal review]</td></tr>
+</table>
+<p>The calculations themselves (calorie targets, macros, reports, rankings, coach) run in your browser on your device.</p>
+
+<h2>5. Where your data is stored</h2>
+<p>5.1 In Google Firebase (Cloud Firestore and Authentication) under your account. The Cloud Firestore database of the live service is located in the Google Cloud region <b>me-central2 (Dammam, Saudi Arabia)</b>. [Location of Firebase Authentication data — not verified; to be confirmed with Google's documentation.]</p>
+<p>5.2 On your device: the app keeps a local copy (browser IndexedDB) so it works offline, plus up to 10 automatic local backups. This copy stays in your browser until you delete the account or clear the site data. [Whether the local copy is removed on sign-out — not verified.]</p>
+<p>5.3 Some services listed in section 7 (Google, GitHub, Open Food Facts) process data outside Saudi Arabia. [Cross-border transfer wording — to be decided after legal review.]</p>
+
+<h2>6. Who can see your data</h2>
+<p>6.1 <b>Only you</b> can read and write your private records. Server-side security rules (Firestore rules) block every other account, including administrators. Your own access is allowed only while your account is active.</p>
+<p>6.2 <b>Administrators</b> can see the account card only: name, e-mail, country, account status and dates (creation, last activity). They can change only the status (suspend / reactivate). They also see foods you submit for the shared database, error reports (no diary content) and AI usage figures (counts only).</p>
+<p>6.3 Passwords are never visible to MEGO or administrators.</p>
+<p>6.4 We do not sell or share your data with anyone for advertising or marketing.</p>
+
+<h2>7. Services that receive data</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Service</th><th>When</th><th>What it receives</th></tr>
+<tr><td>Google Firebase (Authentication, Cloud Firestore)</td><td>With an account</td><td>Login data, profile, synchronised records, error reports, food proposals</td></tr>
+<tr><td>Google Apps Script (operator's backend)</td><td>Only when you use the photo scanner</td><td>The resized photo, food names list, optional note, language and your sign-in token (used to verify the account; the backend reads your account status and country with your own token)</td></tr>
+<tr><td>Google Gemini API (free tier)</td><td>Only when you use the photo scanner</td><td>The resized photo, food names list, optional note (forwarded by Apps Script; no e-mail or name)</td></tr>
+<tr><td>GitHub Pages</td><td>Every time the app is opened/updated</td><td>IP address and browser details</td></tr>
+<tr><td>Google Fonts</td><td>When fonts are loaded</td><td>IP address and browser details</td></tr>
+<tr><td>Open Food Facts</td><td>Only when you scan a barcode or choose "search Open Food Facts"</td><td>The barcode number or the words you typed (and your IP address)</td></tr>
+</table>
+<p>The operator's own Google Sheets "Nutrition Hub" synchronisation is used only on the operator's own device configured with a private connection; records of public accounts are not sent to it.</p>
+
+<h2>8. Meal photos and AI</h2>
+<p>8.1 If you use the photo scanner, the photo is resized and re-encoded on your phone, which removes all metadata (EXIF: GPS location, device, time); only the pixels are sent.</p>
+<p>8.2 It is sent to Google's Gemini API free tier. On the free tier Google may use this content to improve its products and human reviewers may see it, disconnected from your account. Do not photograph people or documents. Photos are not stored by MEGO (<code>pp_4</code>).</p>
+<p>8.3 The scanner is refused for accounts whose country is in the EU, EEA, UK or Switzerland (free-tier terms).</p>
+<p>8.4 The result is only a suggestion: nothing is saved until you review and confirm it.</p>
+
+<h2>9. Security</h2>
+<p>Connections are encrypted (HTTPS). Server-side rules allow each account to read and write only its own records, and only while the account is active; an older copy can never overwrite a newer one. Error reports contain the error message only, without diary content (<code>pp_12</code>). The AI key is kept only in the backend's Script Properties and is never sent to the browser. Details: MEGO_Security_Architecture, MEGO_User_Data_Protection.</p>
+
+<h2>10. Your rights and choices</h2>
+<ul>
+<li>View and correct your data in the app at any time.</li>
+<li>Export all your data (CSV, XLSX, JSON) from Settings / Account.</li>
+<li>Delete your account from the Account screen (password required) — this removes your cloud records, your profile, your login and this device's account copy.</li>
+<li>Choose not to use the photo scanner or Open Food Facts lookups.</li>
+<li>Use the app without an account (data on your device only).</li>
+</ul>
+<p>For any other request, contact the operator (section 1). <b>[Rights, response times and the competent authority depend on the applicable law — to be completed after legal review.]</b></p>
+
+<h2>11. Retention and deletion</h2>
+<p>Data is kept while your account exists; inactive accounts are not used for any other purpose (<code>pp_6</code>). Suspension does not delete data. Account deletion removes cloud records, profile and login immediately from the app. Error reports are kept until an administrator deletes them; scanner day counters can be removed after 8 days by an optional clean-up job. [Retention period for inactive accounts and for error reports; deletion of submitted foods after account deletion; Google's own retention on the Gemini free tier — to be decided / confirmed after legal review.] See MEGO_Data_Retention_and_Deletion.</p>
+
+<h2>12. Age</h2>
+<p>MEGO is for adults aged 18 and over. Registration requires an 18+ confirmation; the app does not otherwise verify age.</p>
+
+<h2>13. Not medical advice</h2>
+<p>MEGO provides general nutrition information and is not a medical device or a substitute for professional advice. See MEGO_Medical_Disclaimer.</p>
+
+<h2>14. Changes to this policy</h2>
+<p>Material changes will be announced in the app before they take effect. The date of the current version is shown at the top of the in-app page ("Version: draft of 7 November 2026").</p>
+
+<h2>15. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Statement</th><th>Status</th></tr>
+<tr><td>Owner-only access; other account 403; anonymous 403; regular account cannot list profiles</td><td>Verified live (scripts/live-verify.mjs, 14/14) and on emulators</td></tr>
+<tr><td>Firestore region me-central2 (Dammam)</td><td>Verified live</td></tr>
+<tr><td>EXIF removal by re-encoding</td><td>Verified in code (src/lib/mealScanner.ts)</td></tr>
+<tr><td>No ads, no analytics</td><td>Verified in code (docs/LEGAL-REVIEW.md)</td></tr>
+<tr><td>Account deletion removes cloud data and login</td><td>Verified live</td></tr>
+<tr><td>Google's use of free-tier content</td><td>Based on Google's free-tier terms as summarised in the app; the current Google terms are not re-verified here</td></tr>
+<tr><td>Authentication data location; third-party cookies</td><td>Not verified</td></tr>
+</table>
+
+<h2>16. Decisions required from the owner and legal counsel</h2>
+<ol>
+<li>Operator identity and contact (section 1); need for a DPO/representative.</li>
+<li>Applicable law (e.g. Saudi Personal Data Protection Law and others for foreign users) and legal bases (section 4).</li>
+<li>Data-subject rights, response times and competent authority (section 10).</li>
+<li>Whether weight/body data are sensitive/health data and whether explicit consent is required at registration (section 3).</li>
+<li>Cross-border transfer wording for Google, GitHub and Open Food Facts (section 5.3).</li>
+<li>Retention periods for inactive accounts, error reports and submitted foods (section 11).</li>
+<li>Acceptance of provider terms (Google Cloud/Firebase, Gemini API Additional Terms, Apps Script, GitHub) and any data-processing agreements.</li>
+<li>Whether the use of the Gemini free tier (content may be used by Google) is acceptable for health-related photos, or a paid tier should be used.</li>
+</ol>
+
+<h2>17. Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

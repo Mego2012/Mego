@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MEGO_Developer_Setup_and_Local_Installation_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Developer Setup and Local Installation</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-50</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Developers, maintainers, the project owner running the setup on a laptop</td></tr>
+<tr><td>Related documents</td><td>MEGO_Production_Deployment_Guide, MEGO_Firebase_Setup_Guide, MEGO_Apps_Script_Setup_Guide, MEGO_Build_and_Release_Procedures, MEGO_Configuration_and_Environment, MEGO_Testing_Strategy</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This guide explains how to get the MEGO source code onto a computer, install its dependencies, run the app locally, build it, preview the production build and run every automated test suite, including the suites that use the Firebase emulators. It also records practical Windows notes from the owner's real laptop run on 7 November 2026. Cloud setup (Firebase, Apps Script, Gemini) is covered in the related guides.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Prerequisites</li>
+<li>Getting the code</li>
+<li>Installing dependencies</li>
+<li>Running, building and previewing</li>
+<li>Running the test suites</li>
+<li>Firebase emulators</li>
+<li>Windows notes</li>
+<li>Local files and private state</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Prerequisites</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Tool</th><th>Version / note</th><th>Source of the fact</th></tr>
+<tr><td>Git</td><td>Any current version</td><td>Needed for <code>git clone</code>; the setup script also commits and pushes <code>public/firebase-config.json</code></td></tr>
+<tr><td>Node.js + npm</td><td>Node 22 is what CI uses; docs/PHONE-SETUP.md states Node.js 18+; the owner's laptop ran Node 26.13</td><td>.github/workflows/deploy.yml (<code>node-version: 22</code>), docs/PROGRESS-LOG.md</td></tr>
+<tr><td>Chromium via Playwright</td><td><code>playwright@1.63.0</code> (not in package.json; installed on demand)</td><td>scripts/live-verify.mjs, scripts/laptop-setup.mjs</td></tr>
+<tr><td>Java runtime</td><td>Required by the Firestore emulator of firebase-tools; exact version not verified in this repository</td><td>Not verified</td></tr>
+</table>
+<p>Pinned toolchain (package.json devDependencies): TypeScript 5.6.3, Vite 5.4.11, vite-plugin-pwa 0.21.1, Vitest 2.1.8, firebase-tools 15.34.1, @firebase/rules-unit-testing 6.0.0, fake-indexeddb 6.0.0.</p>
+
+<h2>2. Getting the code</h2>
+<p>The working branch is <code>claude/nutrition-tracking-app-989rku</code> on <code>https://github.com/Mego2012/Mego</code>:</p>
+<pre>git clone -b claude/nutrition-tracking-app-989rku https://github.com/Mego2012/Mego.git
+cd Mego</pre>
+
+<h2>3. Installing dependencies</h2>
+<p>Use <code>npm ci</code> (exact versions from <code>package-lock.json</code>, the same command CI runs):</p>
+<pre>npm ci</pre>
+<p>The browser test suites and the live verifier need Playwright, which is deliberately not a project dependency. Install it without changing package.json:</p>
+<pre>npm install --no-save playwright@1.63.0
+npx playwright install chromium</pre>
+<p><code>npm install</code> (README.md) also works but may update the lock file; prefer <code>npm ci</code>.</p>
+
+<h2>4. Running, building and previewing</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Command</th><th>What it runs (package.json)</th><th>Result</th></tr>
+<tr><td><code>npm run dev</code></td><td><code>vite</code></td><td>Development server, http://localhost:5173 (README.md)</td></tr>
+<tr><td><code>npm run typecheck</code></td><td><code>tsc -b</code></td><td>TypeScript check only</td></tr>
+<tr><td><code>npm run build</code></td><td><code>tsc -b &amp;&amp; vite build</code></td><td>Production bundle in <code>dist/</code> incl. service worker <code>sw.js</code> and <code>manifest.webmanifest</code></td></tr>
+<tr><td><code>npm run preview</code></td><td><code>vite preview --port 4173</code></td><td>Serves <code>dist/</code> at http://localhost:4173/</td></tr>
+</table>
+<p>Locally <code>BASE_PATH</code> is not set, so the app is built for <code>/</code>. CI sets <code>BASE_PATH=/Mego/</code> (see MEGO_Production_Deployment_Guide). To reproduce the production path locally:</p>
+<pre>BASE_PATH=/Mego/ npm run build</pre>
+<p>Accounts: the app reads <code>./firebase-config.json</code> at runtime (src/lib/firebase.ts). If the file is absent the app runs in guest mode only. The repository contains the public production config in <code>public/firebase-config.json</code>, so a local dev server talks to the production Firebase project when you register or sign in — use disposable accounts or the emulators for experiments.</p>
+
+<h2>5. Running the test suites</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Suite</th><th>Command</th><th>Needs</th><th>Last result</th></tr>
+<tr><td>Unit (Vitest, tests/)</td><td><code>npm test</code></td><td>nothing extra</td><td>109/109</td></tr>
+<tr><td>Firestore rules + cloud (tests-rules/)</td><td><code>npm run test:rules</code></td><td>emulators (Java)</td><td>14/14</td></tr>
+<tr><td>Guest browser e2e</td><td><code>npm run build &amp;&amp; npm run e2e</code></td><td>Playwright; starts <code>vite preview</code> on 4173</td><td>44/44</td></tr>
+<tr><td>Touch/scroll</td><td><code>npm run build &amp;&amp; npm run e2e:scroll</code></td><td>Playwright; preview on 4190</td><td>103/103</td></tr>
+<tr><td>Multi-user</td><td><code>npm run build &amp;&amp; npm run e2e:multi</code></td><td>Playwright + emulators</td><td>8/8</td></tr>
+<tr><td>Laptop setup script</td><td><code>npm run e2e:laptop</code></td><td>runs the real Code.gs against an emulated backend</td><td>10/10</td></tr>
+<tr><td>Live verification (production)</td><td><code>node scripts/live-verify.mjs</code></td><td>Playwright; creates and deletes two test accounts on production</td><td>14/14</td></tr>
+</table>
+<p>Run the browser suites against the live site instead of a local build:</p>
+<pre>E2E_BASE=https://mego2012.github.io/Mego/ npm run e2e
+node e2e/scroll-test.mjs https://mego2012.github.io/Mego/</pre>
+<p>Test the live verifier itself against a local build plus emulators: <code>node scripts/live-verify.mjs --emulator</code>.</p>
+
+<h2>6. Firebase emulators</h2>
+<p>firebase-tools is a dev dependency, so no global install is needed. <code>firebase.json</code> defines the emulators:</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Emulator</th><th>Port</th></tr>
+<tr><td>Authentication</td><td>9099</td></tr>
+<tr><td>Firestore</td><td>8080</td></tr>
+<tr><td>Emulator UI</td><td>disabled</td></tr>
+</table>
+<p>The scripts start and stop the emulators automatically with the demo project <code>demo-mego</code> (no Google account needed):</p>
+<pre>npx firebase emulators:exec --project demo-mego --only firestore,auth "vitest run --config vitest.rules.config.ts"</pre>
+<p>To keep them running for manual work: <code>npx firebase emulators:start --project demo-mego --only firestore,auth</code>.</p>
+
+<h2>7. Windows notes</h2>
+<h3>7.1 Installing Git and Node.js with winget</h3>
+<pre>winget install --id Git.Git -e
+winget install --id OpenJS.NodeJS.LTS -e</pre>
+<h3>7.2 Refreshing PATH</h3>
+<p>After installing, close the PowerShell window and open a new one so <code>git</code>, <code>node</code> and <code>npm</code> are found. Check with <code>git --version</code> and <code>node -v</code>.</p>
+<h3>7.3 PowerShell QuickEdit freeze</h3>
+<p>Clicking inside a PowerShell/console window with QuickEdit mode starts a text selection and pauses the running program; the setup looks frozen. Press <b>Enter</b> or <b>Esc</b> to resume, and avoid clicking in the window while the script runs (or disable QuickEdit in the window's Properties).</p>
+<h3>7.4 Execution policy</h3>
+<p>If PowerShell refuses to run <code>npm</code>/<code>npx</code> because "running scripts is disabled on this system", allow local scripts for your user only:</p>
+<pre>Set-ExecutionPolicy -Scope CurrentUser RemoteSigned</pre>
+<p>Alternatively call <code>npm.cmd</code> / <code>npx.cmd</code>, or run the commands from Command Prompt.</p>
+<h3>7.5 npx.cmd spawning (fixed in code)</h3>
+<p>Node 18.20+/20.12+ refuses to spawn <code>npx.cmd</code>/<code>npm.cmd</code> without a shell (EINVAL). <code>scripts/laptop-setup.mjs</code> therefore starts the npm CLI bundled with Node directly through <code>node.exe</code> (commit 65f86ad).</p>
+<h3>7.6 Git identity</h3>
+<p>A fresh Git install has no user name/e-mail. The setup script commits the Firebase config with a neutral identity (<code>MEGO setup</code>, a GitHub noreply address) and then checks that GitHub received it.</p>
+
+<h2>8. Local files and private state</h2>
+<ul>
+<li><code>~/.mego-backend/</code> (or <code>MEGO_BACKEND_DIR</code>): private state of the setup script (script id, web-app URL, token), file mode 600, outside the repository. Never commit or share it.</li>
+<li>Ignored by Git (.gitignore): <code>node_modules</code>, <code>dist</code>, <code>dev-dist</code>, <code>e2e/screens</code>, <code>*.log</code>, <code>tests/private/</code>.</li>
+<li>Some unit value tests use a private real-food file in <code>tests/private/</code>; without it those tests skip (docs/TEST-REPORT.md).</li>
+</ul>
+
+<h2>9. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Commands and ports in sections 3–6</td><td>Verified against package.json, firebase.json and the test scripts</td></tr>
+<tr><td>Test counts</td><td>From the final verified runs (docs/TEST-REPORT.md and the status facts)</td></tr>
+<tr><td>Java version for the emulators</td><td>Not verified</td></tr>
+<tr><td>Windows notes 7.1–7.4</td><td>Learned during the owner's real Windows run; not recorded in the repository and not re-tested — Not verified</td></tr>
+<tr><td>Windows notes 7.5–7.6</td><td>Verified in code (scripts/laptop-setup.mjs) and docs/PROGRESS-LOG.md</td></tr>
+<tr><td>macOS / Linux desktop run of laptop-setup</td><td>Not verified (CI Linux runs build and unit tests only)</td></tr>
+</table>
+
+<h2>10. Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

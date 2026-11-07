@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MEGO_Frontend_Architecture_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Frontend Architecture</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-32</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Frontend developers, maintainers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Technical_Architecture, MEGO_State_Management, MEGO_Error_Handling_and_Logging, MEGO_Configuration_and_Environment, MEGO_Build_and_Release_Procedures, MEGO_Developer_Setup_and_Local_Installation</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes how the MEGO client application is built: tooling, folder structure, routing, pages and components, internationalisation and right-to-left (RTL) layout, the design system, the Progressive Web App (PWA) service worker, lazy loading and the build output. State management and error handling are covered in their own documents. All facts were checked in <code>package.json</code>, <code>vite.config.ts</code>, <code>index.html</code>, <code>src/main.tsx</code>, <code>src/App.tsx</code>, <code>src/app/AppContext.tsx</code>, <code>src/components/*</code>, <code>src/lib/i18n*.ts</code>, <code>src/styles.css</code> and <code>src/screens.css</code>.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Technology stack</li>
+<li>Folder structure</li>
+<li>Application shell and routing</li>
+<li>Pages and components</li>
+<li>Internationalisation and RTL</li>
+<li>Design system</li>
+<li>PWA and caching rules</li>
+<li>Lazy loading and build output</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Technology stack</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Area</th><th>Library (exact version in package.json)</th></tr>
+<tr><td>Build tool</td><td>vite 5.4.11, @vitejs/plugin-react 4.3.4</td></tr>
+<tr><td>Language</td><td>TypeScript 5.6.3 (<code>"strict": true</code> in tsconfig.json)</td></tr>
+<tr><td>UI</td><td>react / react-dom 18.3.1</td></tr>
+<tr><td>Routing</td><td>react-router-dom 6.28.0 (HashRouter)</td></tr>
+<tr><td>Local database</td><td>dexie 4.0.10, dexie-react-hooks 1.1.7</td></tr>
+<tr><td>Accounts</td><td>firebase 13.1.0</td></tr>
+<tr><td>Import/export</td><td>papaparse 5.4.1 (CSV), xlsx 0.18.5 (Excel)</td></tr>
+<tr><td>PWA</td><td>vite-plugin-pwa 0.21.1 (Workbox)</td></tr>
+<tr><td>Tests</td><td>vitest 2.1.8, fake-indexeddb, @firebase/rules-unit-testing; Playwright scripts in <code>e2e/</code></td></tr>
+</table>
+<p>Note: <code>recharts</code> 2.13.3 is listed as a dependency and <code>vite.config.ts</code> has a <code>manualChunks</code> rule for it, but no file under <code>src/</code> imports it; charts are custom SVG components in <code>src/components/charts.tsx</code>.</p>
+
+<h2>2. Folder structure</h2>
+<pre>
+index.html              splash screen, font links, theme-color metas, &lt;div id="root"&gt;
+vite.config.ts          base path, PWA manifest + Workbox rules, build options, vitest config
+public/                 icons, firebase-config.json, fooddb/ (usda.json, usda-extra.json), food-img/
+src/main.tsx            boot(): backup, account mode, render, sync start, service worker
+src/App.tsx             HashRouter, routes, lazy pages, account/landing switch
+src/app/AppContext.tsx  settings (live from Dexie), lang/dir, theme, t()/n()/d() helpers, toast
+src/app/hooks.ts        shared hooks
+src/pages/              Dashboard, Diary, Foods, Recipes, RecipeLibrary, Planner, Progress, Reports,
+                        Settings, Habits, Coach, Account (+ accountHook.ts)
+src/components/         Layout, ErrorBoundary, ui (Card, Sheet, Ring, MacroBars, fields, Skeleton ...),
+                        FoodPicker, FoodThumb, BarcodeSheet, MealScanner, charts, icons, instrument, Insights
+src/lib/                domain logic: db, repo, nutrition, goals, targets, reports, insights, foodSearch,
+                        refFoods, barcode, sync, firebase, account, cloudSync, i18n*, exporters, backups ...
+src/styles.css          design tokens + shell + primitives
+src/screens.css         per-screen styles
+</pre>
+
+<h2>3. Application shell and routing</h2>
+<h3>3.1 Providers</h3>
+<p><code>App</code> wraps everything in <code>AppProvider</code> (React context) and a <code>HashRouter</code> (future flags <code>v7_startTransition</code>, <code>v7_relativeSplatPath</code>). Hash routing (<code>#/diary</code>) works on GitHub Pages without server rewrites. <code>AppProvider</code> reads the settings record with <code>useLiveQuery</code> from Dexie, so any change to settings re-renders the app; it also sets <code>document.documentElement.lang</code>, <code>dir</code>, <code>document.title</code> and the <code>data-theme</code> attribute.</p>
+<h3>3.2 Routes (<code>src/App.tsx</code>)</h3>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Path</th><th>Element</th><th>Loading</th></tr>
+<tr><td><code>/</code></td><td>Dashboard</td><td>eager</td></tr>
+<tr><td><code>/diary</code></td><td>Diary</td><td>eager</td></tr>
+<tr><td><code>/foods</code></td><td>Foods</td><td>lazy</td></tr>
+<tr><td><code>/recipes</code></td><td>Recipes</td><td>lazy</td></tr>
+<tr><td><code>/planner</code></td><td>Planner</td><td>lazy</td></tr>
+<tr><td><code>/progress</code></td><td>Progress</td><td>lazy</td></tr>
+<tr><td><code>/reports/week</code>, <code>/reports/month</code></td><td>Reports (<code>kind</code> = week / month)</td><td>lazy</td></tr>
+<tr><td><code>/settings</code></td><td>Settings</td><td>lazy</td></tr>
+<tr><td><code>/habits</code></td><td>Habits</td><td>lazy</td></tr>
+<tr><td><code>/coach</code></td><td>Coach</td><td>lazy</td></tr>
+<tr><td><code>/admin</code>, <code>/privacy</code>, <code>/terms</code></td><td>AccountRouter (view admin / privacy / terms)</td><td>lazy</td></tr>
+<tr><td><code>*</code></td><td>Dashboard</td><td>—</td></tr>
+</table>
+<h3>3.3 Render decision</h3>
+<pre>
+Routed()
+  settings not loaded yet          -&gt; &lt;Skeleton/&gt;   (then the #splash element fades out and is removed)
+  mode = welcome or suspended,
+    path not /privacy or /terms    -&gt; AccountRouter view "welcome" or "suspended" (no app shell)
+  mode = welcome, legal path       -&gt; AccountRouter view "privacy" / "terms" (no app shell)
+  otherwise                        -&gt; &lt;Layout&gt; &lt;ErrorBoundary key=path&gt; &lt;Suspense&gt; &lt;Routes/&gt;
+</pre>
+<p><code>ErrorBoundary</code> is keyed by the path, so an error on one screen does not persist after navigating; it shows "retry" and "reload" (which goes to <code>#/</code>).</p>
+<h3>3.4 Layout</h3>
+<p><code>src/components/Layout.tsx</code> renders a side navigation (wide screens), a sticky header with the sync chip (state, pending count, retry countdown; tapping it opens <code>/settings#sync</code> when sync is disabled or calls <code>pushNow()</code>), an offline banner, and a bottom navigation with four entries (Dashboard, Diary, Recipes, Progress) plus a "More" sheet listing the remaining routes.</p>
+
+<h2>4. Pages and components</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>File</th><th>Role</th></tr>
+<tr><td>pages/Dashboard.tsx</td><td>Today summary (calorie ring, macros, insights)</td></tr>
+<tr><td>pages/Diary.tsx</td><td>Meals per day, add/copy/move entries, scan strip</td></tr>
+<tr><td>pages/Foods.tsx</td><td>Food database, editor, import/export, shared-food submission</td></tr>
+<tr><td>pages/Recipes.tsx, RecipeLibrary.tsx</td><td>User recipes and the built-in recipe library</td></tr>
+<tr><td>pages/Planner.tsx</td><td>Meal plans and planned days</td></tr>
+<tr><td>pages/Progress.tsx</td><td>Body measurements and progress</td></tr>
+<tr><td>pages/Reports.tsx</td><td>Weekly and monthly reports</td></tr>
+<tr><td>pages/Habits.tsx</td><td>Water, habits, fasting</td></tr>
+<tr><td>pages/Coach.tsx</td><td>Food intelligence, rankings, education</td></tr>
+<tr><td>pages/Settings.tsx</td><td>Profile/targets, language/theme, Hub sync card, AI scanner card, backups, account card (lazy)</td></tr>
+<tr><td>pages/Account.tsx</td><td><code>AccountRouter</code> views: welcome, suspended, admin, privacy, terms; login/registration/reset flows and <code>AccountCard</code></td></tr>
+<tr><td>components/ui.tsx</td><td>Primitives: Card, ProgressBar, Ring, MacroBars, MacroLine, StateChip, Sheet (with scroll lock), Confirm, NumField, TextField, Segmented, DateNav, useAsync, Delta, Skeleton, EmptyState</td></tr>
+<tr><td>components/FoodPicker.tsx, BarcodeSheet.tsx, MealScanner.tsx, FoodThumb.tsx</td><td>Food search sheet, barcode lookup, AI photo scanner, food photos</td></tr>
+<tr><td>components/charts.tsx, instrument.tsx, icons.tsx, Insights.tsx</td><td>SVG charts, wordmark/instrument visuals, icon set, insight cards</td></tr>
+</table>
+<p>Pages call domain functions in <code>src/lib</code> (for example <code>repo.ts</code> for writes) rather than talking to Dexie tables directly for mutations.</p>
+
+<h2>5. Internationalisation and RTL</h2>
+<ul>
+<li>Dictionaries: <code>src/lib/i18n.ts</code>, <code>i18n2.ts</code>, <code>i18n3.ts</code>, merged as <code>DICTS = { ar: {...ar, ...ar2, ...ar3}, en: {...en, ...en2, ...en3} }</code>.</li>
+<li><code>translate(lang, key, params)</code> looks up the current language, falls back to English, then to the key itself; <code>{name}</code> placeholders are replaced from <code>params</code>.</li>
+<li>Numbers: <code>fmtNum</code> uses <code>Intl.NumberFormat</code> with <code>ar-SA-u-nu-latn</code> (Arabic locale, Latin digits) or <code>en-US</code>; missing values display "—". Dates: <code>fmtDate</code> uses <code>ar-SA-u-ca-gregory-nu-latn</code> (Gregorian calendar) or <code>en-GB</code>.</li>
+<li>Direction: <code>AppProvider</code> sets <code>&lt;html dir="rtl"&gt;</code> for Arabic and <code>ltr</code> for English. <code>index.html</code> starts with <code>lang="ar" dir="rtl"</code> and the manifest declares <code>lang: 'ar'</code>, <code>dir: 'auto'</code>.</li>
+<li>CSS uses logical properties (<code>inline-start</code>/<code>inline-end</code>) and a few <code>[dir="rtl"]</code> overrides (letter-spacing, mirrored icons with <code>.flip</code>, gradient direction).</li>
+<li>Code-like input fields (URLs, tokens, connection code) are rendered with <code>dir="ltr"</code>.</li>
+</ul>
+
+<h2>6. Design system</h2>
+<p><code>src/styles.css</code> defines the design system "Calibrated": two themes, <b>Mineral</b> (light) and <b>Graphite</b> (dark), as CSS custom properties on <code>:root</code>.</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Token group</th><th>Examples</th></tr>
+<tr><td>Surfaces &amp; text</td><td><code>--bg</code>, <code>--surface</code>, <code>--surface-2/3</code>, <code>--text</code>, <code>--muted</code>, <code>--border</code></td></tr>
+<tr><td>Accent &amp; status</td><td><code>--primary</code> (light #0a7c63, dark #3ddcb0), <code>--danger</code>, <code>--good</code>, <code>--warn</code>, <code>--info</code></td></tr>
+<tr><td>Macro colours</td><td><code>--kcal</code>, <code>--protein</code>, <code>--carbs</code>, <code>--fat</code></td></tr>
+<tr><td>Type</td><td><code>--font-display</code> (Readex Pro), <code>--font-text</code> (IBM Plex Sans Arabic); scale <code>--fs-xs</code> 11.5px … <code>--fs-3xl</code> 46px</td></tr>
+<tr><td>Spacing &amp; shape</td><td>4 px grid <code>--sp-1</code>…<code>--sp-6</code>; <code>--radius-s/--radius/--radius-l</code></td></tr>
+<tr><td>Layout</td><td><code>--nav-h</code> 68px, <code>--header-h</code> 58px</td></tr>
+</table>
+<p>Theme selection: with setting <code>theme = 'system'</code> the attribute <code>data-theme</code> is removed and <code>@media (prefers-color-scheme: dark)</code> applies Graphite; <code>light</code> / <code>dark</code> set <code>data-theme</code> explicitly. <code>src/screens.css</code> contains per-screen sections (food photography, Diary, food picker, Foods, Coach, rankings, detail, education, Progress, Reports, Settings, Account &amp; Admin, Recipes).</p>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/home-en-light.png" width="290" alt="Dashboard, light theme"> <img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/home-en-dark.png" width="290" alt="Dashboard, dark theme"></p>
+
+<h2>7. PWA and caching rules</h2>
+<p>Manifest (from <code>vite.config.ts</code>): name "MEGO — Nutrition", short name "MEGO", <code>display: standalone</code>, <code>orientation: portrait</code>, theme/background <code>#080d0f</code>, <code>start_url</code> and <code>scope</code> = base path, icons 192, 512 and 512 maskable. Service worker: <code>registerType: 'autoUpdate'</code>, registered with <code>registerSW({ immediate: true })</code>.</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Resource</th><th>Strategy</th></tr>
+<tr><td>App shell <code>**/*.{js,css,html,svg,png,woff2}</code> + <code>fooddb/usda.json</code></td><td>Precache (max 3 MB per file)</td></tr>
+<tr><td>Navigations</td><td>Fallback <code>index.html</code>, except paths matching <code>^/macros/</code></td></tr>
+<tr><td><code>fooddb/usda-extra.json</code></td><td>StaleWhileRevalidate</td></tr>
+<tr><td><code>food-img/*.webp</code></td><td>CacheFirst, 200 entries, 1 year</td></tr>
+<tr><td><code>food-img/manifest.json</code></td><td>StaleWhileRevalidate</td></tr>
+<tr><td>fonts.googleapis.com / fonts.gstatic.com</td><td>StaleWhileRevalidate / CacheFirst (20 entries, 1 year)</td></tr>
+</table>
+<p><code>index.html</code> contains an inline splash (SVG ring) that is removed once settings are ready, plus light/dark <code>theme-color</code> metas. <code>main.tsx</code> also calls <code>navigator.storage.persist()</code> to reduce the risk of the browser evicting IndexedDB data.</p>
+
+<h2>8. Lazy loading and build output</h2>
+<ul>
+<li><b>Eager:</b> Dashboard and Diary (the two most-used screens) and the shell.</li>
+<li><b>Route-level lazy:</b> Foods, Recipes, Planner, Progress, Reports, Settings, Habits, Coach and the Account pages via <code>React.lazy</code> + <code>Suspense</code> with a Skeleton fallback.</li>
+<li><b>Module-level dynamic imports:</b> <code>xlsx</code> (only when exporting/importing Excel), <code>cloudSync</code> (only in account mode), parts of <code>firebase/firestore</code> and <code>firebase/auth</code> used by rare actions, and <code>demoSeed</code> (only when <code>VITE_DEMO=1</code>; dropped from production builds).</li>
+<li><b>Build:</b> <code>npm run build</code> = <code>tsc -b &amp;&amp; vite build</code>. Base path from <code>BASE_PATH</code> (the GitHub workflow sets <code>/&lt;repository name&gt;/</code>; locally <code>/</code>). <code>chunkSizeWarningLimit</code> 900 kB. Output in <code>dist/</code>: <code>index.html</code>, <code>assets/</code> (hashed JS/CSS, one chunk per lazy page or dynamic module), <code>sw.js</code>, <code>workbox-*.js</code>, <code>manifest.webmanifest</code>, and the copied <code>public/</code> files (icons, <code>firebase-config.json</code>, <code>fooddb/</code>, <code>food-img/</code>).</li>
+</ul>
+
+<h2>9. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Build and deployment through the GitHub workflow</td><td>Verified live (deploy runs green)</td></tr>
+<tr><td>Routes, screens, Arabic/English, light/dark</td><td>Verified live by the browser suite (44/44) and touch/scroll suite (103/103) on emulated mobile viewports against the live URL</td></tr>
+<tr><td>Installability and offline behaviour on a real Android phone</td><td>Not verified (no real device test yet; see docs/ANDROID-TEST.md)</td></tr>
+<tr><td>Exact chunk names and sizes</td><td>Not documented — they change with each build</td></tr>
+</table>
+
+<h2>10. Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

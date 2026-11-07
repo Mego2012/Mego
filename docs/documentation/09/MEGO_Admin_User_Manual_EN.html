@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Admin_User_Manual_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Admin User Manual</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-67</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>MEGO Project Owner and future administrators</td></tr>
+<tr><td>Related documents</td><td>MEGO_User_Management_Procedures, MEGO_Food_Database_Administration, MEGO_Monitoring_and_Maintenance, MEGO_Support_and_Incident_Management, MEGO_Access_Control_and_Permissions, MEGO_Firebase_Setup_Guide</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This manual explains how an administrator account is created and how the administration dashboard (<code>#/admin</code>) of the MEGO app is used: the KPI tiles, the accounts list, suspending and reactivating accounts, reviewing food submissions, reading error reports and publishing verified foods to the shared database. It also states clearly what an administrator <b>cannot</b> see or do. Everything here is taken from <code>src/pages/Account.tsx</code> (<code>AdminPage</code>), <code>src/lib/firebase.ts</code>, <code>firebase/firestore.rules</code> and <code>scripts/laptop-setup.mjs</code>.</p>
+<p><b>Important status note:</b> as of 7 November 2026 <b>no administrator account exists yet</b>. The admin role is waiting for the owner (see section 2). The dashboard has only been exercised on the Firebase emulators and in the screenshot run, not by a real admin in production.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Roles in MEGO</li>
+<li>How an administrator is created</li>
+<li>Opening the administration dashboard</li>
+<li>Dashboard tour: KPI tiles</li>
+<li>Accounts list, suspend and reactivate</li>
+<li>Food submissions: approve or reject</li>
+<li>Error reports</li>
+<li>Shared food database: publish verified foods</li>
+<li>AI usage statistics</li>
+<li>What administrators can NOT see or do</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Roles in MEGO</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Role</th><th>How it is defined</th><th>Main powers</th></tr>
+<tr><td>Guest</td><td>No sign-in; data only on this device (IndexedDB <code>mego-nutrition</code>)</td><td>Full personal use of the app on one device</td></tr>
+<tr><td>Registered user</td><td>Firebase Authentication e-mail/password + <code>profiles/{uid}</code> document with <code>status: "active"</code></td><td>Own private data in <code>users/{uid}/…</code>, synced between devices; can suggest foods for the shared database</td></tr>
+<tr><td>Administrator</td><td>A registered user whose uid also has a document <code>admins/{uid}</code></td><td>Read all account cards (profiles), change only the <code>status</code> field, review food submissions, read/delete error reports, write the shared <code>foods</code> collection</td></tr>
+<tr><td>Project Owner</td><td>Owner of the Google/Firebase project and the Apps Script backend</td><td>Everything in the Firebase and Google consoles (outside the app); the only person who can grant the admin role</td></tr>
+</table>
+
+<h2>2. How an administrator is created</h2>
+<p>The admin role cannot be requested or granted from inside the app. The rule <code>match /admins/{uid} { allow write: if false; }</code> forbids every app client (including existing admins) from writing the admin list. It is written only with the owner's own Google credentials, by the setup script or the Firebase console.</p>
+<h3>2.1 Procedure (owner only)</h3>
+<ol>
+<li>Open the live app <code>https://mego2012.github.io/Mego/</code> and <b>register a normal account</b> with the e-mail address that should become admin (3-step registration).</li>
+<li>On the owner's laptop, in the MEGO repository folder, run:<pre>node scripts/laptop-setup.mjs --cloud &lt;admin e-mail&gt;</pre></li>
+<li>The script looks up the e-mail in Firebase Authentication (Identity Toolkit <code>accounts:lookup</code>). If the account does not exist yet it prints "has no account yet: register in the app, then run again"; nothing is written.</li>
+<li>If it exists, the script writes the document <code>admins/{uid}</code> with one field <code>since</code> (timestamp) through the Firestore REST API using the owner's credentials, and reports "administrator role for &lt;e-mail&gt;" ✅ or ❌.</li>
+<li>In the app, sign out and sign in again (or reload). At start-up the app checks <code>admins/{uid}</code>; the button <b>Administration</b> then appears in the account card under Settings.</li>
+</ol>
+<h3>2.2 Removing an admin</h3>
+<p>There is no script flag and no in-app button to remove an admin. The owner deletes the document <code>admins/{uid}</code> in the Firebase console (Firestore → Data). This manual procedure is <i>Not verified</i> in production.</p>
+
+<h2>3. Opening the administration dashboard</h2>
+<ol>
+<li>Sign in with the admin account.</li>
+<li>Go to <b>Settings</b>; in the account card press <b>Administration</b> (shield icon). Alternatively open <code>#/admin</code> directly, e.g. <code>https://mego2012.github.io/Mego/#/admin</code>.</li>
+<li>If the signed-in user is not an admin the page shows only "Administrators only." and loads nothing.</li>
+</ol>
+<p>The dashboard loads four data sets at once (statistics, accounts, error reports, pending submissions). If any request fails, the error message is shown in a red banner at the top. The admin screen exists only in Arabic screenshots:</p>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/admin-ar-light.png" width="300" alt="Admin dashboard (Arabic, light theme)"></p>
+<pre>
+┌──────────────────────────────────────────────┐
+│ 🔒 Privacy note (admins see cards & totals)  │
+├──────────┬──────────┬──────────┬─────────────┤
+│Registered│Active 7d │Suspended │Submissions  │  ← KPI tiles
+├──────────┴──────────┴──────────┴─────────────┤
+│ ▓▓▓▓▓▓░░░░  NN% active                       │
+├──────────────────────────────────────────────┤
+│ Accounts (newest 100)   [Suspend/Reactivate] │
+│ Food submissions        [Approve] [Reject]   │
+│ Error reports (latest 50)                    │
+│ Shared food database    [Publish verified]   │
+└──────────────────────────────────────────────┘</pre>
+
+<h2>4. Dashboard tour: KPI tiles</h2>
+<p>The tiles use Firestore count aggregations (<code>getCountFromServer</code>) — only numbers are transferred.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Tile</th><th>Exact definition (adminStats)</th></tr>
+<tr><td>Registered users</td><td>Number of documents in <code>profiles</code></td></tr>
+<tr><td>Active (7 days)</td><td>Profiles with <code>lastActiveAt</code> ≥ now − 7 days (the app refreshes <code>lastActiveAt</code> when a signed-in user opens it)</td></tr>
+<tr><td>Suspended</td><td>Profiles with <code>status == "suspended"</code></td></tr>
+<tr><td>Food submissions to review</td><td>Documents in <code>foodSubmissions</code> with <code>status == "pending"</code></td></tr>
+</table>
+<p>When at least one account exists, a bar under the tiles shows the share of active accounts: <code>round(active7d ÷ total × 100) %</code>. Example: 40 registered, 10 active → 25 %.</p>
+
+<h2>5. Accounts list, suspend and reactivate</h2>
+<p>The <b>Accounts</b> card lists up to <b>100</b> profiles, newest first (<code>orderBy createdAt desc, limit 100</code>). Each row shows: initial avatar, display name, e-mail, country code, "since" (registration date), "last active" date and a status chip (Active / Suspended). There is no search or paging; accounts beyond the newest 100 are not shown (limitation).</p>
+<h3>5.1 Suspend an account</h3>
+<ol>
+<li>Find the account row and press <b>Suspend</b>.</li>
+<li>The app writes <code>status: "suspended"</code> to <code>profiles/{uid}</code>. The security rules allow an admin to change <b>only</b> the <code>status</code> field and only to <code>active</code> or <code>suspended</code>.</li>
+<li>The list and tiles reload; "Saved" is confirmed.</li>
+</ol>
+<p>Effect for the suspended user: the rules function <code>isActive()</code> becomes false, so the server refuses every read and write of the user's private data (<code>users/{uid}/…</code>), the shared foods and new submissions; the app shows the screen "Account suspended — This account has been suspended by the administrator. Your data is kept and nothing has been deleted." with only a Sign-out button. The AI meal-scanner proxy also refuses non-active accounts. The Firebase sign-in itself is not disabled, and no data is deleted.</p>
+<h3>5.2 Reactivate</h3>
+<p>Press <b>Reactivate</b> on a suspended row; <code>status</code> returns to <code>active</code> and the user regains access at next start.</p>
+<h3>5.3 Safeguard</h3>
+<p>The Suspend/Reactivate button is hidden on the admin's own row, so an admin cannot lock themself out from the UI.</p>
+
+<h2>6. Food submissions: approve or reject</h2>
+<p>A signed-in user can press "Suggest for the shared database" in the food editor of one of their own foods. This creates a <code>foodSubmissions</code> document (<code>status: "pending"</code>, <code>ownerUid</code>, time, food values). Nothing is published automatically.</p>
+<p>The card <b>Food submissions to review</b> lists up to 100 pending submissions with name, raw/cooked state, kcal, protein (P), carbs (C), fat (F) per 100 g, optional source reference and notes.</p>
+<ol>
+<li>Check the values against the label or a reliable source (the card reminds: "Approved foods become visible to every user").</li>
+<li><b>Approve</b>: the food is copied to <code>foods/U-&lt;submissionId&gt;</code> with the note "user submission reviewed by admin", and the submission is marked <code>approved</code>. Every signed-in device receives it through its live listener on <code>foods</code>.</li>
+<li><b>Reject</b>: the submission is only marked <code>rejected</code>; nothing is published.</li>
+</ol>
+<p>Limitations: values cannot be edited in the dashboard (approve as-is or reject); the submitter is not notified in the app; there is no "unpublish" button (see MEGO_Food_Database_Administration).</p>
+
+<h2>7. Error reports</h2>
+<p>The <b>Error reports</b> card shows the latest <b>50</b> reports (kind chip, message, date). Reports are created automatically by the app; in the current code the only source is a failed cloud-sync push (<code>kind: "sync"</code>). The rules allow only the fields <code>at, kind, message, app</code>, a message under 500 characters (the app truncates to 400) and no personal fields. Only admins can read them. The rules also allow admins to delete reports, but the dashboard has no delete button.</p>
+
+<h2>8. Shared food database: publish verified foods</h2>
+<p>The <b>Shared food database</b> card has the button <b>Publish verified foods</b>. It takes the foods on <b>this device</b> whose source is the Hub/imported sheet (<code>source: "sheet"</code>), that are not archived and not incomplete, and writes each one to <code>foods/{id}</code> (id = the Hub's stable <code>F0001…</code> key when present). The message "Published N foods." confirms the count. USDA foods are built into the app and are not published this way. Details and preconditions: MEGO_Food_Database_Administration.</p>
+
+<h2>9. AI usage statistics</h2>
+<p>The dashboard does <b>not</b> show AI statistics. The Apps Script backend has an admin-only action <code>aiStats</code> (verifies the Firebase ID token and the <code>admins/{uid}</code> document) that returns, for the last 7 days, the number of scans and of distinct users per day, the model name, whether a key is configured and the per-user / global daily limits — but no screen in the app calls it. Until a screen exists, the owner can read the daily counters (<code>AI_USED_&lt;date&gt;</code>) in the Apps Script editor's Script Properties (never share a screenshot of that page: it also holds the Gemini key and the app token).</p>
+
+<h2>10. What administrators can NOT see or do</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Not possible for an admin</th><th>Enforced by</th></tr>
+<tr><td>Read any user's diary, weights, measurements, recipes, plans, settings or any record under <code>users/{uid}</code></td><td>Rule: only the owner of the uid, while active</td></tr>
+<tr><td>See progress photos</td><td>Photos are never uploaded at all</td></tr>
+<tr><td>Change a user's name, e-mail, country or dates</td><td>Rule: admin may change only <code>status</code></td></tr>
+<tr><td>Delete accounts or profiles, reset passwords</td><td>No such function in the app; profile delete is owner-only in the rules</td></tr>
+<tr><td>Grant or remove the admin role</td><td><code>admins</code> write is <code>false</code> for all clients</td></tr>
+<tr><td>See meal photos sent to the AI scanner</td><td>The backend stores nothing about the meal</td></tr>
+<tr><td>Read the Hub (Google Sheet) of the owner</td><td>The Hub is reachable only through the owner's Apps Script with the secret token</td></tr>
+</table>
+<p>The dashboard repeats this at the top: "Administrators see account cards and totals only. Diaries, weights, photos and other personal records are never accessible here — the server rules forbid it." Note: the Project Owner, through the Firebase console, has technical access beyond these rules; that access is governed by MEGO_Access_Control_and_Permissions.</p>
+
+<h2>11. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Regular account cannot list profiles, cannot self-promote to admin, cannot suspend others (HTTP 403)</td><td>Verified live (scripts/live-verify.mjs, production)</td></tr>
+<tr><td>Admin rules (status-only change, submissions, foods, error reports)</td><td>Tested on Firebase emulators (rules tests, multi-user tests)</td></tr>
+<tr><td>Dashboard rendering</td><td>Tested in the screenshot run (admin-ar-light/dark.png)</td></tr>
+<tr><td>A real admin account in production</td><td>Not done — waiting for the owner</td></tr>
+<tr><td>Removing an admin in the console; publish button on a real device</td><td>Not verified</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="utf-8"><title>MEGO_Backend_Architecture_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1>MEGO — معمارية الخلفية</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>معرّف الوثيقة</td><td>MEGO-DOC-33</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-07</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-07</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور المستهدف</td><td>المطورون ومسؤولو الصيانة ومراجعو الأمان</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Technical_Architecture، MEGO_Google_Sheets_Integration_and_Sync، MEGO_Firebase_Integration، MEGO_Gemini_AI_Integration، MEGO_API_Documentation، MEGO_Apps_Script_Setup_Guide، MEGO_Security_Architecture</td></tr>
+</table>
+
+<h2>الغرض والنطاق</h2>
+<p>تصف هذه الوثيقة الجانب الخادمي في MEGO. <b>لا يملك MEGO خادماً مخصّصاً</b>؛ إذ تتكوّن الخلفية من: (أ) تطبيق ويب على Google Apps Script هو الملف <code dir="ltr">apps-script/Code.gs</code> (إصدار السكربت 5، وإصدار مخطط الـHub ‏3) يملكه ويشغّله مالك المشروع، و(ب) خدمتَي المصادقة (Firebase Authentication) وقاعدة البيانات السحابية (Cloud Firestore) كخلفية مُدارة تحدّد سلوكَها قواعدُ الأمان. تغطي الوثيقة موزّع الطلبات في Apps Script، والمصادقة، والتثبيت، ونموذج تبويبات الـHub، وقواعد الكتابة والتعارض والحذف، ووسيط Gemini (مسار المالك والمسار العام)، ودور Firebase. أما قوائم حقول الطلب والاستجابة لكل إجراء فموجودة في MEGO_API_Documentation.</p>
+
+<h2>جدول المحتويات</h2>
+<ol>
+<li>نظرة عامة على الخلفية</li>
+<li>نموذج نشر Apps Script</li>
+<li>موزّع الطلبات (doPost)</li>
+<li>المصادقة</li>
+<li>التثبيت: setup وinstallMego وbootstrap</li>
+<li>نموذج بيانات الـHub (التبويبات)</li>
+<li>قواعد الكتابة: التحقق، والتعارض، والحذف المرن</li>
+<li>وسيط Gemini</li>
+<li>Firebase كخلفية مُدارة</li>
+<li>خصائص السكربت</li>
+<li>حالة التحقق</li>
+<li>سجل المراجعات</li>
+</ol>
+
+<h2>1. نظرة عامة على الخلفية</h2>
+<pre dir="ltr">
+                      +-------------------------------- Google (owner's account) -------------------------+
+ PWA (owner device) --| POST {action, token}         +-----------------------------+                       |
+                      |  ----------------------------&gt;|  Apps Script web app        |--&gt; Google Sheet Hub  |
+ PWA (signed-in user)-| POST {action, idToken}       |  Code.gs  doPost()          |--&gt; Drive (backups)   |
+                      |  ----------------------------&gt;|  Script Properties (secrets)|--&gt; Gemini API (free) |
+                      |                               +-------------+---------------+                       |
+                      |                                             | Identity Toolkit (verify ID token)      |
+                      |                                             | Firestore REST (with the user's token)  |
+                      +---------------------------------------------v-----------------------------------------+
+ PWA (signed-in user) --- Firebase JS SDK ---&gt; Firebase Auth + Cloud Firestore (rules enforce access)
+</pre>
+
+<h2>2. نموذج نشر Apps Script</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الإعداد (<code dir="ltr">apps-script/appsscript.json</code>)</th><th>القيمة</th></tr>
+<tr><td>بيئة التشغيل</td><td>V8؛ المنطقة الزمنية Asia/Riyadh؛ تسجيل الاستثناءات STACKDRIVER</td></tr>
+<tr><td>تطبيق الويب</td><td><code dir="ltr">executeAs: USER_DEPLOYING</code> و<code dir="ltr">access: ANYONE_ANONYMOUS</code></td></tr>
+<tr><td>خدمة متقدّمة</td><td>Drive API v3 (‏<code dir="ltr">Drive.Files.create</code> للتحويل)</td></tr>
+<tr><td>نطاقات OAuth</td><td>spreadsheets وdrive وscript.external_request</td></tr>
+</table>
+<p>الوصول مفتوح «للجميع» لأن تطبيق الويب التقدّمي لا يستطيع إرسال ملفات تعريف الارتباط الخاصة بتسجيل الدخول إلى Google؛ لذا تتم مصادقة كل طلب داخل السكربت نفسه (القسم 4). السكربت مشروع مستقل. تعيد الدالة <code dir="ltr">doGet()</code> فقط <code dir="ltr">{ok: true, app: "mego-nutrition", version: 5}</code>. يرسل العميل طلبات POST بنوع المحتوى <code dir="ltr">text/plain</code> لتجنّب طلب الفحص المسبق (CORS preflight)، والاستجابات بصيغة JSON عبر <code dir="ltr">ContentService</code>.</p>
+
+<h2>3. موزّع الطلبات (doPost)</h2>
+<pre dir="ltr">
+doPost(e)
+  req = JSON.parse(body)
+  action == "bootstrap"                      -&gt; bootstrap_(req)            (one-time secret)
+  req.idToken and action in {analyzeMeal, aiStats} -&gt; publicAi_(req)      (Firebase user)
+  req.token != APP_TOKEN                     -&gt; {ok:false, error:"unauthorized"}
+  action == "analyzeMeal"                    -&gt; analyzeMeal_(req)          (no lock)
+  action == "setAiKey"                       -&gt; setAiKey_(req)
+  action == "setCloudConfig"                 -&gt; setCloudConfig_(req)
+  ScriptLock.waitLock(25 s):
+     ping | foods | push | pull | saveFoods | backup | meta
+     anything else                           -&gt; {ok:false, error:"unknown action"}
+  any exception                              -&gt; {ok:false, error: message}
+</pre>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الإجراء</th><th>المصادقة</th><th>الغرض</th></tr>
+<tr><td>bootstrap</td><td>سرّ لمرة واحدة (يجب أن يساوي SHA-256 له القيمة <code dir="ltr">BOOTSTRAP_HASH</code>)</td><td>يشغّل <code dir="ltr">installMego()</code> للإعداد الآلي من الحاسوب المحمول، ويعيد الرمز ومعرّفات الـHub، ثم يُعطَّل (<code dir="ltr">BOOTSTRAP_DONE</code>)</td></tr>
+<tr><td>ping</td><td>رمز التطبيق</td><td>هوية الـHub (الاسم، المعرّف الأصلي، معرّف المصدر)، والوضع native/xlsx، وقابلية الكتابة، وإصدار السكربت، وحالة الذكاء الاصطناعي ونموذجه، وتبويب الأطعمة، والبيانات الوصفية</td></tr>
+<tr><td>foods</td><td>رمز التطبيق</td><td>صفوف <code dir="ltr">Food_Database</code> (منظّمة) أو تبويب الأطعمة الأصلي</td></tr>
+<tr><td>push</td><td>رمز التطبيق</td><td>تطبيق تغييرات التطبيق (إضافة/تحديث أو حذف) مع كشف التعارض</td></tr>
+<tr><td>pull</td><td>رمز التطبيق</td><td>إرجاع سجلات كل الجداول المنظّمة (مع طابع زمني اختياري <code dir="ltr">since</code>)</td></tr>
+<tr><td>saveFoods</td><td>رمز التطبيق</td><td>كتابة اختيارية لتعديلات الأطعمة في <code dir="ltr">Food_Database</code> (حتى 200؛ القيم 0–1000)</td></tr>
+<tr><td>backup</td><td>رمز التطبيق</td><td>حفظ لقطة JSON من التطبيق في مجلد Drive باسم «MEGO Nutrition Backups»</td></tr>
+<tr><td>meta</td><td>رمز التطبيق</td><td>قراءة <code dir="ltr">Sync_Metadata</code></td></tr>
+<tr><td>analyzeMeal</td><td>رمز التطبيق، أو رمز هوية Firebase</td><td>تحليل الوجبة عبر Gemini</td></tr>
+<tr><td>setAiKey</td><td>رمز التطبيق</td><td>حفظ مفتاح Gemini أو حذفه بعد أن تتحقق منه Google</td></tr>
+<tr><td>aiStats</td><td>رمز هوية Firebase لمشرف</td><td>أعداد عمليات المسح خلال آخر 7 أيام (دون أي محتوى)</td></tr>
+<tr><td>setCloudConfig</td><td>رمز التطبيق</td><td>حفظ معرّفات Firebase العامة وحدود الذكاء الاصطناعي</td></tr>
+</table>
+<p>دوال تُشغَّل من المحرر فقط (لا يمكن الوصول إليها عبر HTTP): <code dir="ltr">setup</code> و<code dir="ltr">rotateToken</code> و<code dir="ltr">installMego</code> و<code dir="ltr">migrateHub</code> و<code dir="ltr">authorize</code> و<code dir="ltr">convertHubToGoogleSheets</code> و<code dir="ltr">cleanupAiCounters</code> (مُشغِّل زمني اختياري).</p>
+
+<h2>4. المصادقة</h2>
+<ul>
+<li><b>رمز التطبيق (أجهزة المالك).</b> تُنشئ <code dir="ltr">setup()</code> الخاصية <code dir="ltr">APP_TOKEN</code> من معرّفَي UUID دون شرطات (64 محرفاً ست عشرياً) في خصائص السكربت إن لم تكن موجودة، ويُقارَن بـ<code dir="ltr">req.token</code> في كل طلب. تحذفه <code dir="ltr">rotateToken()</code> وتعيد إنشاءه (ويجب عندها إعادة ربط كل الأجهزة). الرمز غير موجود في المستودع إطلاقاً.</li>
+<li><b>رمز هوية Firebase (الحسابات العامة).</b> لإجراءَي <code dir="ltr">analyzeMeal</code> و<code dir="ltr">aiStats</code> فقط. تستدعي <code dir="ltr">verifyFirebaseUser_()</code> نقطة <code dir="ltr">accounts:lookup</code> في Google Identity Toolkit باستخدام <code dir="ltr">FIREBASE_API_KEY</code> المحفوظ؛ وأي استجابة غير 200 أو مستخدم غير موجود أو معطَّل تعيد <code dir="ltr">unauthorized</code>. بعد ذلك يقرأ السكربت <code dir="ltr">profiles/{uid}</code> (و<code dir="ltr">admins/{uid}</code> في حالة aiStats) عبر واجهة Firestore REST <b>برمز المستخدم نفسه</b>، فتُطبَّق قواعد Firestore تماماً كما في التطبيق.</li>
+<li><b>سرّ الإقلاع (Bootstrap).</b> قيمة <code dir="ltr">BOOTSTRAP_HASH</code> فارغة في المستودع العام (أي أن الإقلاع الآلي معطَّل). يكتب إعداد الحاسوب المحمول بصمة SHA-256 لسرّ عشوائي في النسخة الخاصة بالمالك فقط، ويعمل السرّ مرة واحدة.</li>
+</ul>
+
+<h2>5. التثبيت: setup وinstallMego وbootstrap</h2>
+<pre dir="ltr">
+installMego()                                   (run from the editor, or via bootstrap)
+ 1. setup()                -&gt; APP_TOKEN (kept if it already exists)
+ 2. ensureNativeHub_()     -&gt; convert the Excel Hub (SOURCE_ID) once into a native Google Sheet in the same
+                              folder (Drive.Files.create); stored as HUB_PENDING_ID; the .xlsx is not modified
+ 3. verifyNativeHub_(id)   -&gt; original food tab present, food rows counted, numeric problems counted;
+                              fails with VERIFY_FAILED -&gt; the Hub is NOT switched
+ 4. HUB_NATIVE_ID = id     -&gt; switch only after successful verification; HUB_VERIFIED stored
+ 5. migrateHub()           -&gt; Drive backup copy, rename to "MEGO Nutrition Hub", create structured and
+                              derived tabs, seed Food_Database with stable ids F0001..., Hub_Dashboard,
+                              Migration_Report (re-runnable, nothing duplicated)
+ 6. print the connection code "MEGO1|&lt;web app URL&gt;|&lt;token&gt;" (only once the web app is deployed)
+</pre>
+<p>الأوضاع: <code dir="ltr">native</code> (الـHub جدول Google أصلي: مزامنة كاملة ثنائية الاتجاه) و<code dir="ltr">xlsx</code> (لم يُحوَّل بعد: للقراءة فقط؛ يقرأ <code dir="ltr">foods</code> من نسخة محوّلة مؤقتة تُنقل إلى سلة المهملات فوراً، ويعيد <code dir="ltr">pull</code> جداول فارغة مع <code dir="ltr">readOnly: true</code>، وتفشل الكتابة بالخطأ <code dir="ltr">HUB_IS_XLSX</code>). لا يفتح السكربت أي جدول بيانات غير الـHub.</p>
+
+<h2>6. نموذج بيانات الـHub (التبويبات)</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>جدول التطبيق</th><th>تبويب الـHub</th><th>عمود المفتاح الأساسي</th><th>المالك</th></tr>
+<tr><td>foods</td><td>Food_Database</td><td>food_id</td><td>الجدول (sheet)</td></tr>
+<tr><td>entries</td><td>Food_Log</td><td>record_id</td><td>التطبيق (app)</td></tr>
+<tr><td>body</td><td>Body_Measurements</td><td>record_id</td><td>التطبيق</td></tr>
+<tr><td>days</td><td>Daily_Log</td><td>date</td><td>التطبيق</td></tr>
+<tr><td>recipes</td><td>Recipes</td><td>recipe_id</td><td>التطبيق</td></tr>
+<tr><td>templates</td><td>Saved_Meals</td><td>template_id</td><td>التطبيق</td></tr>
+<tr><td>plans</td><td>Meal_Plan_Templates</td><td>plan_id</td><td>التطبيق</td></tr>
+<tr><td>plannedDays</td><td>Meal_Plans</td><td>date</td><td>التطبيق</td></tr>
+<tr><td>fasts</td><td>Fasting_Log</td><td>record_id</td><td>التطبيق</td></tr>
+<tr><td>kv</td><td>App_KeyValue</td><td>key</td><td>التطبيق</td></tr>
+<tr><td>settings</td><td>Settings_App</td><td>key</td><td>كلاهما (both)</td></tr>
+<tr><td>foodChanges</td><td>Food_Change_Log</td><td>change_id</td><td>التطبيق</td></tr>
+</table>
+<p>يحتوي كل تبويب منظّم على أعمدة مقروءة يليها عمودان ثابتان: <code dir="ltr">updated_at</code> و<code dir="ltr">json</code> (السجل الكامل، لضمان عدم فقدان أي بيانات في الذهاب والإياب). التبويبات المشتقة وتبويبات النظام: <code dir="ltr">Recipe_Ingredients</code> و<code dir="ltr">Weight_Log</code> و<code dir="ltr">Water_Log</code> و<code dir="ltr">Habits_Log</code> و<code dir="ltr">Shopping_List</code> (يُعاد بناؤها بعد عمليات الدفع ذات الصلة)، و<code dir="ltr">Food_Aliases</code>، و<code dir="ltr">Sync_Metadata</code> (‏schemaVersion وdataVersion وlastSyncAt وlastWriteAt وlastConflicts وappSchemaVersion…)، و<code dir="ltr">Deleted_Records</code>، و<code dir="ltr">Backup_Log</code>، و<code dir="ltr">Migration_Report</code>، و<code dir="ltr">Hub_Dashboard</code> (صيغ ورسمان بيانيان). أما تبويب الأطعمة الأصلي «قاعدة بيانات الأطعمة» فلا يُعدَّل أبداً.</p>
+
+<h2>7. قواعد الكتابة: التحقق، والتعارض، والحذف المرن</h2>
+<h3>7.1 التحقق (<code dir="ltr">validChange_</code>)</h3>
+<ul>
+<li>500 تغيير كحد أقصى لكل طلب؛ وأي تغيير غير صالح يؤدي إلى رفض <b>الطلب كاملاً</b> (<code dir="ltr">"N invalid change(s) rejected"</code>).</li>
+<li>يجب أن يكون الجدول ضمن القائمة المسموح بها، والمفتاح نصاً غير فارغ لا يتجاوز 200 حرف، والعملية <code dir="ltr">upsert</code> أو <code dir="ltr">delete</code>.</li>
+<li>يجب أن تكون حمولة الإضافة/التحديث كائناً لا يتجاوز 45,000 حرف بصيغة JSON؛ ويحتاج قيد اليوميات تاريخاً بالصيغة <code dir="ltr">YYYY-MM-DD</code> وقيمة رقمية في <code dir="ltr">macros.kcal</code>؛ ويجب أن يكون وزن الجسم، إن وُجد، بين 20 و400.</li>
+</ul>
+<h3>7.2 قاعدة التعارض</h3>
+<p>في عملية الإضافة/التحديث يؤخذ الطابع الزمني الوارد من <code dir="ltr">payload.updatedAt</code> ثم <code dir="ltr">payload.at</code> ثم <code dir="ltr">change.at</code>. فإذا كانت قيمة <code dir="ltr">updated_at</code> المخزّنة أكبر، <b>لا يُطبَّق</b> التغيير ويُعاد <code dir="ltr">{table, key}</code> ضمن <code dir="ltr">conflicts</code> (فالنسخة الأقدم لا تستبدل الأحدث أبداً). أما عند تساوي الطابعين فيُطبَّق التغيير.</p>
+<h3>7.3 الحذف المرن (Soft Delete)</h3>
+<p>عند الحذف يُنسخ عمود <code dir="ltr">json</code> للصف إلى <code dir="ltr">Deleted_Records</code> (‏<code dir="ltr">table, key, deleted_at, json, recovered="no"</code>) قبل حذف الصف. وحذف مفتاح غير موجود لا يفعل شيئاً.</p>
+<h3>7.4 الإصدارات والبيانات الوصفية</h3>
+<p>إذا طُبِّق تغيير واحد على الأقل، تُزاد قيمة <code dir="ltr">dataVersion</code> بواحد وتُكتب <code dir="ltr">lastWriteAt</code> (و<code dir="ltr">appSchemaVersion</code> إذا أرسلها العميل). وتُكتب <code dir="ltr">lastSyncAt</code> و<code dir="ltr">lastConflicts</code> مع كل عملية دفع. الاستجابة هي <code dir="ltr">{ok, applied, conflicts, dataVersion}</code>. وكل الإجراءات التي تلمس الـHub تعمل داخل قفل السكربت (انتظار حتى 25 ثانية).</p>
+<h3>7.5 الكتابة العكسية للأطعمة والنسخ الاحتياطية</h3>
+<p>يتحقق <code dir="ltr">saveFoods</code> من الأسماء ومن قيم المغذيات الأربع (0–1000)، وينشئ نسخة Drive من الـHub مرة واحدة يومياً على الأكثر (<code dir="ltr">LAST_HUB_BACKUP</code>)، ثم يعيد استخدام منطق الدفع. وتُنشئ <code dir="ltr">migrateHub</code> دائماً نسخة Drive أولاً. وتُسجَّل كل نسخة احتياطية في <code dir="ltr">Backup_Log</code>.</p>
+
+<h2>8. وسيط Gemini</h2>
+<h3>8.1 مسار المالك (رمز التطبيق)</h3>
+<p>تعمل <code dir="ltr">analyzeMeal_</code> خارج القفل، وتتطلب وجود <code dir="ltr">GEMINI_API_KEY</code>، وصورة بترميز base64 لا تتجاوز 2,800,000 حرف (JPEG أو PNG أو WebP)، وحتى 800 سطر من الأطعمة، وملاحظة لا تتجاوز 300 حرف. وتفرض الحد اليومي العام (<code dir="ltr">AI_DAILY_LIMIT</code>، الافتراضي 40؛ والعدّاد <code dir="ltr">AI_USED_&lt;date&gt;</code> يزداد بعد إرسال طلب Gemini)، ثم تستدعي <code dir="ltr">models/&lt;model&gt;:generateContent</code> مع مخطط استجابة JSON، ودرجة حرارة 0.2، و8,192 رمزاً كحد أقصى للمخرجات، وتعيد <code dir="ltr">{ok, model, result}</code>. النماذج المسموح بها: gemini-3.8-flash (الافتراضي) وgemini-3.6-flash وgemini-3.5-flash-lite (الخاصية <code dir="ltr">AI_MODEL</code>). لا يُخزَّن شيء.</p>
+<h3>8.2 المسار العام (رمز هوية Firebase)</h3>
+<pre dir="ltr">
+publicAi_(req)
+  verifyFirebaseUser_(idToken)            -&gt; uid, or unauthorized / CLOUD_NOT_CONFIGURED
+  action aiStats -&gt; admins/{uid} readable with the user's token? -&gt; 7-day counts, else unauthorized
+  profiles/{uid} (user's token): status must be "active"         -&gt; else unauthorized
+  country in EU/EEA/UK/CH list                                   -&gt; AI_REGION_RESTRICTED
+  lock 10 s; counter AI_U_&lt;date&gt;_&lt;uid&gt; &gt;= AI_USER_DAILY_LIMIT (default 10) -&gt; AI_USER_LIMIT
+  counter + 1; analyzeMeal_(req)          (global cap and Gemini call shared with the owner path)
+</pre>
+<h3>8.3 رموز الأخطاء</h3>
+<p><code dir="ltr">AI_NOT_CONFIGURED</code> و<code dir="ltr">AI_BAD_IMAGE</code> و<code dir="ltr">AI_DAILY_LIMIT</code> و<code dir="ltr">AI_USER_LIMIT</code> و<code dir="ltr">AI_REGION_RESTRICTED</code> و<code dir="ltr">AI_QUOTA_DAY</code> و<code dir="ltr">AI_QUOTA_MINUTE</code> (مع <code dir="ltr">retryAfter</code>) و<code dir="ltr">AI_REGION</code> و<code dir="ltr">AI_KEY_INVALID</code> و<code dir="ltr">AI_MODEL_UNAVAILABLE</code> و<code dir="ltr">AI_BUSY</code> (رمز HTTP ‏≥ 500) و<code dir="ltr">AI_HTTP_&lt;code&gt;</code> و<code dir="ltr">AI_NETWORK</code> و<code dir="ltr">AI_REFUSED</code> و<code dir="ltr">AI_TRUNCATED</code> و<code dir="ltr">AI_BAD_OUTPUT</code>. لا توجد إعادة محاولة على نموذج أو خدمة أخرى.</p>
+<h3>8.4 إدارة المفاتيح</h3>
+<p>يقبل <code dir="ltr">setAiKey</code> المفاتيح المطابقة للنمط <code dir="ltr">[A-Za-z0-9_.-]{20,200}</code> (الصيغتان الكلاسيكية والأحدث)، ويتحقق منها بطلب GET على نقطة البيانات الوصفية للنموذج، ولا يحفظها إلا إذا أجابت Google بالرمز 200. والقيمة <code dir="ltr">remove: true</code> تحذف المفتاح. ويحفظ <code dir="ltr">setCloudConfig</code> الخاصيتين <code dir="ltr">FIREBASE_API_KEY</code> و<code dir="ltr">FIREBASE_PROJECT_ID</code> (معرّفات عامة)، ويضبط اختيارياً <code dir="ltr">AI_USER_DAILY_LIMIT</code> ضمن 1–50 و<code dir="ltr">AI_DAILY_LIMIT</code> ضمن 1–1500. وتحذف <code dir="ltr">cleanupAiCounters()</code> العدّادات الأقدم من 8 أيام.</p>
+
+<h2>9. Firebase كخلفية مُدارة</h2>
+<p>لا توجد شيفرة خادم للحسابات العامة؛ إذ يستخدم العميل حزمة Firebase مباشرة، ويمثّل الملف <code dir="ltr">firebase/firestore.rules</code> السياسة على جانب الخادم. أهم القواعد: لا يقرأ المستخدم ولا يكتب إلا في <code dir="ltr">users/{uid الخاص به}/**</code>، وفقط ما دامت حالة ملفه <code dir="ltr">active</code>؛ ولا يجوز للتحديث أن يُنقص <code dir="ltr">updatedAt</code>؛ ويُتحقَّق من شكل السجل وأسماء الجداول؛ ويحق للمشرفين (بوجود <code dir="ltr">admins/{uid}</code>، الذي لا يمكن لأحد كتابته من العميل) سرد الملفات الشخصية وتغيير <code dir="ltr">status</code> فقط، دون أي وصول إلى <code dir="ltr">users/**</code>؛ والأطعمة المشتركة <code dir="ltr">foods</code> يقرؤها المستخدمون النشطون ويكتبها المشرفون؛ ولكلٍّ من <code dir="ltr">foodSubmissions</code> و<code dir="ltr">errorReports</code> قواعده المحدودة. التفاصيل في MEGO_Firebase_Integration.</p>
+
+<h2>10. خصائص السكربت (الأسماء فقط — القيم سرية أو خاصة)</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الخاصية</th><th>المعنى</th></tr>
+<tr><td>APP_TOKEN</td><td>الرمز السري لأجهزة المالك</td></tr>
+<tr><td>HUB_NATIVE_ID وHUB_PENDING_ID وHUB_VERIFIED وHUB_CONVERTED_AT</td><td>معرّف الـHub الأصلي وحالة التحويل</td></tr>
+<tr><td>BOOTSTRAP_DONE</td><td>طابع زمني بعد الإقلاع الآلي لمرة واحدة</td></tr>
+<tr><td>LAST_HUB_BACKUP</td><td>تاريخ آخر نسخة يومية قبل الكتابة العكسية للأطعمة</td></tr>
+<tr><td>GEMINI_API_KEY وAI_MODEL</td><td>مفتاح Gemini (سري) واختيار النموذج (اختياري)</td></tr>
+<tr><td>AI_DAILY_LIMIT وAI_USER_DAILY_LIMIT</td><td>الحدّان اليوميان العام ولكل مستخدم</td></tr>
+<tr><td>AI_USED_&lt;date&gt; وAI_U_&lt;date&gt;_&lt;uid&gt;</td><td>عدّادات الاستخدام</td></tr>
+<tr><td>FIREBASE_API_KEY وFIREBASE_PROJECT_ID</td><td>معرّفات Firebase العامة المستخدمة للتحقق من رموز الهوية</td></tr>
+</table>
+
+<h2>11. حالة التحقق</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>نشر تطبيق الويب (بهوية المالك، للجميع + رمز)؛ قبول الرمز الصحيح ورفض الخاطئ؛ هوية الـHub؛ أصلي وقابل للكتابة؛ ‏Food_Database ‏160 طعاماً / 0 غير مقروء؛ الكتابة والقراءة؛ النسخة الأقدم لا تستبدل الأحدث؛ الحذف المرن إلى Deleted_Records</td><td>مُتحقَّق منه مباشرة (اختبارات الإعداد الحي)</td></tr>
+<tr><td>نسخة الترحيل الاحتياطية «BACKUP MEGO Nutrition Hub — before migrateHub — 2026-11-07 1425»</td><td>مُتحقَّق منه مباشرة</td></tr>
+<tr><td>تحليل Gemini عبر مسار المالك</td><td>مُتحقَّق منه مباشرة مرة واحدة؛ وأعادت محاولة لاحقة AI_BUSY (مؤقت)</td></tr>
+<tr><td>المسار العام برمز هوية Firebase والحد لكل مستخدم</td><td>مُختبَر على المحاكيات (حزمة تعدد المستخدمين، مع Code.gs الحقيقي وخلفية Google محاكاة)؛ غير مُتحقَّق منه بشكل منفصل في الإنتاج</td></tr>
+<tr><td>aiStats لمشرف</td><td>غير مُتحقَّق منه مباشرة — لا يوجد حساب مشرف بعد</td></tr>
+<tr><td>مسار الإقلاع الآلي (bootstrap)</td><td>مُختبَر من البداية إلى النهاية على خلفية Google محاكاة (حزمة الإعداد 10/10)</td></tr>
+</table>
+
+<h2>12. سجل المراجعات</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>الإصدار الأول</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

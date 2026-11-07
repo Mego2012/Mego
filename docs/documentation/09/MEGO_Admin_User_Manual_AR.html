@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Admin_User_Manual_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — دليل المسؤول (Admin User Manual)</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-67</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-07</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-07</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع والمسؤولون مستقبلًا</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_User_Management_Procedures، MEGO_Food_Database_Administration، MEGO_Monitoring_and_Maintenance، MEGO_Support_and_Incident_Management، MEGO_Access_Control_and_Permissions، MEGO_Firebase_Setup_Guide</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">يشرح هذا الدليل كيف يُنشأ حساب المسؤول وكيف تُستخدم لوحة الإدارة <code dir="ltr">#/admin</code> في تطبيق MEGO: بطاقات المؤشرات (KPI)، وقائمة الحسابات، وإيقاف الحسابات وإعادة تفعيلها، ومراجعة الأطعمة المقترحة، وقراءة تقارير الأخطاء، ونشر الأطعمة المحققة في القاعدة المشتركة. ويوضح بجلاء ما <b>لا</b> يستطيع المسؤول رؤيته أو فعله. كل ما ورد هنا مأخوذ من <code dir="ltr">src/pages/Account.tsx</code> (المكوّن <code dir="ltr">AdminPage</code>) و<code dir="ltr">src/lib/firebase.ts</code> و<code dir="ltr">firebase/firestore.rules</code> و<code dir="ltr">scripts/laptop-setup.mjs</code>.</p>
+<p dir="rtl"><b>ملاحظة مهمة عن الحالة:</b> حتى 7 نوفمبر 2026 <b>لا يوجد أي حساب مسؤول بعد</b>؛ صلاحية المسؤول بانتظار المالك (انظر القسم 2). جُرّبت اللوحة على محاكيات Firebase وفي جولة لقطات الشاشة فقط، ولم يستخدمها مسؤول حقيقي في بيئة الإنتاج.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">الأدوار في MEGO</li>
+<li dir="rtl">كيف يُنشأ المسؤول</li>
+<li dir="rtl">فتح لوحة الإدارة</li>
+<li dir="rtl">جولة في اللوحة: بطاقات المؤشرات</li>
+<li dir="rtl">قائمة الحسابات، الإيقاف وإعادة التفعيل</li>
+<li dir="rtl">الأطعمة المقترحة: اعتماد أو رفض</li>
+<li dir="rtl">تقارير الأخطاء</li>
+<li dir="rtl">قاعدة الأطعمة المشتركة: نشر الأطعمة المحققة</li>
+<li dir="rtl">إحصاءات استخدام الذكاء الاصطناعي</li>
+<li dir="rtl">ما لا يستطيع المسؤول رؤيته أو فعله</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. الأدوار في MEGO</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الدور</th><th>كيف يُعرَّف</th><th>أهم الصلاحيات</th></tr>
+<tr><td>الضيف</td><td>بلا تسجيل دخول؛ البيانات على هذا الجهاز فقط (IndexedDB باسم <code dir="ltr">mego-nutrition</code>)</td><td>استخدام شخصي كامل على جهاز واحد</td></tr>
+<tr><td>مستخدم مسجَّل</td><td>بريد وكلمة مرور في خدمة المصادقة (Firebase Authentication) + مستند <code dir="ltr">profiles/{uid}</code> بحالة <code dir="ltr">status: "active"</code></td><td>بياناته الخاصة في <code dir="ltr">users/{uid}/…</code> متزامنة بين أجهزته؛ يمكنه اقتراح أطعمة للقاعدة المشتركة</td></tr>
+<tr><td>المسؤول (Admin)</td><td>مستخدم مسجَّل يوجد لمعرّفه أيضًا مستند <code dir="ltr">admins/{uid}</code></td><td>قراءة بطاقات كل الحسابات، وتغيير حقل <code dir="ltr">status</code> فقط، ومراجعة الاقتراحات، وقراءة/حذف تقارير الأخطاء، والكتابة في مجموعة <code dir="ltr">foods</code> المشتركة</td></tr>
+<tr><td>مالك المشروع</td><td>مالك مشروع Google/Firebase وخادم Apps Script</td><td>كل ما في وحدات تحكم Firebase وGoogle (خارج التطبيق)؛ وهو الوحيد الذي يمنح صلاحية المسؤول</td></tr>
+</table>
+
+<h2 dir="rtl">2. كيف يُنشأ المسؤول</h2>
+<p dir="rtl">لا يمكن طلب صلاحية المسؤول أو منحها من داخل التطبيق. القاعدة <code dir="ltr">match /admins/{uid} { allow write: if false; }</code> تمنع كل عملاء التطبيق (حتى المسؤولين الحاليين) من الكتابة في قائمة المسؤولين. لا تُكتب إلا ببيانات اعتماد Google الخاصة بالمالك، عبر سكربت الإعداد أو وحدة تحكم Firebase.</p>
+<h3 dir="rtl">2.1 الإجراء (للمالك فقط)</h3>
+<ol dir="rtl">
+<li dir="rtl">افتح التطبيق المنشور <code dir="ltr">https://mego2012.github.io/Mego/</code> و<b>سجّل حسابًا عاديًا</b> بالبريد الذي سيصبح مسؤولًا (التسجيل في 3 خطوات).</li>
+<li dir="rtl">على حاسوب المالك، داخل مجلد مستودع MEGO، شغّل:<pre dir="ltr">node scripts/laptop-setup.mjs --cloud &lt;admin e-mail&gt;</pre></li>
+<li dir="rtl">يبحث السكربت عن البريد في خدمة المصادقة (Identity Toolkit <code dir="ltr">accounts:lookup</code>). إن لم يكن الحساب موجودًا يطبع رسالة «سجّل في التطبيق ثم أعد التشغيل» ولا يكتب شيئًا.</li>
+<li dir="rtl">إن وُجد، يكتب المستند <code dir="ltr">admins/{uid}</code> بحقل واحد <code dir="ltr">since</code> (طابع زمني) عبر واجهة Firestore REST ببيانات اعتماد المالك، ويعرض النتيجة ✅ أو ❌.</li>
+<li dir="rtl">في التطبيق سجّل الخروج ثم الدخول (أو أعد التحميل). عند بدء التشغيل يتحقق التطبيق من <code dir="ltr">admins/{uid}</code>، فيظهر زر <b>الإدارة</b> في بطاقة الحساب داخل الإعدادات.</li>
+</ol>
+<h3 dir="rtl">2.2 إزالة مسؤول</h3>
+<p dir="rtl">لا يوجد خيار في السكربت ولا زر في التطبيق لإزالة مسؤول. يحذف المالك المستند <code dir="ltr">admins/{uid}</code> يدويًا من وحدة تحكم Firebase (Firestore ← Data). هذا الإجراء اليدوي <i>غير مُتحقَّق منه</i> في الإنتاج.</p>
+
+<h2 dir="rtl">3. فتح لوحة الإدارة</h2>
+<ol dir="rtl">
+<li dir="rtl">سجّل الدخول بحساب المسؤول.</li>
+<li dir="rtl">اذهب إلى <b>الإعدادات</b> واضغط <b>الإدارة</b> (أيقونة الدرع) في بطاقة الحساب، أو افتح <code dir="ltr">#/admin</code> مباشرة، مثل <code dir="ltr">https://mego2012.github.io/Mego/#/admin</code>.</li>
+<li dir="rtl">إن لم يكن المستخدم مسؤولًا تعرض الصفحة «للمسؤولين فقط.» ولا تحمّل أي بيانات.</li>
+</ol>
+<p dir="rtl">تحمّل اللوحة أربع مجموعات بيانات معًا (الإحصاءات، الحسابات، تقارير الأخطاء، الاقتراحات المعلقة). إن فشل أي طلب ظهرت رسالة الخطأ في شريط أحمر أعلى الصفحة.</p>
+<p dir="rtl"><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/admin-ar-light.png" width="300" alt="لوحة الإدارة (عربي، الوضع الفاتح)"></p>
+<pre dir="ltr">
+┌──────────────────────────────────────────────┐
+│ 🔒 ملاحظة الخصوصية                            │
+├──────────┬──────────┬──────────┬─────────────┤
+│ المسجلون │ نشطون 7أ │ موقوفون  │ للمراجعة    │  ← KPI
+├──────────┴──────────┴──────────┴─────────────┤
+│ ▓▓▓▓▓▓░░░░  نسبة النشطين %                    │
+├──────────────────────────────────────────────┤
+│ الحسابات (أحدث 100)      [إيقاف/إعادة تفعيل] │
+│ أطعمة مقترحة            [اعتماد] [رفض]       │
+│ تقارير الأخطاء (آخر 50)                       │
+│ قاعدة الأطعمة المشتركة   [نشر الأطعمة المحققة]│
+└──────────────────────────────────────────────┘</pre>
+
+<h2 dir="rtl">4. جولة في اللوحة: بطاقات المؤشرات</h2>
+<p dir="rtl">تعتمد البطاقات على عمليات العدّ في Firestore (<code dir="ltr">getCountFromServer</code>)، فلا يُنقل إلا أرقام.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البطاقة</th><th>التعريف الدقيق (adminStats)</th></tr>
+<tr><td>المستخدمون المسجلون</td><td>عدد المستندات في <code dir="ltr">profiles</code></td></tr>
+<tr><td>نشطون (7 أيام)</td><td>الحسابات التي <code dir="ltr">lastActiveAt</code> فيها ≥ الآن − 7 أيام (يحدّث التطبيق هذا الحقل عند فتحه من مستخدم مسجَّل)</td></tr>
+<tr><td>موقوفون</td><td>الحسابات التي <code dir="ltr">status == "suspended"</code></td></tr>
+<tr><td>أطعمة مقترحة للمراجعة</td><td>مستندات <code dir="ltr">foodSubmissions</code> التي <code dir="ltr">status == "pending"</code></td></tr>
+</table>
+<p dir="rtl">عند وجود حساب واحد على الأقل يظهر شريط بنسبة النشطين: <code dir="ltr">round(active7d ÷ total × 100) %</code>. مثال: 40 مسجّلًا و10 نشطين ← 25٪.</p>
+
+<h2 dir="rtl">5. قائمة الحسابات، الإيقاف وإعادة التفعيل</h2>
+<p dir="rtl">تعرض بطاقة <b>الحسابات</b> حتى <b>100</b> حساب، الأحدث أولًا. يحتوي كل صف على: الحرف الأول، الاسم، البريد، رمز الدولة، تاريخ التسجيل، تاريخ آخر نشاط، وشارة الحالة (نشط / موقوف). لا يوجد بحث ولا تصفح صفحات؛ الحسابات الأقدم من أحدث 100 لا تظهر (قيد معروف).</p>
+<h3 dir="rtl">5.1 إيقاف حساب</h3>
+<ol dir="rtl">
+<li dir="rtl">ابحث عن صف الحساب واضغط <b>إيقاف</b>.</li>
+<li dir="rtl">يكتب التطبيق <code dir="ltr">status: "suspended"</code> في <code dir="ltr">profiles/{uid}</code>. تسمح قواعد الأمان للمسؤول بتغيير حقل <code dir="ltr">status</code> <b>فقط</b> وإلى <code dir="ltr">active</code> أو <code dir="ltr">suspended</code> فقط.</li>
+<li dir="rtl">تُعاد تحميل القائمة والبطاقات وتظهر «تم الحفظ».</li>
+</ol>
+<p dir="rtl">الأثر على المستخدم الموقوف: تصبح الدالة <code dir="ltr">isActive()</code> خاطئة، فيرفض الخادم كل قراءة أو كتابة لبياناته الخاصة (<code dir="ltr">users/{uid}/…</code>) وللأطعمة المشتركة وللاقتراحات الجديدة؛ ويعرض التطبيق شاشة «الحساب موقوف — أوقف المسؤول هذا الحساب. بياناتك محفوظة ولم يُحذف شيء.» مع زر تسجيل الخروج فقط. كما يرفض وسيط ماسح الوجبات بالذكاء الاصطناعي الحسابات غير النشطة. لا يُعطَّل تسجيل الدخول في Firebase نفسه ولا تُحذف أي بيانات.</p>
+<h3 dir="rtl">5.2 إعادة التفعيل</h3>
+<p dir="rtl">اضغط <b>إعادة التفعيل</b> على صف موقوف؛ تعود الحالة إلى <code dir="ltr">active</code> ويستعيد المستخدم وصوله عند التشغيل التالي.</p>
+<h3 dir="rtl">5.3 حماية</h3>
+<p dir="rtl">زر الإيقاف/إعادة التفعيل مخفي في صف المسؤول نفسه، فلا يستطيع إيقاف نفسه من الواجهة.</p>
+
+<h2 dir="rtl">6. الأطعمة المقترحة: اعتماد أو رفض</h2>
+<p dir="rtl">يستطيع المستخدم المسجَّل الضغط على «اقترحه للقاعدة المشتركة» في محرر أحد أطعمته الخاصة، فيُنشأ مستند في <code dir="ltr">foodSubmissions</code> (الحالة <code dir="ltr">pending</code> ومعرّف المالك والوقت والقيم). لا يُنشر شيء تلقائيًا.</p>
+<p dir="rtl">تعرض بطاقة <b>أطعمة مقترحة للمراجعة</b> حتى 100 اقتراح معلق: الاسم، الحالة (نيء/مطبوخ)، السعرات والبروتين (P) والكربوهيدرات (C) والدهون (F) لكل 100 غ، ومرجع المصدر والملاحظات إن وُجدت.</p>
+<ol dir="rtl">
+<li dir="rtl">طابق القيم مع الملصق أو مصدر موثوق (تذكّر البطاقة: «الأطعمة المعتمدة تظهر لكل المستخدمين»).</li>
+<li dir="rtl"><b>اعتماد</b>: يُنسخ الطعام إلى <code dir="ltr">foods/U-&lt;submissionId&gt;</code> مع ملاحظة «user submission reviewed by admin» ويُعلَّم الاقتراح <code dir="ltr">approved</code>. تستقبله كل الأجهزة المسجلة عبر المستمع الحي على <code dir="ltr">foods</code>.</li>
+<li dir="rtl"><b>رفض</b>: يُعلَّم الاقتراح <code dir="ltr">rejected</code> فقط ولا يُنشر شيء.</li>
+</ol>
+<p dir="rtl">قيود: لا يمكن تعديل القيم في اللوحة (اعتماد كما هي أو رفض)؛ لا يُبلَّغ المقترِح داخل التطبيق؛ لا يوجد زر «إلغاء النشر» (انظر MEGO_Food_Database_Administration).</p>
+
+<h2 dir="rtl">7. تقارير الأخطاء</h2>
+<p dir="rtl">تعرض بطاقة <b>تقارير الأخطاء</b> آخر <b>50</b> تقريرًا (نوع الخطأ، الرسالة، التاريخ). ينشئها التطبيق تلقائيًا؛ والمصدر الوحيد في الكود الحالي هو فشل إرسال المزامنة السحابية (<code dir="ltr">kind: "sync"</code>). تسمح القواعد بالحقول <code dir="ltr">at, kind, message, app</code> فقط ورسالة أقل من 500 حرف (يقصّها التطبيق إلى 400) بلا حقول شخصية. لا يقرؤها إلا المسؤولون. تسمح القواعد للمسؤول بحذفها لكن اللوحة لا تحتوي زر حذف.</p>
+
+<h2 dir="rtl">8. قاعدة الأطعمة المشتركة: نشر الأطعمة المحققة</h2>
+<p dir="rtl">في بطاقة <b>قاعدة الأطعمة المشتركة</b> زر <b>نشر الأطعمة المحققة</b>. يأخذ الأطعمة الموجودة على <b>هذا الجهاز</b> التي مصدرها الـ Hub أو الجدول المستورد (<code dir="ltr">source: "sheet"</code>) وغير المؤرشفة وغير الناقصة، ويكتب كلًّا منها في <code dir="ltr">foods/{id}</code> (المعرّف هو مفتاح الـ Hub الثابت <code dir="ltr">F0001…</code> إن وُجد). تؤكد رسالة «تم نشر N طعام.» العدد. أطعمة USDA مضمّنة في التطبيق ولا تُنشر بهذه الطريقة. التفاصيل والشروط في MEGO_Food_Database_Administration.</p>
+
+<h2 dir="rtl">9. إحصاءات استخدام الذكاء الاصطناعي</h2>
+<p dir="rtl">اللوحة <b>لا</b> تعرض إحصاءات الذكاء الاصطناعي. في خادم Apps Script إجراء خاص بالمسؤول اسمه <code dir="ltr">aiStats</code> (يتحقق من رمز هوية Firebase ومن مستند <code dir="ltr">admins/{uid}</code>) ويعيد لآخر 7 أيام عدد المسوحات وعدد المستخدمين المختلفين يوميًا واسم النموذج وهل المفتاح مضبوط والحدود اليومية لكل مستخدم وللجميع — لكن لا توجد شاشة في التطبيق تستدعيه. إلى أن تُضاف شاشة، يستطيع المالك قراءة العدّادات اليومية (<code dir="ltr">AI_USED_&lt;date&gt;</code>) في خصائص السكربت (Script Properties) داخل محرر Apps Script — ولا تشارك لقطة لتلك الصفحة أبدًا لأنها تحوي مفتاح Gemini ورمز التطبيق.</p>
+
+<h2 dir="rtl">10. ما لا يستطيع المسؤول رؤيته أو فعله</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>غير مسموح للمسؤول</th><th>الجهة التي تفرض ذلك</th></tr>
+<tr><td>قراءة يوميات أي مستخدم أو أوزانه أو قياساته أو وصفاته أو خططه أو إعداداته أو أي سجل تحت <code dir="ltr">users/{uid}</code></td><td>القاعدة: صاحب المعرّف فقط وما دام نشطًا</td></tr>
+<tr><td>رؤية صور التقدم</td><td>الصور لا تُرفع إطلاقًا</td></tr>
+<tr><td>تغيير اسم المستخدم أو بريده أو دولته أو تواريخه</td><td>القاعدة: يغيّر المسؤول <code dir="ltr">status</code> فقط</td></tr>
+<tr><td>حذف الحسابات أو الملفات الشخصية، أو إعادة تعيين كلمات المرور</td><td>لا توجد وظيفة لذلك في التطبيق؛ حذف الملف الشخصي لصاحبه فقط في القواعد</td></tr>
+<tr><td>منح صلاحية المسؤول أو سحبها</td><td>الكتابة في <code dir="ltr">admins</code> ممنوعة على كل العملاء</td></tr>
+<tr><td>رؤية صور الوجبات المرسلة للماسح</td><td>الخادم لا يخزّن شيئًا عن الوجبة</td></tr>
+<tr><td>قراءة جدول الـ Hub الخاص بالمالك</td><td>لا يُوصل إليه إلا عبر Apps Script الخاص بالمالك وبالرمز السري</td></tr>
+</table>
+<p dir="rtl">تكرر اللوحة ذلك في أعلاها: «يرى المسؤولون بطاقات الحسابات والإجماليات فقط…». ملاحظة: لمالك المشروع، عبر وحدة تحكم Firebase، وصول تقني يتجاوز هذه القواعد؛ ويحكمه MEGO_Access_Control_and_Permissions.</p>
+
+<h2 dir="rtl">11. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>الحساب العادي لا يستطيع سرد الحسابات ولا ترقية نفسه ولا إيقاف غيره (HTTP 403)</td><td>مُتحقَّق منه مباشرة في الإنتاج (scripts/live-verify.mjs)</td></tr>
+<tr><td>قواعد المسؤول (تغيير الحالة فقط، الاقتراحات، الأطعمة، تقارير الأخطاء)</td><td>مختبرة على محاكيات Firebase</td></tr>
+<tr><td>عرض اللوحة</td><td>مختبر في جولة لقطات الشاشة (admin-ar-light/dark.png)</td></tr>
+<tr><td>حساب مسؤول حقيقي في الإنتاج</td><td>لم يُنجز — بانتظار المالك</td></tr>
+<tr><td>إزالة مسؤول من الوحدة؛ زر النشر على جهاز حقيقي</td><td>غير مُتحقَّق منه</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

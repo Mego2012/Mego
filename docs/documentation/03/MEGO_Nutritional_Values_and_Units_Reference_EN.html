@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Nutritional_Values_and_Units_Reference_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Nutritional Values and Units Reference</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-23</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Developers, food-database administrators, nutrition reviewers, support</td></tr>
+<tr><td>Related documents</td><td>MEGO_Food_Database_Documentation, MEGO_Calorie_and_Macronutrient_Calculation_Methodology, MEGO_Portion_and_Measurement_Conversion_Rules, MEGO_Food_Data_Validation_and_Quality_Control</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>A single reference for every nutrient field MEGO stores, its unit and basis, how "unknown" is represented, and every logging unit the app supports. Sources: <code>src/lib/types.ts</code> and <code>src/lib/nutrition.ts</code>; import mappings from <code>sheetImport.ts</code>, <code>barcode.ts</code> and <code>refFoods.ts</code>.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>The Macros structure</li>
+<li>Basis: per 100 g</li>
+<li>Optional nutrients and "unknown"</li>
+<li>Field mapping per source</li>
+<li>Extra nutrients (rankings only)</li>
+<li>Logging units</li>
+<li>Precision and display</li>
+<li>Value validation limits</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. The Macros structure</h2>
+<pre>interface Macros {
+  kcal: number;      // energy, kilocalories
+  protein: number;   // g
+  carbs: number;     // g
+  fat: number;       // g
+  fiber?: number;    // g    (optional)
+  sugar?: number;    // g    (optional)
+  sodium?: number;   // mg   (optional)
+  satFat?: number;   // g    saturated fat (optional)
+}
+OPTIONAL_NUTRIENTS = ['fiber', 'sugar', 'sodium', 'satFat']</pre>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Unit</th><th>Required</th><th>Notes</th></tr>
+<tr><td>kcal</td><td>kcal</td><td>Yes</td><td>Energy as published; never recomputed from macros</td></tr>
+<tr><td>protein</td><td>g</td><td>Yes</td><td></td></tr>
+<tr><td>carbs</td><td>g</td><td>Yes</td><td>Total carbohydrate (as published by the source)</td></tr>
+<tr><td>fat</td><td>g</td><td>Yes</td><td>Total fat</td></tr>
+<tr><td>fiber</td><td>g</td><td>No</td><td>Dietary fiber</td></tr>
+<tr><td>sugar</td><td>g</td><td>No</td><td>Total sugars</td></tr>
+<tr><td>sodium</td><td><b>mg</b></td><td>No</td><td>The only field in milligrams</td></tr>
+<tr><td>satFat</td><td>g</td><td>No</td><td>Saturated fat</td></tr>
+</table>
+<p>The same structure is used for a food's <code>per100</code>, a diary entry's <code>macros</code>, recipe <code>totals</code>/<code>perServing</code>, and day targets (targets use only kcal, protein, carbs, fat).</p>
+
+<h2>2. Basis: per 100 g</h2>
+<p><code>Food.per100</code> holds values per 100 g of the food in its stated state (raw, cooked or other). For liquids, per 100 g is still the basis; millilitres are converted to grams with <code>gramsPerMl</code> (density). When a food has no density, <b>1 ml = 1 g</b> is assumed and this is shown to the user. USDA data is "per 100 g edible portion"; Open Food Facts values come from the <code>*_100g</code> fields; Hub columns are <code>kcal_100g</code>, <code>protein_100g</code> etc.</p>
+<p>Recipes are the exception: a recipe entry's basis is <code>perServing</code> (values per recipe serving) and it can only be logged in the unit <code>serving</code>.</p>
+
+<h2>3. Optional nutrients and "unknown"</h2>
+<ul>
+<li>An optional nutrient that is <code>undefined</code> means <b>unknown</b> — it is never treated as zero.</li>
+<li>Scaling (<code>scaleMacros</code>) and rounding keep a field only when the source had it.</li>
+<li>Adding (<code>addMacros</code>): if either side has the nutrient, the sum contains it, counting the missing side as 0. Reports therefore also keep <code>coverage</code>: the number of entries in a day that actually had each optional nutrient, so a partial sum can be recognised.</li>
+<li>Required fields kcal/protein/carbs/fat are always numbers. A food whose four required values are all 0 is <code>incomplete</code>.</li>
+</ul>
+
+<h2>4. Field mapping per source</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>MEGO field</th><th>USDA (usda.json column / FDC nutrient)</th><th>Open Food Facts</th><th>Hub Food_Database</th></tr>
+<tr><td>kcal</td><td>kcal (1008; fallback 2048, 2047)</td><td>energy-kcal_100g, else energy_100g ÷ 4.184</td><td>kcal_100g</td></tr>
+<tr><td>protein</td><td>protein (1003)</td><td>proteins_100g</td><td>protein_100g</td></tr>
+<tr><td>carbs</td><td>carbs (1005)</td><td>carbohydrates_100g</td><td>carbs_100g</td></tr>
+<tr><td>fat</td><td>fat (1004)</td><td>fat_100g</td><td>fat_100g</td></tr>
+<tr><td>fiber</td><td>fiber (1079)</td><td>fiber_100g</td><td>fiber_100g</td></tr>
+<tr><td>sugar</td><td>sugar (2000; fallback 1063)</td><td>sugars_100g</td><td>sugar_100g</td></tr>
+<tr><td>sodium (mg)</td><td>sodiumMg (1093)</td><td>sodium_100g (g) × 1000, rounded</td><td>sodium_mg_100g</td></tr>
+<tr><td>satFat</td><td>satFat (1258)</td><td>saturated-fat_100g</td><td>— (no column)</td></tr>
+</table>
+<p>USDA values are rounded to 2 decimals by the build script. In usda.json a missing optional value is <code>null</code> and is dropped when converted (<code>toRefFood</code>). Hub numbers accept Arabic-Indic digits and a decimal comma such as "2,6" (read as 2.6 and reported); "1,234" is read as 1234.</p>
+
+<h2>5. Extra nutrients (rankings only)</h2>
+<p><code>public/fooddb/usda-extra.json</code> holds, per 100 g: MUFA g, PUFA g, ALA g, EPA g, DHA g, DPA g, calcium mg, iron mg, magnesium mg, potassium mg, zinc mg, vitamin A µg RAE, vitamin E mg, vitamin C mg, vitamin B12 µg, folate µg DFE, and 11 essential amino acids (g/100 g food: His, Ile, Leu, Lys, Met, Cys, Phe, Tyr, Thr, Trp, Val). These are used only by Food Intelligence rankings; they are not stored on user foods or diary entries.</p>
+
+<h2>6. Logging units</h2>
+<p><code>UNITS = ['g', 'kg', 'ml', 'l', 'cup', 'piece', 'slice', 'tbsp', 'tsp', 'serving']</code>. Constants: <code>CUP_ML = 240</code>, <code>TBSP_ML = 15</code>, <code>TSP_ML = 5</code>. Density d = <code>gramsPerMl</code> if &gt; 0, otherwise 1.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Unit</th><th>Grams for quantity q</th><th>Available when</th><th>Error if missing</th></tr>
+<tr><td>g</td><td>q</td><td>food has per100</td><td>—</td></tr>
+<tr><td>kg</td><td>q × 1000</td><td>food has per100</td><td>—</td></tr>
+<tr><td>ml</td><td>q × d</td><td>food has per100</td><td>—</td></tr>
+<tr><td>l</td><td>q × 1000 × d</td><td>food has per100</td><td>—</td></tr>
+<tr><td>cup</td><td>q × 240 × d</td><td>food has per100</td><td>—</td></tr>
+<tr><td>tbsp</td><td>q × 15 × d</td><td>food has per100</td><td>—</td></tr>
+<tr><td>tsp</td><td>q × 5 × d</td><td>food has per100</td><td>—</td></tr>
+<tr><td>piece, slice</td><td>q × pieceGrams</td><td>pieceGrams &gt; 0</td><td>needsPieceWeight</td></tr>
+<tr><td>serving (food)</td><td>q × grams of the chosen serving (first serving if none chosen)</td><td>at least one serving</td><td>needsServing</td></tr>
+<tr><td>serving (recipe)</td><td>macros = perServing × q (grams not used)</td><td>recipe basis only — the only unit</td><td>—</td></tr>
+</table>
+<p>Quantity must be finite and &gt; 0 (otherwise <code>invalidQuantity</code>). A basis with neither per100 nor perServing raises <code>needsRecipe</code>. Volume units are always converted through density; there is no raw↔cooked conversion. <code>gramsPerUnit</code> produces the "1 cup = 240 g" labels (rounded to 0.1 g). Full conversion rules and examples: MEGO_Portion_and_Measurement_Conversion_Rules.</p>
+<p><b>Servings by source</b>: USDA portions become named servings (e.g. "1 cup, chopped or diced" = 140 g); Open Food Facts <code>serving_quantity</code> gives a serving weight; the Hub's <code>piece_g</code> becomes <code>pieceGrams</code>.</p>
+
+<h2>7. Precision and display</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Function</th><th>kcal</th><th>protein/carbs/fat</th><th>optional</th><th>Used for</th></tr>
+<tr><td><code>preciseMacros</code></td><td>0.01</td><td>0.01</td><td>0.01</td><td>Stored entry and recipe values</td></tr>
+<tr><td><code>roundMacros</code></td><td>1 (whole)</td><td>0.1</td><td>0.1</td><td>Display, day totals</td></tr>
+</table>
+<p>Rounding uses <code>Math.round((n + Number.EPSILON) × 10^d) / 10^d</code>. Logged grams are rounded to 0.1 g.</p>
+
+<h2>8. Value validation limits</h2>
+<p><code>validateMacros</code> (per-100 g values) returns these error codes:</p>
+<ul>
+<li><code>&lt;field&gt;:nan</code> — required field missing or not finite (optional fields may be undefined).</li>
+<li><code>&lt;field&gt;:negative</code> — any value below 0.</li>
+<li><code>macros:over100g</code> — protein + carbs + fat &gt; 100.5 g.</li>
+<li><code>fiber:overCarbs</code> — fiber &gt; carbs + 0.5 (when carbs &gt; 0).</li>
+<li><code>sugar:overCarbs</code> — sugar &gt; carbs + 0.5.</li>
+<li><code>kcal:over900</code> — kcal &gt; 900.5 per 100 g.</li>
+</ul>
+<p>Foods failing validation cannot be created (<code>createFood</code>) or imported from a custom-foods file.</p>
+
+<h2>9. Verification status</h2>
+<ul>
+<li>Verified in repository: all field names, units, constants, mappings and limits (copied from code).</li>
+<li>Unit tests (vitest, 109 passing) exercise the nutrition engine; specific test cases are not listed here.</li>
+<li>Not verified: the correctness of third-party data (Open Food Facts) and of owner-entered values beyond the automatic checks.</li>
+</ul>
+
+<h2>10. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

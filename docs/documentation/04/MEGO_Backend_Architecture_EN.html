@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MEGO_Backend_Architecture_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Backend Architecture</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-33</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Developers, maintainers, security reviewers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Technical_Architecture, MEGO_Google_Sheets_Integration_and_Sync, MEGO_Firebase_Integration, MEGO_Gemini_AI_Integration, MEGO_API_Documentation, MEGO_Apps_Script_Setup_Guide, MEGO_Security_Architecture</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes MEGO's server side. MEGO has <b>no custom server</b> of its own; the backend consists of (a) a Google Apps Script web app, <code>apps-script/Code.gs</code> (script version 5, Hub schema version 3), owned and run by the project owner, and (b) Firebase Authentication and Cloud Firestore as a managed backend whose behaviour is defined by security rules. The document covers the Apps Script request dispatcher, authentication, installation, the Hub tab model, write/conflict/delete rules, the Gemini proxy (owner path and public path) and the role of Firebase. Request/response field lists for every action are in MEGO_API_Documentation.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Backend overview</li>
+<li>Apps Script deployment model</li>
+<li>Request dispatcher (doPost)</li>
+<li>Authentication</li>
+<li>Installation: setup, installMego, bootstrap</li>
+<li>Hub data model (tabs)</li>
+<li>Write rules: validation, conflicts, soft delete</li>
+<li>Gemini proxy</li>
+<li>Firebase as managed backend</li>
+<li>Script Properties</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Backend overview</h2>
+<pre>
+                      +-------------------------------- Google (owner's account) -------------------------+
+ PWA (owner device) --| POST {action, token}         +-----------------------------+                       |
+                      |  ----------------------------&gt;|  Apps Script web app        |--&gt; Google Sheet Hub  |
+ PWA (signed-in user)-| POST {action, idToken}       |  Code.gs  doPost()          |--&gt; Drive (backups)   |
+                      |  ----------------------------&gt;|  Script Properties (secrets)|--&gt; Gemini API (free) |
+                      |                               +-------------+---------------+                       |
+                      |                                             | Identity Toolkit (verify ID token)      |
+                      |                                             | Firestore REST (with the user's token)  |
+                      +---------------------------------------------v-----------------------------------------+
+ PWA (signed-in user) --- Firebase JS SDK ---&gt; Firebase Auth + Cloud Firestore (rules enforce access)
+</pre>
+
+<h2>2. Apps Script deployment model</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Setting (<code>apps-script/appsscript.json</code>)</th><th>Value</th></tr>
+<tr><td>Runtime</td><td>V8; time zone Asia/Riyadh; exception logging STACKDRIVER</td></tr>
+<tr><td>Web app</td><td><code>executeAs: USER_DEPLOYING</code>, <code>access: ANYONE_ANONYMOUS</code></td></tr>
+<tr><td>Advanced service</td><td>Drive API v3 (<code>Drive.Files.create</code> for conversion)</td></tr>
+<tr><td>OAuth scopes</td><td>spreadsheets, drive, script.external_request</td></tr>
+</table>
+<p>Access is "anyone" because a PWA cannot send Google login cookies; every request is therefore authenticated inside the script (section 4). The script is a standalone project. <code>doGet()</code> returns only <code>{ok: true, app: "mego-nutrition", version: 5}</code>. The client sends POST requests with <code>Content-Type: text/plain</code> to avoid a CORS preflight; responses are JSON produced by <code>ContentService</code>.</p>
+
+<h2>3. Request dispatcher (doPost)</h2>
+<pre>
+doPost(e)
+  req = JSON.parse(body)
+  action == "bootstrap"                      -&gt; bootstrap_(req)            (one-time secret)
+  req.idToken and action in {analyzeMeal, aiStats} -&gt; publicAi_(req)      (Firebase user)
+  req.token != APP_TOKEN                     -&gt; {ok:false, error:"unauthorized"}
+  action == "analyzeMeal"                    -&gt; analyzeMeal_(req)          (no lock)
+  action == "setAiKey"                       -&gt; setAiKey_(req)
+  action == "setCloudConfig"                 -&gt; setCloudConfig_(req)
+  ScriptLock.waitLock(25 s):
+     ping | foods | push | pull | saveFoods | backup | meta
+     anything else                           -&gt; {ok:false, error:"unknown action"}
+  any exception                              -&gt; {ok:false, error: message}
+</pre>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Action</th><th>Auth</th><th>Purpose</th></tr>
+<tr><td>bootstrap</td><td>one-time secret (SHA-256 must equal <code>BOOTSTRAP_HASH</code>)</td><td>Runs <code>installMego()</code> for the automated laptop setup; returns the token and Hub ids; disabled afterwards (<code>BOOTSTRAP_DONE</code>)</td></tr>
+<tr><td>ping</td><td>app token</td><td>Hub identity (name, native id, source id), mode native/xlsx, writable, script version, AI status/model, food tab, metadata</td></tr>
+<tr><td>foods</td><td>app token</td><td>Rows of <code>Food_Database</code> (structured) or the original food tab</td></tr>
+<tr><td>push</td><td>app token</td><td>Apply app changes (upsert/delete) with conflict detection</td></tr>
+<tr><td>pull</td><td>app token</td><td>Return records of all structured tables (optional <code>since</code> timestamp)</td></tr>
+<tr><td>saveFoods</td><td>app token</td><td>Optional write-back of food edits into <code>Food_Database</code> (max 200; values 0–1000)</td></tr>
+<tr><td>backup</td><td>app token</td><td>Save an app snapshot JSON into Drive folder "MEGO Nutrition Backups"</td></tr>
+<tr><td>meta</td><td>app token</td><td>Read <code>Sync_Metadata</code></td></tr>
+<tr><td>analyzeMeal</td><td>app token, or Firebase ID token</td><td>Gemini meal analysis</td></tr>
+<tr><td>setAiKey</td><td>app token</td><td>Store/remove the Gemini key after Google validates it</td></tr>
+<tr><td>aiStats</td><td>Firebase ID token of an admin</td><td>Scan counts for the last 7 days (no content)</td></tr>
+<tr><td>setCloudConfig</td><td>app token</td><td>Store the public Firebase identifiers and AI limits</td></tr>
+</table>
+<p>Editor-only functions (not reachable over HTTP): <code>setup</code>, <code>rotateToken</code>, <code>installMego</code>, <code>migrateHub</code>, <code>authorize</code>, <code>convertHubToGoogleSheets</code>, <code>cleanupAiCounters</code> (optional time trigger).</p>
+
+<h2>4. Authentication</h2>
+<ul>
+<li><b>App token (owner devices).</b> <code>setup()</code> creates <code>APP_TOKEN</code> = two UUIDs without hyphens (64 hex characters) in Script Properties, if none exists. It is compared with <code>req.token</code> on every request. <code>rotateToken()</code> deletes and recreates it (all connected devices must then be reconnected). The token is never in the repository.</li>
+<li><b>Firebase ID token (public accounts).</b> Only for <code>analyzeMeal</code> and <code>aiStats</code>. <code>verifyFirebaseUser_()</code> calls Google Identity Toolkit <code>accounts:lookup</code> with the stored <code>FIREBASE_API_KEY</code>; a non-200 answer, missing user or disabled user returns <code>unauthorized</code>. The script then reads <code>profiles/{uid}</code> (and for aiStats <code>admins/{uid}</code>) through the Firestore REST API <b>with the user's own token</b>, so Firestore rules apply exactly as in the app.</li>
+<li><b>Bootstrap secret.</b> <code>BOOTSTRAP_HASH</code> is empty in the public repository (bootstrap disabled). The laptop setup writes the SHA-256 of a random secret only into the owner's private copy; the secret works once.</li>
+</ul>
+
+<h2>5. Installation: setup, installMego, bootstrap</h2>
+<pre>
+installMego()                                   (run from the editor, or via bootstrap)
+ 1. setup()                -&gt; APP_TOKEN (kept if it already exists)
+ 2. ensureNativeHub_()     -&gt; convert the Excel Hub (SOURCE_ID) once into a native Google Sheet in the same
+                              folder (Drive.Files.create); stored as HUB_PENDING_ID; the .xlsx is not modified
+ 3. verifyNativeHub_(id)   -&gt; original food tab present, food rows counted, numeric problems counted;
+                              fails with VERIFY_FAILED -&gt; the Hub is NOT switched
+ 4. HUB_NATIVE_ID = id     -&gt; switch only after successful verification; HUB_VERIFIED stored
+ 5. migrateHub()           -&gt; Drive backup copy, rename to "MEGO Nutrition Hub", create structured and
+                              derived tabs, seed Food_Database with stable ids F0001..., Hub_Dashboard,
+                              Migration_Report (re-runnable, nothing duplicated)
+ 6. print the connection code "MEGO1|&lt;web app URL&gt;|&lt;token&gt;" (only once the web app is deployed)
+</pre>
+<p>Modes: <code>native</code> (the Hub is a native Google Sheet: full two-way sync) and <code>xlsx</code> (not converted yet: read-only; <code>foods</code> reads a temporary converted copy that is trashed immediately, <code>pull</code> returns empty tables with <code>readOnly: true</code>, writes fail with <code>HUB_IS_XLSX</code>). The script never opens any spreadsheet other than the Hub.</p>
+
+<h2>6. Hub data model (tabs)</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>App table</th><th>Hub tab</th><th>Primary key column</th><th>Owner</th></tr>
+<tr><td>foods</td><td>Food_Database</td><td>food_id</td><td>sheet</td></tr>
+<tr><td>entries</td><td>Food_Log</td><td>record_id</td><td>app</td></tr>
+<tr><td>body</td><td>Body_Measurements</td><td>record_id</td><td>app</td></tr>
+<tr><td>days</td><td>Daily_Log</td><td>date</td><td>app</td></tr>
+<tr><td>recipes</td><td>Recipes</td><td>recipe_id</td><td>app</td></tr>
+<tr><td>templates</td><td>Saved_Meals</td><td>template_id</td><td>app</td></tr>
+<tr><td>plans</td><td>Meal_Plan_Templates</td><td>plan_id</td><td>app</td></tr>
+<tr><td>plannedDays</td><td>Meal_Plans</td><td>date</td><td>app</td></tr>
+<tr><td>fasts</td><td>Fasting_Log</td><td>record_id</td><td>app</td></tr>
+<tr><td>kv</td><td>App_KeyValue</td><td>key</td><td>app</td></tr>
+<tr><td>settings</td><td>Settings_App</td><td>key</td><td>both</td></tr>
+<tr><td>foodChanges</td><td>Food_Change_Log</td><td>change_id</td><td>app</td></tr>
+</table>
+<p>Each structured tab has readable columns followed by two fixed columns: <code>updated_at</code> and <code>json</code> (the full record, for lossless round trips). Derived / system tabs: <code>Recipe_Ingredients</code>, <code>Weight_Log</code>, <code>Water_Log</code>, <code>Habits_Log</code>, <code>Shopping_List</code> (rebuilt after relevant pushes), <code>Food_Aliases</code>, <code>Sync_Metadata</code> (schemaVersion, dataVersion, lastSyncAt, lastWriteAt, lastConflicts, appSchemaVersion …), <code>Deleted_Records</code>, <code>Backup_Log</code>, <code>Migration_Report</code>, <code>Hub_Dashboard</code> (formulas and two charts). The original food tab «قاعدة بيانات الأطعمة» is never modified.</p>
+
+<h2>7. Write rules: validation, conflicts, soft delete</h2>
+<h3>7.1 Validation (<code>validChange_</code>)</h3>
+<ul>
+<li>At most 500 changes per request; any invalid change rejects the <b>whole</b> request (<code>"N invalid change(s) rejected"</code>).</li>
+<li>Table must be in the whitelist; key a non-empty string ≤ 200 characters; op <code>upsert</code> or <code>delete</code>.</li>
+<li>Upsert payload must be an object ≤ 45,000 JSON characters; diary entries need a <code>YYYY-MM-DD</code> date and numeric <code>macros.kcal</code>; body weight, if present, must be 20–400.</li>
+</ul>
+<h3>7.2 Conflict rule</h3>
+<p>For an upsert, the incoming timestamp is <code>payload.updatedAt</code> → <code>payload.at</code> → <code>change.at</code>. If the stored <code>updated_at</code> is greater, the change is <b>not applied</b> and <code>{table, key}</code> is returned in <code>conflicts</code> (an older copy never overwrites a newer one). Equal timestamps are applied.</p>
+<h3>7.3 Soft delete</h3>
+<p>A delete copies the row's <code>json</code> into <code>Deleted_Records</code> (<code>table, key, deleted_at, json, recovered="no"</code>) before deleting the row. Deleting a key that does not exist is a no-op.</p>
+<h3>7.4 Versioning and metadata</h3>
+<p>If at least one change was applied, <code>dataVersion</code> is incremented and <code>lastWriteAt</code> (and <code>appSchemaVersion</code> when the client sends it) are written. <code>lastSyncAt</code> and <code>lastConflicts</code> are written on every push. The response is <code>{ok, applied, conflicts, dataVersion}</code>. All Hub-touching actions run inside a script lock (wait up to 25 s).</p>
+<h3>7.5 Food write-back and backups</h3>
+<p><code>saveFoods</code> validates names and the four macro values (0–1000), makes a Drive copy of the Hub at most once per day (<code>LAST_HUB_BACKUP</code>), then reuses the push logic. <code>migrateHub</code> always makes a Drive copy first. Every backup is logged in <code>Backup_Log</code>.</p>
+
+<h2>8. Gemini proxy</h2>
+<h3>8.1 Owner path (app token)</h3>
+<p><code>analyzeMeal_</code> runs outside the lock. It requires <code>GEMINI_API_KEY</code>, a base64 image ≤ 2,800,000 characters (JPEG, PNG or WebP), up to 800 food lines, and a note ≤ 300 characters. It enforces the global daily cap (<code>AI_DAILY_LIMIT</code>, default 40; counter <code>AI_USED_&lt;date&gt;</code>, incremented once the Gemini call is made), calls <code>models/&lt;model&gt;:generateContent</code> with a JSON response schema, temperature 0.2 and max 8,192 output tokens, and returns <code>{ok, model, result}</code>. Allowed models: gemini-3.8-flash (default), gemini-3.6-flash, gemini-3.5-flash-lite (property <code>AI_MODEL</code>). Nothing is stored.</p>
+<h3>8.2 Public path (Firebase ID token)</h3>
+<pre>
+publicAi_(req)
+  verifyFirebaseUser_(idToken)            -&gt; uid, or unauthorized / CLOUD_NOT_CONFIGURED
+  action aiStats -&gt; admins/{uid} readable with the user's token? -&gt; 7-day counts, else unauthorized
+  profiles/{uid} (user's token): status must be "active"         -&gt; else unauthorized
+  country in EU/EEA/UK/CH list                                   -&gt; AI_REGION_RESTRICTED
+  lock 10 s; counter AI_U_&lt;date&gt;_&lt;uid&gt; &gt;= AI_USER_DAILY_LIMIT (default 10) -&gt; AI_USER_LIMIT
+  counter + 1; analyzeMeal_(req)          (global cap and Gemini call shared with the owner path)
+</pre>
+<h3>8.3 Error codes</h3>
+<p><code>AI_NOT_CONFIGURED</code>, <code>AI_BAD_IMAGE</code>, <code>AI_DAILY_LIMIT</code>, <code>AI_USER_LIMIT</code>, <code>AI_REGION_RESTRICTED</code>, <code>AI_QUOTA_DAY</code>, <code>AI_QUOTA_MINUTE</code> (with <code>retryAfter</code>), <code>AI_REGION</code>, <code>AI_KEY_INVALID</code>, <code>AI_MODEL_UNAVAILABLE</code>, <code>AI_BUSY</code> (HTTP ≥ 500), <code>AI_HTTP_&lt;code&gt;</code>, <code>AI_NETWORK</code>, <code>AI_REFUSED</code>, <code>AI_TRUNCATED</code>, <code>AI_BAD_OUTPUT</code>. There is no retry on another model or service.</p>
+<h3>8.4 Key management</h3>
+<p><code>setAiKey</code> accepts keys matching <code>[A-Za-z0-9_.-]{20,200}</code> (classic and newer key formats), checks them with a GET on the model metadata endpoint, and stores them only if Google answers 200. <code>remove: true</code> deletes the key. <code>setCloudConfig</code> stores <code>FIREBASE_API_KEY</code> and <code>FIREBASE_PROJECT_ID</code> (public identifiers) and optionally clamps <code>AI_USER_DAILY_LIMIT</code> to 1–50 and <code>AI_DAILY_LIMIT</code> to 1–1500. <code>cleanupAiCounters()</code> deletes counters older than 8 days.</p>
+
+<h2>9. Firebase as managed backend</h2>
+<p>For public accounts there is no server code: the client uses the Firebase SDK directly, and <code>firebase/firestore.rules</code> is the server-side policy. Key rules: a user reads/writes only <code>users/{own uid}/**</code> and only while the profile status is <code>active</code>; updates may not lower <code>updatedAt</code>; record shape and table names are validated; admins (presence of <code>admins/{uid}</code>, writable by nobody from the client) may list profiles and change only <code>status</code>, and have no access to <code>users/**</code>; shared <code>foods</code> are readable by active users and writable by admins; <code>foodSubmissions</code> and <code>errorReports</code> have their own limited rules. Details: MEGO_Firebase_Integration.</p>
+
+<h2>10. Script Properties (names only — values are secret or private)</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Property</th><th>Meaning</th></tr>
+<tr><td>APP_TOKEN</td><td>Secret token for owner devices</td></tr>
+<tr><td>HUB_NATIVE_ID, HUB_PENDING_ID, HUB_VERIFIED, HUB_CONVERTED_AT</td><td>Native Hub id and conversion state</td></tr>
+<tr><td>BOOTSTRAP_DONE</td><td>Timestamp after the one-time bootstrap</td></tr>
+<tr><td>LAST_HUB_BACKUP</td><td>Date of the last daily backup before food write-back</td></tr>
+<tr><td>GEMINI_API_KEY, AI_MODEL</td><td>Gemini key (secret) and optional model choice</td></tr>
+<tr><td>AI_DAILY_LIMIT, AI_USER_DAILY_LIMIT</td><td>Global and per-user daily scan caps</td></tr>
+<tr><td>AI_USED_&lt;date&gt;, AI_U_&lt;date&gt;_&lt;uid&gt;</td><td>Usage counters</td></tr>
+<tr><td>FIREBASE_API_KEY, FIREBASE_PROJECT_ID</td><td>Public Firebase identifiers used to verify ID tokens</td></tr>
+</table>
+
+<h2>11. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Web app deployed (execute as owner, anyone + token); token accepted, wrong token refused; Hub identity; native and writable; Food_Database 160 foods / 0 unreadable; write and read; older copy never overwrites newer; soft delete into Deleted_Records</td><td>Verified live (laptop-setup live tests)</td></tr>
+<tr><td>Migration backup "BACKUP MEGO Nutrition Hub — before migrateHub — 2026-11-07 1425"</td><td>Verified live</td></tr>
+<tr><td>Owner-path Gemini analysis</td><td>Verified live once; a later run returned AI_BUSY (transient)</td></tr>
+<tr><td>Public AI path with Firebase ID token and per-user limit</td><td>Tested on emulators (multi-user suite, real Code.gs with a mocked Google backend); not separately verified in production</td></tr>
+<tr><td>aiStats for an admin</td><td>Not verified live — no admin account exists yet</td></tr>
+<tr><td>Bootstrap flow</td><td>Tested end-to-end against an emulated Google backend (laptop-setup suite 10/10)</td></tr>
+</table>
+
+<h2>12. Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

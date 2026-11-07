@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="utf-8"><title>MEGO_Authentication_and_Session_Management_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — المصادقة وإدارة الجلسات</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>معرّف الوثيقة</td><td>MEGO-DOC-46</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-07</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-07</td></tr>
+<tr><td>المالك</td><td>مالك مشروع MEGO</td></tr>
+<tr><td>الحالة</td><td>معتمدة للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع، المطوّرون، المسؤولون، مراجعو الأمان</td></tr>
+<tr><td>وثائق ذات صلة</td><td dir="ltr">MEGO_Authentication_and_Authorization_Architecture, MEGO_Access_Control_and_Permissions, MEGO_Security_Architecture, MEGO_Registration_and_Login_Guide, MEGO_Data_Retention_and_Deletion, MEGO_Security_Audit_and_Known_Risks, MEGO_Apps_Script_Setup_Guide</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تصف هذه الوثيقة، كما هو منفَّذ فعلًا في الشيفرة، كيف يتحقق MEGO من هوية المستخدمين ويحافظ على جلساتهم: التسجيل والتحقق من مدخلاته، قواعد كلمة المرور، تسجيل الدخول، الجلسات المستمرة، تسجيل الخروج، إعادة تعيين كلمة المرور، إعادة المصادقة قبل حذف الحساب، الحسابات الموقوفة، والرمز السري المنفصل الذي يحمي خادم «مركز Google Sheets» الخاص بالمالك (Apps Script)، بما في ذلك مكان حفظه وطريقة تدويره. وتغطي آليتين مستقلتين:</p>
+<ul dir="rtl">
+<li dir="rtl"><b>الحسابات العامة</b> — مصادقة Firebase (Firebase Authentication) بالبريد وكلمة المرور على الخطة المجانية Spark، المشروع <code dir="ltr">mego-473920</code>. الشيفرة: <code dir="ltr">src/lib/firebase.ts</code> و<code dir="ltr">src/lib/account.ts</code> و<code dir="ltr">src/pages/Account.tsx</code>.</li>
+<li dir="rtl"><b>اتصال المالك بالمركز (Hub)</b> — سرّ مشترك بطول 256 بت (<code dir="ltr">APP_TOKEN</code>) يتحقق منه <code dir="ltr">apps-script/Code.gs</code> لأجهزة الضيف/المالك التي تتزامن مع جدول «MEGO Nutrition Hub». الشيفرة: <code dir="ltr">src/lib/sync.ts</code> و<code dir="ltr">apps-script/Code.gs</code>.</li>
+</ul>
+<p dir="rtl">لا تظهر في هذه الوثيقة أي قيمة سرية (مفاتيح، رموز، رابط تطبيق الويب، رموز الاتصال، كلمات مرور)؛ يُشار إلى الأسرار بأسمائها فقط.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">الأوضاع ونظرة عامة</li>
+<li dir="rtl">التسجيل والتحقق من المدخلات</li>
+<li dir="rtl">قواعد كلمة المرور ورسائل الخطأ</li>
+<li dir="rtl">تسجيل الدخول والجلسات المستمرة</li>
+<li dir="rtl">تسجيل الخروج</li>
+<li dir="rtl">إعادة تعيين كلمة المرور (دون كشف وجود الحسابات)</li>
+<li dir="rtl">إعادة المصادقة قبل حذف الحساب</li>
+<li dir="rtl">الحسابات الموقوفة</li>
+<li dir="rtl">رمز Apps Script: التعامل والحفظ والتدوير</li>
+<li dir="rtl">إجراء تدوير بيانات الاعتماد (الرمز ومفتاح Gemini)</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. الأوضاع ونظرة عامة</h2>
+<p dir="rtl">عند بدء التشغيل تحمّل الدالة <code dir="ltr">bootAccount()</code> الملف <code dir="ltr">/firebase-config.json</code>. إن لم يوجد يعمل التطبيق في وضع الضيف فقط، وإن وُجد فهناك ثلاثة أوضاع:</p>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الوضع</th><th>كيف يُختار</th><th>قاعدة البيانات المحلية</th><th>المزامنة</th></tr>
+<tr><td>الترحيب (welcome)</td><td>لا حساب نشط ولا اختيار ضيف محفوظ</td><td>—</td><td>—</td></tr>
+<tr><td>ضيف (guest)</td><td>المفتاح <code dir="ltr">mego.guest</code> = 1 في التخزين المحلي (localStorage)</td><td><code dir="ltr">mego-nutrition</code></td><td>اختياريًا مع مركز المالك (Apps Script بالرمز)</td></tr>
+<tr><td>حساب (account)</td><td>المفتاح <code dir="ltr">mego.activeUid</code> = معرّف المستخدم في Firebase</td><td><code dir="ltr">mego-u-&lt;uid&gt;</code></td><td>قاعدة البيانات السحابية (Cloud Firestore) — سجلات المستخدم فقط</td></tr>
+</table>
+<pre dir="ltr">
+ App start ─► firebase-config.json? ──no──► guest only
+                  │yes
+                  ▼
+        mego.activeUid set? ──yes──► open mego-u-&lt;uid&gt; ─► watchSession(): Firebase confirms user
+                  │no                                         ├─ same uid  → load profile, admin flag, start sync
+                  ▼                                           └─ no user / other uid → clear activeUid, reload
+        mego.guest set? ──yes──► guest     no──► Welcome screen
+</pre>
+<p dir="rtl">ولأن لكل حساب قاعدة بيانات IndexedDB محلية خاصة به، فإن شخصين يتشاركان هاتفًا واحدًا لا يرى أحدهما بيانات الآخر داخل التطبيق.</p>
+
+<h2 dir="rtl">2. التسجيل والتحقق من المدخلات</h2>
+<p dir="rtl">التسجيل مسار من ثلاث خطوات (<code dir="ltr">RegisterFlow</code> في <code dir="ltr">src/pages/Account.tsx</code>).</p>
+<h3 dir="rtl">2.1 الخطوة الأولى — الهوية (تحقق في التطبيق)</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القاعدة المطبّقة</th></tr>
+<tr><td>اسم العرض</td><td>غير فارغ؛ تُزال المسافات ويُقصّ إلى 40 حرفًا عند الحفظ</td></tr>
+<tr><td>البريد الإلكتروني</td><td>يجب أن يطابق النمط <code dir="ltr">.+@.+\..+</code>؛ ويتحقق Firebase منه مجددًا (<code dir="ltr">auth/invalid-email</code>)</td></tr>
+<tr><td>كلمة المرور</td><td>8 أحرف على الأقل، منها رقم وحرف لاتيني على الأقل (القسم 3)</td></tr>
+<tr><td>الدولة</td><td>من قائمة؛ «أخرى» تُحفظ بالرمز <code dir="ltr">ZZ</code>. الدول التي لا تسمح شروط الفئة المجانية من Gemini فيها بالماسح تُظهر تنبيهًا</td></tr>
+<tr><td>تأكيد العمر 18+</td><td>خانة إلزامية؛ وترفض الدالة <code dir="ltr">register()</code> الطلب بالخطأ <code dir="ltr">AGE_REQUIRED</code> إن لم يُؤكَّد</td></tr>
+<tr><td>سياسة الخصوصية والشروط</td><td>خانة إلزامية (مع روابط للصفحات المسودة)</td></tr>
+</table>
+<h3 dir="rtl">2.2 الخطوتان الثانية والثالثة — بيانات الجسم والأهداف</h3>
+<p dir="rtl">تشترط الخطوة الثانية عمرًا ≥ 18 وطولًا &gt; 100 سم ووزنًا &gt; 30 كغ للمتابعة. وتعرض الخطوة الثالثة الأهداف المقترحة مع إمكانية تعديلها. تُحفظ هذه الإجابات مؤقتًا في التخزين المحلي تحت <code dir="ltr">mego.pendingSetup.&lt;uid&gt;</code> وتُطبَّق مرة واحدة على إعدادات الحساب الجديد عند التشغيل التالي ثم تُحذف.</p>
+<h3 dir="rtl">2.3 ما يحدث عند «إنهاء»</h3>
+<ol dir="rtl">
+<li dir="rtl">تُنشئ <code dir="ltr">createUserWithEmailAndPassword</code> مستخدم Firebase (يطبّق Firebase سياسة كلمات المرور الخاصة به ويمنع تكرار البريد).</li>
+<li dir="rtl">يُضبط اسم العرض على مستخدم Firebase.</li>
+<li dir="rtl">يُكتب مستند الملف الشخصي <code dir="ltr">profiles/{uid}</code>: الاسم، البريد، الحالة <code dir="ltr">active</code>، الدولة، تأكيد العمر، تاريخ الإنشاء، آخر نشاط. ولا تقبل قواعد Firestore الإنشاء إلا إذا كانت الحقول هذه بالضبط، والحالة <code dir="ltr">active</code>، وتأكيد العمر صحيحًا، والبريد مطابقًا للبريد في رمز تسجيل الدخول.</li>
+<li dir="rtl">يُطلب إرسال رسالة تأكيد البريد (<code dir="ltr">sendEmailVerification</code>) وتُتجاهل أي أخطاء. <b>تأكيد البريد غير مفروض</b>: لا التطبيق ولا قواعد Firestore تتحقق من <code dir="ltr">email_verified</code> (راجع MEGO_Security_Audit_and_Known_Risks).</li>
+<li dir="rtl">اختياريًا تُنسخ بيانات الضيف على هذا الجهاز مرة واحدة إلى الحساب الجديد (وتبقى قاعدة بيانات الضيف كما هي).</li>
+<li dir="rtl">تحفظ <code dir="ltr">enterAccount()</code> القيمة <code dir="ltr">mego.activeUid</code> وتعيد تحميل التطبيق.</li>
+</ol>
+
+<h2 dir="rtl">3. قواعد كلمة المرور ورسائل الخطأ</h2>
+<p dir="rtl">قاعدة التطبيق (مفتاح التلميح <code dir="ltr">reg_pwRule</code>): «8 أحرف على الأقل، منها حرف ورقم». يبقى زر «التالي» معطّلًا حتى تتحقق القاعدة. ويطبّق Firebase سياسته الخاصة على الخادم أيضًا؛ ولم تُفحص إعدادات سياسة كلمات المرور في المشروع (غير مُتحقَّق منه). كلمات المرور تديرها مصادقة Firebase وحدها ولا يحفظها MEGO أبدًا.</p>
+<p dir="rtl">تُحوَّل رموز أخطاء Firebase إلى رسائل مترجمة (مفاتيح <code dir="ltr">authErr_*</code> في <code dir="ltr">src/lib/i18n2.ts</code>)، وأي رمز غير معروف يعرض <code dir="ltr">authErr_generic</code>.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>رمز Firebase</th><th>مفتاح الترجمة</th><th>الرسالة العربية</th></tr>
+<tr><td dir="ltr">email-already-in-use</td><td dir="ltr">authErr_email_already_in_use</td><td>يوجد حساب بهذا البريد. سجّل الدخول بدلًا من ذلك.</td></tr>
+<tr><td dir="ltr">invalid-email</td><td dir="ltr">authErr_invalid_email</td><td>أدخل بريدًا إلكترونيًا صحيحًا.</td></tr>
+<tr><td dir="ltr">weak-password</td><td dir="ltr">authErr_weak_password</td><td>اختر كلمة مرور أقوى (8 أحرف على الأقل بها حرف ورقم).</td></tr>
+<tr><td dir="ltr">invalid-credential / user-not-found / wrong-password</td><td dir="ltr">authErr_invalid_credential, authErr_user_not_found, authErr_wrong_password</td><td>البريد أو كلمة المرور غير صحيحة. (رسالة واحدة للحالات الثلاث)</td></tr>
+<tr><td dir="ltr">too-many-requests</td><td dir="ltr">authErr_too_many_requests</td><td>محاولات كثيرة. انتظر بضع دقائق ثم حاول مجددًا.</td></tr>
+<tr><td dir="ltr">network-request-failed</td><td dir="ltr">authErr_network_request_failed</td><td>لا يوجد اتصال. تحقق من الإنترنت وحاول مجددًا.</td></tr>
+<tr><td dir="ltr">user-disabled</td><td dir="ltr">authErr_user_disabled</td><td>هذا الحساب معطّل.</td></tr>
+<tr><td dir="ltr">requires-recent-login</td><td dir="ltr">authErr_requires_recent_login</td><td>سجّل الدخول من جديد ثم أعد المحاولة.</td></tr>
+<tr><td dir="ltr">AGE_REQUIRED (app)</td><td dir="ltr">authErr_AGE_REQUIRED</td><td>يجب أن يكون عمرك 18 سنة أو أكثر لإنشاء حساب.</td></tr>
+<tr><td>أي رمز آخر</td><td dir="ltr">authErr_generic</td><td>حدث خطأ. حاول مجددًا.</td></tr>
+</table>
+<p dir="rtl">ملاحظة: عند تسجيل الدخول تُنتج حالتا «المستخدم غير موجود» و«كلمة المرور خاطئة» الرسالة نفسها عمدًا. أما عند التسجيل فإن <code dir="ltr">email-already-in-use</code> يكشف أن البريد مسجّل — وهذا ملازم لعملية التسجيل ومُدرج كخطر منخفض في تقرير التدقيق.</p>
+
+<h2 dir="rtl">4. تسجيل الدخول والجلسات المستمرة</h2>
+<ol dir="rtl">
+<li dir="rtl">يُدخل المستخدم البريد وكلمة المرور (<code dir="ltr">LoginForm</code>) فتُستدعى <code dir="ltr">signInWithEmailAndPassword</code>.</li>
+<li dir="rtl">إن كان على الجهاز قيود يوميات للضيف يمكن اختيار «استيراد بيانات الضيف» (تُنسخ مرة واحدة).</li>
+<li dir="rtl">تكتب <code dir="ltr">enterAccount(uid)</code> القيمة <code dir="ltr">mego.activeUid</code> وتحذف <code dir="ltr">mego.guest</code> وتعيد التحميل.</li>
+<li dir="rtl">في كل تشغيل تنتظر <code dir="ltr">watchSession()</code> الحدث <code dir="ltr">onAuthStateChanged</code> من Firebase. إن لم يُرجَع مستخدم أو رُجع معرّف مختلف يحذف التطبيق <code dir="ltr">mego.activeUid</code> ويعود إلى شاشة الترحيب (انتهت الجلسة أو سُجّل الخروج من مكان آخر).</li>
+<li dir="rtl">إن تطابق المستخدم يُقرأ الملف الشخصي وعلامة المسؤول (وجود <code dir="ltr">admins/{uid}</code>)، ويُحدَّث <code dir="ltr">lastActiveAt</code>، وتبدأ مزامنة Firestore — إلا إذا كان الحساب موقوفًا.</li>
+</ol>
+<p dir="rtl"><b>الاستمرارية:</b> لا تستدعي الشيفرة <code dir="ltr">setPersistence</code>، فيُطبَّق الإعداد الافتراضي لـ Firebase Web SDK (تبقى الجلسة محفوظة في تخزين المتصفح حتى تسجيل الخروج). لا يوجد في التطبيق خروج تلقائي عند الخمول. رموز الهوية (ID tokens) قصيرة العمر ويجدّدها SDK تلقائيًا.</p>
+
+<h2 dir="rtl">5. تسجيل الخروج</h2>
+<p dir="rtl">زر «تسجيل الخروج» في بطاقة الحساب (وفي شاشة الحساب الموقوف) يستدعي <code dir="ltr">signOut()</code> من Firebase ثم <code dir="ltr">leaveAccount()</code> التي تحذف <code dir="ltr">mego.activeUid</code> وتعيد التحميل.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>العنصر</th><th>بعد تسجيل الخروج</th></tr>
+<tr><td>جلسة Firebase في هذا المتصفح</td><td>تُمسح (signOut)</td></tr>
+<tr><td><code dir="ltr">mego.activeUid</code></td><td>يُحذف</td></tr>
+<tr><td>قاعدة البيانات المحلية <code dir="ltr">mego-u-&lt;uid&gt;</code></td><td><b>تبقى على الجهاز</b> (غير مشفّرة ولا تُحذف). تُستخدم مجددًا عند دخول الحساب نفسه؛ لا يعرضها التطبيق لحسابات أخرى، لكن من يصل إلى تخزين المتصفح يستطيع قراءتها.</td></tr>
+<tr><td>مؤشرات المزامنة <code dir="ltr">mego.cloud.&lt;uid&gt;.&lt;table&gt;</code></td><td>تبقى (طوابع زمنية فقط)</td></tr>
+<tr><td>قاعدة بيانات الضيف <code dir="ltr">mego-nutrition</code></td><td>دون تغيير</td></tr>
+</table>
+<p dir="rtl">توصية: على الأجهزة المشتركة، من لا يريد بقاء نسخة محلية فليستخدم «حذف الحساب» أو يمسح بيانات الموقع من المتصفح. لا يوجد حاليًا خيار «احذف نسخة هذا الجهاز عند الخروج».</p>
+
+<h2 dir="rtl">6. إعادة تعيين كلمة المرور (دون كشف وجود الحسابات)</h2>
+<ol dir="rtl">
+<li dir="rtl">«نسيت كلمة المرور؟» يفتح <code dir="ltr">ResetForm</code> ويُدخل المستخدم بريده.</li>
+<li dir="rtl">تُستدعى <code dir="ltr">sendPasswordResetEmail</code>.</li>
+<li dir="rtl">عند النجاح يعرض التطبيق دائمًا النص نفسه (<code dir="ltr">auth_resetSent</code>): «إن وُجد حساب بهذا البريد فقد أُرسل رابط إعادة التعيين. تفقّد البريد الوارد والرسائل غير المرغوبة.» وتعليق الشيفرة يوضح القصد: الرسالة نفسها سواء وُجد البريد أم لا.</li>
+<li dir="rtl">عند أي خطأ تُعرض <code dir="ltr">authErr_generic</code> فقط دون تفاصيل الرمز.</li>
+</ol>
+<p dir="rtl">أما هل يُرجع Firebase نفسه خطأً للعناوين غير الموجودة فيعتمد على إعداد «الحماية من كشف البريد» في المشروع، ولم يُفحص (غير مُتحقَّق منه). التحقق الحي أكّد فقط قبول طلب إعادة التعيين لحساب موجود (HTTP 200)؛ ولم يُتحقق من وصول الرسالة إلى صندوق بريد حقيقي.</p>
+
+<h2 dir="rtl">7. إعادة المصادقة قبل حذف الحساب</h2>
+<p dir="rtl">يتطلب الحذف (الإعدادات ← الحساب ← «حذف الحساب») كلمة المرور الحالية. تستدعي <code dir="ltr">deleteMyAccount()</code> أولًا <code dir="ltr">reauthenticateWithCredential</code>؛ ولا يُحذف شيء إن كانت كلمة المرور خاطئة. بعد ذلك فقط تُحذف السجلات السحابية والملف الشخصي وحساب الدخول في Firebase، ثم قاعدة بيانات الحساب المحلية. التفاصيل في MEGO_Data_Retention_and_Deletion.</p>
+
+<h2 dir="rtl">8. الحسابات الموقوفة</h2>
+<ul dir="rtl">
+<li dir="rtl">يستطيع المسؤول تغيير <code dir="ltr">profiles/{uid}.status</code> إلى <code dir="ltr">suspended</code> (تسمح القواعد للمسؤول بتغيير حقل الحالة فقط).</li>
+<li dir="rtl">على الخادم: كل قاعدة للبيانات الخاصة (<code dir="ltr">users/{uid}/**</code>) والأطعمة المشتركة ومقترحات الأطعمة تشترط <code dir="ltr">isActive()</code>، فلا يستطيع الحساب الموقوف قراءة سجلاته ولا كتابتها — وتفرض ذلك خوادم Google. كما يرفض وسيط الذكاء الاصطناعي في Apps Script الملفات غير النشطة.</li>
+<li dir="rtl">في التطبيق: تضبط <code dir="ltr">watchSession()</code> الحالة «موقوف»، ولا تبدأ المزامنة، وتظهر شاشة «الحساب موقوف»: «أوقف المسؤول هذا الحساب. بياناتك محفوظة ولم يُحذف شيء.» والإجراء الوحيد المتاح هو تسجيل الخروج.</li>
+<li dir="rtl">النتيجة: لا يستطيع المستخدم الموقوف حذف سجلاته عبر التطبيق، لأن قاعدة الحذف تشترط أيضًا حسابًا نشطًا. وإعادة التفعيل من المسؤول تعيد الوصول.</li>
+</ul>
+
+<h2 dir="rtl">9. رمز Apps Script: التعامل والحفظ والتدوير</h2>
+<p dir="rtl">خادم مركز المالك تطبيق ويب في Apps Script منشور بإعداد «التنفيذ باسم المالك، الوصول لأي شخص» (لأن تطبيق الويب التقدمي PWA لا يستطيع إرسال ملفات تعريف دخول Google). كل طلب — عدا حالتين — يجب أن يحمل الرمز السري <code dir="ltr">APP_TOKEN</code>.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الجانب</th><th>التنفيذ (مُتحقَّق منه في الشيفرة)</th></tr>
+<tr><td>التوليد</td><td>تنشئه <code dir="ltr">setup()</code> مرة واحدة من معرّفين UUID دون شرطات (64 خانة ست عشرية = 256 بت) وتحتفظ بأي رمز موجود</td></tr>
+<tr><td>الحفظ على الخادم</td><td>خصائص السكربت (Script Properties) بالمفتاح <code dir="ltr">APP_TOKEN</code> — ليس في المستودع ولا في شيفرة التطبيق العامة</td></tr>
+<tr><td>التحقق</td><td>ترفض <code dir="ltr">doPost</code> أي طلب برمز مختلف (<code dir="ltr">unauthorized</code>). الاستثناءات: <code dir="ltr">bootstrap</code> (لمرة واحدة، يُقارن ببصمة SHA-256 لسرّ مؤقت، ويُعطَّل بعد الاستخدام عبر <code dir="ltr">BOOTSTRAP_DONE</code>)، وإجراءا الذكاء الاصطناعي للحسابات العامة <code dir="ltr">analyzeMeal</code>/<code dir="ltr">aiStats</code> المرسلان مع رمز هوية Firebase (<code dir="ltr">idToken</code>) الذي تتحقق منه خدمة Google Identity Toolkit</td></tr>
+<tr><td>الحفظ على الجهاز</td><td>في سجل الإعدادات داخل IndexedDB المحلي (<code dir="ltr">settings.sync.token</code>) على الجهاز المتصل</td></tr>
+<tr><td>لا يُصدَّر أبدًا</td><td>النسخ الاحتياطية (<code dir="ltr">snapshot()</code>) تحذف <code dir="ltr">settings.sync</code>؛ وكذلك الرفع إلى المركز ومزامنة Firestore؛ والاستعادة تُبقي القيمة المحلية</td></tr>
+<tr><td>نسخة الحاسوب</td><td>يحفظ <code dir="ltr">scripts/laptop-setup.mjs</code> الرابط والرمز في <code dir="ltr">~/.mego-backend/</code> (خارج المستودع، صلاحيات الملف 600)</td></tr>
+<tr><td>النقل</td><td>HTTPS؛ يصل إلى الهاتف كرمز اتصال (<code dir="ltr">MEGO1|&lt;url&gt;|&lt;token&gt;</code>) أو رابط QR مباشر؛ ويحذف التطبيق الرمز من شريط العنوان بعد الاتصال</td></tr>
+<tr><td>مواضع الانكشاف</td><td>حقل الرمز في الإعدادات حقل نصي ظاهر؛ ورمز الاتصال يُطبع في سجل Apps Script وفي طرفية إعداد الحاسوب</td></tr>
+</table>
+<p dir="rtl">مفتاح Gemini API سرّ منفصل يُحفظ فقط في خصائص السكربت (<code dir="ltr">GEMINI_API_KEY</code>) عبر الإجراء المحمي بالرمز <code dir="ltr">setAiKey</code>، ولا يُرسَل إلى الهاتف أبدًا.</p>
+
+<h2 dir="rtl">10. إجراء تدوير بيانات الاعتماد</h2>
+<p dir="rtl">أثناء الإعداد ظهر مفتاح Gemini الخاص بالمالك ورابط اتصال الخادم في محادثة. <b>يُوصى بتدوير الاثنين.</b></p>
+<h3 dir="rtl">10.1 تدوير رمز Apps Script</h3>
+<ol dir="rtl">
+<li dir="rtl">افتح مشروع Apps Script (script.google.com) بحساب المالك.</li>
+<li dir="rtl">شغّل الدالة <code dir="ltr">rotateToken()</code> — تحذف <code dir="ltr">APP_TOKEN</code> وتستدعي <code dir="ltr">setup()</code> التي تنشئ رمزًا جديدًا وتسجّله في السجل.</li>
+<li dir="rtl">شغّل <code dir="ltr">installMego()</code> مجددًا (آمن لإعادة التشغيل) لطباعة رمز الاتصال الجديد، أو كوّنه من الرمز المسجّل.</li>
+<li dir="rtl">على كل جهاز للمالك: الإعدادات ← اتصال المركز ← الصق الرمز الجديد ← اختبر الاتصال. الرمز القديم يُرفض فورًا.</li>
+<li dir="rtl">حدّث <code dir="ltr">~/.mego-backend/</code> على الحاسوب (الرمز المحفوظ صار قديمًا، فسيُبلغ <code dir="ltr">laptop-setup.mjs --test</code> بالخطأ unauthorized حتى يُحدَّث). خطوة تحديث ذلك الملف بالضبط غير مُتحقَّق منها.</li>
+<li dir="rtl">احذف أي رسائل محادثة أو ملاحظات أو لقطات شاشة تحوي الرمز القديم.</li>
+</ol>
+<p dir="rtl">اختياريًا: إنشاء نشر جديد لتطبيق الويب يغيّر الرابط أيضًا، ويمكن بعدها أرشفة النشر القديم في Apps Script.</p>
+<h3 dir="rtl">10.2 تدوير مفتاح Gemini API</h3>
+<ol dir="rtl">
+<li dir="rtl">أنشئ مفتاحًا جديدًا في Google AI Studio.</li>
+<li dir="rtl">احفظه عبر تطبيق المالك (الإعدادات ← مفتاح ماسح الذكاء الاصطناعي، الذي يستدعي <code dir="ltr">setAiKey</code>) أو بالأمر <code dir="ltr">node scripts/laptop-setup.mjs --ai-key-from-clipboard</code>.</li>
+<li dir="rtl">اختبر مسحًا واحدًا، ثم احذف المفتاح القديم من Google AI Studio.</li>
+</ol>
+<h3 dir="rtl">10.3 كلمات مرور Firebase</h3>
+<p dir="rtl">يغيّر المستخدم كلمة مروره عبر «نسيت كلمة المرور؟». لا توجد شاشة «تغيير كلمة المرور» داخل التطبيق.</p>
+
+<h2 dir="rtl">11. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>التسجيل (حسابان)، الخروج/الدخول، الملف الشخصي الخاص 200 / ملف الآخر 403، قيود الحسابات العادية، حذف الحساب</td><td>مُتحقَّق منه حيًا (<code dir="ltr">scripts/live-verify.mjs</code>، 14/14 على الإنتاج)</td></tr>
+<tr><td>طلب إعادة تعيين كلمة المرور</td><td>مُتحقَّق منه حيًا (HTTP 200)؛ وصول الرسالة غير مُتحقَّق منه</td></tr>
+<tr><td>سلوك الإيقاف، تغيير الحالة من المسؤول، عزل المستخدمين</td><td>مختبَر على المحاكيات (مجموعة القواعد 14، تعدد المستخدمين 8)</td></tr>
+<tr><td>قبول الرمز / رفض الرمز الخاطئ</td><td>مُتحقَّق منه حيًا (اختبارات إعداد الحاسوب)</td></tr>
+<tr><td>تدوير الرمز (<code dir="ltr">rotateToken()</code>) وتدوير مفتاح Gemini</td><td>رُوجعت الشيفرة؛ لم يُنفَّذ التدوير بعد — غير مُتحقَّق منه</td></tr>
+<tr><td>سياسة كلمات المرور وإعداد الحماية من كشف البريد في Firebase</td><td>غير مُتحقَّق منه</td></tr>
+<tr><td>جهاز Android حقيقي</td><td>لم يُنفَّذ (أجهزة محاكاة فقط)</td></tr>
+</table>
+
+<h2 dir="rtl">12. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body>
+</html>

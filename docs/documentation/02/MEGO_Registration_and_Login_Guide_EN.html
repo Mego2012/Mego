@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Registration_and_Login_Guide_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Registration and Login Guide</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-10</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>End users</td></tr>
+<tr><td>Related documents</td><td>MEGO_Getting_Started, MEGO_User_Manual, MEGO_Profile_and_Goals_Guide, MEGO_Authentication_and_Session_Management, MEGO_Data_Retention_and_Deletion, MEGO_Privacy_Policy_Draft, MEGO_Terms_of_Service_Draft</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>Step-by-step instructions for creating a MEGO account, signing in, resetting a forgotten password, signing out, moving guest data into an account, what a suspended account sees, and how to delete an account. Button names are the exact English labels of the app.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>The welcome screen</li>
+<li>Create an account (3 steps)</li>
+<li>Sign in</li>
+<li>Forgot password</li>
+<li>Copy guest data into your account</li>
+<li>Your account card, sign out</li>
+<li>Suspended account screen</li>
+<li>Delete your account</li>
+<li>Error messages</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. The welcome screen</h2>
+<p>When nobody is signed in, MEGO opens a welcome screen ("Eat with precision.") with three buttons: <b>Create account</b>, <b>Sign in</b>, <b>Continue without an account (this device only)</b>, and links to the <b>Privacy policy</b> and <b>Terms of use</b> (both drafts pending legal review).</p>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/welcome-ar-light.png" width="280" alt="Welcome screen (Arabic screenshot)"></p>
+
+<h2>2. Create an account (3 steps)</h2>
+<p>A progress bar shows "Step n of 3". <b>Previous</b> goes back without losing what you typed.</p>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/register-ar-light.png" width="280" alt="Registration (Arabic screenshot)"></p>
+<h3>2.1 Step 1 — Create account</h3>
+<ol>
+<li><b>Display name</b>.</li>
+<li><b>Email</b>.</li>
+<li><b>Password</b> — "At least 8 characters, including a letter and a number." The hint turns to a warning colour while the rule is not met.</li>
+<li><b>Country</b> — choose from the list or <b>Other</b>. For EU, EEA, UK and Switzerland a note appears: the free AI photo scanner is not offered there (Google free-tier terms); everything else works.</li>
+<li>Tick <b>I am 18 or older</b>.</li>
+<li>Tick <b>I accept the Privacy policy · Terms of use</b> (the links open the texts).</li>
+<li><b>Next</b> becomes active only when the name, a valid e-mail, a valid password and both ticks are present.</li>
+</ol>
+<h3>2.2 Step 2 — About you</h3>
+<p>Choose <b>Male</b> or <b>Female</b>, then Age, Height (cm), Current weight (kg), Target weight (kg), <b>Activity level</b> (Sedentary · Light (1–3 days/week) · Moderate (3–5 days/week) · Active (6–7 days/week) · Very active (twice a day / physical job)) and <b>Goal</b> (Fat loss · Fat loss while preserving muscle · Weight maintenance · Body recomposition · Lean bulk · Bulk). <b>Next</b> requires age ≥ 18, height above 100 cm and weight above 30 kg.</p>
+<h3>2.3 Step 3 — Your daily targets</h3>
+<p>MEGO shows the calculation ("BMR … × activity = TDEE … kcal. Protein … g/kg") and four editable fields: Calories, Protein, Carbs, Fat. "Calculated with Mifflin–St Jeor × activity and your goal. Edit freely — you can change them any time in Settings." Press <b>Create my account</b>. The same values are saved as both training-day and rest-day targets; the profile answers are copied into Settings → Profile. Calculation details: MEGO_Profile_and_Goals_Guide.</p>
+<p>After creation the app reloads and opens your (empty) account dashboard.</p>
+
+<h2>3. Sign in</h2>
+<ol>
+<li>Welcome screen → <b>Sign in</b> (or, as a guest, Settings → Account → <b>Sign in / Create account</b>).</li>
+<li>Enter <b>Email</b> and <b>Password</b>.</li>
+<li>If this device has guest diary entries, an optional tick box appears (section 5).</li>
+<li>Press <b>Sign in</b>. Your records are downloaded and kept in sync with your other devices.</li>
+</ol>
+
+<h2>4. Forgot password</h2>
+<ol>
+<li>On the Sign in form press <b>Forgot password?</b></li>
+<li>Enter the account e-mail and press <b>Send reset link</b>.</li>
+<li>MEGO always shows the same message: "If an account exists for this email, a reset link has been sent. Check your inbox and spam folder." (It never reveals whether an address is registered.)</li>
+<li>Open the e-mail from Google Firebase, set a new password, then sign in again.</li>
+</ol>
+
+<h2>5. Copy guest data into your account</h2>
+<p>If you used MEGO as a guest on this device, the Sign in form and registration step 3 show a tick box: <b>Copy the n diary entries already on this device into my account</b>. When ticked, after the app reloads, all guest records (diary, foods, body measurements, recipes, plans, settings and others) are copied into the account and queued for upload; progress photos are copied locally. The guest data itself is left untouched on the device. The copy runs once.</p>
+<pre>
+ Guest database (this browser)  ──copy once──►  Account database (this browser)  ──sync──►  Cloud (your account only)
+      stays unchanged                                                                  other devices after sign-in
+</pre>
+
+<h2>6. Your account card, sign out</h2>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/account-ar-light.png" width="280" alt="Account card (Arabic screenshot)"></p>
+<p>Settings → <b>Account</b> shows your name, e-mail, "member since" date and the chip "Synced account". You can change the Display name (up to 40 characters) and press <b>Save</b>. Buttons: <b>Export my data</b> (downloads a backup file), <b>Sign out</b>, <b>Delete account</b>. Administrators also see <b>Administration</b>.</p>
+<p><b>Sign out</b> returns to the welcome screen. Your cloud data is not affected; sign in again on any device to continue.</p>
+
+<h2>7. Suspended account screen</h2>
+<p>If an administrator suspends an account, the app shows only "Account suspended — This account has been suspended by the administrator. Your data is kept and nothing has been deleted." with a <b>Sign out</b> button. While suspended, the server rules do not allow the account to read or write its records. Only an administrator can reactivate it (see MEGO_User_Management_Procedures).</p>
+
+<h2>8. Delete your account</h2>
+<ol>
+<li>Optional but recommended: press <b>Export my data</b> first.</li>
+<li>Settings → Account → <b>Delete account</b>.</li>
+<li>Read the warning: "This permanently deletes your account, your cloud data and this device's copy of it."</li>
+<li>Enter your <b>Password</b> (Google requires a recent sign-in) and press <b>Delete permanently</b>; <b>Cancel</b> stops.</li>
+</ol>
+<p>What happens, in order: the password is verified; every cloud record of the account is deleted; the profile is deleted; the login is deleted; the account's copy in this browser is deleted; the app returns to the welcome screen. Guest data on the device is not touched. Copies on other devices you were signed in to are not removed by this action (Not verified whether they are cleaned up on their next start).</p>
+
+<h2>9. Error messages</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Message</th><th>What to do</th></tr>
+<tr><td>An account with this email already exists. Sign in instead.</td><td>Use Sign in or Forgot password?</td></tr>
+<tr><td>Please enter a valid email address.</td><td>Check the spelling</td></tr>
+<tr><td>Choose a stronger password (at least 8 characters with a letter and a number).</td><td>Change the password</td></tr>
+<tr><td>Email or password is incorrect.</td><td>Retry or reset the password</td></tr>
+<tr><td>Too many attempts. Please wait a few minutes and try again.</td><td>Wait</td></tr>
+<tr><td>No connection. Check your internet and try again.</td><td>Reconnect</td></tr>
+<tr><td>You must be 18 or older to create an account.</td><td>Registration is for adults only</td></tr>
+<tr><td>This account has been disabled.</td><td>Contact the operator</td></tr>
+<tr><td>Please sign in again and retry.</td><td>Sign out, sign in, repeat the action</td></tr>
+</table>
+
+<h2>10. Verification status</h2>
+<ul>
+<li><b>Verified live</b> (scripts/live-verify.mjs 14/14 against production): registration of two accounts, own profile readable / other profile refused, second-device sync, regular account cannot suspend others or make itself admin, password-reset request accepted (HTTP 200), sign-out/sign-in, deletion of both test accounts.</li>
+<li><b>Tested on emulators only</b>: guest-data import and the suspended screen (multi-user suite 8/8 and rules tests 14/14 on Firebase emulators).</li>
+<li><b>Not verified</b>: delivery of the reset e-mail to an inbox; behaviour on other devices after an account is deleted. No administrator account exists yet, so suspension has not been exercised in production.</li>
+</ul>
+
+<h2>11. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

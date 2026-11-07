@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MEGO_Database_Schema_and_Relationships_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Database Schema and Relationships</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-41</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Developers, maintainers, technical reviewers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Technical_Architecture, MEGO_Firebase_Integration, MEGO_Google_Sheets_Integration_and_Sync, MEGO_State_Management, MEGO_Security_Architecture, MEGO_Access_Control_and_Permissions, MEGO_Data_Backup_and_Recovery</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes every place where MEGO stores structured data and how the stores relate to each other: the on-device IndexedDB database (Dexie), the Cloud Firestore collections used by signed-in accounts, and the tabs of the owner's Google Sheet "MEGO Nutrition Hub" managed by the Apps Script backend. All table names, keys, indexes and fields were taken from the source code: <code>src/lib/db.ts</code>, <code>src/lib/types.ts</code>, <code>src/lib/firebase.ts</code>, <code>src/lib/cloudSync.ts</code>, <code>firebase/firestore.rules</code> and <code>apps-script/Code.gs</code>.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Storage overview</li>
+<li>Local database (IndexedDB / Dexie)</li>
+<li>Record types (src/lib/types.ts)</li>
+<li>Cloud Firestore collections</li>
+<li>Google Sheets Hub tabs</li>
+<li>Relationships and data flow</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Storage overview</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Store</th><th>Technology</th><th>Who uses it</th><th>Role</th></tr>
+<tr><td><code>mego-nutrition</code></td><td>IndexedDB via Dexie</td><td>Guest mode / owner device</td><td>Primary data store of the device (offline-first)</td></tr>
+<tr><td><code>mego-u-&lt;uid&gt;</code></td><td>IndexedDB via Dexie</td><td>Each signed-in account on a device</td><td>Same schema, one database per account, so two people sharing a phone never see each other's data</td></tr>
+<tr><td><code>mego-nutrition-premigration</code></td><td>IndexedDB (raw)</td><td>Created automatically before a schema upgrade</td><td>Copy of all stores of the old version (store <code>backups</code>)</td></tr>
+<tr><td>Cloud Firestore <code>(default)</code>, project <code>mego-473920</code>, region <code>me-central2</code></td><td>Firebase Spark plan</td><td>Signed-in accounts</td><td>Account cards, private per-user records, shared food database, submissions, error reports</td></tr>
+<tr><td>Google Sheet "MEGO Nutrition Hub"</td><td>Google Sheets + Apps Script</td><td>Owner device connected with the owner token</td><td>Owner's readable mirror of the data and owner-managed food database</td></tr>
+</table>
+<p>The local database is always the working copy. Firestore and the Hub are synchronisation targets; the app keeps working offline.</p>
+
+<h2>2. Local database (IndexedDB / Dexie)</h2>
+<h3>2.1 Version history</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Dexie version</th><th>Change</th></tr>
+<tr><td>1</td><td>Tables <code>foods, foodChanges, entries, recipes, templates, plans, plannedDays, body, days, settings, outbox</code></td></tr>
+<tr><td>2</td><td>Additive only: new tables <code>kv, fasts, photos, backups</code>. Existing records are not transformed.</td></tr>
+</table>
+<p><code>DB_SCHEMA_VERSION = 2</code>. Before Dexie upgrades an existing database, <code>preMigrationBackup()</code> copies every store of the old version as JSON (format <code>mego-nutrition-backup</code>) into the separate database <code>mego-nutrition-premigration</code>. Dexie stores <em>version × 10</em> in native IndexedDB, which the function takes into account.</p>
+
+<h3>2.2 Tables and indexes</h3>
+<p>Dexie notation: the first entry is the primary key; <code>++</code> = auto-increment; <code>&amp;</code> = unique index; <code>[a+b]</code> = compound index.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Table</th><th>Primary key</th><th>Secondary indexes</th><th>Record type</th><th>Synced?</th></tr>
+<tr><td>foods</td><td>id</td><td>nameAr, nameEn, category, state, favorite, source, sheetKey, archived, lastUsedAt, updatedAt</td><td>Food</td><td>Yes</td></tr>
+<tr><td>foodChanges</td><td>++id</td><td>foodId, at</td><td>FoodChange</td><td>Yes</td></tr>
+<tr><td>entries</td><td>id</td><td>date, [date+meal], foodId, recipeId, updatedAt</td><td>DiaryEntry</td><td>Yes</td></tr>
+<tr><td>recipes</td><td>id</td><td>name, updatedAt</td><td>Recipe</td><td>Yes</td></tr>
+<tr><td>templates</td><td>id</td><td>name, updatedAt</td><td>MealTemplate</td><td>Yes</td></tr>
+<tr><td>plans</td><td>id</td><td>name, dayType, updatedAt</td><td>DayPlan</td><td>Yes</td></tr>
+<tr><td>plannedDays</td><td>date</td><td>planId, updatedAt</td><td>PlannedDay</td><td>Yes</td></tr>
+<tr><td>body</td><td>id</td><td>&amp;date (unique), updatedAt</td><td>BodyEntry</td><td>Yes</td></tr>
+<tr><td>days</td><td>date</td><td>updatedAt</td><td>DayLog</td><td>Yes</td></tr>
+<tr><td>settings</td><td>id (always <code>'main'</code>)</td><td>—</td><td>Settings</td><td>Yes (without the <code>sync</code> block)</td></tr>
+<tr><td>outbox</td><td>++id</td><td>table, at</td><td>OutboxItem</td><td>No (it is the queue itself)</td></tr>
+<tr><td>kv</td><td>key</td><td>updatedAt</td><td>KV {key, value, updatedAt}</td><td>Yes</td></tr>
+<tr><td>fasts</td><td>id</td><td>start, updatedAt</td><td>FastSession</td><td>Yes</td></tr>
+<tr><td>photos</td><td>id</td><td>date</td><td>ProgressPhoto (Blob)</td><td>No — device only</td></tr>
+<tr><td>backups</td><td>++id</td><td>at, reason</td><td>LocalBackup</td><td>No — device only</td></tr>
+</table>
+<p>"Synced" means the table is listed in <code>SYNC_TABLES</code> (12 tables) and is therefore mirrored to Firestore for accounts, or to the Hub's structured tabs for the owner device.</p>
+
+<h2>3. Record types (src/lib/types.ts)</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Type</th><th>Key fields</th><th>Notes</th></tr>
+<tr><td>Food</td><td>id, nameAr, nameEn, category, per100 (Macros), state (raw/cooked/other), stateLabel, prep, notes, pieceGrams?, gramsPerMl?, servings[], favorite, source (sheet/custom/openfoodfacts/usda), sourceRef?, barcode?, brand?, sheetKey?, sheetRow?, incomplete, archived, version, createdAt, updatedAt, lastUsedAt?, useCount</td><td>Values per 100 g; optional nutrients undefined = unknown, never zero</td></tr>
+<tr><td>Macros</td><td>kcal, protein, carbs, fat, fiber?, sugar?, sodium? (mg), satFat?</td><td>Embedded object</td></tr>
+<tr><td>FoodChange</td><td>id, foodId, foodName, at, action (create/update/archive/restore/import/sheet-update), before?, after?, origin (app/sheet/file)</td><td>Audit trail of food edits</td></tr>
+<tr><td>DiaryEntry</td><td>id, date (YYYY-MM-DD), meal, foodId?, recipeId?, name, state, quantity, unit, servingId?, grams, basis (EntryBasis), macros, order, createdAt, updatedAt, deleted?</td><td><code>basis</code> is a snapshot taken at log time — never re-read from the food</td></tr>
+<tr><td>Recipe</td><td>id, name, servings, ingredients[] (RecipeIngredient), totals, perServing, totalGrams, notes, favorite, libraryId?, timestamps, deleted?</td><td>Ingredients reference foodId</td></tr>
+<tr><td>MealTemplate / DayPlan</td><td>id, name, items[] (PlanItem), favorite / dayType, timestamps, deleted?</td><td>PlanItem references foodId or recipeId</td></tr>
+<tr><td>PlannedDay</td><td>date, planId?, items[], updatedAt</td><td>Plan applied to a calendar date</td></tr>
+<tr><td>BodyEntry</td><td>id, date, weight?, waist?, chest?, hips?, arm?, thigh?, neck?, bodyFat?, notes, timestamps, deleted?</td><td>One per date (unique index)</td></tr>
+<tr><td>DayLog</td><td>date, status?, dayType?, targetsOverride?, notes?, waterMl?, habits?, updatedAt</td><td>Per-day water, habits, completeness</td></tr>
+<tr><td>FastSession</td><td>id, start, end?, targetHours, updatedAt, deleted?</td><td></td></tr>
+<tr><td>ProgressPhoto</td><td>id, date, blob, note, createdAt</td><td>Stays on the device</td></tr>
+<tr><td>LocalBackup</td><td>id, at, reason (auto-daily/manual/pre-migration/pre-restore/pre-import/pre-pull), size, json</td><td></td></tr>
+<tr><td>Settings</td><td>id 'main', profile, targets {training, rest}, trainingWeekdays, tolerance, lang, theme, sync (SyncConfig), water/habit/reminder/fasting settings, diet?, foodExclusions?, backupPhotos, updatedAt</td><td><code>sync</code> holds the Hub URL and token — never uploaded or exported</td></tr>
+<tr><td>OutboxItem</td><td>id, table, key, op (upsert/delete), payload?, at</td><td>Pending changes queue</td></tr>
+</table>
+
+<h2>4. Cloud Firestore collections</h2>
+<p>No composite indexes are defined (<code>firebase/firestore.indexes.json</code> is empty); queries use single-field indexes.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Path</th><th>Fields</th><th>Written by</th></tr>
+<tr><td><code>profiles/{uid}</code></td><td>displayName, email, status ('active'|'suspended'), country (2 letters), ageConfirmed (true), createdAt, lastActiveAt</td><td>Owner at registration; owner may change displayName, country, lastActiveAt; admin may change status only</td></tr>
+<tr><td><code>users/{uid}/{table}/{key}</code></td><td>data (JSON string &lt; 300,000 chars), updatedAt (int), deleted? (bool) — no other fields allowed</td><td>Only the owner while active; <code>table</code> must be one of the 12 synced tables</td></tr>
+<tr><td><code>admins/{uid}</code></td><td>since (timestamp number)</td><td>Never from the app (rules: <code>write: if false</code>); written with owner credentials by <code>scripts/laptop-setup.mjs --cloud &lt;email&gt;</code></td></tr>
+<tr><td><code>foods/{id}</code></td><td>row, sheetKey, nameAr, nameEn, category, per100, pieceGrams?, state, stateLabel, prep, notes</td><td>Admins only (publish verified foods, approve submissions as <code>U-&lt;submissionId&gt;</code>)</td></tr>
+<tr><td><code>foodSubmissions/{id}</code></td><td>ownerUid, status ('pending'|'approved'|'rejected'), at, food {…}</td><td>Users create as pending with their own uid; admins review</td></tr>
+<tr><td><code>errorReports/{id}</code></td><td>at, kind (≤ 40 chars), message (&lt; 500 chars), app</td><td>Any signed-in user; read only by admins</td></tr>
+</table>
+<p>The settings record is uploaded without its <code>sync</code> block (<code>serialise()</code> in <code>cloudSync.ts</code>). Shared foods arrive locally with <code>source: 'sheet'</code> and are not pushed back to <code>users/…/foods</code>.</p>
+
+<h2>5. Google Sheets Hub tabs</h2>
+<p>Structured tabs (from <code>TABLES</code> in <code>Code.gs</code>). Every structured tab ends with two extra columns: <code>updated_at</code> and <code>json</code> (the full record).</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>App table</th><th>Tab</th><th>Key column</th><th>Readable columns</th><th>Owner</th></tr>
+<tr><td>foods</td><td>Food_Database</td><td>food_id</td><td>name_ar, name_en, category, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, sodium_mg_100g, piece_g, state, state_label, prep, source, verification, barcode, notes, active</td><td>sheet</td></tr>
+<tr><td>entries</td><td>Food_Log</td><td>record_id</td><td>date, meal, food_id, recipe_id, name, state, quantity, unit, grams, kcal, protein, carbs, fat, fiber</td><td>app</td></tr>
+<tr><td>body</td><td>Body_Measurements</td><td>record_id</td><td>date, weight, waist, chest, hips, arm, thigh, neck, body_fat, notes</td><td>app</td></tr>
+<tr><td>days</td><td>Daily_Log</td><td>date</td><td>water_ml, status, day_type, habits_done, notes</td><td>app</td></tr>
+<tr><td>recipes</td><td>Recipes</td><td>recipe_id</td><td>name, servings, kcal/protein/carbs/fat_serving, total_grams, library_id, notes</td><td>app</td></tr>
+<tr><td>templates</td><td>Saved_Meals</td><td>template_id</td><td>name, items</td><td>app</td></tr>
+<tr><td>plans</td><td>Meal_Plan_Templates</td><td>plan_id</td><td>name, day_type, items</td><td>app</td></tr>
+<tr><td>plannedDays</td><td>Meal_Plans</td><td>date</td><td>plan_id, items</td><td>app</td></tr>
+<tr><td>fasts</td><td>Fasting_Log</td><td>record_id</td><td>start, end, target_hours</td><td>app</td></tr>
+<tr><td>kv</td><td>App_KeyValue</td><td>key</td><td>—</td><td>app</td></tr>
+<tr><td>settings</td><td>Settings_App</td><td>key</td><td>goal, kcal, protein, carbs, fat, water_ml, weight, target_weight, language</td><td>both (newest wins)</td></tr>
+<tr><td>foodChanges</td><td>Food_Change_Log</td><td>change_id</td><td>food_id, food_name, action, origin</td><td>app</td></tr>
+</table>
+<p>Derived and system tabs (<code>DERIVED_TABS</code>): Recipe_Ingredients, Weight_Log, Water_Log, Habits_Log, Shopping_List, Food_Aliases, Sync_Metadata (key, value), Deleted_Records (table, key, deleted_at, json, recovered), Backup_Log (at, kind, file, status, details). Additional tabs: Hub_Dashboard (formulas), Migration_Report, and the original Arabic food tab «قاعدة بيانات الأطعمة», which is never modified. Deletes are soft: the row is copied to Deleted_Records before removal. App JSON backups go to a Drive folder "MEGO Nutrition Backups".</p>
+
+<h2>6. Relationships and data flow</h2>
+<pre>
+ Food (id) ──&lt; DiaryEntry.foodId        (entry keeps its own basis snapshot)
+ Food (id) ──&lt; RecipeIngredient.foodId ── Recipe (id) ──&lt; DiaryEntry.recipeId
+ Food/Recipe ──&lt; PlanItem ── MealTemplate / DayPlan (id) ──&lt; PlannedDay.planId
+ Food (id) ──&lt; FoodChange.foodId
+ DayLog.date ·· DiaryEntry.date ·· BodyEntry.date   (joined by calendar date)
+
+ ┌──────────── device ─────────────┐        ┌───────── Firestore ─────────┐
+ │ mego-u-&lt;uid&gt;  12 SYNC_TABLES ───┼─outbox─▶│ users/{uid}/{table}/{key}   │
+ │               ◀── live listener ─┼────────│                             │
+ │ photos, backups (local only)     │        │ profiles/{uid}  admins/{uid}│
+ │ foods(source=sheet) ◀────────────┼────────│ foods/{id} (shared)         │
+ └──────────────────────────────────┘        │ foodSubmissions  errorReports│
+ ┌──── owner device (mego-nutrition) ┐        └─────────────────────────────┘
+ │ 12 SYNC_TABLES ── push/pull ──────┼──▶ Apps Script ──▶ Hub tabs (Food_Log …)
+ └───────────────────────────────────┘
+</pre>
+<p>Relations are logical (by id), not enforced foreign keys. Deleting a food does not cascade: foods are archived (<code>archived</code>), and diary entries remain valid because they carry their own nutrition snapshot. Conflict rule everywhere: a record with an older <code>updatedAt</code> never overwrites a newer one (Firestore rule, Hub <code>push_</code>, and local <code>applyRemote</code>).</p>
+
+<h2>7. Verification status</h2>
+<ul>
+<li>Verified live (production): Firestore records written under <code>users/{uid}/entries</code> for the owner, cross-account and anonymous reads refused (403), second-device sync — <code>scripts/live-verify.mjs</code> 14/14. Hub tabs Food_Database (160 foods), soft delete into Deleted_Records and "older copy never overwrites newer" — laptop-setup live tests.</li>
+<li>Tested on emulators: record shape validation (<code>data</code> string, size limit, unknown table refused) — <code>tests-rules/rules.test.ts</code>; conflict handling — <code>tests-rules/cloud.test.ts</code>.</li>
+<li>Not verified: the automatic pre-migration backup has not been checked during a real upgrade on a real user's device.</li>
+</ul>
+
+<h2>8. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

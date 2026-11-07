@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="utf-8"><title>MEGO_Database_Schema_and_Relationships_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — مخطط قواعد البيانات والعلاقات بينها</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-41</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-07</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-07</td></tr>
+<tr><td>المالك</td><td>مالك مشروع MEGO</td></tr>
+<tr><td>الحالة</td><td>معتمدة للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور المستهدف</td><td>المطورون، فريق الصيانة، المراجعون التقنيون</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Technical_Architecture، MEGO_Firebase_Integration، MEGO_Google_Sheets_Integration_and_Sync، MEGO_State_Management، MEGO_Security_Architecture، MEGO_Access_Control_and_Permissions، MEGO_Data_Backup_and_Recovery</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">توضّح هذه الوثيقة كل موضع يخزّن فيه MEGO بيانات منظَّمة، وكيف ترتبط هذه المواضع ببعضها: قاعدة البيانات المحلية على الجهاز «قاعدة بيانات المتصفح (IndexedDB) عبر مكتبة Dexie»، ومجموعات «قاعدة البيانات السحابية (Cloud Firestore)» الخاصة بالحسابات المسجَّلة، وتبويبات جدول المالك في Google Sheets المسمّى «MEGO Nutrition Hub» الذي يديره الخادم الخلفي «Apps Script». أُخذت جميع أسماء الجداول والمفاتيح والفهارس والحقول من الشيفرة المصدرية مباشرة: <code dir="ltr">src/lib/db.ts</code> و<code dir="ltr">src/lib/types.ts</code> و<code dir="ltr">src/lib/firebase.ts</code> و<code dir="ltr">src/lib/cloudSync.ts</code> و<code dir="ltr">firebase/firestore.rules</code> و<code dir="ltr">apps-script/Code.gs</code>.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">نظرة عامة على مواضع التخزين</li>
+<li dir="rtl">قاعدة البيانات المحلية (IndexedDB / Dexie)</li>
+<li dir="rtl">أنواع السجلات (src/lib/types.ts)</li>
+<li dir="rtl">مجموعات Cloud Firestore</li>
+<li dir="rtl">تبويبات جدول Google Sheets (Hub)</li>
+<li dir="rtl">العلاقات وتدفّق البيانات</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. نظرة عامة على مواضع التخزين</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المخزن</th><th>التقنية</th><th>من يستخدمه</th><th>الدور</th></tr>
+<tr><td><code dir="ltr">mego-nutrition</code></td><td>IndexedDB عبر Dexie</td><td>وضع الضيف / جهاز المالك</td><td>المخزن الأساسي على الجهاز (يعمل دون اتصال أولًا)</td></tr>
+<tr><td><code dir="ltr">mego-u-&lt;uid&gt;</code></td><td>IndexedDB عبر Dexie</td><td>كل حساب مسجَّل على الجهاز</td><td>المخطط نفسه، وقاعدة مستقلة لكل حساب، فلا يرى شخصان يتشاركان هاتفًا بيانات بعضهما</td></tr>
+<tr><td><code dir="ltr">mego-nutrition-premigration</code></td><td>IndexedDB مباشرة</td><td>تُنشأ تلقائيًا قبل ترقية المخطط</td><td>نسخة من جميع مخازن الإصدار القديم (مخزن <code dir="ltr">backups</code>)</td></tr>
+<tr><td>Cloud Firestore <code dir="ltr">(default)</code>، المشروع <code dir="ltr">mego-473920</code>، المنطقة <code dir="ltr">me-central2</code></td><td>خطة Firebase المجانية (Spark)</td><td>الحسابات المسجَّلة</td><td>بطاقات الحسابات، السجلات الخاصة بكل مستخدم، قاعدة الأطعمة المشتركة، المقترحات، تقارير الأخطاء</td></tr>
+<tr><td>جدول Google «MEGO Nutrition Hub»</td><td>Google Sheets + Apps Script</td><td>جهاز المالك المتصل برمز المالك</td><td>نسخة مقروءة لبيانات المالك وقاعدة الأطعمة التي يديرها المالك</td></tr>
+</table>
+<p dir="rtl">القاعدة المحلية هي دائمًا نسخة العمل، أما Firestore والـ Hub فهما وجهتا مزامنة؛ ويستمر التطبيق في العمل دون إنترنت.</p>
+
+<h2 dir="rtl">2. قاعدة البيانات المحلية (IndexedDB / Dexie)</h2>
+<h3 dir="rtl">2.1 تاريخ الإصدارات</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>إصدار Dexie</th><th>التغيير</th></tr>
+<tr><td>1</td><td>الجداول <code dir="ltr">foods, foodChanges, entries, recipes, templates, plans, plannedDays, body, days, settings, outbox</code></td></tr>
+<tr><td>2</td><td>إضافات فقط: جداول جديدة <code dir="ltr">kv, fasts, photos, backups</code>، دون تحويل أي سجل قائم.</td></tr>
+</table>
+<p dir="rtl">قيمة <code dir="ltr">DB_SCHEMA_VERSION = 2</code>. قبل أن يرقّي Dexie قاعدة موجودة، تنسخ الدالة <code dir="ltr">preMigrationBackup()</code> جميع مخازن الإصدار القديم بصيغة JSON (الصيغة <code dir="ltr">mego-nutrition-backup</code>) إلى القاعدة المنفصلة <code dir="ltr">mego-nutrition-premigration</code>. يخزّن Dexie رقم الإصدار مضروبًا في 10 داخل IndexedDB، والدالة تراعي ذلك.</p>
+
+<h3 dir="rtl">2.2 الجداول والفهارس</h3>
+<p dir="rtl">ترميز Dexie: أول عنصر هو المفتاح الأساسي؛ <code dir="ltr">++</code> ترقيم تلقائي؛ <code dir="ltr">&amp;</code> فهرس فريد؛ <code dir="ltr">[a+b]</code> فهرس مركّب.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الجدول</th><th>المفتاح الأساسي</th><th>الفهارس الثانوية</th><th>نوع السجل</th><th>يُزامَن؟</th></tr>
+<tr><td>foods</td><td>id</td><td dir="ltr">nameAr, nameEn, category, state, favorite, source, sheetKey, archived, lastUsedAt, updatedAt</td><td>Food</td><td>نعم</td></tr>
+<tr><td>foodChanges</td><td>++id</td><td dir="ltr">foodId, at</td><td>FoodChange</td><td>نعم</td></tr>
+<tr><td>entries</td><td>id</td><td dir="ltr">date, [date+meal], foodId, recipeId, updatedAt</td><td>DiaryEntry</td><td>نعم</td></tr>
+<tr><td>recipes</td><td>id</td><td dir="ltr">name, updatedAt</td><td>Recipe</td><td>نعم</td></tr>
+<tr><td>templates</td><td>id</td><td dir="ltr">name, updatedAt</td><td>MealTemplate</td><td>نعم</td></tr>
+<tr><td>plans</td><td>id</td><td dir="ltr">name, dayType, updatedAt</td><td>DayPlan</td><td>نعم</td></tr>
+<tr><td>plannedDays</td><td>date</td><td dir="ltr">planId, updatedAt</td><td>PlannedDay</td><td>نعم</td></tr>
+<tr><td>body</td><td>id</td><td dir="ltr">&amp;date (unique), updatedAt</td><td>BodyEntry</td><td>نعم</td></tr>
+<tr><td>days</td><td>date</td><td dir="ltr">updatedAt</td><td>DayLog</td><td>نعم</td></tr>
+<tr><td>settings</td><td>id (دائمًا <code dir="ltr">'main'</code>)</td><td>—</td><td>Settings</td><td>نعم (دون كتلة <code dir="ltr">sync</code>)</td></tr>
+<tr><td>outbox</td><td>++id</td><td dir="ltr">table, at</td><td>OutboxItem</td><td>لا (هو طابور المزامنة نفسه)</td></tr>
+<tr><td>kv</td><td>key</td><td dir="ltr">updatedAt</td><td dir="ltr">KV {key, value, updatedAt}</td><td>نعم</td></tr>
+<tr><td>fasts</td><td>id</td><td dir="ltr">start, updatedAt</td><td>FastSession</td><td>نعم</td></tr>
+<tr><td>photos</td><td>id</td><td dir="ltr">date</td><td>ProgressPhoto (Blob)</td><td>لا — على الجهاز فقط</td></tr>
+<tr><td>backups</td><td>++id</td><td dir="ltr">at, reason</td><td>LocalBackup</td><td>لا — على الجهاز فقط</td></tr>
+</table>
+<p dir="rtl">«يُزامَن» تعني أن الجدول مدرج في <code dir="ltr">SYNC_TABLES</code> (12 جدولًا)، فيُنسخ إلى Firestore في حالة الحسابات، أو إلى تبويبات الـ Hub المنظَّمة في حالة جهاز المالك.</p>
+
+<h2 dir="rtl">3. أنواع السجلات (src/lib/types.ts)</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>النوع</th><th>أهم الحقول</th><th>ملاحظات</th></tr>
+<tr><td>Food</td><td dir="ltr">id, nameAr, nameEn, category, per100 (Macros), state (raw/cooked/other), stateLabel, prep, notes, pieceGrams?, gramsPerMl?, servings[], favorite, source (sheet/custom/openfoodfacts/usda), sourceRef?, barcode?, brand?, sheetKey?, sheetRow?, incomplete, archived, version, createdAt, updatedAt, lastUsedAt?, useCount</td><td>القيم لكل 100 غ؛ العناصر الاختيارية غير المعرّفة تعني «غير معروف» ولا تُعامل كصفر</td></tr>
+<tr><td>Macros</td><td dir="ltr">kcal, protein, carbs, fat, fiber?, sugar?, sodium? (mg), satFat?</td><td>كائن مضمَّن</td></tr>
+<tr><td>FoodChange</td><td dir="ltr">id, foodId, foodName, at, action (create/update/archive/restore/import/sheet-update), before?, after?, origin (app/sheet/file)</td><td>سجل تدقيق لتعديلات الأطعمة</td></tr>
+<tr><td>DiaryEntry</td><td dir="ltr">id, date (YYYY-MM-DD), meal, foodId?, recipeId?, name, state, quantity, unit, servingId?, grams, basis (EntryBasis), macros, order, createdAt, updatedAt, deleted?</td><td>الحقل <code dir="ltr">basis</code> لقطة تؤخذ لحظة التسجيل ولا تُقرأ من الطعام مجددًا</td></tr>
+<tr><td>Recipe</td><td dir="ltr">id, name, servings, ingredients[] (RecipeIngredient), totals, perServing, totalGrams, notes, favorite, libraryId?, timestamps, deleted?</td><td>المكوّنات تشير إلى foodId</td></tr>
+<tr><td>MealTemplate / DayPlan</td><td dir="ltr">id, name, items[] (PlanItem), favorite / dayType, timestamps, deleted?</td><td>PlanItem يشير إلى foodId أو recipeId</td></tr>
+<tr><td>PlannedDay</td><td dir="ltr">date, planId?, items[], updatedAt</td><td>خطة مطبَّقة على تاريخ محدد</td></tr>
+<tr><td>BodyEntry</td><td dir="ltr">id, date, weight?, waist?, chest?, hips?, arm?, thigh?, neck?, bodyFat?, notes, timestamps, deleted?</td><td>سجل واحد لكل تاريخ (فهرس فريد)</td></tr>
+<tr><td>DayLog</td><td dir="ltr">date, status?, dayType?, targetsOverride?, notes?, waterMl?, habits?, updatedAt</td><td>الماء والعادات واكتمال اليوم</td></tr>
+<tr><td>FastSession</td><td dir="ltr">id, start, end?, targetHours, updatedAt, deleted?</td><td></td></tr>
+<tr><td>ProgressPhoto</td><td dir="ltr">id, date, blob, note, createdAt</td><td>تبقى على الجهاز</td></tr>
+<tr><td>LocalBackup</td><td dir="ltr">id, at, reason (auto-daily/manual/pre-migration/pre-restore/pre-import/pre-pull), size, json</td><td></td></tr>
+<tr><td>Settings</td><td dir="ltr">id 'main', profile, targets {training, rest}, trainingWeekdays, tolerance, lang, theme, sync (SyncConfig), water/habit/reminder/fasting settings, diet?, foodExclusions?, backupPhotos, updatedAt</td><td>الحقل <code dir="ltr">sync</code> يحمل رابط الـ Hub والرمز، ولا يُرفع ولا يُصدَّر أبدًا</td></tr>
+<tr><td>OutboxItem</td><td dir="ltr">id, table, key, op (upsert/delete), payload?, at</td><td>طابور التغييرات المعلّقة</td></tr>
+</table>
+
+<h2 dir="rtl">4. مجموعات Cloud Firestore</h2>
+<p dir="rtl">لا توجد فهارس مركّبة معرّفة (الملف <code dir="ltr">firebase/firestore.indexes.json</code> فارغ)، وتعتمد الاستعلامات على الفهارس أحادية الحقل.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المسار</th><th>الحقول</th><th>من يكتب</th></tr>
+<tr><td><code dir="ltr">profiles/{uid}</code></td><td dir="ltr">displayName, email, status ('active'|'suspended'), country (2 letters), ageConfirmed (true), createdAt, lastActiveAt</td><td>صاحب الحساب عند التسجيل، ويمكنه تعديل displayName وcountry وlastActiveAt؛ والمسؤول يعدّل status فقط</td></tr>
+<tr><td><code dir="ltr">users/{uid}/{table}/{key}</code></td><td dir="ltr">data (JSON string &lt; 300,000 chars), updatedAt (int), deleted? (bool)</td><td>صاحب الحساب فقط ما دام نشطًا؛ ويجب أن يكون <code dir="ltr">table</code> أحد الجداول الـ 12 المتزامنة؛ ولا يُسمح بأي حقل آخر</td></tr>
+<tr><td><code dir="ltr">admins/{uid}</code></td><td dir="ltr">since (timestamp number)</td><td>لا يُكتب من التطبيق إطلاقًا (القاعدة <code dir="ltr">write: if false</code>)؛ يكتبه سكربت <code dir="ltr">scripts/laptop-setup.mjs --cloud &lt;email&gt;</code> بصلاحيات المالك</td></tr>
+<tr><td><code dir="ltr">foods/{id}</code></td><td dir="ltr">row, sheetKey, nameAr, nameEn, category, per100, pieceGrams?, state, stateLabel, prep, notes</td><td>المسؤولون فقط (نشر الأطعمة المعتمدة، واعتماد المقترحات بالمعرّف <code dir="ltr">U-&lt;submissionId&gt;</code>)</td></tr>
+<tr><td><code dir="ltr">foodSubmissions/{id}</code></td><td dir="ltr">ownerUid, status ('pending'|'approved'|'rejected'), at, food {…}</td><td>ينشئها المستخدم بحالة pending وبمعرّفه هو؛ ويراجعها المسؤول</td></tr>
+<tr><td><code dir="ltr">errorReports/{id}</code></td><td dir="ltr">at, kind (≤ 40 chars), message (&lt; 500 chars), app</td><td>أي مستخدم مسجَّل الدخول؛ ولا يقرؤها إلا المسؤولون</td></tr>
+</table>
+<p dir="rtl">يُرفع سجل الإعدادات دون كتلة <code dir="ltr">sync</code> (الدالة <code dir="ltr">serialise()</code> في <code dir="ltr">cloudSync.ts</code>). وتصل الأطعمة المشتركة محليًا بالمصدر <code dir="ltr">source: 'sheet'</code> ولا تُرفع مجددًا إلى <code dir="ltr">users/…/foods</code>.</p>
+
+<h2 dir="rtl">5. تبويبات جدول Google Sheets (Hub)</h2>
+<p dir="rtl">التبويبات المنظَّمة (من الكائن <code dir="ltr">TABLES</code> في <code dir="ltr">Code.gs</code>). ينتهي كل تبويب منظَّم بعمودين إضافيين: <code dir="ltr">updated_at</code> و<code dir="ltr">json</code> (السجل كاملًا).</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>جدول التطبيق</th><th>التبويب</th><th>عمود المفتاح</th><th>الأعمدة المقروءة</th><th>المالك</th></tr>
+<tr><td>foods</td><td>Food_Database</td><td>food_id</td><td dir="ltr">name_ar, name_en, category, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, sodium_mg_100g, piece_g, state, state_label, prep, source, verification, barcode, notes, active</td><td>الجدول (sheet)</td></tr>
+<tr><td>entries</td><td>Food_Log</td><td>record_id</td><td dir="ltr">date, meal, food_id, recipe_id, name, state, quantity, unit, grams, kcal, protein, carbs, fat, fiber</td><td>التطبيق</td></tr>
+<tr><td>body</td><td>Body_Measurements</td><td>record_id</td><td dir="ltr">date, weight, waist, chest, hips, arm, thigh, neck, body_fat, notes</td><td>التطبيق</td></tr>
+<tr><td>days</td><td>Daily_Log</td><td>date</td><td dir="ltr">water_ml, status, day_type, habits_done, notes</td><td>التطبيق</td></tr>
+<tr><td>recipes</td><td>Recipes</td><td>recipe_id</td><td dir="ltr">name, servings, kcal/protein/carbs/fat_serving, total_grams, library_id, notes</td><td>التطبيق</td></tr>
+<tr><td>templates</td><td>Saved_Meals</td><td>template_id</td><td dir="ltr">name, items</td><td>التطبيق</td></tr>
+<tr><td>plans</td><td>Meal_Plan_Templates</td><td>plan_id</td><td dir="ltr">name, day_type, items</td><td>التطبيق</td></tr>
+<tr><td>plannedDays</td><td>Meal_Plans</td><td>date</td><td dir="ltr">plan_id, items</td><td>التطبيق</td></tr>
+<tr><td>fasts</td><td>Fasting_Log</td><td>record_id</td><td dir="ltr">start, end, target_hours</td><td>التطبيق</td></tr>
+<tr><td>kv</td><td>App_KeyValue</td><td>key</td><td>—</td><td>التطبيق</td></tr>
+<tr><td>settings</td><td>Settings_App</td><td>key</td><td dir="ltr">goal, kcal, protein, carbs, fat, water_ml, weight, target_weight, language</td><td>الطرفان (الأحدث يفوز)</td></tr>
+<tr><td>foodChanges</td><td>Food_Change_Log</td><td>change_id</td><td dir="ltr">food_id, food_name, action, origin</td><td>التطبيق</td></tr>
+</table>
+<p dir="rtl">التبويبات المشتقة والنظامية (<code dir="ltr">DERIVED_TABS</code>): Recipe_Ingredients وWeight_Log وWater_Log وHabits_Log وShopping_List وFood_Aliases وSync_Metadata (key, value) وDeleted_Records (table, key, deleted_at, json, recovered) وBackup_Log (at, kind, file, status, details). وهناك أيضًا Hub_Dashboard (معادلات) وMigration_Report، والتبويب العربي الأصلي «قاعدة بيانات الأطعمة» الذي لا يُعدَّل أبدًا. الحذف «ناعم»: يُنسخ الصف إلى Deleted_Records قبل إزالته. وتُحفظ نسخ JSON الاحتياطية للتطبيق في مجلد Drive باسم «MEGO Nutrition Backups».</p>
+
+<h2 dir="rtl">6. العلاقات وتدفّق البيانات</h2>
+<pre dir="ltr">
+ Food (id) ──&lt; DiaryEntry.foodId        (entry keeps its own basis snapshot)
+ Food (id) ──&lt; RecipeIngredient.foodId ── Recipe (id) ──&lt; DiaryEntry.recipeId
+ Food/Recipe ──&lt; PlanItem ── MealTemplate / DayPlan (id) ──&lt; PlannedDay.planId
+ Food (id) ──&lt; FoodChange.foodId
+ DayLog.date ·· DiaryEntry.date ·· BodyEntry.date   (joined by calendar date)
+
+ ┌──────────── device ─────────────┐        ┌───────── Firestore ─────────┐
+ │ mego-u-&lt;uid&gt;  12 SYNC_TABLES ───┼─outbox─▶│ users/{uid}/{table}/{key}   │
+ │               ◀── live listener ─┼────────│                             │
+ │ photos, backups (local only)     │        │ profiles/{uid}  admins/{uid}│
+ │ foods(source=sheet) ◀────────────┼────────│ foods/{id} (shared)         │
+ └──────────────────────────────────┘        │ foodSubmissions  errorReports│
+ ┌──── owner device (mego-nutrition) ┐        └─────────────────────────────┘
+ │ 12 SYNC_TABLES ── push/pull ──────┼──▶ Apps Script ──▶ Hub tabs (Food_Log …)
+ └───────────────────────────────────┘
+</pre>
+<p dir="rtl">العلاقات منطقية (عبر المعرّفات) وليست مفاتيح أجنبية مفروضة. حذف طعام لا يتسلسل إلى غيره: تُؤرشف الأطعمة (<code dir="ltr">archived</code>)، وتبقى قيود اليوميات صحيحة لأنها تحمل لقطتها الغذائية الخاصة. قاعدة التعارض موحّدة في كل مكان: السجل ذو <code dir="ltr">updatedAt</code> الأقدم لا يستبدل الأحدث أبدًا (قاعدة Firestore، والدالة <code dir="ltr">push_</code> في الـ Hub، والدالة المحلية <code dir="ltr">applyRemote</code>).</p>
+
+<h2 dir="rtl">7. حالة التحقق</h2>
+<ul dir="rtl">
+<li dir="rtl">مُتحقَّق منه مباشرة على بيئة الإنتاج: كتابة السجلات تحت <code dir="ltr">users/{uid}/entries</code> لصاحبها، ورفض القراءة من حساب آخر ومن مجهول (403)، والمزامنة مع جهاز ثانٍ — السكربت <code dir="ltr">scripts/live-verify.mjs</code> بنتيجة 14/14. وتبويب Food_Database (160 طعامًا) والحذف الناعم إلى Deleted_Records وقاعدة «النسخة الأقدم لا تستبدل الأحدث» — اختبارات laptop-setup الحية.</li>
+<li dir="rtl">مختبَر على المحاكيات (Emulators): التحقق من شكل السجل (<code dir="ltr">data</code> نصّي، حدّ الحجم، رفض الجداول غير المعروفة) — <code dir="ltr">tests-rules/rules.test.ts</code>؛ ومعالجة التعارض — <code dir="ltr">tests-rules/cloud.test.ts</code>.</li>
+<li dir="rtl">غير مُتحقَّق منه: النسخ الاحتياطي التلقائي قبل الترقية لم يُفحص أثناء ترقية فعلية على جهاز مستخدم حقيقي.</li>
+</ul>
+
+<h2 dir="rtl">8. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body>
+</html>

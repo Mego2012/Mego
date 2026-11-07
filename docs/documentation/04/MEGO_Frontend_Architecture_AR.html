@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="utf-8"><title>MEGO_Frontend_Architecture_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1>MEGO — معمارية الواجهة الأمامية</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>معرّف الوثيقة</td><td>MEGO-DOC-32</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-07</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-07</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور المستهدف</td><td>مطورو الواجهة الأمامية ومسؤولو الصيانة</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Technical_Architecture، MEGO_State_Management، MEGO_Error_Handling_and_Logging، MEGO_Configuration_and_Environment، MEGO_Build_and_Release_Procedures، MEGO_Developer_Setup_and_Local_Installation</td></tr>
+</table>
+
+<h2>الغرض والنطاق</h2>
+<p>تشرح هذه الوثيقة كيفية بناء تطبيق MEGO من جهة العميل: الأدوات، وبنية المجلدات، والتوجيه (Routing)، والصفحات والمكوّنات، ودعم اللغات والاتجاه من اليمين إلى اليسار (RTL)، ونظام التصميم، وعامل الخدمة في تطبيق الويب التقدّمي (PWA)، والتحميل الكسول (Lazy Loading)، ومخرجات البناء. أما إدارة الحالة ومعالجة الأخطاء فلكل منهما وثيقة مستقلة. تم التحقق من كل المعلومات في <code dir="ltr">package.json</code> و<code dir="ltr">vite.config.ts</code> و<code dir="ltr">index.html</code> و<code dir="ltr">src/main.tsx</code> و<code dir="ltr">src/App.tsx</code> و<code dir="ltr">src/app/AppContext.tsx</code> و<code dir="ltr">src/components/*</code> و<code dir="ltr">src/lib/i18n*.ts</code> و<code dir="ltr">src/styles.css</code> و<code dir="ltr">src/screens.css</code>.</p>
+
+<h2>جدول المحتويات</h2>
+<ol>
+<li>الحزمة التقنية</li>
+<li>بنية المجلدات</li>
+<li>هيكل التطبيق والتوجيه</li>
+<li>الصفحات والمكوّنات</li>
+<li>تعدد اللغات والاتجاه من اليمين إلى اليسار</li>
+<li>نظام التصميم</li>
+<li>تطبيق الويب التقدّمي وقواعد التخزين المؤقت</li>
+<li>التحميل الكسول ومخرجات البناء</li>
+<li>حالة التحقق</li>
+<li>سجل المراجعات</li>
+</ol>
+
+<h2>1. الحزمة التقنية</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>المجال</th><th>المكتبة (الإصدار الدقيق في package.json)</th></tr>
+<tr><td>أداة البناء</td><td>vite 5.4.11 و@vitejs/plugin-react 4.3.4</td></tr>
+<tr><td>اللغة</td><td>TypeScript 5.6.3 (الوضع الصارم <code dir="ltr">"strict": true</code> في tsconfig.json)</td></tr>
+<tr><td>الواجهة</td><td>react / react-dom 18.3.1</td></tr>
+<tr><td>التوجيه</td><td>react-router-dom 6.28.0 (HashRouter)</td></tr>
+<tr><td>قاعدة البيانات المحلية</td><td>dexie 4.0.10 وdexie-react-hooks 1.1.7</td></tr>
+<tr><td>الحسابات</td><td>firebase 13.1.0</td></tr>
+<tr><td>الاستيراد والتصدير</td><td>papaparse 5.4.1 (CSV) وxlsx 0.18.5 (Excel)</td></tr>
+<tr><td>تطبيق الويب التقدّمي</td><td>vite-plugin-pwa 0.21.1 (Workbox)</td></tr>
+<tr><td>الاختبارات</td><td>vitest 2.1.8 وfake-indexeddb و@firebase/rules-unit-testing؛ وسكربتات Playwright في <code dir="ltr">e2e/</code></td></tr>
+</table>
+<p>ملاحظة: المكتبة <code dir="ltr">recharts</code> 2.13.3 مُدرجة ضمن الاعتماديات، ويحتوي <code dir="ltr">vite.config.ts</code> على قاعدة <code dir="ltr">manualChunks</code> لها، لكن لا يستوردها أي ملف داخل <code dir="ltr">src/</code>؛ فالرسوم البيانية مكوّنات SVG مخصّصة في <code dir="ltr">src/components/charts.tsx</code>.</p>
+
+<h2>2. بنية المجلدات</h2>
+<pre dir="ltr">
+index.html              splash screen, font links, theme-color metas, &lt;div id="root"&gt;
+vite.config.ts          base path, PWA manifest + Workbox rules, build options, vitest config
+public/                 icons, firebase-config.json, fooddb/ (usda.json, usda-extra.json), food-img/
+src/main.tsx            boot(): backup, account mode, render, sync start, service worker
+src/App.tsx             HashRouter, routes, lazy pages, account/landing switch
+src/app/AppContext.tsx  settings (live from Dexie), lang/dir, theme, t()/n()/d() helpers, toast
+src/app/hooks.ts        shared hooks
+src/pages/              Dashboard, Diary, Foods, Recipes, RecipeLibrary, Planner, Progress, Reports,
+                        Settings, Habits, Coach, Account (+ accountHook.ts)
+src/components/         Layout, ErrorBoundary, ui (Card, Sheet, Ring, MacroBars, fields, Skeleton ...),
+                        FoodPicker, FoodThumb, BarcodeSheet, MealScanner, charts, icons, instrument, Insights
+src/lib/                domain logic: db, repo, nutrition, goals, targets, reports, insights, foodSearch,
+                        refFoods, barcode, sync, firebase, account, cloudSync, i18n*, exporters, backups ...
+src/styles.css          design tokens + shell + primitives
+src/screens.css         per-screen styles
+</pre>
+
+<h2>3. هيكل التطبيق والتوجيه</h2>
+<h3>3.1 المزوّدات (Providers)</h3>
+<p>يغلّف المكوّن <code dir="ltr">App</code> كل شيء داخل <code dir="ltr">AppProvider</code> (سياق React) وموجّه <code dir="ltr">HashRouter</code> (مع خيارَي المستقبل <code dir="ltr">v7_startTransition</code> و<code dir="ltr">v7_relativeSplatPath</code>). يعمل التوجيه بعلامة # (مثل <code dir="ltr">#/diary</code>) على GitHub Pages دون الحاجة لإعادة كتابة المسارات في الخادم. يقرأ <code dir="ltr">AppProvider</code> سجل الإعدادات عبر <code dir="ltr">useLiveQuery</code> من Dexie، فيُعاد رسم التطبيق عند أي تغيير في الإعدادات؛ كما يضبط <code dir="ltr">document.documentElement.lang</code> و<code dir="ltr">dir</code> و<code dir="ltr">document.title</code> والسمة <code dir="ltr">data-theme</code>.</p>
+<h3>3.2 المسارات (<code dir="ltr">src/App.tsx</code>)</h3>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>المسار</th><th>العنصر</th><th>التحميل</th></tr>
+<tr><td><code dir="ltr">/</code></td><td>Dashboard (لوحة اليوم)</td><td>مباشر</td></tr>
+<tr><td><code dir="ltr">/diary</code></td><td>Diary (اليوميات)</td><td>مباشر</td></tr>
+<tr><td><code dir="ltr">/foods</code></td><td>Foods (الأطعمة)</td><td>كسول</td></tr>
+<tr><td><code dir="ltr">/recipes</code></td><td>Recipes (الوصفات)</td><td>كسول</td></tr>
+<tr><td><code dir="ltr">/planner</code></td><td>Planner (المخطط)</td><td>كسول</td></tr>
+<tr><td><code dir="ltr">/progress</code></td><td>Progress (التقدم)</td><td>كسول</td></tr>
+<tr><td><code dir="ltr">/reports/week</code> و<code dir="ltr">/reports/month</code></td><td>Reports (القيمة <code dir="ltr">kind</code> = week / month)</td><td>كسول</td></tr>
+<tr><td><code dir="ltr">/settings</code></td><td>Settings (الإعدادات)</td><td>كسول</td></tr>
+<tr><td><code dir="ltr">/habits</code></td><td>Habits (العادات)</td><td>كسول</td></tr>
+<tr><td><code dir="ltr">/coach</code></td><td>Coach (المدرب)</td><td>كسول</td></tr>
+<tr><td><code dir="ltr">/admin</code> و<code dir="ltr">/privacy</code> و<code dir="ltr">/terms</code></td><td>AccountRouter (العرض admin / privacy / terms)</td><td>كسول</td></tr>
+<tr><td><code dir="ltr">*</code></td><td>Dashboard</td><td>—</td></tr>
+</table>
+<h3>3.3 قرار العرض</h3>
+<pre dir="ltr">
+Routed()
+  settings not loaded yet          -&gt; &lt;Skeleton/&gt;   (then the #splash element fades out and is removed)
+  mode = welcome or suspended,
+    path not /privacy or /terms    -&gt; AccountRouter view "welcome" or "suspended" (no app shell)
+  mode = welcome, legal path       -&gt; AccountRouter view "privacy" / "terms" (no app shell)
+  otherwise                        -&gt; &lt;Layout&gt; &lt;ErrorBoundary key=path&gt; &lt;Suspense&gt; &lt;Routes/&gt;
+</pre>
+<p>يُربط مكوّن حدود الأخطاء (<code dir="ltr">ErrorBoundary</code>) بالمسار كمفتاح، فلا يبقى خطأ شاشةٍ ما بعد الانتقال إلى غيرها؛ ويعرض زرَّي «إعادة المحاولة» و«إعادة التحميل» (الذي يعود إلى <code dir="ltr">#/</code>).</p>
+<h3>3.4 التخطيط (Layout)</h3>
+<p>يعرض <code dir="ltr">src/components/Layout.tsx</code> قائمة تنقل جانبية (للشاشات العريضة)، وترويسة ثابتة فيها شارة المزامنة (الحالة، وعدد العناصر المعلّقة، والعدّ التنازلي لإعادة المحاولة؛ والضغط عليها يفتح <code dir="ltr">/settings#sync</code> إن كانت المزامنة معطّلة أو يستدعي <code dir="ltr">pushNow()</code>)، وشريط تنبيه عند انقطاع الاتصال، وقائمة تنقل سفلية بأربعة عناصر (اللوحة، اليوميات، الوصفات، التقدم) إضافة إلى لوحة «المزيد» التي تسرد بقية المسارات.</p>
+
+<h2>4. الصفحات والمكوّنات</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الملف</th><th>الدور</th></tr>
+<tr><td>pages/Dashboard.tsx</td><td>ملخص اليوم (حلقة السعرات، المغذيات الكبرى، الملاحظات الذكية)</td></tr>
+<tr><td>pages/Diary.tsx</td><td>الوجبات لكل يوم، وإضافة القيود ونسخها ونقلها، وشريط المسح</td></tr>
+<tr><td>pages/Foods.tsx</td><td>قاعدة الأطعمة، والمحرر، والاستيراد/التصدير، واقتراح طعام للقاعدة المشتركة</td></tr>
+<tr><td>pages/Recipes.tsx وRecipeLibrary.tsx</td><td>وصفات المستخدم ومكتبة الوصفات المدمجة</td></tr>
+<tr><td>pages/Planner.tsx</td><td>خطط الوجبات والأيام المخططة</td></tr>
+<tr><td>pages/Progress.tsx</td><td>قياسات الجسم والتقدم</td></tr>
+<tr><td>pages/Reports.tsx</td><td>التقارير الأسبوعية والشهرية</td></tr>
+<tr><td>pages/Habits.tsx</td><td>الماء والعادات والصيام</td></tr>
+<tr><td>pages/Coach.tsx</td><td>ذكاء الأطعمة، والترتيب، والمحتوى التثقيفي</td></tr>
+<tr><td>pages/Settings.tsx</td><td>الملف الشخصي والأهداف، واللغة والمظهر، وبطاقة مزامنة الـHub، وبطاقة الماسح الذكي، والنسخ الاحتياطية، وبطاقة الحساب (كسولة)</td></tr>
+<tr><td>pages/Account.tsx</td><td>عروض <code dir="ltr">AccountRouter</code>: الترحيب، والحساب الموقوف، والمشرف، والخصوصية، والشروط؛ ومسارات الدخول والتسجيل وإعادة التعيين، و<code dir="ltr">AccountCard</code></td></tr>
+<tr><td>components/ui.tsx</td><td>العناصر الأساسية: Card وProgressBar وRing وMacroBars وMacroLine وStateChip وSheet (مع قفل التمرير) وConfirm وNumField وTextField وSegmented وDateNav وuseAsync وDelta وSkeleton وEmptyState</td></tr>
+<tr><td>components/FoodPicker.tsx وBarcodeSheet.tsx وMealScanner.tsx وFoodThumb.tsx</td><td>لوحة البحث عن الأطعمة، والبحث بالباركود، وماسح الصور الذكي، وصور الأطعمة</td></tr>
+<tr><td>components/charts.tsx وinstrument.tsx وicons.tsx وInsights.tsx</td><td>رسوم SVG البيانية، والشعار والعناصر البصرية، ومجموعة الأيقونات، وبطاقات الملاحظات</td></tr>
+</table>
+<p>تستدعي الصفحات دوال المجال في <code dir="ltr">src/lib</code> (مثل <code dir="ltr">repo.ts</code> للكتابة) بدلاً من تعديل جداول Dexie مباشرة.</p>
+
+<h2>5. تعدد اللغات والاتجاه من اليمين إلى اليسار</h2>
+<ul>
+<li>القواميس: <code dir="ltr">src/lib/i18n.ts</code> و<code dir="ltr">i18n2.ts</code> و<code dir="ltr">i18n3.ts</code>، وتُدمج في <code dir="ltr">DICTS = { ar: {...ar, ...ar2, ...ar3}, en: {...en, ...en2, ...en3} }</code>.</li>
+<li>تبحث الدالة <code dir="ltr">translate(lang, key, params)</code> في اللغة الحالية، ثم تعود إلى الإنجليزية، ثم إلى المفتاح نفسه؛ وتُستبدل العناصر النائبة مثل <code dir="ltr">{name}</code> من <code dir="ltr">params</code>.</li>
+<li>الأرقام: تستخدم <code dir="ltr">fmtNum</code> واجهة <code dir="ltr">Intl.NumberFormat</code> بالإعداد المحلي <code dir="ltr">ar-SA-u-nu-latn</code> (عربي بأرقام لاتينية) أو <code dir="ltr">en-US</code>، وتعرض القيم المفقودة بالشرطة «—». التواريخ: تستخدم <code dir="ltr">fmtDate</code> الإعداد <code dir="ltr">ar-SA-u-ca-gregory-nu-latn</code> (التقويم الميلادي) أو <code dir="ltr">en-GB</code>.</li>
+<li>الاتجاه: يضبط <code dir="ltr">AppProvider</code> القيمة <code dir="ltr">&lt;html dir="rtl"&gt;</code> للعربية و<code dir="ltr">ltr</code> للإنجليزية. يبدأ <code dir="ltr">index.html</code> بـ<code dir="ltr">lang="ar" dir="rtl"</code>، ويعلن ملف البيان <code dir="ltr">lang: 'ar'</code> و<code dir="ltr">dir: 'auto'</code>.</li>
+<li>تستخدم أوراق الأنماط الخصائص المنطقية (<code dir="ltr">inline-start</code>/<code dir="ltr">inline-end</code>) مع بعض التخصيصات عبر <code dir="ltr">[dir="rtl"]</code> (تباعد الأحرف، وعكس الأيقونات بالصنف <code dir="ltr">.flip</code>، واتجاه التدرّج اللوني).</li>
+<li>تُعرض حقول الإدخال ذات الطابع البرمجي (الروابط، والرموز، ورمز الاتصال) بالاتجاه <code dir="ltr">dir="ltr"</code>.</li>
+</ul>
+
+<h2>6. نظام التصميم</h2>
+<p>يعرّف الملف <code dir="ltr">src/styles.css</code> نظام التصميم «Calibrated» بمظهرين: <b>Mineral</b> (فاتح) و<b>Graphite</b> (داكن)، كخصائص CSS مخصّصة على <code dir="ltr">:root</code>.</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>مجموعة الرموز (Tokens)</th><th>أمثلة</th></tr>
+<tr><td>الأسطح والنص</td><td><code dir="ltr">--bg</code> و<code dir="ltr">--surface</code> و<code dir="ltr">--surface-2/3</code> و<code dir="ltr">--text</code> و<code dir="ltr">--muted</code> و<code dir="ltr">--border</code></td></tr>
+<tr><td>اللون المميّز والحالات</td><td><code dir="ltr">--primary</code> (الفاتح ‎#0a7c63، الداكن ‎#3ddcb0) و<code dir="ltr">--danger</code> و<code dir="ltr">--good</code> و<code dir="ltr">--warn</code> و<code dir="ltr">--info</code></td></tr>
+<tr><td>ألوان المغذيات</td><td><code dir="ltr">--kcal</code> و<code dir="ltr">--protein</code> و<code dir="ltr">--carbs</code> و<code dir="ltr">--fat</code></td></tr>
+<tr><td>الخطوط</td><td><code dir="ltr">--font-display</code> (Readex Pro) و<code dir="ltr">--font-text</code> (IBM Plex Sans Arabic)؛ السلّم من <code dir="ltr">--fs-xs</code> ‏11.5px إلى <code dir="ltr">--fs-3xl</code> ‏46px</td></tr>
+<tr><td>المسافات والأشكال</td><td>شبكة 4px ‏<code dir="ltr">--sp-1</code>…<code dir="ltr">--sp-6</code>؛ <code dir="ltr">--radius-s/--radius/--radius-l</code></td></tr>
+<tr><td>التخطيط</td><td><code dir="ltr">--nav-h</code> ‏68px و<code dir="ltr">--header-h</code> ‏58px</td></tr>
+</table>
+<p>اختيار المظهر: عند ضبط الإعداد <code dir="ltr">theme = 'system'</code> تُزال السمة <code dir="ltr">data-theme</code> ويُطبَّق Graphite عبر <code dir="ltr">@media (prefers-color-scheme: dark)</code>؛ أما <code dir="ltr">light</code> و<code dir="ltr">dark</code> فيضبطان <code dir="ltr">data-theme</code> صراحة. ويحتوي <code dir="ltr">src/screens.css</code> على أقسام لكل شاشة (صور الأطعمة، اليوميات، منتقي الأطعمة، الأطعمة، المدرب، الترتيب، التفاصيل، التثقيف، التقدم، التقارير، الإعدادات، الحساب والمشرف، الوصفات).</p>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/home-ar-light.png" width="290" alt="لوحة اليوم، المظهر الفاتح"> <img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/home-ar-dark.png" width="290" alt="لوحة اليوم، المظهر الداكن"></p>
+
+<h2>7. تطبيق الويب التقدّمي وقواعد التخزين المؤقت</h2>
+<p>ملف البيان (من <code dir="ltr">vite.config.ts</code>): الاسم «MEGO — Nutrition»، والاسم المختصر «MEGO»، و<code dir="ltr">display: standalone</code>، و<code dir="ltr">orientation: portrait</code>، ولون السمة والخلفية ‎<code dir="ltr">#080d0f</code>، وقيمتا <code dir="ltr">start_url</code> و<code dir="ltr">scope</code> = المسار الأساسي، وأيقونات 192 و512 و512 قابلة للقص (maskable). عامل الخدمة: <code dir="ltr">registerType: 'autoUpdate'</code>، ويُسجَّل عبر <code dir="ltr">registerSW({ immediate: true })</code>.</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>المورد</th><th>الاستراتيجية</th></tr>
+<tr><td>هيكل التطبيق <code dir="ltr">**/*.{js,css,html,svg,png,woff2}</code> + <code dir="ltr">fooddb/usda.json</code></td><td>تخزين مسبق (حتى 3 ميغابايت لكل ملف)</td></tr>
+<tr><td>طلبات التنقّل</td><td>البديل <code dir="ltr">index.html</code>، باستثناء المسارات المطابقة لـ<code dir="ltr">^/macros/</code></td></tr>
+<tr><td><code dir="ltr">fooddb/usda-extra.json</code></td><td>StaleWhileRevalidate</td></tr>
+<tr><td><code dir="ltr">food-img/*.webp</code></td><td>CacheFirst، ‏200 عنصر، سنة واحدة</td></tr>
+<tr><td><code dir="ltr">food-img/manifest.json</code></td><td>StaleWhileRevalidate</td></tr>
+<tr><td>fonts.googleapis.com / fonts.gstatic.com</td><td>StaleWhileRevalidate / CacheFirst (‏20 عنصراً، سنة)</td></tr>
+</table>
+<p>يحتوي <code dir="ltr">index.html</code> على شاشة بداية مضمّنة (حلقة SVG) تُزال بمجرد جاهزية الإعدادات، إضافة إلى وسوم <code dir="ltr">theme-color</code> للمظهرين. ويستدعي <code dir="ltr">main.tsx</code> أيضاً <code dir="ltr">navigator.storage.persist()</code> لتقليل احتمال أن يحذف المتصفح بيانات IndexedDB.</p>
+
+<h2>8. التحميل الكسول ومخرجات البناء</h2>
+<ul>
+<li><b>تحميل مباشر:</b> Dashboard وDiary (الشاشتان الأكثر استخداماً) وهيكل التطبيق.</li>
+<li><b>تحميل كسول على مستوى المسار:</b> Foods وRecipes وPlanner وProgress وReports وSettings وHabits وCoach وصفحات الحساب، عبر <code dir="ltr">React.lazy</code> و<code dir="ltr">Suspense</code> مع هيكل تحميل (Skeleton) بديل.</li>
+<li><b>استيراد ديناميكي على مستوى الوحدات:</b> <code dir="ltr">xlsx</code> (فقط عند تصدير/استيراد Excel)، و<code dir="ltr">cloudSync</code> (فقط في وضع الحساب)، وأجزاء من <code dir="ltr">firebase/firestore</code> و<code dir="ltr">firebase/auth</code> تُستخدم في إجراءات نادرة، و<code dir="ltr">demoSeed</code> (فقط عند <code dir="ltr">VITE_DEMO=1</code>، ويُحذف من بناء الإنتاج).</li>
+<li><b>البناء:</b> الأمر <code dir="ltr">npm run build</code> = <code dir="ltr">tsc -b &amp;&amp; vite build</code>. المسار الأساسي من <code dir="ltr">BASE_PATH</code> (يضبطه سير عمل GitHub إلى <code dir="ltr">/&lt;repository name&gt;/</code>، ومحلياً <code dir="ltr">/</code>). حدّ التحذير لحجم الأجزاء 900 كيلوبايت. المخرجات في <code dir="ltr">dist/</code>: ‏<code dir="ltr">index.html</code> و<code dir="ltr">assets/</code> (ملفات JS/CSS بأسماء مجزّأة، جزء لكل صفحة كسولة أو وحدة ديناميكية) و<code dir="ltr">sw.js</code> و<code dir="ltr">workbox-*.js</code> و<code dir="ltr">manifest.webmanifest</code> ونسخة من ملفات <code dir="ltr">public/</code> (الأيقونات، و<code dir="ltr">firebase-config.json</code>، و<code dir="ltr">fooddb/</code>، و<code dir="ltr">food-img/</code>).</li>
+</ul>
+
+<h2>9. حالة التحقق</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>البناء والنشر عبر سير عمل GitHub</td><td>مُتحقَّق منه مباشرة (عمليات النشر ناجحة)</td></tr>
+<tr><td>المسارات والشاشات، والعربية/الإنجليزية، والفاتح/الداكن</td><td>مُتحقَّق منه مباشرة عبر حزمة المتصفح (44/44) وحزمة اللمس والتمرير (103/103) على مقاسات جوال محاكاة مقابل العنوان الحي</td></tr>
+<tr><td>قابلية التثبيت والعمل دون اتصال على هاتف Android حقيقي</td><td>غير مُتحقَّق منه (لم يُجرَ اختبار على جهاز حقيقي بعد؛ راجع docs/ANDROID-TEST.md)</td></tr>
+<tr><td>أسماء الأجزاء وأحجامها بالضبط</td><td>غير موثّقة — تتغير مع كل بناء</td></tr>
+</table>
+
+<h2>10. سجل المراجعات</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>الإصدار الأول</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

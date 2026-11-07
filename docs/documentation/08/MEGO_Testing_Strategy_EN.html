@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Testing_Strategy_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Testing Strategy</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-58</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Developers, testers, project owner</td></tr>
+<tr><td>Related documents</td><td>MEGO_Unit_Testing, MEGO_Integration_Testing, MEGO_Acceptance_Testing, MEGO_Nutrition_Calculation_Accuracy_Tests, MEGO_Multi_User_Testing, MEGO_Android_Device_Testing, MEGO_Known_Bugs_and_Limitations, MEGO_Release_Readiness_Checklist, MEGO_Production_Verification_Checklist</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes how MEGO is tested: the layers of the test pyramid, each automated suite in the repository, what each suite runs against (real code, official emulators, scripted stand-ins or the live production services) and which runs were executed against the live site. It covers the repository <code>Mego2012/Mego</code>, branch <code>claude/nutrition-tracking-app-989rku</code>, as of 7 November 2026.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Testing principles</li>
+<li>The test pyramid</li>
+<li>Suite catalogue</li>
+<li>What is real, emulated or simulated</li>
+<li>Live-site runs</li>
+<li>When each suite runs</li>
+<li>How to run the suites</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Testing principles</h2>
+<ul>
+<li><b>Real code first.</b> Tests import the real application modules (<code>src/lib/*</code>) and, for the backend, execute the real <code>apps-script/Code.gs</code> inside an in-memory emulation of Google Apps Script (<code>e2e/gas-mock.mjs</code>).</li>
+<li><b>Exact expected values.</b> Nutrition tests assert exact numbers (for example 100 g raw chicken breast = 120 kcal), never "approximately right".</li>
+<li><b>No invented data.</b> Tests check that missing values are never filled in (incomplete foods cannot be logged; missing amino-acid data stays missing).</li>
+<li><b>Server-side security is tested on the server.</b> Firestore security rules are tested with Google's official Firebase emulators, and on production by <code>scripts/live-verify.mjs</code> using only the test accounts' own tokens.</li>
+<li><b>Honest labelling.</b> Every result is labelled as verified live, tested on emulators, or not verified.</li>
+<li><b>Private data stays private.</b> The owner's real 160-food table (<code>tests/private/foods-160.csv</code>) is git-ignored; without it a synthetic fixture with the same names but made-up values is used and value-specific tests are skipped.</li>
+</ul>
+
+<h2>2. The test pyramid</h2>
+<pre>
+                 ┌──────────────────────────────┐
+                 │ Live verification (prod)  14 │  scripts/live-verify.mjs
+                 ├──────────────────────────────┤
+                 │ Manual device test   (todo)  │  docs/ANDROID-TEST.md
+              ┌──┴──────────────────────────────┴──┐
+              │ Browser acceptance (Playwright)    │
+              │  guest e2e 44 · touch/scroll 103   │
+              │  multi-user 8 (emulators)          │
+           ┌──┴────────────────────────────────────┴──┐
+           │ Integration                              │
+           │  Firestore rules + cloud 14 (emulators)  │
+           │  laptop-setup 10 · v1→v2 migration       │
+           │  real Code.gs on gas-mock (in unit suite)│
+        ┌──┴──────────────────────────────────────────┴──┐
+        │ Unit (vitest)                             109  │
+        │  nutrition engine, reports, search, coach,     │
+        │  rankings, scanner, photos, i18n, Hub backend  │
+        └────────────────────────────────────────────────┘
+</pre>
+
+<h2>3. Suite catalogue</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Suite</th><th>Location / command</th><th>Count</th><th>Runs against</th><th>Covers</th></tr>
+<tr><td>Unit</td><td><code>tests/*.test.ts</code> · <code>npm test</code></td><td>109</td><td>Node + fake-indexeddb; real Code.gs on gas-mock; scripted Gemini stand-in</td><td>Nutrition engine, units, recipes, targets, reports, insights, backup, import, USDA DB, search, coach, rankings, education sources, photos, AI scanner, Hub backend, i18n</td></tr>
+<tr><td>Firestore rules + cloud sync</td><td><code>tests-rules/*.test.ts</code> · <code>npm run test:rules</code></td><td>14</td><td>Official Firebase Auth + Firestore emulators with the real <code>firebase/firestore.rules</code></td><td>Per-user isolation, admin limits, suspension, older-copy rule, shared foods, registration, error reports, real SDK sync incl. second device</td></tr>
+<tr><td>Guest browser acceptance</td><td><code>e2e/run-e2e.mjs</code> · <code>npm run e2e</code></td><td>44</td><td>Chromium emulating a Samsung Galaxy S9+, Arabic locale; backend = real Code.gs on gas-mock; Open Food Facts and Gemini simulated</td><td>The 15 original scenarios plus 29 feature checks</td></tr>
+<tr><td>Touch scrolling</td><td><code>e2e/scroll-test.mjs</code> · <code>npm run e2e:scroll</code></td><td>103</td><td>Chromium with raw CDP touch events, 3 Samsung viewports × Arabic/English</td><td>Every screen scrolls to its bottom; sheets never leave the page locked</td></tr>
+<tr><td>Multi-user</td><td><code>e2e/multiuser-test.mjs</code> · <code>npm run e2e:multi</code></td><td>8</td><td>Several Pixel 7 browser contexts against Firebase emulators; real Code.gs as AI proxy</td><td>Registration, isolation, live second device, AI per-user limit, password reset, food submission, admin, deletion</td></tr>
+<tr><td>Laptop setup</td><td><code>e2e/laptop-setup-test.mjs</code> · <code>npm run e2e:laptop</code></td><td>10</td><td>Real <code>scripts/laptop-setup.mjs</code> against real Code.gs served over local HTTP (Google emulated)</td><td>Excel → native Hub conversion, live checks, AI photo path, state file, connect link</td></tr>
+<tr><td>Upgrade (v1 → v2)</td><td><code>node e2e/migration-test.mjs &lt;dir&gt;</code></td><td>1 scenario (prints a JSON report)</td><td>Two local builds served on the same origin</td><td>Data survives the upgrade; a pre-migration snapshot is created</td></tr>
+<tr><td>Live verification</td><td><code>node scripts/live-verify.mjs</code></td><td>14</td><td><b>Production</b>: live site + real Firebase project</td><td>Registration, isolation (403), logging, second-device sync, reports, admin enforcement, password reset request, sign-out/in, deletion</td></tr>
+</table>
+
+<h2>4. What is real, emulated or simulated</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Component</th><th>In automated tests</th><th>Verified live?</th></tr>
+<tr><td>App code (React, Dexie, nutrition engine)</td><td>Real</td><td>Yes (live site runs)</td></tr>
+<tr><td>Firestore security rules</td><td>Real rules on official emulators</td><td>Yes — live-verify 14/14</td></tr>
+<tr><td>Firebase Auth</td><td>Official emulator</td><td>Yes — registration, sign-in, reset request, deletion</td></tr>
+<tr><td>Apps Script backend (<code>Code.gs</code>)</td><td>Real code inside <code>gas-mock.mjs</code> (emulated SpreadsheetApp, DriveApp, PropertiesService, LockService…)</td><td>Yes — laptop-setup live checks on the owner's laptop</td></tr>
+<tr><td>Google Sheets Hub</td><td>Emulated spreadsheet (native or .xlsx mode)</td><td>Yes — converted live, 160 foods, 0 numeric problems</td></tr>
+<tr><td>Gemini API</td><td>Scripted stand-in using Gemini's request/response/error formats</td><td>One real analysis succeeded (6 items); a later run returned AI_BUSY</td></tr>
+<tr><td>Open Food Facts</td><td>Mocked network</td><td>Not verified by an automated live test</td></tr>
+<tr><td>Physical Android phone</td><td>Emulated viewports + touch events only</td><td><b>No</b> — not yet done</td></tr>
+</table>
+
+<h2>5. Live-site runs</h2>
+<ul>
+<li>The guest browser suite can target any deployment: <code>E2E_BASE=https://mego2012.github.io/Mego/ npm run e2e</code> → <b>44/44</b> against the live URL.</li>
+<li>The touch suite accepts a base URL: <code>node e2e/scroll-test.mjs https://mego2012.github.io/Mego/</code> → <b>103/103</b> against the live URL.</li>
+<li><code>scripts/live-verify.mjs</code> → <b>14/14</b> against production (two disposable <code>mego-verify-…@example.com</code> accounts, both deleted at the end). It writes a Markdown report to <code>~/.mego-backend/</code>.</li>
+<li>Guest-mode suites run without the production Firebase config (the production app shows the account welcome screen when Firebase is configured).</li>
+</ul>
+
+<h2>6. When each suite runs</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Moment</th><th>Suites</th></tr>
+<tr><td>Every push to <code>main</code> or <code>claude/nutrition-tracking-app-989rku</code> (GitHub Actions <code>.github/workflows/deploy.yml</code>)</td><td><code>npm test</code> then <code>npm run build</code>; deployment happens only if both succeed. In CI the private food file is absent, so the 10 value-specific tests that need it are skipped.</td></tr>
+<tr><td>Before a release (developer machine)</td><td><code>npx tsc -b</code>, <code>npm test</code>, <code>npm run build</code>, <code>npm run e2e</code>, <code>npm run e2e:scroll</code>, <code>npm run test:rules</code>, <code>npm run e2e:multi</code>, <code>npm run e2e:laptop</code></td></tr>
+<tr><td>After a deployment</td><td>Live runs of the e2e and scroll suites, and <code>node scripts/live-verify.mjs</code> (or <code>laptop-setup.mjs --verify</code>)</td></tr>
+<tr><td>On a real phone (manual)</td><td>Checklist in <code>docs/ANDROID-TEST.md</code> — see MEGO_Android_Device_Testing</td></tr>
+</table>
+
+<h2>7. How to run the suites</h2>
+<pre>
+npx tsc -b                      # TypeScript: 0 errors expected
+npm test                        # unit, 109
+npm run build
+npm run e2e                     # 44 browser checks (starts vite preview)
+npm run e2e:scroll              # 103 touch checks
+npm run test:rules              # 14, needs firebase-tools (emulators)
+npm run e2e:multi               # 8, needs firebase-tools (emulators)
+npm run e2e:laptop              # 10
+node e2e/migration-test.mjs &lt;dir&gt;   # dist-v1 + dist-v2 builds in &lt;dir&gt;
+node scripts/live-verify.mjs    # production, 14
+</pre>
+<p>Browser suites use the pre-installed Playwright + Chromium.</p>
+
+<h2>8. Verification status</h2>
+<ul>
+<li><b>Verified live:</b> e2e 44/44 and touch 103/103 against https://mego2012.github.io/Mego/; live verification 14/14 against Firebase project <code>mego-473920</code>; laptop-setup live checks on the owner's laptop.</li>
+<li><b>Tested on emulators only:</b> rules + cloud 14/14, multi-user 8/8, laptop-setup test 10/10, unit 109/109 (backend and Gemini emulated/simulated).</li>
+<li><b>Not verified:</b> physical Android device, real camera/barcode, PWA install on hardware, delivery of password-reset e-mail to a real inbox, Open Food Facts against the live service in an automated test.</li>
+</ul>
+
+<h2>9. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

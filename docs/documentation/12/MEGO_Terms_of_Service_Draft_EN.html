@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MEGO_Terms_of_Service_Draft_EN</title></head>
+<body style="font-family:Arial">
+<p style="background:#fff3cd;border:2px solid #b8860b;padding:10px"><b>DRAFT — requires review by a qualified legal professional before publication</b></p>
+<h1>MEGO — Terms of Service (Draft)</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-73</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires legal review</td></tr>
+<tr><td>Audience</td><td>Project owner, legal counsel; after approval: all MEGO users</td></tr>
+<tr><td>Related documents</td><td>MEGO_Privacy_Policy_Draft, MEGO_Nutrition_Disclaimer, MEGO_Medical_Disclaimer, MEGO_Acceptable_Use_Policy, MEGO_Data_Retention_and_Deletion, MEGO_User_Data_Protection</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document is the extended draft of the MEGO Terms of Service. It expands the in-app draft shown at <code>#/terms</code> (text keys <code>tos_1</code>–<code>tos_11</code> in <code>src/lib/i18n2.ts</code> and <code>src/lib/i18n3.ts</code>) and the open items in <code>docs/LEGAL-REVIEW.md</code>. Every factual statement describes what the application actually does in the repository as of 7 November 2026. Text in [square brackets] is a placeholder that only the owner and legal counsel may complete. This draft is not legal advice and must not be published before legal review.</p>
+<p>The terms apply to the MEGO web application (Progressive Web App) served at https://mego2012.github.io/Mego/, used either with a MEGO account or in "guest" mode without an account.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>The service and the operator</li>
+<li>Eligibility and registration</li>
+<li>Your account</li>
+<li>Use without an account (guest mode)</li>
+<li>Acceptable use</li>
+<li>Nutrition information and data sources</li>
+<li>AI photo scanner</li>
+<li>Health</li>
+<li>Your content and your data</li>
+<li>Third-party services</li>
+<li>Availability and free-tier limits</li>
+<li>Suspension and ending your use</li>
+<li>Liability</li>
+<li>Governing law and disputes</li>
+<li>Changes to these terms</li>
+<li>Contact</li>
+<li>Verification status</li>
+<li>Decisions required from the owner and legal counsel</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. The service and the operator</h2>
+<p>1.1 MEGO is a nutrition-tracking application that lets you keep a food diary, set daily calorie and macronutrient targets, record body measurements, water, habits and fasting, plan meals, use recipes, view reports and read general nutrition education.</p>
+<p>1.2 MEGO is operated by <b>[Operator name, country and contact email — to be completed by the owner before launch.]</b> ("the operator", "we").</p>
+<p>1.3 MEGO is offered free of charge, "as is", without guarantees of availability (in-app text <code>tos_1</code>). There are no paid plans, no advertising and no in-app purchases in the current version.</p>
+
+<h2>2. Eligibility and registration</h2>
+<p>2.1 MEGO is intended for adults aged <b>18 and over</b>. During registration you must tick "I am 18 or older"; the registration cannot be completed without it, and the server-side security rules refuse to create an account profile unless the age confirmation is recorded (<code>ageConfirmed == true</code>). The app does not verify your age by any other means.</p>
+<p>2.2 To register you must also accept these Terms of Service and the Privacy Policy, provide a display name, an e-mail address, a password and your country.</p>
+<p>2.3 <b>Country and the AI scanner.</b> If your account country is in the European Union, the European Economic Area, the United Kingdom or Switzerland, the free AI photo scanner is not offered to you, because it relies on the free tier of Google's Gemini API, whose terms do not allow this use for those regions. The rest of the service works normally. This restriction is enforced both in the app and in the backend.</p>
+
+<h2>3. Your account</h2>
+<p>3.1 Keep your password private. Passwords are handled by Google Firebase Authentication and are never visible to MEGO or to administrators.</p>
+<p>3.2 You are responsible for the accuracy of the data you enter (foods, quantities, body measurements, targets).</p>
+<p>3.3 You may change your display name and country in the app. You may request a password-reset e-mail from the sign-in screen.</p>
+<p>3.4 One account belongs to one person. You must not share your account or use another person's account.</p>
+
+<h2>4. Use without an account (guest mode)</h2>
+<p>4.1 You may use MEGO without an account ("Continue without an account (this device only)"). In that case your records stay only in your browser on that device; they are not synchronised to MEGO's cloud. Loss of the browser data (for example clearing site data or losing the device) can permanently remove them unless you have exported a backup.</p>
+<p>4.2 These terms apply to guest use as far as they are relevant.</p>
+
+<h2>5. Acceptable use</h2>
+<p>5.1 You must not abuse the service, attempt to access other accounts, or overload the AI scanner (<code>tos_3</code>). The detailed rules are in MEGO_Acceptable_Use_Policy, which forms part of these terms.</p>
+<p>5.2 Accounts that break these terms may be suspended (see section 12).</p>
+
+<h2>6. Nutrition information and data sources</h2>
+<p>6.1 Food values come from USDA FoodData Central, Open Food Facts or entries made by users, and may contain errors. Estimated values are labelled in the app (<code>tos_4</code>).</p>
+<p>6.2 Licences of the data used:</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Source</th><th>Used for</th><th>Licence (as stated in the app)</th></tr>
+<tr><td>USDA FoodData Central (SR Legacy + FNDDS)</td><td>Built-in reference food database (12,879 foods)</td><td>Public domain</td></tr>
+<tr><td>Open Food Facts</td><td>Barcode lookup and optional text search of packaged products</td><td>Open Database License (ODbL)</td></tr>
+<tr><td>Wikimedia Commons</td><td>74 food photos</td><td>Individual licences (CC BY, CC BY-SA, public domain…) listed in Settings → Photo credits</td></tr>
+</table>
+<p>6.3 Calculated targets (calories, protein, carbohydrates, fat) and suggestions are estimates based on standard formulas. See MEGO_Nutrition_Disclaimer.</p>
+
+<h2>7. AI photo scanner</h2>
+<p>7.1 The photo scanner gives <b>estimates</b>. Nothing is saved until you review and confirm it, and you remain responsible for what you log (<code>tos_8</code>).</p>
+<p>7.2 When you use the scanner, the photo (resized on your device, with location and other metadata removed) is sent through the operator's Google Apps Script backend to the free tier of Google's Gemini API. On the free tier Google may use this content to improve its products and human reviewers may see it. Do not photograph people, documents or anything confidential. MEGO does not store the photos. Details are in MEGO_Privacy_Policy_Draft.</p>
+<p>7.3 The number of scans is limited per account per day and globally per day (backend default: 10 scans per user per day; the operator can configure this). Google may also refuse requests when its free service is busy or its quota is used up.</p>
+<p>7.4 The scanner is not available in the EU, EEA, UK and Switzerland (section 2.3).</p>
+
+<h2>8. Health</h2>
+<p>8.1 MEGO provides general nutrition information and is not a medical device or a substitute for professional advice (<code>pp_8</code>).</p>
+<p>8.2 Consult a qualified professional before making significant dietary changes, especially with a medical condition, pregnancy or an eating disorder (<code>tos_5</code>). See MEGO_Medical_Disclaimer.</p>
+
+<h2>9. Your content and your data</h2>
+<p>9.1 The records you create remain yours. The operator uses them only to provide the service to you, as described in the Privacy Policy.</p>
+<p>9.2 You can view, correct, export (CSV, XLSX, JSON) and delete your data in the app at any time.</p>
+<p>9.3 If you propose a food for the shared food database ("submit food"), you allow the operator's administrators to review it and, if approved, to publish it in the shared database visible to all signed-in users. [Licence wording for user-submitted foods — to be decided after legal review.]</p>
+
+<h2>10. Third-party services</h2>
+<p>MEGO relies on third-party services: Google Firebase (Authentication and Cloud Firestore), Google Apps Script and the Gemini API, GitHub Pages (hosting), Google Fonts and Open Food Facts. Their availability and terms are outside the operator's control. [Whether and how users are bound by or informed of provider terms — to be decided after legal review.]</p>
+
+<h2>11. Availability and free-tier limits</h2>
+<p>11.1 The service runs on free tiers (Firebase Spark plan, Apps Script quotas, Gemini API free tier). Free-tier limits of the underlying services apply; features may be temporarily unavailable when a limit is reached.</p>
+<p>11.2 The app keeps a local copy of your data so most features work offline; changes are synchronised when the connection returns.</p>
+<p>11.3 No service level, uptime or response-time commitment is given.</p>
+
+<h2>12. Suspension and ending your use</h2>
+<p>12.1 You can delete your account at any time from the Account screen. Deletion requires your password and removes your cloud records, your account profile, your login and this device's copy of your account data. It cannot be undone; export your data first if you want to keep it.</p>
+<p>12.2 Administrators may suspend accounts that break these terms. A suspended account cannot read or write its cloud records (enforced by server-side rules) and cannot use the AI scanner. Suspension does not delete data: the app tells the user "Your data is kept and nothing has been deleted." An administrator can reactivate the account.</p>
+<p>12.3 The in-app draft (<code>tos_9</code>) says "you can still export your data" after suspension. In the current version the suspended screen only offers sign-out and the cloud records cannot be read while suspended, so export during suspension is <b>not available in the app</b>. [The owner must decide how a suspended user can obtain a copy of their data, e.g. on request to the operator contact, and the wording must be corrected.]</p>
+<p>12.4 [Notice of suspension, reasons, appeal process and the operator's right to discontinue the service — to be decided after legal review.]</p>
+
+<h2>13. Liability</h2>
+<p><b>[Limitation of liability — wording to be provided by legal review.]</b></p>
+
+<h2>14. Governing law and disputes</h2>
+<p><b>[Applicable law and jurisdiction — to be decided by the owner after legal review.]</b></p>
+
+<h2>15. Changes to these terms</h2>
+<p>These terms may change; continued use means acceptance of the updated terms (<code>tos_6</code>). Material changes will be announced in the app before they take effect. The version date is shown at the top of the in-app page ("Version: draft of 7 November 2026"). [Whether continued use is sufficient consent under the applicable law — to be confirmed by legal review.]</p>
+
+<h2>16. Contact</h2>
+<p>[Operator contact e-mail — to be completed by the owner.]</p>
+
+<h2>17. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Statement</th><th>Status</th></tr>
+<tr><td>18+ checkbox required; rules refuse profiles without age confirmation</td><td>Verified in code (src/pages/Account.tsx, firebase/firestore.rules); registration tested live (scripts/live-verify.mjs)</td></tr>
+<tr><td>EU/EEA/UK/CH refused for the AI scanner</td><td>Verified in code (src/lib/firebase.ts AI_RESTRICTED_COUNTRIES, apps-script/Code.gs AI_RESTRICTED); not tested live with such an account</td></tr>
+<tr><td>Account deletion removes cloud records, profile and login</td><td>Verified live (live-verify deletes both test accounts) and on emulators</td></tr>
+<tr><td>Suspended account cannot read/write private records</td><td>Tested on emulators (tests-rules); suspension of others by a regular account refused live (403)</td></tr>
+<tr><td>Export during suspension</td><td>Not available in the current UI (discrepancy with in-app tos_9)</td></tr>
+<tr><td>Scanner per-user daily limit default 10</td><td>Verified in code (Code.gs); the live configured value is not verified</td></tr>
+<tr><td>Legal enforceability of any clause</td><td>Not verified — requires legal review</td></tr>
+</table>
+
+<h2>18. Decisions required from the owner and legal counsel</h2>
+<ol>
+<li>Operator identity: name, country, contact e-mail (sections 1.2, 16).</li>
+<li>Governing law and jurisdiction (section 14), e.g. Saudi Arabia and/or rules for foreign users.</li>
+<li>Limitation of liability and warranty disclaimer wording (sections 1.3, 13).</li>
+<li>Whether the 18+ self-declaration is sufficient or stronger age assurance is needed.</li>
+<li>How a suspended user obtains their data; correction of in-app text <code>tos_9</code>; suspension notice and appeal (section 12).</li>
+<li>Licence granted by users for submitted foods (section 9.3).</li>
+<li>Form of consent to changed terms (section 15).</li>
+<li>Acceptance of provider terms (Google Cloud/Firebase, Gemini API Additional Terms, Apps Script, GitHub) by the account owner.</li>
+<li>Whether Open Food Facts ODbL attribution/share-alike obligations require additional notices.</li>
+</ol>
+
+<h2>19. Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

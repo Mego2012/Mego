@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Product_Requirements_PRD_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Product Requirements Document (PRD)</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-03</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Project owner, developers, testers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Product_Overview, MEGO_Features_and_Capabilities, MEGO_Product_Roadmap, MEGO_Testing_Strategy, MEGO_Security_Architecture</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This PRD records the product goals, target users and the functional and non-functional requirements of MEGO, and traces every requirement to its implementation in the repository with a status: <b>Implemented</b>, <b>Partially</b> (implemented but limited or not fully verified) or <b>Not implemented</b>. It describes the product as built on 7 November 2026; it is not a wish list. Proposed future work is in MEGO_Product_Roadmap.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Product goals</li>
+<li>Users and personas</li>
+<li>Scope and non-goals</li>
+<li>Functional requirements</li>
+<li>Non-functional requirements</li>
+<li>Constraints and assumptions</li>
+<li>Requirement status summary</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Product goals</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Goal</th><th>Measure of success</th></tr>
+<tr><td>G1</td><td>Make accurate daily nutrition tracking fast on a phone, in Arabic and English.</td><td>A food can be found and logged in a few taps; values come from a verified per-100 g database.</td></tr>
+<tr><td>G2</td><td>Give users goals and targets they understand and control.</td><td>Targets derived from a transparent formula and never applied without confirmation.</td></tr>
+<tr><td>G3</td><td>Turn logs into honest feedback.</td><td>Reports, insights and coaching use only saved data; empty days are not counted as zero.</td></tr>
+<tr><td>G4</td><td>Protect personal data.</td><td>Each account's data is readable only by its owner, enforced server-side.</td></tr>
+<tr><td>G5</td><td>Run at zero cost.</td><td>No billing account on any service.</td></tr>
+<tr><td>G6</td><td>Work offline.</td><td>Logging works without a connection; data syncs later.</td></tr>
+</table>
+
+<h2>2. Users and personas</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Persona</th><th>Description</th><th>Key needs</th></tr>
+<tr><td>P1 – Goal-driven tracker</td><td>Arabic-speaking adult (18+) losing fat while keeping muscle, logs every meal on an Android phone.</td><td>Fast Arabic search, cooked/raw distinction, protein focus, weekly progress.</td></tr>
+<tr><td>P2 – Casual guest</td><td>Wants to try the app without creating an account.</td><td>Full functionality on one device, no sign-up.</td></tr>
+<tr><td>P3 – Multi-device user</td><td>Uses phone and laptop.</td><td>Account, live sync, password reset, data export.</td></tr>
+<tr><td>P4 – Project owner</td><td>Maintains the personal food sheet and the services.</td><td>Google Sheet Hub sync, control of the AI key, backups, admin rights.</td></tr>
+<tr><td>P5 – Administrator</td><td>Moderates the public service.</td><td>User counts, suspend/reactivate, review submitted foods — without seeing private data.</td></tr>
+</table>
+
+<h2>3. Scope and non-goals</h2>
+<ul>
+<li><b>In scope:</b> nutrition logging, targets, body measurements, water/habits/fasting, recipes, planning, coaching, reports, accounts, sync, backups, AI meal photo analysis.</li>
+<li><b>Non-goals (by design):</b> workout tracking; medical diagnosis or treatment; paid services; administrator access to users' private records; creating administrators from inside the app.</li>
+</ul>
+
+<h2>4. Functional requirements</h2>
+<h3>4.1 Accounts and access</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Requirement</th><th>Implementation</th><th>Status</th></tr>
+<tr><td>FR-01</td><td>Use the app as a guest without an account.</td><td><code>chooseGuest</code> in <code>src/lib/account.ts</code>; guest DB <code>mego-nutrition</code></td><td>Implemented</td></tr>
+<tr><td>FR-02</td><td>Register in 3 steps: account (name, e-mail, password ≥ 8 chars with a letter and a digit, country, 18+ confirmation, acceptance of privacy/terms), body and goal, targets.</td><td><code>RegisterFlow</code> in <code>src/pages/Account.tsx</code></td><td>Implemented</td></tr>
+<tr><td>FR-03</td><td>Sign in, sign out, password reset by e-mail.</td><td><code>login</code>, <code>logout</code>, <code>resetPassword</code> in <code>src/lib/firebase.ts</code></td><td>Implemented (reset request verified; inbox delivery not verified)</td></tr>
+<tr><td>FR-04</td><td>Optionally import existing guest data into a new or signed-in account.</td><td><code>enterAccount(uid, importGuest)</code>; checkbox on login and registration</td><td>Implemented</td></tr>
+<tr><td>FR-05</td><td>Export my data; delete my account (cloud data and device copy) after password confirmation.</td><td><code>AccountCard</code>, <code>deleteMyAccount</code></td><td>Implemented</td></tr>
+<tr><td>FR-06</td><td>Suspended accounts see a suspension screen; data is kept.</td><td><code>Suspended</code> view; Firestore rules require <code>active</code> status</td><td>Implemented</td></tr>
+<tr><td>FR-07</td><td>Admin dashboard: counts, account list, suspend/reactivate, food submission review, error reports, publish shared foods.</td><td><code>AdminPage</code>; <code>adminStats</code>, <code>adminSetStatus</code>, <code>adminReview</code>, <code>adminListErrors</code></td><td>Implemented in code; no admin account exists yet</td></tr>
+</table>
+
+<h3>4.2 Food database and logging</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Requirement</th><th>Implementation</th><th>Status</th></tr>
+<tr><td>FR-10</td><td>Per-100 g food records with raw/cooked/ready states kept separate (never converted).</td><td><code>src/lib/nutrition.ts</code>, <code>src/lib/types.ts</code></td><td>Implemented</td></tr>
+<tr><td>FR-11</td><td>Reference database of USDA foods available offline.</td><td><code>public/fooddb/usda.json</code> (12,879 foods), precached by the service worker</td><td>Implemented</td></tr>
+<tr><td>FR-12</td><td>Bilingual search tolerant of Arabic spelling variants and typos.</td><td><code>src/lib/foodSearch.ts</code>, <code>normalize.ts</code>, <code>refFoods.ts</code></td><td>Implemented</td></tr>
+<tr><td>FR-13</td><td>Log to breakfast/lunch/dinner/snacks on any date in g, kg, ml, L, cup, tbsp, tsp, piece, slice and custom servings.</td><td><code>src/pages/Diary.tsx</code>, <code>nutrition.ts</code></td><td>Implemented</td></tr>
+<tr><td>FR-14</td><td>Each entry stores a snapshot of the values used when logged.</td><td>diary entry basis snapshot (<code>src/lib/db.ts</code>, <code>repo.ts</code>)</td><td>Implemented</td></tr>
+<tr><td>FR-15</td><td>Edit, duplicate, copy to another date, delete with confirmation, undo; copy meal/day/yesterday with a warning before adding to a non-empty day.</td><td><code>Diary.tsx</code></td><td>Implemented</td></tr>
+<tr><td>FR-16</td><td>Custom foods, CSV/Excel import with validation preview, export.</td><td><code>customFoods.ts</code>, <code>sheetImport.ts</code>, <code>exporters.ts</code></td><td>Implemented</td></tr>
+<tr><td>FR-17</td><td>Barcode: camera scanning and manual entry, lookup in Open Food Facts.</td><td><code>src/lib/barcode.ts</code>, <code>BarcodeSheet.tsx</code> (BarcodeDetector API)</td><td>Partially — camera scan depends on browser support and is not tested on a real phone</td></tr>
+<tr><td>FR-18</td><td>Users can submit foods for admin review; approved foods become shared.</td><td><code>submitFood</code>, <code>adminReview</code>, Firestore <code>foodSubmissions</code>, <code>foods</code></td><td>Implemented (emulator-tested)</td></tr>
+<tr><td>FR-19</td><td>Food photos for common foods.</td><td><code>src/lib/foodPhotos.ts</code>, 74 photos in <code>public/food-img/</code></td><td>Partially — 74 foods have photos; recipes use emoji icons</td></tr>
+</table>
+
+<h3>4.3 AI meal scanner</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Requirement</th><th>Implementation</th><th>Status</th></tr>
+<tr><td>FR-20</td><td>Analyse a meal photo (camera or gallery) and return items, gram ranges, state and cooking method matched to the user's database.</td><td><code>src/lib/mealScanner.ts</code>, <code>MealScanner.tsx</code>, <code>apps-script/Code.gs</code> (Gemini free tier)</td><td>Implemented (one real analysis verified)</td></tr>
+<tr><td>FR-21</td><td>Never auto-save; require review; database values are primary; AI estimates labelled.</td><td>Review sheet in <code>MealScanner.tsx</code></td><td>Implemented</td></tr>
+<tr><td>FR-22</td><td>Usage limits and clear error messages (quota, busy, offline, region).</td><td><code>AI_DAILY_LIMIT</code> (default 40), <code>AI_USER_DAILY_LIMIT</code> (default 10) in <code>Code.gs</code></td><td>Implemented</td></tr>
+</table>
+
+<h3>4.4 Goals, body, habits</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Requirement</th><th>Implementation</th><th>Status</th></tr>
+<tr><td>FR-30</td><td>Recommend targets from profile and goal (Mifflin-St Jeor BMR × activity, goal adjustment, protein g/kg) and apply only after confirmation.</td><td><code>src/lib/goals.ts</code>, <code>targets.ts</code></td><td>Implemented</td></tr>
+<tr><td>FR-31</td><td>Training/rest-day targets and per-day overrides.</td><td><code>targets.ts</code>, <code>Settings.tsx</code>, <code>days</code> table</td><td>Implemented</td></tr>
+<tr><td>FR-32</td><td>Weight, waist and other measurements; trend with 7-day average; progress photos on device only.</td><td><code>src/pages/Progress.tsx</code></td><td>Implemented</td></tr>
+<tr><td>FR-33</td><td>Water target, custom habits, fasting timer.</td><td><code>src/pages/Habits.tsx</code></td><td>Implemented</td></tr>
+<tr><td>FR-34</td><td>Reminders for water, meals and weigh-in.</td><td><code>src/lib/reminders.ts</code> (Notification API)</td><td>Partially — fire only while the app is open or in the background; no push service</td></tr>
+</table>
+
+<h3>4.5 Recipes, planning, coaching, reports</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Requirement</th><th>Implementation</th><th>Status</th></tr>
+<tr><td>FR-40</td><td>Built-in recipe library computed from the food database, with filters, ratings and favourites.</td><td><code>recipeLibraryData.ts</code> (60) + <code>recipeLibraryData2.ts</code> (41) = 101 recipes; <code>recipeEngine.ts</code></td><td>Implemented</td></tr>
+<tr><td>FR-41</td><td>Suggestions from what is left today and "What can I cook today?" from selected ingredients.</td><td><code>src/pages/Recipes.tsx</code> (tabs library, suggest, cook, recipes, meals)</td><td>Implemented</td></tr>
+<tr><td>FR-42</td><td>Week planner, automatic week plan, shopping list, planned vs actual.</td><td><code>src/pages/Planner.tsx</code></td><td>Implemented</td></tr>
+<tr><td>FR-43</td><td>Coach with today/week/month tabs, food rankings and comparison, education articles.</td><td><code>src/pages/Coach.tsx</code>, <code>coach.ts</code>, <code>foodIntel.ts</code>, <code>education.ts</code></td><td>Implemented</td></tr>
+<tr><td>FR-44</td><td>Weekly and monthly reports with previous-period comparison; CSV, Excel, print-to-PDF.</td><td><code>src/pages/Reports.tsx</code>, <code>reports.ts</code>, <code>exporters.ts</code></td><td>Implemented</td></tr>
+<tr><td>FR-45</td><td>Insights only from saved data (needs ≥ 3 fully logged days).</td><td><code>src/lib/insights.ts</code></td><td>Implemented</td></tr>
+</table>
+
+<h3>4.6 Data, sync and backup</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Requirement</th><th>Implementation</th><th>Status</th></tr>
+<tr><td>FR-50</td><td>Offline-first local database.</td><td>Dexie/IndexedDB, <code>src/lib/db.ts</code></td><td>Implemented</td></tr>
+<tr><td>FR-51</td><td>Live cloud sync for accounts across devices; older copies never overwrite newer.</td><td><code>src/lib/cloudSync.ts</code>, <code>firebase/firestore.rules</code></td><td>Implemented (verified live)</td></tr>
+<tr><td>FR-52</td><td>Owner Hub sync with Google Sheets (outbox, retry, conflict detection, soft delete).</td><td><code>src/lib/sync.ts</code> ↔ <code>apps-script/Code.gs</code></td><td>Implemented (verified live)</td></tr>
+<tr><td>FR-53</td><td>Automatic on-device backups (last 10), backup before risky operations, file download/restore (merge-only).</td><td><code>localBackup.ts</code>, <code>backup.ts</code></td><td>Implemented</td></tr>
+<tr><td>FR-54</td><td>Backups to Google Drive.</td><td>Apps Script <code>backup</code> action</td><td>Partially — owner Hub only; not verified separately in production</td></tr>
+</table>
+
+<h2>5. Non-functional requirements</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Requirement</th><th>Implementation / evidence</th><th>Status</th></tr>
+<tr><td>NFR-01 Security</td><td>Each user reads/writes only their own data; admins cannot read private records; nobody can self-promote to admin.</td><td><code>firebase/firestore.rules</code>; rules tests 14; live-verify 14/14 (403 checks)</td><td>Implemented</td></tr>
+<tr><td>NFR-02 Secrets</td><td>No AI key on the device or in the repository.</td><td>Key only in Apps Script Script Properties</td><td>Implemented (rotation recommended)</td></tr>
+<tr><td>NFR-03 Privacy</td><td>AI photos downscaled (≤ 1024 px) and re-encoded to remove EXIF/GPS; not stored. Progress photos never synced.</td><td><code>mealScanner.ts</code>; <code>photos</code> table is device-only</td><td>Implemented</td></tr>
+<tr><td>NFR-04 Offline</td><td>App shell, fonts, USDA database and viewed food photos available offline.</td><td>Workbox config in <code>vite.config.ts</code></td><td>Implemented</td></tr>
+<tr><td>NFR-05 Localisation</td><td>Full Arabic RTL and English LTR.</td><td><code>src/lib/i18n*.ts</code></td><td>Implemented</td></tr>
+<tr><td>NFR-06 Accessibility</td><td>Focus styles, tap sizes, reduced-motion support.</td><td><code>src/styles.css</code> (<code>prefers-reduced-motion</code>)</td><td>Partially — no formal accessibility audit</td></tr>
+<tr><td>NFR-07 Mobile usability</td><td>Every screen scrolls correctly on phone viewports; Back closes sheets.</td><td>Touch/scroll suite 103/103 (emulated)</td><td>Partially — real device not tested</td></tr>
+<tr><td>NFR-08 Accuracy</td><td>0.01 precision stored, rounding only on display; Atwater consistency checks.</td><td><code>nutrition.ts</code>; unit tests</td><td>Implemented</td></tr>
+<tr><td>NFR-09 Cost</td><td>Only free tiers; stop rather than bill.</td><td>Firebase Spark, Gemini free tier, GitHub Pages, Apps Script</td><td>Implemented</td></tr>
+<tr><td>NFR-10 Reliability</td><td>Errors show a screen instead of a blank page; sync retries automatically.</td><td><code>ErrorBoundary.tsx</code>; retry in <code>sync.ts</code></td><td>Implemented</td></tr>
+<tr><td>NFR-11 Performance</td><td>Heavy pages loaded on demand; charts in a separate chunk.</td><td><code>lazy()</code> in <code>src/App.tsx</code>; <code>manualChunks</code> in <code>vite.config.ts</code></td><td>Implemented; no formal performance budget measured</td></tr>
+<tr><td>NFR-12 Legal</td><td>Privacy policy and terms available in the app.</td><td>Routes <code>#/privacy</code>, <code>#/terms</code></td><td>Partially — drafts awaiting legal review</td></tr>
+</table>
+
+<h2>6. Constraints and assumptions</h2>
+<ul>
+<li>Free-tier limits apply (Firebase Spark quotas, Apps Script quotas, Gemini free quota); when reached, the service stops for the day.</li>
+<li>Gemini free-tier terms: accounts from EU/EEA/UK/Switzerland are refused by the AI proxy (<code>AI_RESTRICTED_COUNTRIES</code> in <code>src/lib/firebase.ts</code>).</li>
+<li>Users must be 18 or older (registration checkbox and age ≥ 18 on step 2).</li>
+<li>The app is a web app; there are no store (Play Store / App Store) packages.</li>
+</ul>
+
+<h2>7. Requirement status summary</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Status</th><th>Requirements</th></tr>
+<tr><td>Implemented</td><td>FR-01–06, FR-10–16, FR-18, FR-20–22, FR-30–33, FR-40–45, FR-50–53; NFR-01–05, 08–11</td></tr>
+<tr><td>Partially</td><td>FR-07 (no admin yet), FR-17, FR-19, FR-34, FR-54; NFR-06, NFR-07, NFR-12</td></tr>
+<tr><td>Not implemented</td><td>Push notifications when the app is closed; store packages; workout tracking (non-goal)</td></tr>
+</table>
+
+<h2>8. Verification status</h2>
+<ul>
+<li><b>Verified live:</b> FR-02/03 (registration, reset request), FR-05 (deletion), FR-51, FR-52, FR-20 (one analysis), NFR-01.</li>
+<li><b>Tested only on emulators / automated suites:</b> FR-07, FR-18, NFR-07 and all guest flows (e2e 44, scroll 103, multi-user 8).</li>
+<li><b>Not verified:</b> FR-17 camera on a real phone, FR-34 reliability, FR-54 in production, password-reset e-mail delivery, accessibility conformance.</li>
+</ul>
+
+<h2>9. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

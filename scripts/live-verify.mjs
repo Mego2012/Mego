@@ -177,6 +177,40 @@ try {
     if (!/1/.test(complete) || !/330/.test(avg.replace(/,/g, ''))) throw new Error(`complete: ${complete} · avg: ${avg}`);
     return `${complete} · average ${avg}`;
   });
+  await check('Monthly report from the logged day', async () => {
+    await A.page.goto(BASE + '#/reports/month');
+    await A.page.getByTestId('report-stats').waitFor();
+    const avg = await A.page.getByTestId('avg-kcal').innerText();
+    if (!/330/.test(avg.replace(/,/g, ''))) throw new Error('avg: ' + avg);
+    return `average ${avg}`;
+  });
+  await check('Admin functions are enforced by the server (regular account)', async () => {
+    const list = await fetch(`${FS}:runQuery`.replace('/documents:runQuery', '/documents:runQuery'), { method: 'POST', headers: { Authorization: 'Bearer ' + b.idToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ structuredQuery: { from: [{ collectionId: 'profiles' }], limit: 5 } }) });
+    const promote = await fetch(`${FS}/admins/${b.uid}?currentDocument.exists=false`, { method: 'PATCH', headers: { Authorization: 'Bearer ' + b.idToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { since: { integerValue: '1' } } }) });
+    const suspend = await fetch(`${FS}/profiles/${a.uid}?updateMask.fieldPaths=status`, { method: 'PATCH', headers: { Authorization: 'Bearer ' + b.idToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ fields: { status: { stringValue: 'suspended' } } }) });
+    await B.page.goto(BASE + '#/admin');
+    await B.page.waitForTimeout(1500);
+    const ui = await B.page.locator('main').innerText();
+    if (list.status !== 403) throw new Error('listing all profiles: HTTP ' + list.status);
+    if (promote.status !== 403) throw new Error('making itself admin: HTTP ' + promote.status);
+    if (suspend.status !== 403) throw new Error("suspending another account: HTTP " + suspend.status);
+    if (await B.page.getByTestId('admin-stats').count()) throw new Error('admin dashboard rendered for a regular account');
+    return 'list all profiles → 403 · self-promote to admin → 403 · suspend another user → 403 · dashboard not shown' + (ui ? '' : '');
+  });
+  await check('Password recovery request accepted by Firebase (from the app screen)', async () => {
+    const R = await device('en-US');
+    try {
+      await R.page.goto(BASE);
+      await R.page.getByTestId('wel-login').click();
+      const resp = R.page.waitForResponse((r) => /accounts:sendOobCode/.test(r.url()), { timeout: 30000 });
+      await R.page.getByTestId('forgot').click();
+      await R.page.getByTestId('reset-email').fill(EMAIL.a);
+      await R.page.getByTestId('reset-submit').click();
+      const r = await resp;
+      if (r.status() !== 200) throw new Error('sendOobCode HTTP ' + r.status());
+      return 'reset e-mail requested (HTTP 200); delivery to a real inbox is not checked here';
+    } finally { await R.ctx.close(); }
+  });
   await check('Sign-out and sign-in again (persistent account)', async () => {
     await A.page.goto(BASE + '#/settings');
     await A.page.getByTestId('acc-logout').click();

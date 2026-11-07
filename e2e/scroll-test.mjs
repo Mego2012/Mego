@@ -88,6 +88,7 @@ async function seed(page) {
 const browser = await chromium.launch(EXTERNAL && process.env.HTTPS_PROXY ? { proxy: { server: process.env.HTTPS_PROXY } } : {});
 { // control: the swipe method must scroll a plain long page, otherwise the test itself is broken
   const c = await browser.newContext({ viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true });
+  await c.route('**/firebase-config.json', (r) => r.fulfill({ status: 404, body: '' })); // guest mode under test (accounts are enabled in production)
   const p = await c.newPage();
   const cdp = await c.newCDPSession(p);
   await p.setContent('<body style="margin:0"><div style="height:4000px"></div></body>');
@@ -101,6 +102,7 @@ const browser = await chromium.launch(EXTERNAL && process.env.HTTPS_PROXY ? { pr
 for (const vp of VIEWPORTS) {
   for (const lang of ['ar', 'en']) {
     const ctx = await browser.newContext({ viewport: { width: vp.width, height: vp.height }, deviceScaleFactor: vp.dpr, isMobile: true, hasTouch: true, locale: lang === 'ar' ? 'ar-SA' : 'en-US', userAgent: 'Mozilla/5.0 (Linux; Android 14; SM-S911B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Mobile Safari/537.36' });
+  await ctx.route('**/firebase-config.json', (r) => r.fulfill({ status: 404, body: '' })); // guest mode under test (accounts are enabled in production)
     const page = await ctx.newPage();
     const cdp = await ctx.newCDPSession(page);
     await seed(page);

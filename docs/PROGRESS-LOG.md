@@ -48,3 +48,17 @@ Autonomous work session (cloud container). Newest entries last.
   412 px Arabic Foods page (page stopped at 595/1107 px). Photos are now non-draggable and pass touches to the row → 103/103.
 * Windows fix: Node 18.20+/20.12+ refuses to spawn npx.cmd/npm.cmd without a shell, so 'clasp login' failed instantly on
   the owner's Windows laptop (Node 26.13). The setup script now starts npm/npx through node.exe directly.
+
+## Owner's laptop run (7 Nov 2026) — real services
+* Fixed on the way (all found during the real run): Windows refused to spawn npx.cmd (Node 26); Google's new Gemini key format
+  (AQ.…) was rejected by format checks; network errors were not retried; Firebase could not be added before the owner accepted
+  the Firebase terms (setup now resumes with the existing Cloud project); Firestore API had to be enabled before creating the
+  database; the config commit failed silently on a fresh Git install (no identity) — now committed with a neutral identity and
+  verified on GitHub.
+* Live results on the owner's laptop: Hub/Apps Script 11 ✅, Gemini photo analysis ✅ (6 items), Firebase project mego-473920,
+  Firestore me-central2, rules deployed, email sign-in, config published, live account verification 11/11 ✅.
+* Independent re-run from the cloud session against the live site: the second-device sync check failed because the check itself
+  reloaded the page every 0.7 s (the app never finished starting); the app synced within 5 s in a diagnostic run. Check fixed
+  (waits on the open page, then a live update without reload) → 11/11 against real Firebase. Firestore now also auto-detects
+  networks that buffer its streaming channel (long-polling fallback).
+* Guest-mode suites now explicitly run without the production Firebase config (production shows the account welcome screen).

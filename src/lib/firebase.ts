@@ -9,7 +9,7 @@ import {
   sendEmailVerification, sendPasswordResetEmail, signInWithEmailAndPassword, signOut, updateProfile, type Auth, type User
 } from 'firebase/auth';
 import {
-  collection, connectFirestoreEmulator, doc, getCountFromServer, getDoc, getDocs, getFirestore, limit, orderBy, query, setDoc, updateDoc, where,
+  collection, connectFirestoreEmulator, doc, getCountFromServer, getDoc, getDocs, getFirestore, initializeFirestore, limit, orderBy, query, setDoc, updateDoc, where,
   type Firestore
 } from 'firebase/firestore';
 
@@ -47,7 +47,9 @@ export function initCloud(c: CloudConfig) {
   cfg = c;
   app = initializeApp({ apiKey: c.apiKey, authDomain: c.authDomain, projectId: c.projectId, appId: c.appId });
   auth = getAuth(app);
-  fs = getFirestore(app);
+  // Some networks (corporate proxies, some mobile carriers) buffer Firestore's streaming channel, so live updates never
+  // arrive. Auto-detection switches those clients to long polling; the 10 s detection timeout keeps the switch quick.
+  fs = c.emulator ? getFirestore(app) : initializeFirestore(app, { experimentalAutoDetectLongPolling: true, experimentalLongPollingOptions: { timeoutSeconds: 10 } });
   if (c.emulator) {
     connectAuthEmulator(auth, c.emulator.authUrl, { disableWarnings: true });
     connectFirestoreEmulator(fs, c.emulator.firestoreHost, c.emulator.firestorePort);

@@ -94,6 +94,7 @@ if (!process.env.E2E_BASE) await new Promise((resolve, reject) => {
 const device = devices['Galaxy S9+'];
 async function openContext() {
   const ctx = await chromium.launchPersistentContext(PROFILE, { ...device, acceptDownloads: true, locale: 'ar-SA', timezoneId: 'Asia/Riyadh' });
+  await ctx.route('**/firebase-config.json', (r) => r.fulfill({ status: 404, body: '' })); // guest mode under test (accounts are enabled in production)
   await ctx.route('https://script.google.com/**', mockScript);
   await ctx.route('https://world.openfoodfacts.org/**', mockOFF);
   const page = ctx.pages()[0] || (await ctx.newPage());
@@ -371,6 +372,7 @@ await check('TEST 14', 'PWA installability prerequisites (manifest, service work
   // Playwright request routing bypasses service workers, so the offline-shell check uses a clean context without routes.
   const browser = await chromium.launch();
   const c2 = await browser.newContext({ ...device });
+  await c2.route('**/firebase-config.json', (r) => r.fulfill({ status: 404, body: '' })); // guest mode under test (accounts are enabled in production)
   const p2 = await c2.newPage();
   await p2.goto(URL_BASE);
   const active = await p2.evaluate(async () => { const r = await navigator.serviceWorker.ready; return !!r.active; });

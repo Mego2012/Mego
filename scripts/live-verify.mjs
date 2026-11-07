@@ -152,9 +152,18 @@ try {
     const L = await device('en-US');
     try {
       await login(L.page, EMAIL.a);
-      await until(async () => { await L.page.goto(BASE + '#/diary'); await L.page.getByTestId('diary').waitFor(); return (await L.page.getByTestId('diary').innerText()).includes(FOOD); }, 45000);
-      await A.page.goto(BASE); await A.page.getByTestId('dash-water-250').click();
-      await until(async () => { await L.page.goto(BASE); return (await L.page.getByTestId('dash-water').innerText()).replace(/[^\d]/g, '') === '250'; }, 45000);
+      await L.page.goto(BASE + '#/diary');
+      try {
+        await until(async () => { await L.page.getByTestId('diary').waitFor(); return (await L.page.getByTestId('diary').innerText()).includes(FOOD); }, 60000);
+      } catch { throw new Error("step 1: A's diary entry did not reach the second device within 60 s"); }
+      await L.page.goto(BASE + '#/');
+      await L.page.getByTestId('dash-water').waitFor();
+      const before = Number((await L.page.getByTestId('dash-water').innerText()).replace(/[^\d]/g, '')) || 0;
+      await A.page.goto(BASE + '#/'); await A.page.getByTestId('dash-water-250').click();
+      try {
+        // live update on the open second device, no reload
+        await until(async () => Number((await L.page.getByTestId('dash-water').innerText()).replace(/[^\d]/g, '')) === before + 250, 60000);
+      } catch { throw new Error(`step 2: water added on device A did not appear live on the second device within 60 s (before ${before})`); }
     } finally { await L.ctx.close(); }
     return 'diary entry and a later water update arrived on the second device';
   });

@@ -23,6 +23,7 @@ const PORT = 4181;
 const server = spawn(path.join(ROOT, 'node_modules/.bin/vite'), ['preview', '--port', String(PORT), '--strictPort'], { cwd: ROOT, stdio: 'ignore' });
 await new Promise((r) => setTimeout(r, 2500));
 const ctx = await pw.chromium.launchPersistentContext(profile, { ...pw.devices['Pixel 7'], deviceScaleFactor: FULL ? 1 : 2 });
+await ctx.route('**/firebase-config.json', (r) => r.fulfill({ status: 404, body: '' })); // guest-mode screens
 const page = ctx.pages()[0] || await ctx.newPage();
 page.setDefaultTimeout(4000);
 const errors = [];

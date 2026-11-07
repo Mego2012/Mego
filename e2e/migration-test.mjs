@@ -17,6 +17,7 @@ await new Promise((r) => setTimeout(r, 1500));
 const profile = S + '/mig-profile';
 rmSync(profile, { recursive: true, force: true });
 let ctx = await chromium.launchPersistentContext(profile, { ...devices['Galaxy S9+'] });
+await ctx.route('**/firebase-config.json', (r) => r.fulfill({ status: 404, body: '' }));
 let page = ctx.pages()[0];
 await page.goto('http://localhost:4180/#/foods');
 await page.getByTestId('import-input').setInputFiles('/home/user/Mego/tests/fixtures/food-sheet-sample.csv');
@@ -37,6 +38,7 @@ await ctx.close();
 // "Update" the app: same origin now serves v2.
 serveDir(S + '/dist-v2');
 ctx = await chromium.launchPersistentContext(profile, { ...devices['Galaxy S9+'] });
+await ctx.route('**/firebase-config.json', (r) => r.fulfill({ status: 404, body: '' }));
 page = ctx.pages()[0];
 await page.goto('http://localhost:4180/#/diary');
 await page.waitForTimeout(1500);

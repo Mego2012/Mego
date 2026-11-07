@@ -42,7 +42,7 @@ export const PHOTO_KEYS: PhotoKey[] = [
   K('edamame', 'legume', /\bedamame\b/, /ادامامي/, ['168411']),
   K('hummus', 'legume', /\bhummus\b/, /^حمص (بالطحينه|بطحينه)|حمص بالطحينه/),
   K('falafel', 'legume', /\bfalafel\b/, /فلافل|طعميه/),
-  K('fava-beans', 'legume', /\bfava\b|\bbroad ?beans?\b|\bful\b/, /فول/, ['173798']),
+  K('fava-beans', 'legume', /\bfava\b|\bbroad ?beans?\b|\bful\b/, /فول(?! سوداني)(?! السوداني)/, ['173798']),
   K('chickpeas', 'legume', /\bchickpeas?\b|\bgarbanzo\b/, /حمص/, ['173757']),
   K('lentils', 'legume', /\blentils?\b/, /عدس/, ['172421']),
   K('kidney-beans', 'legume', /\bkidney beans?\b/, /فاصوليا حمرا/, ['173740']),
@@ -76,8 +76,8 @@ export const PHOTO_KEYS: PhotoKey[] = [
   K('olive-oil', 'fat', /\bolive oil\b|\boil, olive\b/, /زيت (ال)?زيتون/, ['171413']),
   K('canola-oil', 'fat', /\bcanola\b|\brapeseed\b/, /زيت (ال)?كانولا/, ['172336']),
   K('coconut-oil', 'fat', /\bcoconut oil\b|\boil, coconut\b/, /زيت (ال)?جوز الهند/, ['171412']),
-  K('butter', 'fat', /^butter\b|\bbutter, (salted|without salt|unsalted)/, /^زبده/, ['173410']),
   K('peanut-butter', 'nut', /\bpeanut butter\b/, /زبده (ال)?فول السوداني/, ['172470']),
+  K('butter', 'fat', /^butter\b|\bbutter, (salted|without salt|unsalted)/, /^زبده/, ['173410']),
   K('tahini', 'nut', /\btahini\b|\bsesame butter\b/, /طحينه/, ['170189']),
   K('almonds', 'nut', /\balmonds?\b(?!.*(milk|butter|flour))/, /لوز/, ['170567']),
   K('walnuts', 'nut', /\bwalnuts?\b/, /عين (ال)?جمل|جوز(?! الهند)/, ['170187']),
@@ -101,8 +101,15 @@ export const PHOTO_KEYS: PhotoKey[] = [
 ];
 
 /** Names that describe a dish, a mixture or a processed product: never matched to a single-ingredient photo. */
-const EXCLUDE_EN = /\b(with|and|in sauce|sauce|soup|salad|sandwich|pie|cake|cookie|bar|nugget|breaded|battered|fried|casserole|stew|curry|pizza|burger|baby ?food|babyfood|flavou?red|sweetened|candied|chips|juice|drink|beverage|powder(?!.*(whey|protein))|substitute|imitation|dessert|ice cream|pudding|muffin|cereal|snack|frozen meal|entree|dinner|mix|dip|spread(?!.*peanut)|crackers?|smoothie|shake)\b/;
-const EXCLUDE_AR = /(مع |ب(ال)?صلصه|صلصه|شوربه|سلطه|ساندويتش|فطيره|كيك|بسكويت|مقلي|مقليه|كبسه|طاجن|بيتزا|برجر|عصير|مشروب|حلوي|ايس كريم|مهلبيه|محشي|معجنات|كريب|شيبس|مخبوز(ات)?)/;
+const EXCLUDE_EN = /\b(chocolate|candy|candies|flour|noodles?|syrup|vinegar|(rice|soy|almond|oat|coconut|cashew) (milk|beverage)|with|and|in sauce|sauce|soup|salad|sandwich(es)?|pies?|cakes?|cookies?|bars?|nuggets?|breaded|battered|fried|casserole|stew|curry|pizzas?|burgers?|baby ?food|babyfood|flavou?red|sweetened|candied|chips|juice|drink|beverage|powder(?!.*(whey|protein))|substitute|imitation|dessert|ice cream|pudding|muffins?|cereals?|snack|frozen meal|entree|dinner|mix|dip|spread(?!.*peanut)|crackers?|smoothie|shake)\b/;
+const EXCLUDE_AR = /(حلاوه|شوكولاته|طحين |دقيق|مع |ب(ال)?صلصه|صلصه|شوربه|سلطه|ساندويتش|فطيره|كيك|بسكويت|مقلي|مقليه|كبسه|طاجن|بيتزا|برجر|عصير|مشروب|حلوي|ايس كريم|مهلبيه|محشي|معجنات|كريب|شيبس|مخبوز(ات)?)/;
+
+const arCache = new Map<RegExp, RegExp>();
+function arWord(re: RegExp): RegExp {
+  let w = arCache.get(re);
+  if (!w) { w = new RegExp(`(?:^|\\s)(?:ال)?(?:${re.source})(?=\\s|$)`); arCache.set(re, w); }
+  return w;
+}
 
 const byKey = new Map(PHOTO_KEYS.map((k) => [k.key, k]));
 export const photoGroupOf = (key: string | null | undefined): PhotoGroup => (key && byKey.get(key)?.group) || 'other';
@@ -119,8 +126,10 @@ export function photoKeyFor(food: { nameEn?: string; nameAr?: string; sourceRef?
   if (fdc) for (const k of PHOTO_KEYS) if (k.fdc?.includes(fdc)) return k.key;
   const en = (food.nameEn ?? '').toLowerCase().trim();
   const ar = normalizeText(food.nameAr ?? '');
-  if (en && !EXCLUDE_EN.test(en)) for (const k of PHOTO_KEYS) if (k.en.test(en)) return k.key;
-  if (ar && !EXCLUDE_AR.test(ar + ' ')) for (const k of PHOTO_KEYS) if (k.ar?.test(ar)) return k.key;
+  const otherOil = /\boil\b/.test(en) && !/\b(olive|canola|coconut|rapeseed)\b/.test(en); // e.g. almond oil ≠ almonds
+  if (en && !EXCLUDE_EN.test(en) && !otherOil) for (const k of PHOTO_KEYS) if (k.en.test(en)) return k.key;
+  // Arabic: whole words only (optionally with the article ال) — e.g. أبيض "white" must not match بيض "egg"
+  if (ar && !EXCLUDE_AR.test(ar + ' ')) for (const k of PHOTO_KEYS) if (k.ar && arWord(k.ar).test(ar)) return k.key;
   return null;
 }
 

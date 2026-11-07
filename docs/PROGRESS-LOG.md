@@ -22,3 +22,18 @@ Autonomous work session (cloud container). Newest entries last.
   0 g fibre (animal tissue has no dietary fibre); nothing else is filled in. Tests added.
 * AUDIT — education: three sources pointed to generic landing pages. Replaced with the exact documents (WHO carbohydrate
   guideline 2023, WHO TRS 935 on IRIS, FAO paper 92 on FAO Open Knowledge), verified online. Guard test added.
+* Coach redesigned: icon tabs, remaining-macro brief, message cards (level icon, data vs guidance badge), "complete my macros" plates, tip card.
+* Rankings redesigned: kind chips with icons, goal control, method note, ranked cards with photos, score bars, coverage chips, partial-data divider, compare toggle; compare table highlights the best value per row; detail sheet with score ring, breakdown bars and an amino-acid chart against the FAO/WHO reference line.
+* Education: article cards with covers (food photo or icon) and source counts; reader with level tags and citation chips.
+* Progress: weight instrument (current, change, start→target track, ETA, rate), mini stats, history rows with date badges and deltas.
+* Reports: day ledger (one cell per day, coloured by status, over-target dot, future days outlined), macro target gauges, adherence list.
+  Bug found while checking: the status class "empty" collided with the app-wide empty-state style; renamed.
+* Settings: profile header with targets, sticky section index, icons on every section, photo credits section.
+* Account card and Admin dashboard redesigned (KPI tiles, privacy notice, avatars). Planner: one card per day with planned vs actual bars.
+* Food photos: 58 hand-picked Wikimedia Commons photos (CC0/CC BY/CC BY-SA/PD), each checked by eye; rejected look-alikes
+  (milk-glass ornaments for "milk", branded whey/canola, cashew fruit on the tree, pumpkin seeds in shells for kernels, unclear tahini).
+  320 px WebP, ~980 KB total, cached offline after first view (CacheFirst), never precached. Credits in Settings and public/food-img/CREDITS.md.
+* AUDIT — photo matching: tests found أبيض ("white") matched بيض ("egg") → Arabic now matches whole words only; peanuts (فول سوداني) no
+  longer match fava beans; "milk chocolate", "almond milk/oil", "rice cakes" no longer get single-food photos. 20 positive and 19 negative cases tested.
+* Wikimedia's API started answering 429 (rate limit) during the second search round; 28 of the 86 photo keys (e.g. tomatoes, strawberries, brown rice,
+  milk, eggs) therefore have no photo yet and show the drawn placeholder. Re-run `scripts/food-photos/candidates.py` later to extend.

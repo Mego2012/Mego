@@ -1,0 +1,466 @@
+{
+ "chicken-breast": {
+  "file": "chicken-breast.webp",
+  "title": "Grilled Chicken Breasts (28905381261).jpg",
+  "author": "Sharon Chen from Austin, United States",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Grilled_Chicken_Breasts_(28905381261).jpg"
+ },
+ "turkey-breast": {
+  "file": "turkey-breast.webp",
+  "title": "Cooked turkey breast - November 2023 - Sarah Stierch.jpg",
+  "author": "Missvain",
+  "license": "CC BY 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Cooked_turkey_breast_-_November_2023_-_Sarah_Stierch.jpg"
+ },
+ "tuna-canned": {
+  "file": "tuna-canned.webp",
+  "title": "Lata de atún-Albo.jpg",
+  "author": "Tamorlan",
+  "license": "CC BY 3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Lata_de_at%C3%BAn-Albo.jpg"
+ },
+ "tuna-steak": {
+  "file": "tuna-steak.webp",
+  "title": "Seared Ahi Tuna Steak.jpg",
+  "author": "eric molina from San Francisco, United States",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Seared_Ahi_Tuna_Steak.jpg"
+ },
+ "cod": {
+  "file": "cod.webp",
+  "title": "Sous vide cod 2018.jpg",
+  "author": "https://sousvideguy.com/",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Sous_vide_cod_2018.jpg"
+ },
+ "tilapia": {
+  "file": "tilapia.webp",
+  "title": "Liat Portal for Foodie Disorder - Tilapia with roasted zucchini and sweet potato.jpg",
+  "author": "HaJunkiyada",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Liat_Portal_for_Foodie_Disorder_-_Tilapia_with_roasted_zucchini_and_sweet_potato.jpg"
+ },
+ "salmon": {
+  "file": "salmon.webp",
+  "title": "DFC 1189 Pan-seared salmon fillet served with creamy mashed potatoes a lime wedge and a side of sauce.jpg",
+  "author": "PattayaPatrol",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:DFC_1189_Pan-seared_salmon_fillet_served_with_creamy_mashed_potatoes_a_lime_wedge_and_a_side_of_sauce.jpg"
+ },
+ "mackerel": {
+  "file": "mackerel.webp",
+  "title": "Grilled mackerel on a BBQ.jpg",
+  "author": "Kernow Skies",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Grilled_mackerel_on_a_BBQ.jpg"
+ },
+ "sardines": {
+  "file": "sardines.webp",
+  "title": "2006 sardines can open top.jpg",
+  "author": "Rl",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+  "source": "https://commons.wikimedia.org/wiki/File:2006_sardines_can_open_top.jpg"
+ },
+ "shrimp": {
+  "file": "shrimp.webp",
+  "title": "Cooked shrimp.jpg",
+  "author": "Fumikas Sagisavas",
+  "license": "CC0",
+  "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Cooked_shrimp.jpg"
+ },
+ "ground-beef": {
+  "file": "ground-beef.webp",
+  "title": "2020-08-09 21 39 35 Ground beef starting to cook on a hot skillet in the Franklin Farm section of Oak Hill, Fairfax County, Virginia.jpg",
+  "author": "Famartin",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:2020-08-09_21_39_35_Ground_beef_starting_to_cook_on_a_hot_skillet_in_the_Franklin_Farm_section_of_Oak_Hill,_Fairfax_County,_Virginia.jpg"
+ },
+ "cottage-cheese": {
+  "file": "cottage-cheese.webp",
+  "title": "Cottagecheese200px.jpg",
+  "author": "FASTILY (TALK)",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Cottagecheese200px.jpg"
+ },
+ "feta": {
+  "file": "feta.webp",
+  "title": "Feta Greece 2.jpg",
+  "author": "unknown",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+  "source": "https://commons.wikimedia.org/wiki/File:Feta_Greece_2.jpg"
+ },
+ "lentils": {
+  "file": "lentils.webp",
+  "title": "Liat Portal for Foodie Disorder - Cooked Lentils with Caramelized Onions.jpg",
+  "author": "HaJunkiyada",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Liat_Portal_for_Foodie_Disorder_-_Cooked_Lentils_with_Caramelized_Onions.jpg"
+ },
+ "chickpeas": {
+  "file": "chickpeas.webp",
+  "title": "Ordinary chickpeas in a ceramic bowl.jpg",
+  "author": "AlixSaz",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Ordinary_chickpeas_in_a_ceramic_bowl.jpg"
+ },
+ "black-beans": {
+  "file": "black-beans.webp",
+  "title": "2015 1012 Preserved black beans douchi close-up.jpg",
+  "author": "Takeaway",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:2015_1012_Preserved_black_beans_douchi_close-up.jpg"
+ },
+ "fava-beans": {
+  "file": "fava-beans.webp",
+  "title": "Foul Mdammis, Tunisie.jpg",
+  "author": "Habib M'henni",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Foul_Mdammis,_Tunisie.jpg"
+ },
+ "split-peas": {
+  "file": "split-peas.webp",
+  "title": "Goya yellow split peas.jpg",
+  "author": "Mx. Granger",
+  "license": "CC0",
+  "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Goya_yellow_split_peas.jpg"
+ },
+ "edamame": {
+  "file": "edamame.webp",
+  "title": "Edamame - Massachusetts.jpg",
+  "author": "Daderot",
+  "license": "CC0",
+  "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Edamame_-_Massachusetts.jpg"
+ },
+ "oats": {
+  "file": "oats.webp",
+  "title": "Rolled oats 2.jpg",
+  "author": "Yonygg",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Rolled_oats_2.jpg"
+ },
+ "white-rice": {
+  "file": "white-rice.webp",
+  "title": "JP 日本 Japan 京都 Kyoto 四條 Shijo side Sukiya Restaurant food cooked steamed white rice June 2026 N13P 03.jpg",
+  "author": "TKdows 2026",
+  "license": "CC0",
+  "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:JP_%E6%97%A5%E6%9C%AC_Japan_%E4%BA%AC%E9%83%BD_Kyoto_%E5%9B%9B%E6%A2%9D_Shijo_side_Sukiya_Restaurant_food_cooked_steamed_white_rice_June_2026_N13P_03.jpg"
+ },
+ "potato": {
+  "file": "potato.webp",
+  "title": "Boiled, floury potatoes (5299865427).jpg",
+  "author": "benjgibbs",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Boiled,_floury_potatoes_(5299865427).jpg"
+ },
+ "sweet-potato": {
+  "file": "sweet-potato.webp",
+  "title": "Baking Sweet Potato Slices.jpg",
+  "author": "Alabama Extension",
+  "license": "CC0",
+  "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Baking_Sweet_Potato_Slices.jpg"
+ },
+ "bread-wholewheat": {
+  "file": "bread-wholewheat.webp",
+  "title": "Vegan no-knead whole wheat bread loaf, sliced, September 2010.jpg",
+  "author": "Veganbaking.net",
+  "license": "CC BY-SA 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Vegan_no-knead_whole_wheat_bread_loaf,_sliced,_September_2010.jpg"
+ },
+ "bulgur": {
+  "file": "bulgur.webp",
+  "title": "Bulgur lose 26022015 8675.jpg",
+  "author": "Johann Jaritz",
+  "license": "CC BY-SA 3.0 at",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/at/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Bulgur_lose_26022015_8675.jpg"
+ },
+ "quinoa": {
+  "file": "quinoa.webp",
+  "title": "Quinoa 2.jpg",
+  "author": "ProjectManhattan",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Quinoa_2.jpg"
+ },
+ "pasta": {
+  "file": "pasta.webp",
+  "title": "(Pasta) by David Adam Kess (pic.2).jpg",
+  "author": "David Adam Kess",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:(Pasta)_by_David_Adam_Kess_(pic.2).jpg"
+ },
+ "couscous": {
+  "file": "couscous.webp",
+  "title": "Liat Portal for Foodie Disorder - Couscous (Prepared).jpg",
+  "author": "HaJunkiyada",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Liat_Portal_for_Foodie_Disorder_-_Couscous_(Prepared).jpg"
+ },
+ "barley": {
+  "file": "barley.webp",
+  "title": "Pörtschach Graupen in Schüssel 26022015 8673.jpg",
+  "author": "Johann Jaritz",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:P%C3%B6rtschach_Graupen_in_Sch%C3%BCssel_26022015_8673.jpg"
+ },
+ "banana": {
+  "file": "banana.webp",
+  "title": "Bananas on black background 02.jpg",
+  "author": "Krzysztof Golik",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Bananas_on_black_background_02.jpg"
+ },
+ "apple": {
+  "file": "apple.webp",
+  "title": "Red Apple.jpg",
+  "author": "Abhijit Tembhekar from Mumbai, India",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Red_Apple.jpg"
+ },
+ "dates": {
+  "file": "dates.webp",
+  "title": "Świeży daktyl MEDJOOL.jpg",
+  "author": "ORGANIChouse",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:%C5%9Awie%C5%BCy_daktyl_MEDJOOL.jpg"
+ },
+ "orange": {
+  "file": "orange.webp",
+  "title": "Oranges - whole-halved-segment.jpg",
+  "author": "Ivar Leidus",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Oranges_-_whole-halved-segment.jpg"
+ },
+ "watermelon": {
+  "file": "watermelon.webp",
+  "title": "Slice of Watermelon from Wilson Farm, Lexington MA.jpg",
+  "author": "John Phelan",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Slice_of_Watermelon_from_Wilson_Farm,_Lexington_MA.jpg"
+ },
+ "pear": {
+  "file": "pear.webp",
+  "title": "D'anjou pear.jpg",
+  "author": "Rhododendrites",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:D%27anjou_pear.jpg"
+ },
+ "guava": {
+  "file": "guava.webp",
+  "title": "Goiaba vermelha.jpg",
+  "author": "Rodrigo.Argenton",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Goiaba_vermelha.jpg"
+ },
+ "raspberries": {
+  "file": "raspberries.webp",
+  "title": "Raspberries (Rubus Idaeus).jpg",
+  "author": "Juhanson",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+  "source": "https://commons.wikimedia.org/wiki/File:Raspberries_(Rubus_Idaeus).jpg"
+ },
+ "olive-oil": {
+  "file": "olive-oil.webp",
+  "title": "Italian olive oil 2007.jpg",
+  "author": "my friend",
+  "license": "CC BY 2.5",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.5",
+  "source": "https://commons.wikimedia.org/wiki/File:Italian_olive_oil_2007.jpg"
+ },
+ "butter": {
+  "file": "butter.webp",
+  "title": "2023 Masło w maselniczce.jpg",
+  "author": "Jacek Halicki",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:2023_Mas%C5%82o_w_maselniczce.jpg"
+ },
+ "avocado": {
+  "file": "avocado.webp",
+  "title": "Avocado Hass - single and halved.jpg",
+  "author": "Ivar Leidus",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Avocado_Hass_-_single_and_halved.jpg"
+ },
+ "almonds": {
+  "file": "almonds.webp",
+  "title": "Almonds - in shell, shell cracked open, shelled, blanched.jpg",
+  "author": "Ivar Leidus",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Almonds_-_in_shell,_shell_cracked_open,_shelled,_blanched.jpg"
+ },
+ "walnuts": {
+  "file": "walnuts.webp",
+  "title": "Walnuts - whole and open with halved kernel.jpg",
+  "author": "Ivar Leidus",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Walnuts_-_whole_and_open_with_halved_kernel.jpg"
+ },
+ "pistachios": {
+  "file": "pistachios.webp",
+  "title": "Pistachio.jpg",
+  "author": "Kobi Schutz",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Pistachio.jpg"
+ },
+ "flaxseed": {
+  "file": "flaxseed.webp",
+  "title": "Brown Flax Seeds.jpg",
+  "author": "Sanjay Acharya",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Brown_Flax_Seeds.jpg"
+ },
+ "peanut-butter": {
+  "file": "peanut-butter.webp",
+  "title": "Peanut butter glass 3.jpg",
+  "author": "Shisma",
+  "license": "CC BY 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Peanut_butter_glass_3.jpg"
+ },
+ "broccoli": {
+  "file": "broccoli.webp",
+  "title": "Basket of broccoli in Singapore market.jpg",
+  "author": "David",
+  "license": "Public domain",
+  "licenseUrl": "",
+  "source": "https://commons.wikimedia.org/wiki/File:Basket_of_broccoli_in_Singapore_market.jpg"
+ },
+ "spinach": {
+  "file": "spinach.webp",
+  "title": "Spinach leaves.jpg",
+  "author": "Nillerdk",
+  "license": "CC BY 3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Spinach_leaves.jpg"
+ },
+ "carrots": {
+  "file": "carrots.webp",
+  "title": "Carrots at Ljubljana Central Market.JPG",
+  "author": "domdomegg",
+  "license": "CC BY 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Carrots_at_Ljubljana_Central_Market.JPG"
+ },
+ "peas": {
+  "file": "peas.webp",
+  "title": "Green peas batch.jpg",
+  "author": "Fd52",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Green_peas_batch.jpg"
+ },
+ "cucumber": {
+  "file": "cucumber.webp",
+  "title": "Ryerson Market cucumbers on sale.jpg",
+  "author": "Jason Zhang",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Ryerson_Market_cucumbers_on_sale.jpg"
+ },
+ "lettuce": {
+  "file": "lettuce.webp",
+  "title": "Romaine lettuce.jpg",
+  "author": "Rainer Zenz",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+  "source": "https://commons.wikimedia.org/wiki/File:Romaine_lettuce.jpg"
+ },
+ "zucchini": {
+  "file": "zucchini.webp",
+  "title": "Cucurbita pepo zucchini group.jpg",
+  "author": "Eric Polk",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Cucurbita_pepo_zucchini_group.jpg"
+ },
+ "cabbage": {
+  "file": "cabbage.webp",
+  "title": "Chou cabus blanc 01.jpg",
+  "author": "Coyau",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Chou_cabus_blanc_01.jpg"
+ },
+ "okra": {
+  "file": "okra.webp",
+  "title": "Quiabo.jpg",
+  "author": "ArionStar",
+  "license": "CC0",
+  "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Quiabo.jpg"
+ },
+ "artichoke": {
+  "file": "artichoke.webp",
+  "title": "Artichoke ready to cook.jpg",
+  "author": "Keagiles",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Artichoke_ready_to_cook.jpg"
+ },
+ "falafel": {
+  "file": "falafel.webp",
+  "title": "Falafel 1.JPG",
+  "author": "Miansari66",
+  "license": "CC0",
+  "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Falafel_1.JPG"
+ },
+ "halloumi": {
+  "file": "halloumi.webp",
+  "title": "Halloumi-1.jpg",
+  "author": "Rainer Zenz",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+  "source": "https://commons.wikimedia.org/wiki/File:Halloumi-1.jpg"
+ },
+ "cheese": {
+  "file": "cheese.webp",
+  "title": "Somerset-Cheddar.jpg",
+  "author": "J.P.Lon",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+  "source": "https://commons.wikimedia.org/wiki/File:Somerset-Cheddar.jpg"
+ }
+}

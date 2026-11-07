@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { collection, deleteDoc, doc, getDocs } from 'firebase/firestore';
+import { Icon } from '../components/icons';
 import { useApp } from '../app/AppContext';
 import { MegoMark } from '../components/instrument';
 import { Card, NumField, Segmented, TextField, useAsync } from '../components/ui';
@@ -199,24 +200,31 @@ export function AccountCard() {
   if (!acc.cloud) return null;
   if (acc.mode !== 'account') {
     return (
-      <Card title={t('acc_title')}>
+      <Card title={<><Icon name="user" />{t('acc_title')}</>}>
         <div className="small muted">{t('acc_guestNote')}</div>
         <button className="btn primary block" style={{ marginTop: 10 }} onClick={() => { try { localStorage.removeItem('mego.guest'); } catch { /* ignore */ } location.reload(); }} data-testid="acc-signin">{t('auth_signin')} / {t('auth_create')}</button>
       </Card>
     );
   }
   return (
-    <Card title={t('acc_title')}>
+    <Card title={<><Icon name="user" />{t('acc_title')}</>}>
       <div className="stack" data-testid="account-card">
-        <div className="small"><b>{acc.profile?.displayName}</b> · <span dir="ltr">{acc.profile?.email}</span></div>
-        {acc.profile && <div className="tiny muted">{t('acc_since', { date: d(new Date(acc.profile.createdAt).toISOString().slice(0, 10)) })}</div>}
+        <div className="acc-id">
+          <span className="avatar sm" aria-hidden="true">{(acc.profile?.displayName ?? '?').trim().slice(0, 1).toUpperCase()}</span>
+          <div className="grow" style={{ minWidth: 0 }}>
+            <div className="bold ellipsis">{acc.profile?.displayName}</div>
+            <div className="tiny muted ellipsis" dir="ltr" style={{ textAlign: 'start' }}>{acc.profile?.email}</div>
+            {acc.profile && <div className="tiny muted">{t('acc_since', { date: d(new Date(acc.profile.createdAt).toISOString().slice(0, 10)) })}</div>}
+          </div>
+          <span className="chip good"><Icon name="cloud" /> {t('acc_synced')}</span>
+        </div>
         <div className="row"><div className="grow"><TextField label={t('reg_name')} value={name} onChange={setName} testId="acc-name" /></div>
           <button className="btn sm" style={{ alignSelf: 'flex-end' }} onClick={() => run(() => updateMyProfile(acc.uid!, { displayName: name.trim().slice(0, 40) }), t('saved'))}>{t('save')}</button></div>
-        <div className="row wrap">
-          {acc.admin && <button className="btn" onClick={() => nav('/admin')} data-testid="open-admin">🛡️ {t('admin_title')}</button>}
-          <button className="btn" onClick={() => downloadBackup()} data-testid="acc-export">{t('acc_export')}</button>
-          <button className="btn" onClick={async () => { const { logout } = await import('../lib/firebase'); await logout(); leaveAccount(); }} data-testid="acc-logout">{t('acc_logout')}</button>
-          <button className="btn danger" onClick={() => setDel(true)} data-testid="acc-delete">{t('acc_delete')}</button>
+        <div className="acc-actions">
+          {acc.admin && <button className="btn" onClick={() => nav('/admin')} data-testid="open-admin"><Icon name="shield" /> {t('admin_title')}</button>}
+          <button className="btn" onClick={() => downloadBackup()} data-testid="acc-export"><Icon name="download" /> {t('acc_export')}</button>
+          <button className="btn" onClick={async () => { const { logout } = await import('../lib/firebase'); await logout(); leaveAccount(); }} data-testid="acc-logout"><Icon name="logout" /> {t('acc_logout')}</button>
+          <button className="btn danger" onClick={() => setDel(true)} data-testid="acc-delete"><Icon name="trash" /> {t('acc_delete')}</button>
         </div>
         {del && (
           <div className="notice warn stack" data-testid="delete-confirm">
@@ -267,18 +275,23 @@ export function AdminPage() {
   if (!acc.admin) return <div className="empty">{t('admin_only')}</div>;
   return (
     <div data-testid="admin">
-      <div className="tiny muted" style={{ marginBottom: 10 }}>{t('admin_privacy')}</div>
+      <div className="admin-privacy"><Icon name="lock" /><span>{t('admin_privacy')}</span></div>
       {msg && <div className="banner error small">{msg}</div>}
-      <div className="grid2" style={{ marginBottom: 14 }} data-testid="admin-stats">
-        <div className="stat"><div className="k">{t('admin_users')}</div><div className="v num">{stats ? n(stats.total) : '…'}</div></div>
-        <div className="stat"><div className="k">{t('admin_active')}</div><div className="v num">{stats ? n(stats.active7d) : '…'}</div></div>
-        <div className="stat"><div className="k">{t('admin_suspended')}</div><div className="v num">{stats ? n(stats.suspended) : '…'}</div></div>
-        <div className="stat"><div className="k">{t('admin_pendingFoods')}</div><div className="v num">{stats ? n(stats.pendingFoods) : '…'}</div></div>
+      <div className="admin-kpis" data-testid="admin-stats">
+        {([['users', 'admin_users', stats?.total, 'primary'], ['chart', 'admin_active', stats?.active7d, 'good'], ['lock', 'admin_suspended', stats?.suspended, 'warn'], ['foods', 'admin_pendingFoods', stats?.pendingFoods, 'info']] as const).map(([icon, k, v, tone]) => (
+          <div key={k} className="kpi" style={{ ['--tone' as string]: `var(--${tone})` }}>
+            <span className="kpi-i"><Icon name={icon} /></span>
+            <div className="v num">{stats ? n(v ?? 0) : '…'}</div>
+            <div className="k">{t(k)}</div>
+          </div>
+        ))}
+        {stats && stats.total > 0 && <div className="kpi-bar" aria-hidden="true"><i style={{ width: `${(stats.active7d / stats.total) * 100}%` }} /></div>}
       </div>
-      <Card title={t('admin_accounts')}>
+      <Card title={<><Icon name="users" />{t('admin_accounts')}</>}>
         <ul className="list" data-testid="admin-users">
           {users.map((u) => (
             <li key={u.uid}>
+              <span className={`avatar sm ${u.status}`} aria-hidden="true">{(u.displayName || '?').trim().slice(0, 1).toUpperCase()}</span>
               <div className="grow" style={{ minWidth: 0 }}>
                 <div className="bold ellipsis">{u.displayName} <span className="tiny muted" dir="ltr">{u.email}</span></div>
                 <div className="tiny muted">{u.country} · {t('acc_since', { date: d(new Date(u.createdAt).toISOString().slice(0, 10)) })} · {t('admin_lastActive')} {d(new Date(u.lastActiveAt).toISOString().slice(0, 10))}</div>
@@ -289,7 +302,7 @@ export function AdminPage() {
           ))}
         </ul>
       </Card>
-      <Card title={t('admin_pendingFoods')}>
+      <Card title={<><Icon name="foods" />{t('admin_pendingFoods')}</>}>
         <ul className="list" data-testid="admin-subs">
           {subs.map((sub) => {
             const f = sub.food as { nameAr?: string; nameEn?: string; per100?: { kcal: number; protein: number; carbs: number; fat: number }; state?: string; notes?: string; sourceRef?: string };
@@ -309,11 +322,11 @@ export function AdminPage() {
         </ul>
         <div className="tiny muted">{t('admin_reviewNote')}</div>
       </Card>
-      <Card title={t('admin_errors')}>
+      <Card title={<><Icon name="info" />{t('admin_errors')}</>}>
         <ul className="list">{errors.map((e) => <li key={e.id} className="small"><span className="chip">{e.kind}</span><span className="grow">{e.message}</span><span className="tiny muted">{d(new Date(e.at).toISOString().slice(0, 10))}</span></li>)}
           {!errors.length && <li className="empty">{t('admin_noErrors')}</li>}</ul>
       </Card>
-      <Card title={t('admin_foods')}>
+      <Card title={<><Icon name="grid" />{t('admin_foods')}</>}>
         <div className="small muted">{t('admin_foodsNote')}</div>
         <button className="btn" style={{ marginTop: 8 }} data-testid="admin-publish" onClick={() => run(async () => {
           const { db } = await import('../lib/db');

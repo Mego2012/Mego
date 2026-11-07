@@ -67,14 +67,14 @@ export default function Reports({ kind }: { kind: 'week' | 'month' }) {
         </div>
         <div className={`ledger ${kind}`} aria-label={t('nav_diary')}>
           {r.days.map((x) => (
-            <span key={x.date} className={`lg-day ${x.status} ${x.overCalories ? 'over' : ''}`} title={`${d(x.date)} · ${t('status_' + x.status)}`}>
+            <span key={x.date} className={`lg-day s-${x.status} ${x.overCalories ? 'over' : ''} ${x.date > today() ? 'future' : ''}`} title={`${d(x.date)} · ${t('status_' + x.status)}`}>
               <small className="num">{Number(x.date.slice(8))}</small>
             </span>
           ))}
         </div>
         <div className="ledger-key tiny muted">
-          <span><i className="lg-day complete" /> {t('status_complete')}</span><span><i className="lg-day partial" /> {t('status_partial')}</span>
-          <span><i className="lg-day empty" /> {t('status_empty')}</span><span><i className="lg-day complete over" /> {t('daysOverCalories')}</span>
+          <span><i className="lg-day s-complete" /> {t('status_complete')}</span><span><i className="lg-day s-partial" /> {t('status_partial')}</span>
+          <span><i className="lg-day s-empty" /> {t('status_empty')}</span><span><i className="lg-day s-complete over" /> {t('daysOverCalories')}</span>
         </div>
         <div className="tiny muted">{t('averagesExcludePartial')}</div>
       </section>

@@ -90,7 +90,7 @@ function FastingCard() {
   useEffect(() => { const i = setInterval(() => setNow(Date.now()), 30_000); return () => clearInterval(i); }, []);
   const elapsed = open ? (now - open.start) / 3600000 : 0;
   return (
-    <Card title={`⏳ ${t('fasting')}`}>
+    <Card title={<><Icon name="history" />{t('fasting')}</>}>
       {open ? (
         <div className="stack" data-testid="fast-running">
           <div className="big num center">{t('fastRunning', { h: Math.floor(elapsed), m: Math.floor((elapsed % 1) * 60) })}</div>
@@ -128,7 +128,7 @@ function RemindersCard() {
   const { t, settings, toast } = useApp();
   const update = (id: string, patch: Partial<Reminder>) => saveSettings((s) => { s.reminders = s.reminders.map((r) => (r.id === id ? { ...r, ...patch } : r)); });
   return (
-    <Card title={`🔔 ${t('reminders')}`}>
+    <Card title={<><Icon name="bell" />{t('reminders')}</>}>
       <div className="tiny muted" style={{ marginBottom: 8 }}>{t('remindersNote')}</div>
       <button className="btn sm" style={{ marginBottom: 8 }} onClick={async () => { const p = await requestNotificationPermission(); if (p === 'denied') toast(t('notificationsBlocked')); }}>{t('enableNotifications')}</button>
       {settings.reminders.map((r) => (

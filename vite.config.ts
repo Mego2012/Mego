@@ -41,6 +41,9 @@ export default defineConfig({
         // Fonts are cached on first use so the app keeps its typography offline.
         runtimeCaching: [
           { urlPattern: /fooddb\/usda-extra\.json$/, handler: 'StaleWhileRevalidate', options: { cacheName: 'mego-fooddb-extra' } },
+          // food photos: fetched once when first shown, then served from the device (offline too)
+          { urlPattern: /food-img\/[a-z0-9-]+\.webp$/, handler: 'CacheFirst', options: { cacheName: 'mego-food-img', expiration: { maxEntries: 200, maxAgeSeconds: 31536000 }, cacheableResponse: { statuses: [0, 200] } } },
+          { urlPattern: /food-img\/manifest\.json$/, handler: 'StaleWhileRevalidate', options: { cacheName: 'mego-food-img-manifest' } },
           { urlPattern: /^https:\/\/fonts\.googleapis\.com\//, handler: 'StaleWhileRevalidate', options: { cacheName: 'google-fonts-css' } },
           { urlPattern: /^https:\/\/fonts\.gstatic\.com\//, handler: 'CacheFirst', options: { cacheName: 'google-fonts', expiration: { maxEntries: 20, maxAgeSeconds: 31536000 }, cacheableResponse: { statuses: [0, 200] } } }
         ]

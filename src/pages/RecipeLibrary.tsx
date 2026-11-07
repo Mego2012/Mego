@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { useBundle } from '../app/hooks';
 import { Icon } from '../components/icons';
+import { PhotoPlaceholder, RecipeMosaic } from '../components/FoodThumb';
 import { Card, MacroLine, NumField, Segmented, Sheet, StateChip, useAsync } from '../components/ui';
 import { db } from '../lib/db';
 import { isValidISODate, today } from '../lib/dates';
@@ -49,9 +50,9 @@ export function LibraryTab() {
   return (
     <div data-testid="library">
       <Card>
-        <input className="input" placeholder={t('search') + '…'} value={q} onChange={(e) => setQ(e.target.value)} data-testid="library-search" />
-        <div className="row wrap" style={{ gap: 6, marginTop: 8 }}>
-          {TAGS.map((x) => <button key={x} className={`chip ${tag === x ? 'active' : ''}`} onClick={() => setTag(x)} data-testid={`tag-${x}`}>{t('tag_' + x)}</button>)}
+        <div className="search-field"><Icon name="search" /><input className="input" placeholder={t('search') + '…'} value={q} onChange={(e) => setQ(e.target.value)} data-testid="library-search" /></div>
+        <div className="tool-row" style={{ marginTop: 8 }}>
+          {TAGS.map((x) => <button key={x} className={`chip clickable ${tag === x ? 'on' : ''}`} onClick={() => setTag(x)} data-testid={`tag-${x}`}>{t('tag_' + x)}</button>)}
         </div>
         <div style={{ marginTop: 8 }}>
           <Segmented<MealType | ''> value={meal} options={[{ value: '', label: t('all') }, ...MEALS.map((m) => ({ value: m, label: t(m) }))]} onChange={setMeal} />
@@ -60,7 +61,7 @@ export function LibraryTab() {
       </Card>
       {list.map((c) => (
         <div key={c.lib.id} className="card row clickable" style={{ cursor: 'pointer', alignItems: 'flex-start' }} onClick={() => setOpen(c)} data-testid="library-card">
-          <div style={{ fontSize: 34, lineHeight: 1 }}>{c.lib.emoji}</div>
+          <RecipeMosaic ingredients={c.lib.ingredients} size={76} />
           <div className="grow" style={{ minWidth: 0 }}>
             <div className="bold">{lang === 'ar' ? c.lib.nameAr : c.lib.nameEn}</div>
             <div className="tiny muted">{lang === 'ar' ? c.lib.nameEn : c.lib.nameAr}</div>
@@ -68,7 +69,7 @@ export function LibraryTab() {
               <div className="small num" style={{ marginTop: 4 }}><b>{n(c.perServing.kcal)}</b> {t('kcalUnit')} · <MacroLine m={c.perServing} compact /></div>
             ) : <div className="tiny delta pos">{t('missingIngredients', { list: c.missing.join('، ') })}</div>}
             <div className="row wrap tiny muted" style={{ gap: 6, marginTop: 4 }}>
-              <span>⏱ {c.totalTime} {t('min')}</span>
+              <span className="row" style={{ gap: 3 }}><Icon name="history" /> {c.totalTime} {t('min')}</span>
               {c.derived.map((d) => <span key={d} className="chip good">{t('tag_' + d.replace(/-/g, '_'))}</span>)}
               {c.isEstimate && <span className="chip warn">{t('estimatedBadge')}</span>}
               {meta.favorites.has(c.lib.id) && <span className="fav-star"><Icon name="star" filled /></span>}
@@ -95,8 +96,9 @@ export function RecipeDetail({ c, onClose, servingsHint = 1 }: { c: ComputedReci
   const steps = lang === 'ar' ? L.stepsAr : L.stepsEn;
   const tips = lang === 'ar' ? L.tipsAr : L.tipsEn;
   return (
-    <Sheet title={`${L.emoji} ${lang === 'ar' ? L.nameAr : L.nameEn}`} onClose={onClose}>
+    <Sheet title={lang === 'ar' ? L.nameAr : L.nameEn} onClose={onClose}>
       <div className="stack" data-testid="recipe-detail">
+        <div className="recipe-cover"><RecipeMosaic ingredients={L.ingredients} size={132} /></div>
         <div className="tiny muted">{lang === 'ar' ? L.nameEn : L.nameAr}</div>
         <div className="row wrap small" style={{ gap: 6 }}>
           <span className="chip">{t('prep')} {L.prepMin} {t('min')}</span>
@@ -233,7 +235,7 @@ export function SuggestTab() {
       {list.map((s) => (
         <div key={s.kind + s.id} className="card" data-testid="suggestion">
           <div className="row">
-            <div style={{ fontSize: 28 }}>{s.emoji}</div>
+            {s.computed ? <RecipeMosaic ingredients={s.computed.lib.ingredients} size={56} /> : <span className="food-thumb" style={{ width: 56, height: 56 }}><PhotoPlaceholder group="other" /></span>}
             <div className="grow" style={{ minWidth: 0 }}>
               <div className="bold">{s.computed ? (lang === 'ar' ? s.computed.lib.nameAr : s.computed.lib.nameEn) : s.name} <span className="small muted">{t('servingsX', { n: n(s.servings, 2) })}</span></div>
               <div className="small num"><b data-testid="suggestion-kcal">{n(s.macros.kcal)}</b> {t('kcalUnit')} · <MacroLine m={s.macros} compact /></div>
@@ -276,7 +278,7 @@ export function CookTab() {
   const nq = normalizeText(q);
   return (
     <div data-testid="cook">
-      <Card title={`🧊 ${t('cookTitle')}`}>
+      <Card title={<><Icon name="grid" />{t('cookTitle')}</>}>
         <div className="tiny muted" style={{ marginBottom: 6 }}>{t('cookHint')}</div>
         <input className="input" placeholder={t('search') + '…'} value={q} onChange={(e) => setQ(e.target.value)} />
         {/* No inner scroll box: nested scrolling traps touch swipes on small phones. */}
@@ -305,11 +307,11 @@ export function CookTab() {
       {pantry.length > 0 && results.slice(0, 30).map((r) => (
         <div key={r.c.lib.id} className="card clickable" style={{ cursor: 'pointer' }} onClick={() => setOpen({ c: r.c, s: r.servings ?? 1 })} data-testid="cook-result">
           <div className="row">
-            <div style={{ fontSize: 30 }}>{r.c.lib.emoji}</div>
+            <RecipeMosaic ingredients={r.c.lib.ingredients} size={60} />
             <div className="grow" style={{ minWidth: 0 }}>
               <div className="bold">{lang === 'ar' ? r.c.lib.nameAr : r.c.lib.nameEn}</div>
               <div className="small num"><b>{n(r.macros.kcal)}</b> {t('kcalUnit')} · <MacroLine m={r.macros} compact /> {r.servings && r.servings !== 1 ? `· ${t('servingsX', { n: n(r.servings, 2) })}` : ''}</div>
-              <div className="tiny muted">⏱ {r.c.totalTime} {t('min')} · {r.c.lib.methods.map((m) => t('method_' + m.replace('-', '_'))).join('، ')}</div>
+              <div className="tiny muted">{r.c.totalTime} {t('min')} · {r.c.lib.methods.map((m) => t('method_' + m.replace('-', '_'))).join('، ')}</div>
               {r.missing.length > 0 && <div className="tiny" data-testid="cook-missing">{t('missingShort')}: {r.missing.map((m) => (m.swap ? `${m.name} → ${m.swap}` : m.name)).join('، ')}</div>}
             </div>
             <span className={`chip ${r.matchPct === 100 ? 'good' : 'warn'}`} data-testid="cook-match">{r.matchPct}%</span>

@@ -49,3 +49,26 @@ export function FoodThumb({ food, photoKey, size = 44, className = '', category 
     </span>
   );
 }
+
+/**
+ * A recipe's cover: photos of its own main ingredients (largest by weight first), never a stock "dish" photo.
+ * Falls back to a drawn placeholder when none of the ingredients has a photo.
+ */
+export function RecipeMosaic({ ingredients, size = 72 }: { ingredients: [string, number, ...unknown[]][]; size?: number }) {
+  const keys: string[] = [];
+  for (const [name] of [...ingredients].sort((a, b) => b[1] - a[1])) {
+    const k = photoKeyFor({ nameAr: name, nameEn: name });
+    if (k && !keys.includes(k)) keys.push(k);
+    if (keys.length === 4) break;
+  }
+  const [ready, setReady] = useState(!!photoManifestNow());
+  useEffect(() => { if (!ready) loadPhotoManifest().then(() => setReady(true)); }, [ready]);
+  const withPhoto = ready ? keys.filter((k) => photoUrl(k)) : [];
+  if (!withPhoto.length) return <span className="food-thumb mosaic" style={{ width: size, height: size }}><PhotoPlaceholder group={keys[0] ? photoGroupOf(keys[0]) : groupFromText('', ingredients[0]?.[0] ?? '')} /></span>;
+  const shown = withPhoto.length === 3 ? withPhoto.slice(0, 2) : withPhoto;
+  return (
+    <span className={`food-thumb mosaic n${shown.length}`} style={{ width: size, height: size }} aria-hidden="true">
+      {shown.map((k) => <img key={k} src={photoUrl(k)!} alt="" loading="lazy" decoding="async" className="in" />)}
+    </span>
+  );
+}

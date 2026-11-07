@@ -12,7 +12,10 @@ export const en3: Record<string, string> = {
   rank_comparePer100: 'Per 100 g. The best value in each row is highlighted (lower is better for calories, fat and saturated fat).',
   rank_aasChartNote: 'Each bar: the food\'s amount of that essential amino acid relative to the FAO/WHO adult reference (the line marks 100%).',
   rank_noAAExplain: 'USDA does not publish an amino-acid profile for this food, so MEGO does not estimate one.',
-  learn_sources: '{n} sources'
+  learn_sources: '{n} sources',
+  acc_synced: 'Synced account',
+  coach_foodsShort: 'Rankings',
+  show: 'Show'
 };
 export const ar3: Record<string, string> = {
   tapToAdd: 'أضف إلى {meal}',
@@ -27,5 +30,8 @@ export const ar3: Record<string, string> = {
   rank_comparePer100: 'لكل 100 غ. أفضل قيمة في كل صف مميزة (الأقل أفضل للسعرات والدهون والدهون المشبعة).',
   rank_aasChartNote: 'كل شريط: كمية هذا الحمض الأميني الأساسي في الطعام مقارنةً بمرجع FAO/WHO للبالغين (الخط = 100%).',
   rank_noAAExplain: 'لا تنشر USDA ملف الأحماض الأمينية لهذا الطعام، لذلك لا يقدّره MEGO.',
-  learn_sources: '{n} مصادر'
+  learn_sources: '{n} مصادر',
+  acc_synced: 'حساب متزامن',
+  coach_foodsShort: 'الترتيب',
+  show: 'عرض'
 };

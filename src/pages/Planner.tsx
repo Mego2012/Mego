@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
+import { Icon } from '../components/icons';
 import { useApp } from '../app/AppContext';
 import { useBundle } from '../app/hooks';
 import { Card, Delta, Sheet, useAsync } from '../components/ui';
@@ -45,15 +46,15 @@ export default function Planner() {
   return (
     <div data-testid="planner-page">
       <div className="datenav">
-        <button className="btn sm" onClick={() => setAnchor(addDays(start, -7))}>{t('previous')}</button>
+        <button className="icon-btn flip" onClick={() => setAnchor(addDays(start, -7))} aria-label={t('previous')}><Icon name="back" /></button>
         <div className="label small">{d(dates[0], { day: 'numeric', month: 'short' })} – {d(dates[6], { day: 'numeric', month: 'short', year: 'numeric' })}</div>
-        <button className="btn sm" onClick={() => setAnchor(addDays(start, 7))}>{t('next')}</button>
+        <button className="icon-btn flip" onClick={() => setAnchor(addDays(start, 7))} aria-label={t('next')}><Icon name="fwd" /></button>
       </div>
 
-      <div className="row wrap" style={{ marginBottom: 12 }}>
+      <div className="plan-actions">
         <button className="btn primary grow" disabled={!lib} data-testid="generate-plan"
-          onClick={() => lib && setGenerated(generatePlan(dates.filter((x) => x >= today()), (dt) => targetsFor(dt, settings, data?.days.find((y) => y.date === dt)), lib))}>✨ {t('generatePlan')}</button>
-        <button className="btn grow" onClick={() => setShopping(true)} data-testid="open-shopping">🛒 {t('shoppingList')}</button>
+          onClick={() => lib && setGenerated(generatePlan(dates.filter((x) => x >= today()), (dt) => targetsFor(dt, settings, data?.days.find((y) => y.date === dt)), lib))}><Icon name="sparkle" /> {t('generatePlan')}</button>
+        <button className="btn grow" onClick={() => setShopping(true)} data-testid="open-shopping"><Icon name="clipboard" /> {t('shoppingList')}</button>
         <button className="btn grow" data-testid="copy-last-week" onClick={async () => {
           let c = 0;
           for (const dt of dates) { const src = await db.plannedDays.get(addDays(dt, -7)); if (src?.items.length) { await copyPlannedDay(addDays(dt, -7), dt); c++; } }
@@ -61,46 +62,43 @@ export default function Planner() {
         }}>{t('copyLastWeek')}</button>
       </div>
 
-      <Card title={t('weekPlan')}>
-        <div className="table-wrap">
-          <table className="tbl" data-testid="plan-table">
-            <thead><tr><th>{t('date')}</th><th>{t('planned')}</th><th>{t('actual')}</th><th>{t('difference')}</th><th>{t('protein')} {t('planned')}/{t('actual')}</th></tr></thead>
-            <tbody>
-              {dates.map((dt) => {
-                const p = totals[dt];
-                const log = data?.days.find((x) => x.date === dt);
-                const act = data ? summarizeDay(dt, data.entries, log, settings) : null;
-                return (
-                  <tr key={dt} data-testid={`plan-row-${dt}`}>
-                    <td><div className="bold">{d(dt, { weekday: 'short', day: 'numeric' })}</div><div className="tiny muted">{act ? t(act.dayType) : ''}</div></td>
-                    <td className="num">{p ? n(p.kcal) : '—'}</td>
-                    <td className="num">{act && act.status !== 'empty' ? n(act.totals.kcal) : '—'}</td>
-                    <td>{p && act && act.status !== 'empty' ? <Delta value={Math.round(act.totals.kcal - p.kcal)} digits={0} /> : '—'}</td>
-                    <td className="num small">{p ? n(p.protein) : '—'} / {act && act.status !== 'empty' ? n(act.totals.protein) : '—'}</td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-
-      {dates.map((dt) => {
-        const p = byDate.get(dt);
-        const plan = p?.planId ? plans.find((x) => x.id === p.planId) : undefined;
-        return (
-          <Card key={dt} title={<span>{d(dt, { weekday: 'long', day: 'numeric', month: 'short' })}</span>}
-            actions={<span className="small muted num">{totals[dt] ? `${n(totals[dt].kcal)} ${t('kcalUnit')}` : t('noPlan')}</span>}>
-            {p && <div className="tiny muted" style={{ marginBottom: 6 }}>{plan ? `${t('fromPlan')}: ${plan.name} · ` : ''}{p.items.map((i) => i.name).join(' · ')}</div>}
-            <div className="row wrap" style={{ gap: 6 }}>
-              <button className="btn sm" onClick={() => setEditDay(dt)} data-testid={`plan-edit-${dt}`}>{t('edit')}</button>
-              {p && <button className="btn sm" onClick={() => setCopyFrom(dt)}>{t('copyPlanTo')}</button>}
-              {p && <button className="btn sm primary" data-testid={`plan-log-${dt}`} onClick={async () => { const r = await logItems(dt, p.items); toast(`${t('added')}: ${r.logged.length}`); }}>{t('logPlanned')}</button>}
-              {p && <button className="btn sm ghost" onClick={() => setPlannedDay(dt, [])}>{t('clearPlan')}</button>}
-            </div>
-          </Card>
-        );
-      })}
+      <div className="section-label">{t('weekPlan')}</div>
+      <div className="plan-days" data-testid="plan-table">
+        {dates.map((dt) => {
+          const p = byDate.get(dt);
+          const tot = totals[dt];
+          const plan = p?.planId ? plans.find((x) => x.id === p.planId) : undefined;
+          const log = data?.days.find((x) => x.date === dt);
+          const act = data ? summarizeDay(dt, data.entries, log, settings) : null;
+          const target = act?.target.kcal ?? 0;
+          const done = act && act.status !== 'empty' ? act.totals.kcal : null;
+          return (
+            <section key={dt} className={`plan-day ${dt === today() ? 'today' : ''}`} data-testid={`plan-row-${dt}`}>
+              <header className="pd-head">
+                <span className="date-badge"><b className="num">{d(dt, { day: 'numeric' })}</b><small>{d(dt, { weekday: 'short' })}</small></span>
+                <div className="grow" style={{ minWidth: 0 }}>
+                  <div className="bold">{d(dt, { weekday: 'long' })} <span className="tiny muted">· {act ? t(act.dayType) : ''}</span></div>
+                  <div className="tiny muted num">{t('planned')}: {tot ? `${n(tot.kcal)} ${t('kcalUnit')} · ${t('pShort')} ${n(tot.protein)}` : t('noPlan')}{done !== null ? ` · ${t('actual')}: ${n(done)}` : ''}</div>
+                </div>
+                {tot && done !== null && <Delta value={Math.round(done - tot.kcal)} digits={0} />}
+              </header>
+              {target > 0 && (tot || done !== null) && (
+                <div className="pd-bars" aria-hidden="true">
+                  {tot && <i className="planned" style={{ width: `${Math.min(100, (tot.kcal / target) * 100)}%` }} />}
+                  {done !== null && <i className="actual" style={{ width: `${Math.min(100, (done / target) * 100)}%` }} />}
+                </div>
+              )}
+              {p && <div className="tiny muted pd-items">{plan ? `${t('fromPlan')}: ${plan.name} · ` : ''}{p.items.map((i) => i.name).join(' · ')}</div>}
+              <div className="row wrap" style={{ gap: 6 }}>
+                <button className="btn sm" onClick={() => setEditDay(dt)} data-testid={`plan-edit-${dt}`}><Icon name="edit" /> {t('edit')}</button>
+                {p && <button className="btn sm" onClick={() => setCopyFrom(dt)}>{t('copyPlanTo')}</button>}
+                {p && <button className="btn sm primary" data-testid={`plan-log-${dt}`} onClick={async () => { const r = await logItems(dt, p.items); toast(`${t('added')}: ${r.logged.length}`); }}>{t('logPlanned')}</button>}
+                {p && <button className="btn sm ghost" onClick={() => setPlannedDay(dt, [])}>{t('clearPlan')}</button>}
+              </div>
+            </section>
+          );
+        })}
+      </div>
 
       <Card title={t('dayPlans')} actions={<button className="btn sm primary" onClick={() => setEditPlan('new')} data-testid="new-plan">+ {t('newPlan')}</button>}>
         <ul className="list">
@@ -163,7 +161,7 @@ function GeneratedSheet({ days, lib, onChange, hasExisting, onClose }: { days: G
   const { t, n, d, lang, settings, toast } = useApp();
   const [confirm, setConfirm] = useState(false);
   const { run, busy } = useAsync();
-  const name = (id: string) => { const l = LIBRARY.find((x) => x.id === id)!; return `${l.emoji} ${lang === 'ar' ? l.nameAr : l.nameEn}`; };
+  const name = (id: string) => { const l = LIBRARY.find((x) => x.id === id)!; return lang === 'ar' ? l.nameAr : l.nameEn; };
   const apply = async () => { if (await run(async () => { await applyGeneratedPlan(days); return true; })) { toast(t('saved')); onClose(); } };
   return (
     <Sheet title={t('generatedPreview')} onClose={onClose} footer={<button className="btn primary block" disabled={busy || !days.length} data-testid="apply-generated" onClick={() => (hasExisting ? setConfirm(true) : apply())}>{t('applyPlan')}</button>}>
@@ -197,7 +195,7 @@ function ShoppingSheet({ dates, weekKey, onClose }: { dates: string[]; weekKey: 
   useEffect(() => { shoppingList(dates).then(setItems); }, [dates.join()]);
   const toggle = (k: string) => kvSet(`shopping:${weekKey}`, checked.includes(k) ? checked.filter((x) => x !== k) : [...checked, k]);
   return (
-    <Sheet title={`🛒 ${t('shoppingList')}`} onClose={onClose}>
+    <Sheet title={t('shoppingList')} onClose={onClose}>
       <div className="tiny muted" style={{ marginBottom: 8 }}>{t('shoppingNote')}</div>
       <ul className="list" data-testid="shopping-list">
         {(items ?? []).map((i) => (

@@ -31,13 +31,18 @@ def plain(s):
     s = re.sub(r'<[^>]+>', '', s or '')
     return re.sub(r'\s+', ' ', html.unescape(s)).strip()[:120] or 'unknown'
 
-manifest = {}
+mf = OUT / 'manifest.json'
+manifest = json.loads(mf.read_text()) if mf.exists() else {}
 for key, idx in sel.items():
-    if idx is None:
+    if idx is None or key in manifest:
         continue
     c = cand[key][idx]
-    thumb = re.sub(r'/\d+px-', '/640px-', c['thumb']) if c['w'] > 640 else c['url']
-    im = Image.open(io.BytesIO(get(thumb))).convert('RGB')
+    try:
+        thumb = re.sub(r'/\d+px-', '/500px-', c['thumb']) if min(c['w'], c['h']) > 500 else c['thumb']
+        im = Image.open(io.BytesIO(get(thumb))).convert('RGB')
+    except Exception as e:
+        print('skip', key, e)
+        continue
     w, h = im.size
     s = min(w, h)
     im = im.crop(((w - s) // 2, (h - s) // 2, (w - s) // 2 + s, (h - s) // 2 + s)).resize((SIZE, SIZE), Image.LANCZOS)
@@ -46,7 +51,7 @@ for key, idx in sel.items():
                      'license': c['license'], 'licenseUrl': c['licenseUrl'], 'source': c['descurl']}
     time.sleep(0.5)
 
-(OUT / 'manifest.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=1))
+mf.write_text(json.dumps(manifest, ensure_ascii=False, indent=1))
 lines = ['# Food photo credits', '',
          'Freely licensed photos from Wikimedia Commons, cropped to a square and resized (320 px WebP). '
          'Each photo is shown only for foods that match it; all other foods use a drawn placeholder.', '',

@@ -209,7 +209,8 @@
 .bd-bar > i { display: block; height: 100%; background: var(--primary); border-radius: 99px; }
 .bd-bar.nodata { background: repeating-linear-gradient(135deg, var(--surface-3) 0 5px, transparent 5px 9px); }
 .aa-chart { display: grid; gap: 6px; margin: 4px 0 6px; }
-.aa-row { display: grid; grid-template-columns: 92px 1fr 44px; gap: 8px; align-items: center; }
+.aa-row { display: grid; grid-template-columns: 118px minmax(0, 1fr) 44px; gap: 8px; align-items: center; }
+.aa-row .aa-name { line-height: 1.25; overflow-wrap: anywhere; }
 .aa-name { color: var(--muted); }
 .aa-track { position: relative; height: 8px; border-radius: 99px; background: var(--surface-3); }
 .aa-track > i { position: absolute; inset-block: 0; inset-inline-start: 0; border-radius: 99px; background: var(--good); }
@@ -277,11 +278,11 @@
 /* ---------- Reports */
 .report-cover { background: var(--hero-bg); border-radius: var(--radius-l); padding: 16px; box-shadow: var(--shadow-2); display: grid; gap: 12px; margin-bottom: 12px; }
 .ledger { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 5px; }
-.ledger.week .lg-day { aspect-ratio: 1 / 1.1; }
+.lg-day.future { background: transparent; box-shadow: inset 0 0 0 1.5px var(--hairline); color: var(--faint); }
 .lg-day { display: grid; place-items: center; aspect-ratio: 1; border-radius: 9px; background: var(--surface-2); color: var(--muted); position: relative; }
 .lg-day small { font-size: 11px; font-weight: 600; }
-.lg-day.complete { background: color-mix(in srgb, var(--good) 22%, var(--surface)); color: var(--good); }
-.lg-day.partial { background: color-mix(in srgb, var(--warn) 20%, var(--surface)); color: var(--warn); }
+.lg-day.s-complete { background: color-mix(in srgb, var(--good) 22%, var(--surface)); color: var(--good); }
+.lg-day.s-partial { background: color-mix(in srgb, var(--warn) 20%, var(--surface)); color: var(--warn); }
 .lg-day.over::after { content: ""; position: absolute; top: 4px; inset-inline-end: 4px; width: 6px; height: 6px; border-radius: 50%; background: var(--danger); }
 .ledger-key { display: flex; flex-wrap: wrap; gap: 4px 12px; }
 .ledger-key span { display: inline-flex; align-items: center; gap: 5px; }
@@ -311,3 +312,47 @@
 .settings-index .chip { text-decoration: none; }
 .settings-index .chip svg { width: 14px; height: 14px; }
 .settings [id^="s-"] { scroll-margin-top: calc(var(--header-h) + 64px); }
+
+/* ---------- Account & Admin */
+.acc-id { display: flex; gap: 12px; align-items: center; }
+.avatar.sm { width: 42px; height: 42px; border-radius: 13px; font-size: 16px; }
+.avatar.suspended { background: var(--surface-3); color: var(--muted); }
+.acc-id .chip svg { width: 13px; height: 13px; }
+.acc-actions { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.acc-actions .btn { justify-content: flex-start; font-size: 13.5px; white-space: normal; text-align: start; }
+.admin-privacy { display: flex; gap: 10px; align-items: flex-start; font-size: 12.5px; color: var(--muted); background: var(--surface); border-radius: 14px; padding: 10px 12px; box-shadow: var(--shadow-1); margin-bottom: 12px; line-height: 1.5; }
+.admin-privacy svg { flex: none; width: 16px; height: 16px; color: var(--good); margin-top: 2px; }
+.admin-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; margin-bottom: 14px; }
+.kpi { background: var(--surface); border-radius: 18px; padding: 14px; box-shadow: var(--shadow-1); display: grid; gap: 2px; }
+.kpi-i { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: color-mix(in srgb, var(--tone) 14%, transparent); color: var(--tone); margin-bottom: 6px; }
+.kpi-i svg { width: 17px; height: 17px; }
+.kpi .v { font-size: 26px; font-weight: 600; line-height: 1.1; }
+.kpi .k { font-size: 12px; color: var(--muted); }
+.kpi-bar { grid-column: 1 / -1; height: 6px; border-radius: 99px; background: var(--surface-3); overflow: hidden; }
+.kpi-bar > i { display: block; height: 100%; background: var(--good); }
+/* recipe ingredient mosaic */
+.food-thumb.mosaic { display: grid; gap: 2px; background: var(--surface); border-radius: 16px; }
+.food-thumb.mosaic > img { position: static; width: 100%; height: 100%; object-fit: cover; opacity: 1; min-height: 0; }
+.food-thumb.mosaic.n2 { grid-template-columns: 1fr 1fr; }
+.food-thumb.mosaic.n4 { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; }
+/* ---------- Recipes */
+.recipe-card { align-items: flex-start !important; gap: 14px !important; }
+.recipe-card .row svg { width: 13px; height: 13px; }
+.recipe-cover { display: flex; justify-content: center; }
+.recipe-cover .food-thumb { border-radius: 22px; }
+.recipe-card .row { white-space: nowrap; }
+
+/* ---------- Planner */
+.plan-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+.plan-actions .btn.primary { grid-column: 1 / -1; }
+.plan-actions .btn { white-space: normal; font-size: 13.5px; }
+.plan-days { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; margin-bottom: 14px; }
+.plan-day { background: var(--surface); border-radius: 18px; padding: 12px; box-shadow: var(--shadow-1); display: grid; gap: 8px; }
+.plan-day.today { box-shadow: inset 0 0 0 1.5px var(--primary), var(--shadow-1); }
+.pd-head { display: flex; gap: 10px; align-items: center; }
+.pd-bars { display: grid; gap: 3px; }
+.pd-bars i { display: block; height: 5px; border-radius: 99px; }
+.pd-bars i.planned { background: color-mix(in srgb, var(--primary) 35%, var(--surface-3)); }
+.pd-bars i.actual { background: var(--primary); }
+.pd-items { line-height: 1.5; }
+.plan-day .btn svg { width: 15px; height: 15px; }

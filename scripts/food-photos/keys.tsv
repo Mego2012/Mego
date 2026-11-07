@@ -1,38 +1,38 @@
 chicken-breast	grilled chicken breast	S171477
-turkey-breast	roast turkey breast sliced	S174516
+turkey-breast	sliced turkey breast	S174516
 tuna-canned	canned tuna	S173709
 tuna-steak	seared tuna steak	S172006
-cod	cod fillet cooked	S171956
+cod	cod fillet	S171956
 tilapia	tilapia fillet	S175177
-haddock	haddock fillet	S174198
+haddock	haddock fish fillet	S174198
 salmon	salmon fillet cooked	S175168
 mackerel	grilled mackerel	S175120
 sardines	sardines canned	S175139
 shrimp	cooked shrimp	S175180
 ground-beef	ground beef cooked	S171791
-steak	sirloin steak	S168636
-lamb	roast leg of lamb	S172487
-egg-boiled	boiled eggs halved	S173424
-egg-white	egg white	S172183
-greek-yogurt	greek yogurt bowl	S170894,S170903
+steak	grilled steak	S168636
+lamb	roast lamb leg	S172487
+egg-boiled	hard boiled eggs halved	S173424
+egg-white	egg whites separated bowl	S172183
+greek-yogurt	strained yogurt bowl	S170894,S170903
 cottage-cheese	cottage cheese	S173417
 feta	feta cheese	S173420
-milk	glass of milk	S171269,S170872
+milk	glass of milk drink	S171269,S170872
 whey	whey protein powder	S173180
 lentils	cooked lentils	S172421
 chickpeas	chickpeas	S173757
-kidney-beans	kidney beans	S173740
+kidney-beans	red kidney beans	S173740
 black-beans	black beans	S173735
-white-beans	white beans	S175203
+white-beans	cannellini beans	S175203
 fava-beans	ful medames	S173798
 split-peas	split peas	S172429
-tofu	firm tofu	S172448
+tofu	tofu block white	S172448
 tempeh	tempeh	S174272
 edamame	edamame	S168411
 soy-protein	soy protein powder	S173181
 oats	rolled oats	S173904
 white-rice	cooked white rice	S168878
-brown-rice	cooked brown rice	S169704
+brown-rice	brown rice	S169704
 potato	boiled potatoes	S170438
 sweet-potato	baked sweet potato	S168483
 bread-wholewheat	whole wheat bread slices	S172688
@@ -42,28 +42,28 @@ quinoa	cooked quinoa	S168917
 pasta	cooked pasta	S169737,S168910
 couscous	couscous	S169700
 barley	pearl barley	S170285
-corn	sweet corn cob	S168399
+corn	corn on the cob	S168399
 banana	banana fruit	S173944
 apple	red apple	S171688
 dates	medjool dates	S168191
 orange	orange fruit	S169097
-strawberries	strawberries	S167762
+strawberries	strawberries fruit	S167762
 watermelon	watermelon slice	S167765
 pear	pear fruit	S169118
 guava	guava fruit	S173044
 raspberries	raspberries	S167755
 olive-oil	olive oil	S171413
 canola-oil	canola oil bottle	S172336
-coconut-oil	coconut oil	S171412
+coconut-oil	coconut oil jar	S171412
 butter	butter	S173410
 avocado	avocado halved	S171705
 almonds	almonds	S170567
 walnuts	walnuts	S170187
 pistachios	pistachios	S170184
-cashews	cashews	S170162
+cashews	cashew nuts roasted	S170162
 chia	chia seeds	S170554
 flaxseed	flax seeds	S169414
-pumpkin-seeds	pumpkin seeds	S170556
+pumpkin-seeds	pepitas pumpkin seed kernels	S170556
 peanut-butter	peanut butter	S172470
 tahini	tahini	S170189
 broccoli	broccoli	S169967
@@ -78,9 +78,9 @@ cauliflower	cauliflower	S169986
 cabbage	cabbage	S169975
 okra	okra	S169261
 artichoke	artichoke	S168386
-hummus	hummus	
+hummus	hummus plate	
 falafel	falafel	
 labneh	labneh	
 halloumi	halloumi	
 cheese	cheddar cheese	
-honey	honey	
+honey	honey jar	

@@ -41,7 +41,7 @@ export default function Coach() {
       <nav className="icon-tabs" role="tablist" aria-label={t('nav_coach')}>
         {(['today', 'week', 'month', 'foods', 'learn'] as Tab[]).map((x) => (
           <button key={x} role="tab" aria-selected={tab === x} className={tab === x ? 'on' : ''} onClick={() => setTab(x)}>
-            <Icon name={TAB_ICON[x]} /><span>{t('coach_' + x)}</span>
+            <Icon name={TAB_ICON[x]} /><span>{t(x === 'foods' ? 'coach_foodsShort' : 'coach_' + x)}</span>
           </button>
         ))}
       </nav>

@@ -18,6 +18,7 @@ PER_KEY = 8
 def get(url):
     for i in range(4):
         try:
+            time.sleep(0.6)  # stay well under Wikimedia's rate limits
             with urllib.request.urlopen(urllib.request.Request(url, headers=UA), timeout=30) as r:
                 return r.read()
         except Exception as e:  # network hiccup → back off

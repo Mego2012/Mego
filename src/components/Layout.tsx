@@ -57,7 +57,7 @@ export function Layout({ children }: { children: ReactNode }) {
   const state = !online ? 'offline' : sync.state;
   const { toast } = useApp();
   useEffect(() => {
-    const h = (e: Event) => toast('🔔 ' + (e as CustomEvent<string>).detail);
+    const h = (e: Event) => toast((e as CustomEvent<string>).detail);
     window.addEventListener('mego-reminder', h);
     return () => window.removeEventListener('mego-reminder', h);
   }, [toast]);

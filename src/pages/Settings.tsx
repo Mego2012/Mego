@@ -2,6 +2,8 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Icon } from '../components/icons';
+import { FoodThumb } from '../components/FoodThumb';
+import { loadPhotoManifest, type PhotoCredit } from '../lib/foodPhotos';
 import { useApp } from '../app/AppContext';
 import { useSyncStatus } from '../components/Layout';
 import { Card, Confirm, NumField, Segmented, TextField, useAsync } from '../components/ui';
@@ -34,7 +36,7 @@ function SettingsHeader() {
       <span className="avatar" aria-hidden="true">{initials || <Icon name="user" />}</span>
       <div className="grow" style={{ minWidth: 0 }}>
         <div className="sh-name">{p.name || t('profile')}</div>
-        <div className="tiny muted">{t('goal_' + p.goalType)}{p.currentWeight ? ` · ${n(p.currentWeight, 1)} ${t('kg')} → ${n(p.targetWeight, 1)} ${t('kg')}` : ''}</div>
+        <div className="tiny muted">{t('goal_' + p.goalType).split(' — ')[0]}{p.currentWeight ? ` · ${n(p.currentWeight, 1)} ${t('kg')} → ${n(p.targetWeight, 1)} ${t('kg')}` : ''}</div>
         <div className="row wrap" style={{ gap: 4, marginTop: 6 }}>
           <span className="chip num">{n(tg.kcal)} {t('kcalUnit')}</span>
           <span className="chip num" style={{ color: 'var(--protein)' }}>{t('pShort')} {n(tg.protein)}</span>
@@ -65,6 +67,7 @@ export default function Settings() {
       <div id="s-sync"><SyncForm /></div>
       <div id="s-ai"><AiScannerCard /></div>
       <div id="s-data"><DataSafety /><LocalBackups /></div>
+      <PhotoCredits />
     </div>
   );
 }
@@ -449,5 +452,31 @@ function BackendHelper() {
         <a className="btn sm" href="https://script.google.com/home/projects/create" target="_blank" rel="noreferrer">↗ script.google.com</a>
       </div>
     </div>
+  );
+}
+
+/** Attribution for every food photo shown in the app (required by the CC BY / CC BY-SA licences). */
+function PhotoCredits() {
+  const { t } = useApp();
+  const [open, setOpen] = useState(false);
+  const [list, setList] = useState<[string, PhotoCredit][]>([]);
+  useEffect(() => { if (open) loadPhotoManifest().then((m) => setList(Object.entries(m).sort())); }, [open]);
+  return (
+    <Card title={<><Icon name="image" />{t('photoCredits')}</>} actions={<button className="btn sm ghost" onClick={() => setOpen(!open)} data-testid="photo-credits-toggle">{open ? t('close') : t('show')}</button>}>
+      <div className="tiny muted">{t('photoCreditsNote')}</div>
+      {open && (
+        <ul className="list credits" data-testid="photo-credits">
+          {list.map(([key, c]) => (
+            <li key={key}>
+              <FoodThumb photoKey={key} size={40} />
+              <div className="grow" style={{ minWidth: 0 }} dir="ltr">
+                <a className="small bold" href={c.source} target="_blank" rel="noreferrer" style={{ overflowWrap: 'anywhere' }}>{c.title}</a>
+                <div className="tiny muted">{c.author} · {c.licenseUrl ? <a href={c.licenseUrl} target="_blank" rel="noreferrer">{c.license}</a> : c.license}</div>
+              </div>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
   );
 }

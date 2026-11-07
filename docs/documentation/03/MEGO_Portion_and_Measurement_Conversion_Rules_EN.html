@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Portion_and_Measurement_Conversion_Rules_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Portion and Measurement Conversion Rules</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-26</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-07</td></tr>
+<tr><td>Last updated</td><td>2026-11-07</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Developers, nutrition reviewers, food-database administrators, support staff</td></tr>
+<tr><td>Related documents</td><td>MEGO_Nutritional_Values_and_Units_Reference, MEGO_Calorie_and_Macronutrient_Calculation_Methodology, MEGO_Food_Tracking_Guide, MEGO_Recipes_and_Custom_Foods_Guide, MEGO_Nutrition_Calculation_Accuracy_Tests</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document defines exactly how MEGO turns a quantity typed by the user (grams, kilograms, millilitres, litres, cups, tablespoons, teaspoons, pieces, slices or servings) into grams, and how grams become calories and macronutrients. It also covers how nutrition-label values entered "per 100 ml" or "per serving" are converted to the internal per-100 g basis, and the rounding rules. All rules are taken from <code>src/lib/nutrition.ts</code>, <code>src/pages/Foods.tsx</code> (food editor), <code>src/components/FoodPicker.tsx</code>, <code>src/lib/refFoods.ts</code> and <code>src/lib/barcode.ts</code>.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Core principle: everything is stored per 100 g</li>
+<li>Unit constants and the toGrams function</li>
+<li>Which units are offered for a food</li>
+<li>Density (gramsPerMl) and the 1 ml = 1 g assumption</li>
+<li>Piece / slice weight and servings</li>
+<li>Recipes (per-serving basis)</li>
+<li>Label conversion in the food editor</li>
+<li>Rounding rules</li>
+<li>Worked examples</li>
+<li>Errors and edge cases</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Core principle: everything is stored per 100 g</h2>
+<p>Every food record has a <code>per100</code> nutrient set (kcal, protein, carbs, fat and optionally fiber, sugar, sodium in mg, satFat) expressed <b>per 100 g</b> of the food in the state stored on the record (raw, cooked or other). When a food is logged, MEGO:</p>
+<ol>
+<li>converts the quantity + unit to grams with <code>toGrams()</code>;</li>
+<li>scales the per-100 g values by <code>grams / 100</code> (<code>scaleMacros</code>);</li>
+<li>stores the result with 0.01 precision (<code>preciseMacros</code>) together with a <b>snapshot</b> of the basis (<code>EntryBasis</code>: per100, pieceGrams, gramsPerMl, servings).</li>
+</ol>
+<p>Because the snapshot is stored on the diary entry, later edits to the food never change past entries. The code comment on <code>toGrams</code> states the second fundamental rule: <b>MEGO never converts between raw and cooked weights</b>. Raw rice and cooked rice are separate records with separate values; the user must pick the record that matches what they weighed.</p>
+<pre>
+ quantity + unit ──► toGrams(basis) ──► grams ──► per100 × grams/100 ──► macros (0.01 precision)
+                       │                                             └─► snapshot stored on the entry
+                       └─ uses ONLY values stored on the food: gramsPerMl, pieceGrams, servings
+</pre>
+
+<h2>2. Unit constants and the toGrams function</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Unit</th><th>Formula in <code>toGrams()</code></th><th>Constant</th></tr>
+<tr><td>g</td><td>quantity</td><td>—</td></tr>
+<tr><td>kg</td><td>quantity × 1000</td><td>—</td></tr>
+<tr><td>ml</td><td>quantity × density</td><td>density = gramsPerMl, or 1</td></tr>
+<tr><td>l</td><td>quantity × 1000 × density</td><td>—</td></tr>
+<tr><td>cup</td><td>quantity × CUP_ML × density</td><td><code>CUP_ML = 240</code></td></tr>
+<tr><td>tbsp</td><td>quantity × TBSP_ML × density</td><td><code>TBSP_ML = 15</code></td></tr>
+<tr><td>tsp</td><td>quantity × TSP_ML × density</td><td><code>TSP_ML = 5</code></td></tr>
+<tr><td>piece, slice</td><td>quantity × pieceGrams</td><td>requires pieceGrams &gt; 0</td></tr>
+<tr><td>serving</td><td>quantity × serving.grams</td><td>the selected serving, or the first serving if the id is not found</td></tr>
+</table>
+<p>The density used is <code>basis.gramsPerMl</code> when it is a positive number; otherwise <b>1</b>. A quantity that is not a finite number greater than zero is rejected (<code>UnitError('invalidQuantity')</code>).</p>
+
+<h2>3. Which units are offered for a food</h2>
+<p><code>availableUnits(basis)</code> decides which units the quantity form shows:</p>
+<ul>
+<li>A recipe basis with only <code>perServing</code> (no per100): only <b>serving</b>.</li>
+<li>Every other food: <b>g, kg, ml, l, cup, tbsp, tsp</b>.</li>
+<li>Plus <b>piece</b> and <b>slice</b> only when <code>pieceGrams &gt; 0</code>.</li>
+<li>Plus <b>serving</b> only when the food has at least one serving defined.</li>
+</ul>
+<p><code>gramsPerUnit()</code> calculates the grams in one unit (rounded to 0.1 g) for labels such as "1 cup = 240 g"; it returns nothing when the unit cannot be converted.</p>
+
+<h2>4. Density (gramsPerMl) and the 1 ml = 1 g assumption</h2>
+<p>Volume units (ml, l, cup, tbsp, tsp) need a density to become grams. The food field <code>gramsPerMl</code> ("Density (g per ml)" in the food editor) holds it. When it is missing, MEGO <b>assumes 1 ml = 1 g</b> and tells the user: the quantity form shows "No density set — 1 ml is counted as 1 g." whenever the unit is ml, tbsp or tsp and the food has no density; the food editor shows "No density entered: 1 ml = 1 g is assumed." when values are typed per 100 ml without a density.</p>
+<p>Consequences: for water-like foods (milk, juices) the assumption is close; for oils (density below 1) and syrups or honey (density above 1) it is less accurate, so the user should enter the density. No density values are built into the app — the field is filled only by the user (or by an import/backup that carries it). USDA reference foods do not set gramsPerMl; instead their published household portions become servings (section 5).</p>
+<p>Note: the quantity form shows the density hint for ml, tbsp and tsp; it does not show it for cup and l, although the same assumption applies to them in <code>toGrams()</code>.</p>
+
+<h2>5. Piece / slice weight and servings</h2>
+<h3>5.1 Piece and slice</h3>
+<p><code>pieceGrams</code> is the weight of one piece, slice or standard portion (Hub column "وزن الحبة/الحصة", structured column <code>piece_g</code>). Both "piece" and "slice" use the same value. Without it, piece/slice logging throws <code>UnitError('needsPieceWeight')</code>. Sources of pieceGrams:</p>
+<ul>
+<li>the owner's Hub / CSV / Excel import (piece column; only values &gt; 0 are kept);</li>
+<li>the food editor field "Piece / slice weight (g)";</li>
+<li>Open Food Facts: the product's <code>serving_quantity</code> is proposed as the piece weight in the product form (the user can change it).</li>
+</ul>
+<h3>5.2 Servings</h3>
+<p>A food can have a list of named servings (<code>CustomServing</code>: id, name, grams). They come from:</p>
+<ul>
+<li>USDA reference foods: when a USDA food is first used, up to six published household portions (label ≤ 60 characters, gram weight &gt; 0) are copied as servings by <code>materializeRefFood()</code>;</li>
+<li>the food editor (custom servings list);</li>
+<li>a nutrition label entered "per serving": the label serving is added automatically as a serving named "Label serving" (if no serving with the same grams exists).</li>
+</ul>
+
+<h2>6. Recipes (per-serving basis)</h2>
+<p>A recipe entry uses a basis with <code>perServing</code> and no <code>per100</code>. <code>macrosFor()</code> then multiplies the per-serving values by the number of servings, and the entry's grams are 0 in this path. If a basis has neither per100 nor perServing, the error <code>needsRecipe</code> ("Missing nutrition basis") is raised.</p>
+
+<h2>7. Label conversion in the food editor</h2>
+<p>In the food editor ("New food" / "Edit food") the field "Values entered per" has three options. Whatever is chosen, the values are <b>saved per 100 g</b>. The conversion factor is computed in <code>FoodEditor</code>:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Option</th><th>Factor applied to every typed value</th><th>Notes</th></tr>
+<tr><td>per 100 g (default)</td><td>× 1</td><td>—</td></tr>
+<tr><td>per 100 ml</td><td>× 1 / density</td><td>density = the Density field, or 1 when empty (hint shown)</td></tr>
+<tr><td>per serving (nutrition label)</td><td>× 100 / S</td><td>S = "Serving size" in grams; Save is disabled while S is not &gt; 0</td></tr>
+</table>
+<p>Each converted value is rounded to 2 decimals. The factor applies to kcal, protein, carbs, fat and, when filled, fiber, sugar, satFat and sodium. The editor also shows the 4/4/9 calculated energy and an energy explanation (see MEGO_Food_Data_Validation_and_Quality_Control).</p>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/food-editor-en-light.png" width="300" alt="Food editor"></p>
+<p>Open Food Facts products are always read from the <code>_100g</code> nutriment fields; energy in kJ is converted with ÷ 4.184 when kcal is absent, and sodium is converted from g to mg (× 1000).</p>
+
+<h2>8. Rounding rules</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Where</th><th>Rule</th><th>Function</th></tr>
+<tr><td>Stored entry macros</td><td>0.01 for kcal, macros and optional nutrients — so many small entries do not drift</td><td><code>preciseMacros</code></td></tr>
+<tr><td>Displayed values</td><td>whole kcal; 0.1 g for protein, carbs, fat and optional nutrients</td><td><code>roundMacros</code></td></tr>
+<tr><td>Entry grams</td><td>0.1 g</td><td><code>macrosFor</code> → <code>round(grams, 1)</code></td></tr>
+<tr><td>"1 unit = x g" labels</td><td>0.1 g</td><td><code>gramsPerUnit</code></td></tr>
+<tr><td>Label conversion in the editor</td><td>0.01</td><td><code>round(x × factor, 2)</code></td></tr>
+<tr><td>Coach portion suggestions</td><td>multiples of 5 g, minimum 5 g</td><td><code>roundG</code> in <code>coach.ts</code></td></tr>
+</table>
+<p><code>round(n, digits)</code> uses <code>Math.round((n + Number.EPSILON) × 10^digits) / 10^digits</code>. Day totals are summed from the precise values and rounded only for display (a unit test shows ten entries of ≈2.7 g tomato giving 5 kcal, exact 4.86).</p>
+
+<h2>9. Worked examples</h2>
+<p>Examples 1–6 are taken from the unit tests (<code>tests/core.test.ts</code>, <code>tests/v2.test.ts</code>, <code>tests/fooddb.test.ts</code>); example 7 is arithmetic that follows the same code.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>Input</th><th>Calculation</th><th>Result</th></tr>
+<tr><td>1</td><td>1 tbsp oil (884 kcal/100 g), no density</td><td>1 × 15 × 1 = 15 g; 884 × 0.15 = 132.6</td><td>15 g, 133 kcal</td></tr>
+<tr><td>2</td><td>1 tbsp oil with gramsPerMl 0.91</td><td>1 × 15 × 0.91 = 13.65</td><td>13.7 g</td></tr>
+<tr><td>3</td><td>2 tsp / 0.1 kg of the same oil</td><td>2 × 5 × 1 = 10; 0.1 × 1000 = 100</td><td>10 g / 100 g</td></tr>
+<tr><td>4</td><td>3 pieces whole egg, pieceGrams 55</td><td>3 × 55 = 165 g</td><td>165 g, 236 kcal (Hub values)</td></tr>
+<tr><td>5</td><td>3 slices whole-wheat toast, 28 g per slice</td><td>3 × 28 = 84 g</td><td>84 g, 207 kcal</td></tr>
+<tr><td>6</td><td>1 cup / 0.5 l low-fat milk, no density</td><td>1 × 240 × 1; 0.5 × 1000 × 1</td><td>240 g / 500 g</td></tr>
+<tr><td>7</td><td>Label: per 30 g serving = 120 kcal, 3 g P, 18 g C, 4 g F</td><td>factor 100/30 → 400 kcal, 10 g P, 60 g C, 13.33 g F per 100 g; 2 servings = 60 g</td><td>60 g, 240 kcal (test in fooddb.test.ts)</td></tr>
+<tr><td>8</td><td>Drink label 42 kcal per 100 ml, density 1.03; user logs 250 ml</td><td>per 100 g = 42 / 1.03 = 40.78; 250 × 1.03 = 257.5 g; 40.78 × 2.575 ≈ 105</td><td>257.5 g, ≈105 kcal (illustrative)</td></tr>
+</table>
+<p>Example 8 shows that the per-100 ml → per-100 g conversion and the ml → g conversion cancel each other out, so the logged calories equal the label (42 × 2.5 = 105 kcal) whatever density is entered — as long as the same density is used for both.</p>
+
+<h2>10. Errors and edge cases</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Code</th><th>When</th></tr>
+<tr><td><code>invalidQuantity</code></td><td>quantity is not a finite number &gt; 0</td></tr>
+<tr><td><code>needsPieceWeight</code></td><td>piece/slice chosen but pieceGrams missing or ≤ 0</td></tr>
+<tr><td><code>needsServing</code></td><td>serving chosen but the food has no servings</td></tr>
+<tr><td><code>needsRecipe</code></td><td>basis has neither per100 nor perServing</td></tr>
+<tr><td><code>INCOMPLETE_FOOD</code></td><td>the food is marked incomplete (no usable values) — logging is blocked in <code>addFoodEntry</code></td></tr>
+<tr><td><code>DUPLICATE_ENTRY</code></td><td>the same food, quantity, unit, meal and date added again within 1.5 s (double-tap guard)</td></tr>
+</table>
+
+<h2>11. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Constants (240/15/5 ml), toGrams formulas, rounding functions</td><td>Verified in code (<code>src/lib/nutrition.ts</code>)</td></tr>
+<tr><td>Examples 1–7</td><td>Covered by passing unit tests (109 unit tests passing on the final code)</td></tr>
+<tr><td>Example 8</td><td>Arithmetic derived from the code; no dedicated test</td></tr>
+<tr><td>Food editor "per serving" label conversion (30 g serving, 120 kcal → 400 kcal/100 g; 60 g → 240 kcal)</td><td>Tested in the guest browser e2e suite (<code>e2e/run-e2e.mjs</code>, 44/44 passing)</td></tr>
+<tr><td>"per 100 ml" conversion and density hints</td><td>Verified in code only — no dedicated test found</td></tr>
+<tr><td>Behaviour on a real Android phone</td><td>Not verified (only emulated devices)</td></tr>
+<tr><td>Accuracy of the 1 ml = 1 g assumption for a specific food</td><td>Not verified — depends on the food; enter a density for oils, syrups and honey</td></tr>
+</table>
+
+<h2>12. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

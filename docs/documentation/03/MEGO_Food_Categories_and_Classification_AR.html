@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Food_Categories_and_Classification_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — فئات الأطعمة وتصنيفها</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>القيمة</th></tr>
+<tr><td>رقم المستند</td><td>MEGO-DOC-22</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-07</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-07</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>المطوّرون، مسؤولو قاعدة الأطعمة، مراجعو التغذية</td></tr>
+<tr><td>مستندات ذات صلة</td><td dir="ltr">MEGO_Food_Database_Documentation, MEGO_Nutritional_Values_and_Units_Reference, MEGO_Food_Rankings_and_Coach_Methodology, MEGO_Food_Search_and_Database_Guide</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">يصنّف MEGO الأطعمة وفق عدة محاور مستقلة: <b>فئة</b> نصية حرة، و<b>حالة</b> الوزن (نيء / مطبوخ / أخرى)، و<b>مجموعة الصورة</b> المستخدمة للصور والصور البديلة، ولأطعمة كتالوج ذكاء الأطعمة (Food Intelligence) البالغة 83 طعامًا: <b>مجموعات غذائية</b> و<b>منشأ</b> وعلامة <b>الطعام الكامل</b> و<b>وسوم النظام الغذائي ومسببات الحساسية</b>. يصف هذا المستند كل محور كما هو منفّذ في <code dir="ltr">src/lib/types.ts</code> و<code dir="ltr">refFoods.ts</code> و<code dir="ltr">sheetImport.ts</code> و<code dir="ltr">foodPhotos.ts</code> و<code dir="ltr">intelCatalog.ts</code>. لا يغيّر أي تصنيف منها القيم الغذائية.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">الفئات في البيانات</li>
+<li dir="rtl">حالة الطعام: نيء، مطبوخ، أخرى</li>
+<li dir="rtl">مجموعات الصور</li>
+<li dir="rtl">تصنيف كتالوج ذكاء الأطعمة</li>
+<li dir="rtl">وسوم النظام الغذائي والحساسية</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. الفئات في البيانات</h2>
+<h3 dir="rtl">1.1 أطعمة المستخدم</h3>
+<p dir="rtl">الحقل <code dir="ltr">Food.category</code> نص حر وليس قائمة ثابتة، وقيمته تعتمد على المصدر:</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المصدر</th><th>قيمة الفئة</th></tr>
+<tr><td>مركز المالك (الجدول)</td><td>عمود <code dir="ltr">category</code> في Food_Database كما كتبه المالك (بالعربية). القائمة الكاملة لفئات المركز غير محفوظة في المستودع.</td></tr>
+<tr><td>طعام USDA مرجعي</td><td>اسم فئة USDA (انظر 1.2)، يُنسخ عند نسخ الطعام</td></tr>
+<tr><td>تقدير صورة أُضيف كطعام</td><td>«تقدير من صورة»</td></tr>
+<tr><td>مخصص / Open Food Facts</td><td>ما يُدخله المستخدم (قد يكون فارغًا)</td></tr>
+</table>
+<p dir="rtl">تُستخدم الفئة في: تصفية نتائج البحث المرجعي (<code dir="ltr">RefFilter.category</code>)، واختيار مجموعة الصورة البديلة (القسم 3)، وفي فحص الطاقة <code dir="ltr">explainEnergy</code> حيث تجعل الفئة المطابقة لـ <code dir="ltr">/(خضار|فاكهة|veg|fruit)/i</code> الطعامَ خضارًا/فاكهة.</p>
+
+<h3 dir="rtl">1.2 فئات قاعدة USDA المرجعية</h3>
+<p dir="rtl">يخزّن <code dir="ltr">public/fooddb/usda.json</code> الفئات مرة واحدة في <code dir="ltr">meta.categories</code> (195 فئة)، ويخزّن كل صف رقم الفئة. منها 24 مجموعة SR Legacy و171 فئة FNDDS «WWEIA» (لا تداخل بينهما). مجموعات SR Legacy الأربع والعشرون:</p>
+<pre dir="ltr">Baked Products · Snacks · Sweets · Vegetables and Vegetable Products ·
+American Indian/Alaska Native Foods · Restaurant Foods · Beverages · Fats and Oils ·
+Sausages and Luncheon Meats · Dairy and Egg Products · Poultry Products · Pork Products ·
+Breakfast Cereals · Legumes and Legume Products · Finfish and Shellfish Products ·
+Fruits and Fruit Juices · Cereal Grains and Pasta · Nut and Seed Products · Beef Products ·
+Meals, Entrees, and Side Dishes · Fast Foods · Spices and Herbs ·
+Soups, Sauces, and Gravies · Lamb, Veal, and Game Products</pre>
+<p dir="rtl">يستبعد سكربت البناء «Quality Control Materials» و«Baby Foods». أمثلة FNDDS: «Milk, whole» و«Yogurt, Greek» و«Plant-based milk» و«Dips, gravies, other sauces» و«Baby food: mixtures». أكبر الفئات في الملف: Beef Products ‏954، Vegetables and Vegetable Products ‏814، Baked Products ‏517، Lamb, Veal, and Game Products ‏464، Poultry Products ‏383، Beverages ‏366.</p>
+<p dir="rtl"><b>الاستخدام في الترتيب</b>: يمنح البحث المرجعي +1.5 للصفوف التي تبدأ فئتها بمجموعة أساسية (<code dir="ltr">Poultry|Beef|Pork|Lamb|Finfish|Dairy and Egg|Fruits|Vegetables|Cereal Grains|Legume|Nut and Seed|Fats and Oils|Breakfast Cereals|Spices|Beverages|Sweets|Baked Products|Snacks</code>)، ويعامل فئات «Fast Foods» و«Restaurant Foods» و«Branded» كعلامات تجارية (−4 ما لم يذكر الاستعلام علامة تجارية).</p>
+
+<h2 dir="rtl">2. حالة الطعام: نيء، مطبوخ، أخرى</h2>
+<p dir="rtl">النوع <code dir="ltr">FoodState = 'raw' | 'cooked' | 'other'</code>: نيء = موزون نيئًا/جافًا؛ مطبوخ = موزون بعد الطهي؛ أخرى = محضّر/مصنّع/مسحوق/غير منطبق. المحرّك <b>لا يحوّل أبدًا بين وزن النيء والمطبوخ</b> (<code dir="ltr">toGrams</code>)؛ ويُحكم على التكرار بالاسم <i>والحالة</i> معًا، فيمكن أن يوجد «أرز نيء» و«أرز مطبوخ» معًا.</p>
+<h3 dir="rtl">2.1 الاستنتاج لأطعمة USDA (<code dir="ltr">inferState</code>، refFoods.ts)</h3>
+<ol dir="rtl">
+<li dir="rtl">إذا احتوى الاسم الكلمة raw أو dry أو unprepared أو uncooked ← <b>نيء</b>.</li>
+<li dir="rtl">وإلا إذا احتوى cooked, roasted, boiled, grilled, broiled, fried, baked, braised, stewed, steamed, poached, microwaved, scrambled, toasted, sauteed, simmered, pan-browned, pan-fried, smoked أو canned ← <b>مطبوخ</b>.</li>
+<li dir="rtl">غير ذلك ← <b>أخرى</b>.</li>
+</ol>
+<p dir="rtl">النتيجة على 12,879 صفًا: أخرى 7,253 · مطبوخ 3,590 · نيء 2,036. ويأخذ الطعام المنسوخ التسمية نيء / مطبوخ / محضّر.</p>
+<h3 dir="rtl">2.2 الاستنتاج لأطعمة الجدول والمستوردة (<code dir="ltr">normalizeState</code>، sheetImport.ts)</h3>
+<p dir="rtl">يُستخدم عمود <code dir="ltr">state</code> في المركز إذا كان raw أو cooked أو other حرفيًا؛ وإلا تُطبَّع التسمية بهذا الترتيب:</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الترتيب</th><th>التسمية تحتوي</th><th>الحالة</th></tr>
+<tr><td>0</td><td>فارغة أو «—» أو «-»</td><td>أخرى</td></tr>
+<tr><td>1</td><td>نيء، نيئ، ني (في النهاية)، خام، raw، جاف، dry، uncooked</td><td>نيء</td></tr>
+<tr><td>2</td><td>مصنّع، مصنع، محضّر، محضر، مسحوق، processed، prepared، powder</td><td>أخرى</td></tr>
+<tr><td>3</td><td>مطبوخ، مطهي، مقلي، مشوي، مسلوق، cooked، boiled، grilled، fried، baked</td><td>مطبوخ</td></tr>
+<tr><td>4</td><td>أي شيء آخر</td><td>أخرى</td></tr>
+</table>
+<p dir="rtl">لأن «مصنّع» يُفحص قبل «مطبوخ»، تصبح تسمية مثل «مطبوخ/مصنّع» <b>أخرى</b>. ويُحفظ النص الأصلي في <code dir="ltr">stateLabel</code>.</p>
+
+<h2 dir="rtl">3. مجموعات الصور</h2>
+<p dir="rtl"><code dir="ltr">PhotoGroup = 'protein' | 'dairy' | 'legume' | 'grain' | 'fruit' | 'veg' | 'fat' | 'nut' | 'sweet' | 'drink' | 'other'</code> (<code dir="ltr">src/lib/foodPhotos.ts</code>). لا يحصل الطعام على صورة إلا عند تطابق لا لبس فيه (74 صورة من Wikimedia Commons، الاعتمادات في <code dir="ltr">public/food-img/CREDITS.md</code>):</p>
+<ol dir="rtl">
+<li dir="rtl">برقم FDC (من sourceRef «USDA FDC 171477 …» أو معرّف مثل S171477) مقابل قائمة كل مفتاح.</li>
+<li dir="rtl">بتعبير منتظم على الاسم الإنجليزي، ما لم يبدُ الاسم طبقًا أو خليطًا أو منتجًا مصنّعًا (مثل with وsauce وsoup وsalad وfried وjuice وpowder وbaby food…) أو زيتًا غير مدرج.</li>
+<li dir="rtl">بتعبير منتظم بكلمة كاملة على الاسم العربي المطبَّع، ما لم يُستبعد (مثل: مع، صلصه، شوربه، عصير، مقلي…).</li>
+</ol>
+<p dir="rtl">يفوز أول مفتاح مطابق (المفاتيح المحددة قبل العامة). عند غياب الصورة تُعرض صورة بديلة مصمَّمة، وتُخمَّن مجموعتها من الفئة + الاسم بالدالة <code dir="ltr">groupFromText</code> بهذا الترتيب:</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المجموعة</th><th>الكلمات المفتاحية (نص مطبَّع)</th></tr>
+<tr><td dir="ltr">protein</td><td>لحم، دجاج، فراخ، سمك، اسماك، بروتين، بيض، meat, poultry, fish, seafood, protein, egg</td></tr>
+<tr><td dir="ltr">dairy</td><td>البان، حليب، جبن، زبادي، dairy, milk, cheese, yogurt</td></tr>
+<tr><td dir="ltr">legume</td><td>بقول، عدس، فول، حمص، legume, bean, lentil</td></tr>
+<tr><td dir="ltr">grain</td><td>نشويات، حبوب، خبز، رز، ارز، مكرونه، grain, cereal, bread, rice, pasta, baked</td></tr>
+<tr><td dir="ltr">fruit</td><td>فواكه، فاكهه، fruit</td></tr>
+<tr><td dir="ltr">veg</td><td>خضار، خضروات، vegetable, veg</td></tr>
+<tr><td dir="ltr">nut</td><td>مكسرات، بذور، nut, seed</td></tr>
+<tr><td dir="ltr">fat</td><td>دهون، زيوت، زيت، fat, oil</td></tr>
+<tr><td dir="ltr">sweet</td><td>حلويات، سكر، sweet, sugar, dessert</td></tr>
+<tr><td dir="ltr">drink</td><td>مشروبات، عصير، drink, beverage</td></tr>
+<tr><td dir="ltr">other</td><td>لا تطابق</td></tr>
+</table>
+
+<h2 dir="rtl">4. تصنيف كتالوج ذكاء الأطعمة</h2>
+<p dir="rtl">يضم <code dir="ltr">INTEL_CATALOG</code> (<code dir="ltr">src/lib/intelCatalog.ts</code>) 83 طعامًا، يشير كل منها إلى سجل USDA واحد بالضبط (القيم تُقرأ من القاعدة المشحونة ولا تُكتب يدويًا). اختيرت الأشكال كما تؤكل عادة: اللحوم والأسماك والحبوب والبقول مطبوخة؛ والفاكهة والخضار والمكسرات والألبان كما تُباع.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الخاصية</th><th>القيم</th><th>الاستخدام</th></tr>
+<tr><td dir="ltr">groups</td><td dir="ltr">'protein' | 'carb' | 'fat' | 'fiber'</td><td>قوائم الترتيب التي يظهر فيها الطعام (قد يكون في أكثر من واحدة، مثل العدس: بروتين وكربوهيدرات وألياف)</td></tr>
+<tr><td dir="ltr">origin</td><td dir="ltr">'animal' | 'plant'</td><td>للعرض فقط، لا يُستخدم في الترتيب</td></tr>
+<tr><td dir="ltr">whole</td><td>صحيح = طعام كامل قليل المعالجة (الحبوب: حبوب كاملة)؛ خطأ مثل الأرز الأبيض والمعكرونة والزيوت والزبدة والتونة المعلبة ومساحيق البروتين</td><td>يُعرض ويُستخدم في منهجية الترتيب (انظر MEGO_Food_Rankings_and_Coach_Methodology)</td></tr>
+</table>
+
+<h2 dir="rtl">5. وسوم النظام الغذائي والحساسية</h2>
+<p dir="rtl"><code dir="ltr">DIET_TAGS = ['meat', 'poultry', 'fish', 'shellfish', 'dairy', 'egg', 'nuts', 'peanut', 'soy', 'gluten', 'sesame']</code>. تُسند الوسوم لكل معرّف في الكتالوج (الأطعمة بلا وسوم ليس لها أي وسم):</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الوسم</th><th>أطعمة الكتالوج</th></tr>
+<tr><td dir="ltr">poultry</td><td>صدر دجاج، صدر ديك رومي</td></tr>
+<tr><td dir="ltr">fish</td><td>تونة معلبة، تونة مطبوخة، قد، بلطي، حدوق، سلمون، ماكريل، سردين</td></tr>
+<tr><td dir="ltr">shellfish</td><td>جمبري</td></tr>
+<tr><td dir="ltr">meat</td><td>لحم بقري مفروم 95%، سيرلوين، فخذ ضأن</td></tr>
+<tr><td dir="ltr">egg</td><td>بيض مسلوق، بياض بيض</td></tr>
+<tr><td dir="ltr">dairy</td><td>زبادي يوناني خالي وقليل الدسم، جبن قريش 1%، فيتا، حليب خالي الدسم، حليب 1%، بروتين الواي، زبدة</td></tr>
+<tr><td dir="ltr">soy</td><td>توفو، تمبيه، إدامامي، بروتين صويا بودرة</td></tr>
+<tr><td dir="ltr">gluten</td><td>خبز قمح كامل، بيتا قمح كامل، برغل، معكرونة، معكرونة قمح كامل، كسكس، شعير، شوفان (الشوفان: «غالبًا ما يتلوث بالغلوتين ما لم يكن معتمدًا»)</td></tr>
+<tr><td dir="ltr">nuts</td><td>لوز، جوز، فستق حلبي، كاجو</td></tr>
+<tr><td dir="ltr">peanut</td><td>زبدة فول سوداني</td></tr>
+<tr><td dir="ltr">sesame</td><td>طحينة</td></tr>
+</table>
+<p dir="rtl"><b>منطق الاستبعاد</b> (<code dir="ltr">excludedTags(diet, exclude)</code>): يبدأ بالوسوم التي استبعدها المستخدم (<code dir="ltr">Settings.foodExclusions</code>)؛ النباتي يضيف meat وpoultry وfish وshellfish؛ والنباتي الصرف (vegan) يضيف أيضًا dairy وegg. تُستبعد الأطعمة الحاملة لوسم مستبعد من اقتراحات المدرب وذكاء الأطعمة. لا يستخدم محرّك التغذية هذه التفضيلات أبدًا. الوسوم موجودة فقط لأطعمة الكتالوج الـ83؛ الأطعمة الأخرى غير موسومة.</p>
+
+<h2 dir="rtl">6. حالة التحقق</h2>
+<ul dir="rtl">
+<li dir="rtl">مُتحقَّق منه في المستودع: جميع القواعد والقوائم والأعداد أعلاه (من الشيفرة وملف usda.json المشحون).</li>
+<li dir="rtl">غير مُتحقَّق منه: قيم الفئات الفعلية في مركز المالك الحي (غير محفوظة في المستودع). وسوم الحساسية مرشّح مساعد وليست ضمانًا طبيًا؛ ولم يُتحقق من اكتمال الوسوم للمنتجات الحقيقية.</li>
+</ul>
+
+<h2 dir="rtl">7. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

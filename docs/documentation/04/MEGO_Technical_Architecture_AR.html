@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="utf-8"><title>MEGO_Technical_Architecture_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1>MEGO — المعمارية التقنية</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>معرّف الوثيقة</td><td>MEGO-DOC-31</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-07</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-07</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور المستهدف</td><td>المطورون ومسؤولو الصيانة والمراجعون التقنيون</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Frontend_Architecture، MEGO_Backend_Architecture، MEGO_Firebase_Integration، MEGO_Google_Sheets_Integration_and_Sync، MEGO_Gemini_AI_Integration، MEGO_Database_Schema_and_Relationships، MEGO_Security_Architecture، MEGO_Production_Deployment_Guide</td></tr>
+</table>
+
+<h2>الغرض والنطاق</h2>
+<p>تصف هذه الوثيقة المعمارية العامة لنظام MEGO: ما المكوّنات الموجودة، وأين تعمل، وكيف تتواصل فيما بينها، وكيف تتدفق البيانات في وضعَي التشغيل (جهاز الضيف/المالك، والحساب المسجَّل). وهي نقطة البداية للمطورين، وتفصّل الوثائق ذات الصلة كل مكوّن على حدة. تمت مطابقة كل ما ورد هنا مع الشيفرة في الفرع <code dir="ltr">claude/nutrition-tracking-app-989rku</code>، وبشكل أساسي الملفات <code dir="ltr">src/main.tsx</code> و<code dir="ltr">src/lib/account.ts</code> و<code dir="ltr">src/lib/firebase.ts</code> و<code dir="ltr">src/lib/cloudSync.ts</code> و<code dir="ltr">src/lib/sync.ts</code> و<code dir="ltr">src/lib/db.ts</code> و<code dir="ltr">apps-script/Code.gs</code> و<code dir="ltr">vite.config.ts</code> و<code dir="ltr">.github/workflows/deploy.yml</code>.</p>
+
+<h2>جدول المحتويات</h2>
+<ol>
+<li>نظرة عامة على النظام</li>
+<li>مخطط سياق النظام</li>
+<li>المكوّنات</li>
+<li>أوضاع التشغيل وتسلسل الإقلاع</li>
+<li>تدفقات البيانات</li>
+<li>العمل دون اتصال وعامل الخدمة</li>
+<li>حدود الخطط المجانية والقيود</li>
+<li>حالة التحقق</li>
+<li>سجل المراجعات</li>
+</ol>
+
+<h2>1. نظرة عامة على النظام</h2>
+<p>MEGO تطبيق ويب تقدّمي (Progressive Web App – PWA) مبني باستخدام Vite وReact 18 وTypeScript، ومنشور كموقع ثابت على صفحات GitHub (GitHub Pages) على العنوان <code dir="ltr">https://mego2012.github.io/Mego/</code>. <b>لا يوجد خادم تطبيقات مخصّص</b>؛ فكل منطق الخادم يعمل على خدمات Google المُدارة:</p>
+<ul>
+<li><b>التخزين المحلي أولاً</b> — تُكتب كل بيانات المستخدم أولاً في قاعدة IndexedDB على الجهاز (عبر مكتبة Dexie في <code dir="ltr">src/lib/db.ts</code>)، ويعمل التطبيق بالكامل دون اتصال بالشبكة.</li>
+<li><b>Firebase (خطة Spark المجانية)</b> — خدمة المصادقة (Authentication) بالبريد وكلمة المرور، وقاعدة البيانات السحابية (Cloud Firestore) للحسابات المسجّلة. تُفرض صلاحيات الوصول عبر <code dir="ltr">firebase/firestore.rules</code> على خوادم Google.</li>
+<li><b>تطبيق ويب على Google Apps Script</b> (<code dir="ltr">apps-script/Code.gs</code>) — الخلفية الخاصة بالمالك: مزامنة ثنائية الاتجاه مع جدول Google «MEGO Nutrition Hub»، ونسخ احتياطية في Drive، ووسيط (Proxy) إلى واجهة Gemini لماسح الوجبات بالذكاء الاصطناعي (للمالك وللحسابات العامة المسجّلة).</li>
+<li><b>بيانات مرجعية ثابتة</b> — قاعدة بيانات USDA FoodData Central مضمّنة في التطبيق (<code dir="ltr">public/fooddb/usda.json</code> إضافة إلى <code dir="ltr">usda-extra.json</code>).</li>
+<li><b>Open Food Facts</b> — واجهة عامة تُستدعى مباشرة من المتصفح للبحث بالباركود والبحث النصي عن المنتجات المعبّأة (<code dir="ltr">src/lib/barcode.ts</code>).</li>
+</ul>
+
+<h2>2. مخطط سياق النظام</h2>
+<pre dir="ltr">
+                         +--------------------------------------------+
+                         |  User's phone / browser                    |
+                         |  MEGO PWA (React + TS, HashRouter)         |
+                         |  +-------------------+  +----------------+ |
+                         |  | IndexedDB (Dexie) |  | Service worker | |
+                         |  | mego-nutrition    |  | (Workbox)      | |
+                         |  | mego-u-&lt;uid&gt;      |  | precache+cache | |
+                         |  +-------------------+  +----------------+ |
+                         +----+---------+-----------+--------+--------+
+          static files (HTTPS)|         |           |        | HTTPS (direct)
+   +--------------------------+         |           |        +----------------------+
+   v                                    |           |                               v
++---------------------+   Firebase SDK  |           | POST text/plain        +-----------------+
+| GitHub Pages        |   (account mode)|           | (token or ID token)    | Open Food Facts |
+| index.html, JS/CSS, |                 v           v                        | public API      |
+| fooddb/usda.json,   |   +------------------+   +---------------------------+-----------------+
+| firebase-config.json|   | Firebase (Spark) |   | Google Apps Script web app (Code.gs)    |
++---------------------+   | - Authentication |   | runs as the owner                       |
+                          | - Cloud Firestore|&lt;--| - verifies Firebase ID tokens (Identity  |
+                          |   (me-central2)  |   |   Toolkit), reads profiles with the     |
+                          +------------------+   |   user's own token                      |
+                                                 | - Hub sync  ---&gt; Google Sheet "MEGO     |
+                                                 |               Nutrition Hub" (Drive)    |
+                                                 | - Drive backups (JSON, Hub copies)      |
+                                                 | - Gemini proxy ---&gt; Gemini API (free)   |
+                                                 +-----------------------------------------+
+</pre>
+
+<h2>3. المكوّنات</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>المكوّن</th><th>التقنية / الموقع</th><th>المسؤولية</th></tr>
+<tr><td>تطبيق الواجهة (PWA)</td><td>Vite 5 وReact 18.3 وTypeScript 5.6 وreact-router-dom 6 (HashRouter)؛ المجلد <code dir="ltr">src/</code></td><td>كل الواجهة، وحسابات التغذية، والتقارير، والبحث، والتخزين المحلي، وعملاء المزامنة</td></tr>
+<tr><td>قاعدة البيانات المحلية</td><td>Dexie 4 فوق IndexedDB؛ <code dir="ltr">src/lib/db.ts</code></td><td>الجداول foods وfoodChanges وentries وrecipes وtemplates وplans وplannedDays وbody وdays وsettings وoutbox وkv وfasts وphotos وbackups (إصدار المخطط 2)</td></tr>
+<tr><td>عامل الخدمة (Service Worker)</td><td>vite-plugin-pwa 0.21 (Workbox)؛ <code dir="ltr">vite.config.ts</code></td><td>تخزين مسبق لهيكل التطبيق و<code dir="ltr">fooddb/usda.json</code>، وتخزين وقت التشغيل للصور والخطوط وقاعدة الأطعمة الإضافية</td></tr>
+<tr><td>الاستضافة</td><td>GitHub Pages؛ <code dir="ltr">.github/workflows/deploy.yml</code></td><td>البناء عند الدفع إلى <code dir="ltr">main</code> أو فرع الإصدار (يشغّل <code dir="ltr">npm test</code> ثم <code dir="ltr">npm run build</code> مع <code dir="ltr">BASE_PATH=/&lt;repo&gt;/</code>) ونشر المجلد <code dir="ltr">dist</code></td></tr>
+<tr><td>الحسابات والبيانات السحابية</td><td>Firebase JS SDK 13.1؛ <code dir="ltr">src/lib/firebase.ts</code> و<code dir="ltr">account.ts</code> و<code dir="ltr">cloudSync.ts</code></td><td>التسجيل، وتسجيل الدخول، والملفات الشخصية، وسجلات كل مستخدم، والأطعمة المشتركة، وإحصاءات المشرف</td></tr>
+<tr><td>قواعد الأمان</td><td><code dir="ltr">firebase/firestore.rules</code></td><td>وصول المالك وحده إلى <code dir="ltr">users/{uid}/**</code>، والتحقق من حالة النشاط، ومنع الكتابة بنسخة أقدم، وحدود صلاحيات المشرف</td></tr>
+<tr><td>خلفية المالك</td><td>Google Apps Script (V8)، تطبيق ويب (يعمل بهوية المالك، وصول مفتوح + رمز سري)؛ <code dir="ltr">apps-script/Code.gs</code> و<code dir="ltr">appsscript.json</code></td><td>مزامنة الـHub (ping وfoods وpush وpull وsaveFoods وbackup وmeta)، والتثبيت/الإقلاع الآلي (bootstrap)، ووسيط Gemini (analyzeMeal وsetAiKey وaiStats)، وsetCloudConfig</td></tr>
+<tr><td>جدول الـHub</td><td>«MEGO Nutrition Hub» (جدول Google أصلي محوَّل من ملف Excel الأصلي)</td><td>المصدر الوحيد المعتمد لدى المالك لجدول الأطعمة ونسخ مقروءة من سجلاته</td></tr>
+<tr><td>نموذج الذكاء الاصطناعي</td><td>الطبقة المجانية من Gemini API، النموذج الافتراضي <code dir="ltr">gemini-3.8-flash</code> (المسموح: gemini-3.8-flash وgemini-3.6-flash وgemini-3.5-flash-lite)</td><td>يتعرّف على الأطعمة ويقدّر الغرامات في صورة الوجبة؛ أما القيم الغذائية فيحسبها التطبيق من قاعدة بياناته</td></tr>
+<tr><td>بيانات الأطعمة المرجعية</td><td>USDA FoodData Central (SR Legacy وFNDDS) يبنيها <code dir="ltr">scripts/build-food-db.mjs</code></td><td>بحث مرجعي ثابت يعمل دون اتصال</td></tr>
+<tr><td>المنتجات المعبّأة</td><td>واجهة Open Food Facts (<code dir="ltr">world.openfoodfacts.org</code>)</td><td>البحث بالباركود والبحث النصي، مع وسم البيانات بأنها خارجية</td></tr>
+</table>
+
+<h2>4. أوضاع التشغيل وتسلسل الإقلاع</h2>
+<h3>4.1 الأوضاع</h3>
+<p>يعرّف الملف <code dir="ltr">src/lib/account.ts</code> ثلاثة أوضاع في <code dir="ltr">AccountState.mode</code>:</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الوضع</th><th>متى</th><th>قاعدة البيانات المحلية</th><th>المزامنة البعيدة</th></tr>
+<tr><td><code dir="ltr">guest</code> (ضيف)</td><td>عند غياب <code dir="ltr">firebase-config.json</code> أو عدم صلاحيته، أو عند اختيار المستخدم «المتابعة كضيف» (المفتاح <code dir="ltr">mego.guest</code> في localStorage)</td><td><code dir="ltr">mego-nutrition</code></td><td>مزامنة اختيارية مع جدول الـHub عبر Apps Script (أجهزة المالك)</td></tr>
+<tr><td><code dir="ltr">welcome</code> (ترحيب)</td><td>السحابة مُعدّة، ولا يوجد حساب نشط، ولم يُختر وضع الضيف</td><td>—</td><td>لا شيء؛ تُعرض الصفحة العامة (ترحيب، دخول، تسجيل)</td></tr>
+<tr><td><code dir="ltr">account</code> (حساب)</td><td>عند وجود المفتاح <code dir="ltr">mego.activeUid</code> في localStorage</td><td><code dir="ltr">mego-u-&lt;uid&gt;</code> (قاعدة مستقلة لكل حساب على الجهاز)</td><td>مزامنة Firestore (<code dir="ltr">cloudSync.ts</code>)</td></tr>
+</table>
+
+<h3>4.2 تسلسل الإقلاع (<code dir="ltr">src/main.tsx</code>)</h3>
+<pre dir="ltr">
+boot()
+ 1. preMigrationBackup()        copy old IndexedDB stores to "mego-nutrition-premigration" if a schema upgrade is due
+ 2. bootAccount()               fetch BASE_URL + "firebase-config.json" (no-cache)
+       no config  -&gt; mode guest (cloud=false)
+       config     -&gt; initCloud(); if mego.activeUid -&gt; select "mego-u-&lt;uid&gt;", optional guest-data import,
+                     apply pending registration setup -&gt; mode account
+                     else -&gt; mode guest (if chosen) or welcome
+ 3. getSettings()               creates the default settings record on first run
+ 4. requestPersistentStorage()  navigator.storage.persist()
+ 5. render &lt;App/&gt;
+ 6. refreshPending()            outbox counter for the sync badge
+ 7. account mode -&gt; watchSession(): confirm Firebase user, load profile/admin flag, then
+                    dynamic import cloudSync.startCloudSync(uid)
+    otherwise    -&gt; startAutoSync() (Hub sync, only acts if a connection is configured)
+ 8. startReminders(); autoDailyBackup(); registerSW({ immediate: true })
+</pre>
+<p>عند تبديل الحساب (<code dir="ltr">enterAccount</code> و<code dir="ltr">leaveAccount</code> و<code dir="ltr">chooseGuest</code>) يُكتب المفتاح في localStorage ثم تُعاد تحميل الصفحة، بحيث تُختار قاعدة البيانات الصحيحة قبل عرض أي شيء. وإذا انتهت جلسة Firebase أو كانت لمستخدم آخر، تمسح <code dir="ltr">watchSession</code> المفتاح <code dir="ltr">mego.activeUid</code> وتعيد التحميل.</p>
+
+<h2>5. تدفقات البيانات</h2>
+<h3>5.1 مسار الكتابة المحلي (في الوضعين)</h3>
+<p>كل عملية كتابة في <code dir="ltr">src/lib/repo.ts</code> تحفظ السجل في جدول Dexie الخاص به، وتضيف عنصراً <code dir="ltr">{table, key, op: 'upsert'|'delete', payload, at}</code> إلى جدول صندوق الصادر (<code dir="ltr">outbox</code>)، ثم تُبلغ المستمعين عبر <code dir="ltr">onLocalChange</code>. ومحرّك المزامنة الخاص بالوضع الحالي هو من يُفرغ صندوق الصادر.</p>
+
+<h3>5.2 جهاز الضيف/المالك — جدول الـHub</h3>
+<pre dir="ltr">
+UI -&gt; repo.ts -&gt; Dexie table + outbox
+                     |
+          startAutoSync(): debounce 2.5 s after a change, 0.5 s on "online"/visible, every 60 s
+                     v
+pushNow(): assertHub(ping) -&gt; batches of 300 outbox items -&gt; coalesce -&gt;
+           POST {action:"push", changes, clientSchema, token}  --&gt;  Code.gs push_()
+                                                                   - validates, timestamp check
+                                                                   - writes structured tabs
+                                                                   - soft delete -&gt; Deleted_Records
+           &lt;-- {applied, conflicts[], dataVersion}
+           conflicts &gt; 0 -&gt; pullAll() (newer sheet copies win)
+</pre>
+<p>قيم الأطعمة يملكها تبويب <code dir="ltr">Food_Database</code> في الـHub، وتُستورد عبر <code dir="ltr">pullFoodsFromSheet()</code>. التفاصيل في وثيقة MEGO_Google_Sheets_Integration_and_Sync.</p>
+
+<h3>5.3 الحساب المسجّل — Firestore</h3>
+<pre dir="ltr">
+UI -&gt; repo.ts -&gt; Dexie (mego-u-&lt;uid&gt;) + outbox
+                     |
+     startCloudSync(): debounce 1.5 s after a change, 0.3 s on "online"
+                     v
+pushCloud(): coalesce -&gt; setDoc users/{uid}/{table}/{key} = {data: JSON string, updatedAt, deleted?}
+             permission-denied -&gt; counted as conflict (server holds a newer copy, or account suspended)
+
+Firestore --onSnapshot(updatedAt &gt; last seen)--&gt; applyRemote(): newer remote copy replaces local
+Firestore /foods --onSnapshot--&gt; importParsedFoods(..., "sheet")  (shared verified foods)
+</pre>
+<p>التفاصيل في وثيقة MEGO_Firebase_Integration.</p>
+
+<h3>5.4 ماسح الوجبات بالذكاء الاصطناعي</h3>
+<p>يختار الملف <code dir="ltr">src/lib/mealScanner.ts</code> المسار حسب الوضع: في وضع الحساب يُرسل <code dir="ltr">{action: "analyzeMeal", idToken, image, foods, lang, note}</code> إلى العنوان <code dir="ltr">aiBackendUrl</code> المأخوذ من <code dir="ltr">firebase-config.json</code>؛ أما على أجهزة الضيف/المالك فيستخدم خلفية الـHub المُعدّة مع رمز التطبيق. وكلا المسارين يصل إلى الدالة نفسها <code dir="ltr">analyzeMeal_()</code> في Apps Script، والتي تستدعي Gemini بالمفتاح المحفوظ فقط في خصائص السكربت (Script Properties). لا يحفظ الماسح أي شيء تلقائياً. التفاصيل في MEGO_Gemini_AI_Integration وMEGO_Backend_Architecture.</p>
+
+<h3>5.5 بيانات الأطعمة المرجعية والخارجية</h3>
+<ul>
+<li>يجلب <code dir="ltr">src/lib/refFoods.ts</code> الملف <code dir="ltr">fooddb/usda.json</code> ويخزّنه عامل الخدمة مسبقاً؛ ويجلب <code dir="ltr">src/lib/foodIntel.ts</code> الملف <code dir="ltr">fooddb/usda-extra.json</code> ويُخزَّن وقت التشغيل.</li>
+<li>تُستدعى Open Food Facts مباشرة من المتصفح: نقطة المنتج <code dir="ltr">/api/v2/product/{code}.json</code> ونقطة البحث <code dir="ltr">/cgi/search.pl</code>، وتتطلب اتصالاً بالشبكة.</li>
+</ul>
+
+<h2>6. العمل دون اتصال وعامل الخدمة</h2>
+<p>يُولَّد عامل الخدمة بواسطة <code dir="ltr">vite-plugin-pwa</code> مع <code dir="ltr">registerType: 'autoUpdate'</code>، ويُسجَّل في <code dir="ltr">main.tsx</code> عبر <code dir="ltr">registerSW({ immediate: true })</code>. الإعدادات من <code dir="ltr">vite.config.ts</code>:</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>القاعدة</th><th>الإعداد</th></tr>
+<tr><td>التخزين المسبق (Precache)</td><td><code dir="ltr">**/*.{js,css,html,svg,png,woff2}</code> و<code dir="ltr">fooddb/usda.json</code>؛ الحد الأقصى لحجم الملف 3 ميغابايت</td></tr>
+<tr><td>بديل التنقّل</td><td><code dir="ltr">index.html</code>؛ قائمة استثناء <code dir="ltr">/^\/macros\//</code> (لا تُقدَّم مسارات Apps Script من الذاكرة المؤقتة أبداً)</td></tr>
+<tr><td><code dir="ltr">fooddb/usda-extra.json</code></td><td>StaleWhileRevalidate، الذاكرة <code dir="ltr">mego-fooddb-extra</code></td></tr>
+<tr><td><code dir="ltr">food-img/*.webp</code></td><td>CacheFirst، الذاكرة <code dir="ltr">mego-food-img</code>، حتى 200 عنصر، لمدة سنة</td></tr>
+<tr><td><code dir="ltr">food-img/manifest.json</code></td><td>StaleWhileRevalidate، الذاكرة <code dir="ltr">mego-food-img-manifest</code></td></tr>
+<tr><td>خطوط Google (CSS / الملفات)</td><td>StaleWhileRevalidate (<code dir="ltr">google-fonts-css</code>) / CacheFirst (<code dir="ltr">google-fonts</code>، 20 عنصراً، سنة)</td></tr>
+</table>
+<p>السلوك دون اتصال: كل القراءات والكتابات تتم على IndexedDB، وتنتظر عناصر صندوق الصادر حتى يُبلغ المتصفح بحالة <code dir="ltr">online</code>. يضبط محرّكا المزامنة الحالة إلى <code dir="ltr">offline</code> عندما تكون <code dir="ltr">navigator.onLine</code> خاطئة. ويعيد محرّك الـHub المحاولة عند الإخفاق بتراجع أُسّي (5 ث، 10 ث، 20 ث… حتى 5 دقائق كحد أقصى) باستثناء الأخطاء الدائمة (<code dir="ltr">unauthorized</code> و<code dir="ltr">WRONG_SPREADSHEET</code> و<code dir="ltr">HUB_IS_XLSX</code>). وتستأنف مستمعات Firestore عملها تلقائياً عند عودة الاتصال. أما البحث بالباركود وبحث Open Food Facts والماسح الذكي فتتطلب الشبكة.</p>
+
+<h2>7. حدود الخطط المجانية والقيود</h2>
+<ul>
+<li>لا يُستخدم أي حساب فوترة. تتوقف خطة Firebase Spark والطبقة المجانية من Gemini عن الخدمة عند بلوغ الحصص اليومية؛ ويعرض التطبيق خطأً دون اللجوء إلى خدمة مدفوعة.</li>
+<li>ينفّذ Apps Script كل طلب بهوية المالك، ويُسلسل الكتابة على الـHub عبر <code dir="ltr">LockService</code> (انتظار حتى 25 ثانية).</li>
+<li>حدود الذكاء الاصطناعي في <code dir="ltr">Code.gs</code>: الحد اليومي العام <code dir="ltr">AI_DAILY_LIMIT</code> (الافتراضي 40 عند عدم ضبط الخاصية)، والحد لكل مستخدم للحسابات العامة <code dir="ltr">AI_USER_DAILY_LIMIT</code> (الافتراضي 10). ويمكن لـ<code dir="ltr">setCloudConfig</code> ضبطهما ضمن 1–1500 و1–50.</li>
+<li>تحدّ القواعد سجلات Firestore بنص <code dir="ltr">data</code> أقل من 300,000 حرف؛ وتحدّ طلبات الدفع إلى الـHub بـ500 تغيير و45,000 حرف لكل حمولة.</li>
+<li>رُفض استخدام Google Sheets قاعدةَ بيانات متعددة المستخدمين (لا أمان على مستوى الصف، وكل طلب يعمل بهوية المالك)، فبقي الـHub شخصياً للمالك (<code dir="ltr">docs/ARCHITECTURE.md</code>).</li>
+</ul>
+
+<h2>8. حالة التحقق</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>التطبيق منشور على GitHub Pages وسير النشر ناجح</td><td>مُتحقَّق منه مباشرة (حزمة المتصفح 44/44، وحزمة اللمس 103/103 على العنوان الحي)</td></tr>
+<tr><td>Firebase Auth وFirestore (المشروع mego-473920، المنطقة me-central2) والقواعد منشورة</td><td>مُتحقَّق منه مباشرة (<code dir="ltr">scripts/live-verify.mjs</code> بنتيجة 14/14)</td></tr>
+<tr><td>خلفية Apps Script ومزامنة الـHub (الرمز، هوية الـHub، الدفع/السحب، قاعدة التعارض، الحذف المرن)</td><td>مُتحقَّق منه مباشرة (اختبارات الإعداد الحي من الحاسوب المحمول)</td></tr>
+<tr><td>ماسح Gemini</td><td>مُتحقَّق منه مباشرة مرة واحدة (تحليل صورة حقيقية)؛ وقد تعيد الطبقة المجانية AI_BUSY أو أخطاء الحصة</td></tr>
+<tr><td>عزل المستخدمين، وجهازان، ووظائف المشرف</td><td>مُختبَر على محاكيات Firebase (القواعد 14، تعدد المستخدمين 8)؛ وفحوص الإنتاج ضمن live-verify</td></tr>
+<tr><td>العمل دون اتصال على جهاز Android حقيقي</td><td>غير مُتحقَّق منه — استُخدمت أجهزة محاكاة فقط</td></tr>
+</table>
+
+<h2>9. سجل المراجعات</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>الإصدار الأول</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

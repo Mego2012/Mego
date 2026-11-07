@@ -132,8 +132,11 @@ async function ensureProject() {
     if (i > 90) throw new Error('Apps Script API still disabled');
     const r = clasp(['create-script', '--type', 'standalone', '--title', 'MEGO Nutrition Hub Backend', '--rootDir', '.'], { allowFail: true });
     if (r.status === 0) break;
+    // show Google's own message so a different cause is never hidden behind the "turn the API on" hint
+    log('   Google says: ' + r.out.trim().split('\n').filter(Boolean).slice(-4).join(' | ').slice(0, 400));
     if (/Apps Script API|usersettings|not been used|has not enabled/i.test(r.out)) {
       if (i === 0) openUrl('https://script.google.com/home/usersettings');
+      if (i >= 2) log('   If the switch already shows "On": wait 5 minutes (Google needs time), then press Enter.');
       await pause('Google requires one switch: turn ON "Google Apps Script API" on the page that just opened.');
       continue;
     }

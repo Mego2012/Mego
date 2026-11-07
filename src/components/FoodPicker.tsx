@@ -142,7 +142,7 @@ export function FoodPicker({ onPickFood, onPickRecipe, onPickTemplate, onPickHis
               <FoodThumb food={f} size={48} />
               <div className="grow" style={{ minWidth: 0 }}>
                 <div className="row" style={{ gap: 6 }}>
-                  <span className="fr-name bold ellipsis">{displayName(f, lang)}</span>
+                  <span className="fr-name bold clamp2">{displayName(f, lang)}</span>
                   <StateChip state={f.state} label={f.stateLabel} />
                 </div>
                 {f.incomplete ? <div className="tiny muted">{t('incompleteFood')}</div> : <>

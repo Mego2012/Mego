@@ -43,7 +43,7 @@ export function FoodThumb({ food, photoKey, size = 44, className = '', category 
     <span className={`food-thumb ${className}`} style={{ width: size, height: size }}>
       {(!url || failed || !loaded) && <PhotoPlaceholder group={group} />}
       {url && !failed && (
-        <img src={url} alt="" width={size} height={size} loading="lazy" decoding="async" className={loaded ? 'in' : ''}
+        <img src={url} alt="" width={size} height={size} loading="lazy" decoding="async" draggable={false} className={loaded ? 'in' : ''}
           onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />
       )}
     </span>
@@ -52,7 +52,7 @@ export function FoodThumb({ food, photoKey, size = 44, className = '', category 
 
 /**
  * A recipe's cover: photos of its own main ingredients (largest by weight first), never a stock "dish" photo.
- * Falls back to a drawn placeholder when none of the ingredients has a photo.
+ * Falls back to a drawn placeholder when fewer than two ingredients have a photo.
  */
 export function RecipeMosaic({ ingredients, size = 72 }: { ingredients: [string, number, ...unknown[]][]; size?: number }) {
   const keys: string[] = [];
@@ -64,11 +64,12 @@ export function RecipeMosaic({ ingredients, size = 72 }: { ingredients: [string,
   const [ready, setReady] = useState(!!photoManifestNow());
   useEffect(() => { if (!ready) loadPhotoManifest().then(() => setReady(true)); }, [ready]);
   const withPhoto = ready ? keys.filter((k) => photoUrl(k)) : [];
-  if (!withPhoto.length) return <span className="food-thumb mosaic" style={{ width: size, height: size }}><PhotoPlaceholder group={keys[0] ? photoGroupOf(keys[0]) : groupFromText('', ingredients[0]?.[0] ?? '')} /></span>;
+  // one ingredient photo alone would read as a photo of the dish (e.g. bread for shakshuka): need at least two
+  if (withPhoto.length < 2) return <span className="food-thumb mosaic" style={{ width: size, height: size }}><PhotoPlaceholder group={keys[0] ? photoGroupOf(keys[0]) : groupFromText('', ingredients[0]?.[0] ?? '')} /></span>;
   const shown = withPhoto.length === 3 ? withPhoto.slice(0, 2) : withPhoto;
   return (
     <span className={`food-thumb mosaic n${shown.length}`} style={{ width: size, height: size }} aria-hidden="true">
-      {shown.map((k) => <img key={k} src={photoUrl(k)!} alt="" loading="lazy" decoding="async" className="in" />)}
+      {shown.map((k) => <img key={k} src={photoUrl(k)!} alt="" loading="lazy" decoding="async" draggable={false} className="in" />)}
     </span>
   );
 }

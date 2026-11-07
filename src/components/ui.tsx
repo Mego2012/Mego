@@ -202,7 +202,7 @@ export function NumField({ label, value, onChange, step = 'any', min, suffix, te
   );
 }
 
-export function TextField({ label, value, onChange, testId, placeholder, dir }: { label: string; value: string; onChange: (v: string) => void; testId?: string; placeholder?: string; dir?: string }) {
+export function TextField({ label, value, onChange, testId, placeholder, dir = "auto" }: { label: string; value: string; onChange: (v: string) => void; testId?: string; placeholder?: string; dir?: string }) {
   return (
     <label className="field">
       <span>{label}</span>

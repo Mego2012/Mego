@@ -35,5 +35,14 @@ Autonomous work session (cloud container). Newest entries last.
   320 px WebP, ~980 KB total, cached offline after first view (CacheFirst), never precached. Credits in Settings and public/food-img/CREDITS.md.
 * AUDIT — photo matching: tests found أبيض ("white") matched بيض ("egg") → Arabic now matches whole words only; peanuts (فول سوداني) no
   longer match fava beans; "milk chocolate", "almond milk/oil", "rice cakes" no longer get single-food photos. 20 positive and 19 negative cases tested.
-* Wikimedia's API started answering 429 (rate limit) during the second search round; 28 of the 86 photo keys (e.g. tomatoes, strawberries, brown rice,
-  milk, eggs) therefore have no photo yet and show the drawn placeholder. Re-run `scripts/food-photos/candidates.py` later to extend.
+* Wikimedia's API answered 429 (rate limit) for a while; after it recovered a second round added 16 photos (steak, lamb, Greek yogurt,
+  milk, kidney/white beans, tempeh, brown rice, pita, corn, cashews, chia, tomatoes, cauliflower, hummus, honey) → 74 photos, 1.25 MB.
+  Still no honest match (placeholder shown): boiled egg, egg white, tofu, labneh, tahini, pumpkin seeds, haddock, strawberries, coconut oil,
+  whey, soy protein, canola oil (the last three only exist as branded product photos).
+* Visual audit pass 1 (100 screenshots, AR/EN × light/dark) — fixed: English values clipped inside Arabic inputs (inputs now follow
+  the typed text direction); Latin "P/C/F" letters in Arabic ranking rows; food names cut to "Alm…" in lists (now two lines);
+  single-ingredient recipe covers that looked like the dish (now ≥2 ingredient photos or a placeholder); soft article cover
+  (now a crisp tile); month ledger not aligned to weekdays (now a real calendar with weekday header); compare table no longer
+  calls "more carbohydrate" better; "complete my macros" options that exceed the remaining calories (allowed up to 10 %) now say so.
+* Scroll regression caught by the touch-swipe suite: a swipe starting on a food photo was treated as an image drag on the
+  412 px Arabic Foods page (page stopped at 595/1107 px). Photos are now non-draggable and pass touches to the row → 103/103.

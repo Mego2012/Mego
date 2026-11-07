@@ -280,7 +280,7 @@ export function CookTab() {
     <div data-testid="cook">
       <Card title={<><Icon name="grid" />{t('cookTitle')}</>}>
         <div className="tiny muted" style={{ marginBottom: 6 }}>{t('cookHint')}</div>
-        <input className="input" placeholder={t('search') + '…'} value={q} onChange={(e) => setQ(e.target.value)} />
+        <div className="search-field"><Icon name="search" /><input className="input" placeholder={t('search') + '…'} value={q} onChange={(e) => setQ(e.target.value)} /></div>
         {/* No inner scroll box: nested scrolling traps touch swipes on small phones. */}
         <div className="row wrap" style={{ gap: 6, marginTop: 8 }} data-testid="pantry">
           {(() => {

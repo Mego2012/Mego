@@ -6,7 +6,7 @@ import { CaloriesChart, MacrosChart, WeightChart } from '../components/charts';
 import { Icon } from '../components/icons';
 import { InsightList } from '../components/Insights';
 import { Card, Delta } from '../components/ui';
-import { addDays, addMonths, isValidISODate, monthKey, today } from '../lib/dates';
+import { addDays, addMonths, isValidISODate, monthKey, today, weekday } from '../lib/dates';
 import { exportReportCSV, exportReportXLSX } from '../lib/exporters';
 import { DICTS } from '../lib/i18n';
 import { generateInsights } from '../lib/insights';
@@ -44,6 +44,8 @@ export default function Reports({ kind }: { kind: 'week' | 'month' }) {
     return { date: dt, weight: b?.weight ?? null, avg: rollingWeightAverage(data.body, dt) };
   }).filter((x) => x.weight !== null || x.avg !== null);
   const weightDelta = cmp.delta.weightAvg;
+  // month ledger: blank cells so each date sits under its weekday (week starts on the user's setting)
+  const lead = (weekday(r.dates[0]) - data.settings.weekStartsOn + 7) % 7;
 
   const Stat = ({ k, v, delta, unit, testId, invert }: { k: string; v: string; delta?: number | null; unit?: string; testId?: string; invert?: boolean }) => (
     <div className="stat"><div className="k">{k}</div><div className="v num" data-testid={testId}>{v}</div>
@@ -66,6 +68,8 @@ export default function Reports({ kind }: { kind: 'week' | 'month' }) {
           <span className="chip status-empty" data-testid="empty-days">{t('emptyDays')}: {r.emptyDays}</span>
         </div>
         <div className={`ledger ${kind}`} aria-label={t('nav_diary')}>
+          {Array.from({ length: 7 }, (_, i) => <span key={'h' + i} className="lg-head tiny muted">{d(addDays(r.dates[0], kind === 'week' ? i : i - lead), { weekday: 'narrow' })}</span>)}
+          {Array.from({ length: kind === 'week' ? 0 : lead }, (_, i) => <span key={'b' + i} aria-hidden="true" />)}
           {r.days.map((x) => (
             <span key={x.date} className={`lg-day s-${x.status} ${x.overCalories ? 'over' : ''} ${x.date > today() ? 'future' : ''}`} title={`${d(x.date)} · ${t('status_' + x.status)}`}>
               <small className="num">{Number(x.date.slice(8))}</small>

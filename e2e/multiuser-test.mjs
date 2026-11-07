@@ -43,6 +43,18 @@ await fetch(`http://127.0.0.1:9099/emulator/v1/projects/${PROJECT}/accounts`, { 
 await fetch(`http://127.0.0.1:8080/emulator/v1/projects/${PROJECT}/databases/(default)/documents`, { method: 'DELETE' });
 
 const browser = await chromium.launch();
+/** SHOTS=1: also capture the account screens (light + dark) into docs/screenshots for the visual audit. */
+const SHOT_DIR = path.join(ROOT, 'docs', 'screenshots');
+async function shot(page, name) {
+  if (!process.env.SHOTS) return;
+  const lang = await page.evaluate(() => document.documentElement.lang || 'ar');
+  for (const scheme of ['light', 'dark']) {
+    await page.emulateMedia({ colorScheme: scheme });
+    await page.waitForTimeout(500);
+    await page.screenshot({ path: path.join(SHOT_DIR, `${name}-${lang.slice(0, 2)}-${scheme}.png`) });
+  }
+  await page.emulateMedia({ colorScheme: 'light' });
+}
 async function deviceCtx(locale = 'ar-SA') {
   const ctx = await browser.newContext({ ...devices['Pixel 7'], locale, timezoneId: 'Asia/Riyadh' });
   await ctx.route('**/firebase-config.json', (r) => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(CONFIG) }));
@@ -55,6 +67,7 @@ async function deviceCtx(locale = 'ar-SA') {
 async function register(page, name, email, country = 'SA') {
   await page.goto(BASE);
   await page.getByTestId('welcome').waitFor();
+  if (name !== 'Carol') await shot(page, 'welcome');
   await page.getByTestId('wel-register').click();
   await page.getByTestId('reg-name').fill(name);
   await page.getByTestId('reg-email').fill(email);
@@ -63,6 +76,7 @@ async function register(page, name, email, country = 'SA') {
   await page.getByTestId('reg-age18').check();
   await page.getByTestId('reg-terms').check();
   await page.getByTestId('reg-next1').click();
+  if (name !== 'Carol') await shot(page, 'register');
   await page.getByTestId('reg-weight').fill(name === 'Alice' ? '62' : '90');
   await page.getByTestId('reg-next2').click();
   await page.getByTestId('reg-t-kcal').fill(name === 'Alice' ? '1700' : '2600');
@@ -187,6 +201,8 @@ await check('ADMIN', async () => {
   await AD.page.getByTestId('admin-stats').waitFor();
   await until(async () => /3/.test(await AD.page.getByTestId('admin-stats').innerText()));
   const stats = await AD.page.getByTestId('admin-stats').innerText();
+  await AD.page.waitForTimeout(800);
+  await shot(AD.page, 'admin');
   await AD.page.getByTestId('sub-approve').first().click();
   await until(async () => (await (await fetch(fsDoc('foods'), { headers: owner })).json()).documents?.length === 1);
   const page = await AD.page.locator('main').innerText();
@@ -210,6 +226,8 @@ await check('ADMIN', async () => {
 
 await check('LOGOUT+DELETE', async () => {
   await A.page.goto(BASE + '#/settings');
+  await A.page.getByTestId('account-card').waitFor();
+  await shot(A.page, 'account');
   await A.page.getByTestId('acc-logout').click();
   await A.page.getByTestId('welcome').waitFor();
   await login(A.page, 'alice@example.com');

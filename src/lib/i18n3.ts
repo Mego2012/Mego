@@ -15,7 +15,8 @@ export const en3: Record<string, string> = {
   learn_sources: '{n} sources',
   acc_synced: 'Synced account',
   coach_foodsShort: 'Rankings',
-  show: 'Show'
+  show: 'Show',
+  co_overBy: '+{kcal} over what is left'
 };
 export const ar3: Record<string, string> = {
   tapToAdd: 'أضف إلى {meal}',
@@ -33,5 +34,6 @@ export const ar3: Record<string, string> = {
   learn_sources: '{n} مصادر',
   acc_synced: 'حساب متزامن',
   coach_foodsShort: 'الترتيب',
-  show: 'عرض'
+  show: 'عرض',
+  co_overBy: '+{kcal} فوق المتبقي'
 };

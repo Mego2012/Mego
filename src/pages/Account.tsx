@@ -285,7 +285,12 @@ export function AdminPage() {
             <div className="k">{t(k)}</div>
           </div>
         ))}
-        {stats && stats.total > 0 && <div className="kpi-bar" aria-hidden="true"><i style={{ width: `${(stats.active7d / stats.total) * 100}%` }} /></div>}
+        {stats && stats.total > 0 && (
+          <div className="kpi-share">
+            <div className="kpi-bar" aria-hidden="true"><i style={{ width: `${(stats.active7d / stats.total) * 100}%` }} /></div>
+            <span className="tiny muted num">{Math.round((stats.active7d / stats.total) * 100)}% {t('admin_active')}</span>
+          </div>
+        )}
       </div>
       <Card title={<><Icon name="users" />{t('admin_accounts')}</>}>
         <ul className="list" data-testid="admin-users">

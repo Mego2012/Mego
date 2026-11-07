@@ -462,5 +462,133 @@
   "license": "CC BY-SA 3.0",
   "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
   "source": "https://commons.wikimedia.org/wiki/File:Somerset-Cheddar.jpg"
+ },
+ "greek-yogurt": {
+  "file": "greek-yogurt.webp",
+  "title": "Yoghurt in bowl.jpg",
+  "author": "Kris Miller from Issaquah",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Yoghurt_in_bowl.jpg"
+ },
+ "milk": {
+  "file": "milk.webp",
+  "title": "Glass of Milk (33657535532).jpg",
+  "author": "NIAID",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Glass_of_Milk_(33657535532).jpg"
+ },
+ "white-beans": {
+  "file": "white-beans.webp",
+  "title": "White kidney beans🫘.jpg",
+  "author": "Fumikas Sagisavas",
+  "license": "CC0",
+  "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:White_kidney_beans%F0%9F%AB%98.jpg"
+ },
+ "cashews": {
+  "file": "cashews.webp",
+  "title": "Roasted peeled cashews.jpg",
+  "author": "Fumikas Sagisavas",
+  "license": "CC0",
+  "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Roasted_peeled_cashews.jpg"
+ },
+ "steak": {
+  "file": "steak.webp",
+  "title": "Grilled flank steak.jpg",
+  "author": "Wikiuser100",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Grilled_flank_steak.jpg"
+ },
+ "lamb": {
+  "file": "lamb.webp",
+  "title": "Roast lamb leg.jpg",
+  "author": "Beck",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Roast_lamb_leg.jpg"
+ },
+ "kidney-beans": {
+  "file": "kidney-beans.webp",
+  "title": "Red kidney beans 2024-11-27.jpg",
+  "author": "Bean appreciator",
+  "license": "CC0",
+  "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Red_kidney_beans_2024-11-27.jpg"
+ },
+ "tempeh": {
+  "file": "tempeh.webp",
+  "title": "Tempeh (8681605421).jpg",
+  "author": "Veganbaking.net from USA",
+  "license": "CC BY-SA 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Tempeh_(8681605421).jpg"
+ },
+ "brown-rice": {
+  "file": "brown-rice.webp",
+  "title": "Germinated brown rice - long grain.jpg",
+  "author": "Chouk Khmer",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Germinated_brown_rice_-_long_grain.jpg"
+ },
+ "pita": {
+  "file": "pita.webp",
+  "title": "Pita Flatbread.jpg",
+  "author": "fugzu",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Pita_Flatbread.jpg"
+ },
+ "corn": {
+  "file": "corn.webp",
+  "title": "Liat Portal for Foodie Disorder - Fresh Corn on the Cob.jpg",
+  "author": "HaJunkiyada",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Liat_Portal_for_Foodie_Disorder_-_Fresh_Corn_on_the_Cob.jpg"
+ },
+ "chia": {
+  "file": "chia.webp",
+  "title": "Mexican chia seeds (2).jpg",
+  "author": "Fumikas Sagisavas",
+  "license": "CC0",
+  "licenseUrl": "http://creativecommons.org/publicdomain/zero/1.0/deed.en",
+  "source": "https://commons.wikimedia.org/wiki/File:Mexican_chia_seeds_(2).jpg"
+ },
+ "tomatoes": {
+  "file": "tomatoes.webp",
+  "title": "Tomato je.jpg",
+  "author": "Softeis",
+  "license": "CC BY-SA 3.0",
+  "licenseUrl": "http://creativecommons.org/licenses/by-sa/3.0/",
+  "source": "https://commons.wikimedia.org/wiki/File:Tomato_je.jpg"
+ },
+ "cauliflower": {
+  "file": "cauliflower.webp",
+  "title": "Brassica oleracea var. botrytis (Coliflor).jpg",
+  "author": "Rjcastillo",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Brassica_oleracea_var._botrytis_(Coliflor).jpg"
+ },
+ "hummus": {
+  "file": "hummus.webp",
+  "title": "Hummus at Saba, Uptown New Orleans April 2025.jpg",
+  "author": "Paul Lowry",
+  "license": "CC BY 2.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by/2.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Hummus_at_Saba,_Uptown_New_Orleans_April_2025.jpg"
+ },
+ "honey": {
+  "file": "honey.webp",
+  "title": "Jar and honey stick.jpg",
+  "author": "Tasmanianbeekeepers",
+  "license": "CC BY-SA 4.0",
+  "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0",
+  "source": "https://commons.wikimedia.org/wiki/File:Jar_and_honey_stick.jpg"
  }
 }

@@ -134,7 +134,7 @@ function TodayTab({ foods }: { foods: IntelFood[] | null }) {
           <div className="combo-grid" data-testid="coach-combos">
             {view.combos.map((c, i) => (
               <div key={i} className="coach-combo" data-testid="coach-combo">
-                <div className="combo-head"><span className="combo-no num">{i + 1}</span><span className="small bold">{t('coach_option', { n: i + 1 })}</span><span className="grow" /><b className="num">{n(c.total.kcal)}</b><span className="tiny muted">{t('kcalUnit')}</span></div>
+                <div className="combo-head"><span className="combo-no num">{i + 1}</span><span className="small bold">{t('coach_option', { n: i + 1 })}</span><span className="grow" />{c.total.kcal > rem.kcal + 0.5 && <span className="chip warn tiny-chip num">{t('co_overBy', { kcal: n(c.total.kcal - rem.kcal) })}</span>}<b className="num">{n(c.total.kcal)}</b><span className="tiny muted">{t('kcalUnit')}</span></div>
                 <SuggestionList items={c.items} />
                 <div className="tiny"><b>{t('total')}:</b> <MacroLine m={c.total} compact /></div>
               </div>
@@ -241,7 +241,7 @@ function FoodsTab({ foods }: { foods: IntelFood[] }) {
                   <span className={`origin-dot ${r.food.item.origin}`}>{t('origin_' + r.food.item.origin)}</span>
                 </div>
                 <div className="score-bar" aria-hidden="true"><i style={{ width: `${Math.max(2, (r.score / maxScore) * 100)}%` }} /></div>
-                <div className="tiny muted num">{n(r.food.kcal)} {t('kcalUnit')} · P {n(r.food.protein, 1)} · C {n(r.food.carbs, 1)} · F {n(r.food.fat, 1)}{r.food.fiber !== undefined ? ` · ${t('fiber')} ${n(r.food.fiber, 1)}` : ''} / 100 {t('g')}</div>
+                <div className="tiny muted num">{n(r.food.kcal)} {t('kcalUnit')} · {t('pShort')} {n(r.food.protein, 1)} · {t('cShort')} {n(r.food.carbs, 1)} · {t('fShort')} {n(r.food.fat, 1)}{r.food.fiber !== undefined ? ` · ${t('fiber')} ${n(r.food.fiber, 1)}` : ''} / 100 {t('g')}</div>
               </div>
               <FoodThumb photoKey={intelPhoto(r.food)} size={r.rank <= 3 && r.coverage >= 0.999 ? 60 : 48} />
               <div className="rank-side">
@@ -265,10 +265,11 @@ function FoodsTab({ foods }: { foods: IntelFood[] }) {
 function CompareTable({ rows, onClear }: { rows: Ranked[]; onClear: () => void }) {
   const { t, n } = useApp();
   // the best value per row is highlighted (higher is better unless noted)
-  const line = (label: string, get: (r: Ranked) => number | undefined, fmt: (v: number) => string, lowerBetter = false) => {
+  const line = (label: string, get: (r: Ranked) => number | undefined, fmt: (v: number) => string, lowerBetter: boolean | null = false) => {
     const vals = rows.map(get);
     const known = vals.filter((v): v is number => v !== undefined);
-    const best = known.length > 1 ? (lowerBetter ? Math.min(...known) : Math.max(...known)) : undefined;
+    // null = no better/worse direction (e.g. carbohydrate amount depends on the person): nothing is highlighted
+    const best = known.length > 1 && lowerBetter !== null ? (lowerBetter ? Math.min(...known) : Math.max(...known)) : undefined;
     return <tr><th>{label}</th>{rows.map((r, i) => <td key={r.food.item.id} className={`num ${best !== undefined && vals[i] === best ? 'best' : ''}`}>{vals[i] === undefined ? '—' : fmt(vals[i]!)}</td>)}</tr>;
   };
   return (
@@ -280,7 +281,7 @@ function CompareTable({ rows, onClear }: { rows: Ranked[]; onClear: () => void }
           <tr><th />{rows.map((r) => <th key={r.food.item.id} className="tiny">#{r.rank}</th>)}</tr>
           {line(t('kcal'), (r) => r.food.kcal, (v) => n(v), true)}
           {line(t('protein'), (r) => r.food.protein, (v) => n(v, 1))}
-          {line(t('carbs'), (r) => r.food.carbs, (v) => n(v, 1))}
+          {line(t('carbs'), (r) => r.food.carbs, (v) => n(v, 1), null)}
           {line(t('fat'), (r) => r.food.fat, (v) => n(v, 1), true)}
           {line(t('fiber'), (r) => r.food.fiber, (v) => n(v, 1))}
           {line(t('satFat'), (r) => r.food.satFat, (v) => n(v, 1), true)}

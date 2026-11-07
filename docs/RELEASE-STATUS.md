@@ -10,7 +10,7 @@ Google/Firebase/Gemini account or a real Android phone unless it says so.
 | Area | What | How it was tested |
 | --- | --- | --- |
 | Every screen | Individually redesigned: Home, Diary, Food search, Food details (quantity + editor), Foods, Coach today/week/month, Rankings (protein, carbs, fats, fibre, low calorie, protein per calorie, nutrient density, cutting, building), Food detail + amino-acid chart, Compare, Education + articles, Recipes library / suggestions / cook, Planner, Habits, Progress, Weekly + Monthly reports, Settings, Account, Admin | 44 browser checks, 103 touch-scroll checks, screenshots in `docs/screenshots/` (AR/EN × light/dark) inspected one by one |
-| Food photography | 58 hand-picked, freely licensed photos (Wikimedia Commons: CC0 / CC BY / CC BY-SA / public domain), 320 px WebP (~17 KB each), lazy + async decoding, cached on the device after first view (works offline), drawn placeholders for every other food, recipe covers built from photos of the recipe's own ingredients, credits page in Settings | `tests/photos.test.ts` (matches, non-matches, attribution of every file); every photo checked by eye on a contact sheet |
+| Food photography | 74 hand-picked, freely licensed photos (Wikimedia Commons: CC0 / CC BY / CC BY-SA / public domain), 320 px WebP (~17 KB each), lazy + async decoding, cached on the device after first view (works offline), drawn placeholders for every other food, recipe covers built from photos of the recipe's own ingredients, credits page in Settings | `tests/photos.test.ts` (matches, non-matches, attribution of every file); every photo checked by eye on a contact sheet |
 | Nutrition intelligence audit | Rankings fixed (see `PROGRESS-LOG.md`): fully measured foods first, missing data never estimated and labelled; education sources point to the exact documents | `tests/intel.test.ts`, `tests/coach.test.ts` |
 | Accounts / isolation / admin | Firebase Spark design, security rules | 14 rules tests + 8 multi-user browser checks on the official Firebase emulators |
 | Free AI scanner | Gemini free tier only, key only in Apps Script properties | unit tests against the real `Code.gs` with a scripted Gemini stand-in |
@@ -37,7 +37,7 @@ should anything be called "live".
   emulation (Pixel 7 / Galaxy viewports, touch, RTL/LTR, both themes) only.
 * **GitHub history** — commit `a7b5bbb` (old public data) can only be purged from GitHub's caches by GitHub Support.
 * **Legal pages** (privacy policy, terms) are drafts and need review by a qualified person before public launch.
-* **Photos** cover 58 of the most common foods; all other foods show a drawn placeholder (by design, never a
+* **Photos** cover 74 of the most common foods; all other foods show a drawn placeholder (by design, never a
   look-alike photo). Recipes have no dish photos (no licensed photos of these exact recipes exist), they show
   their ingredients instead.
 * Barcode scanning uses the browser's BarcodeDetector where the phone supports it (Chrome on Android does); camera

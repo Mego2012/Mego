@@ -44,6 +44,22 @@ const photoArg = args.includes('--photo') ? args[args.indexOf('--photo') + 1] : 
 /** For automated testing of this script against an emulated backend (skips clasp/Google). */
 const FAKE_BACKEND = process.env.MEGO_FAKE_BACKEND || '';
 
+/**
+ * npx / npm launcher. On Windows, Node 18.20+/20.12+ refuses to spawn npx.cmd/npm.cmd without a shell (EINVAL), so the
+ * npm CLI shipped with this Node is started directly with node.exe (no shell, so paths with spaces are safe).
+ */
+const NODE_DIR = path.dirname(process.execPath);
+function tool(name, toolArgs) {
+  if (process.platform !== 'win32') return [name, toolArgs];
+  const cli = path.join(NODE_DIR, 'node_modules', 'npm', 'bin', `${name}-cli.js`);
+  if (existsSync(cli)) return [process.execPath, [cli, ...toolArgs]];
+  return [name + '.cmd', toolArgs, true]; // fallback: through the shell
+}
+function run(name, toolArgs, opts = {}) {
+  const [cmd, a, shell] = tool(name, toolArgs);
+  return spawnSync(cmd, shell ? a.map((x) => (/[\s&|<>^"]/.test(x) ? `"${x.replace(/"/g, '\\"')}"` : x)) : a, { ...opts, ...(shell ? { shell: true } : {}) });
+}
+
 const log = (...a) => console.log(...a);
 const ok = (m) => log('  ✅ ' + m);
 const bad = (m) => log('  ❌ ' + m);
@@ -84,7 +100,7 @@ function openUrl(url) {
 }
 
 function clasp(cmd, { json = false, allowFail = false } = {}) {
-  const r = spawnSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', [...CLASP, ...cmd, ...(json ? ['--json'] : [])], { cwd: WORK, encoding: 'utf8' });
+  const r = run('npx', [...CLASP, ...cmd, ...(json ? ['--json'] : [])], { cwd: WORK, encoding: 'utf8' });
   const out = (r.stdout || '') + (r.stderr || '');
   if (r.status !== 0 && !allowFail) throw Object.assign(new Error(out.trim() || 'clasp failed'), { out });
   return { status: r.status, out, json: json ? safeJson(r.stdout) : null };
@@ -105,8 +121,8 @@ async function ensureLogin() {
   const who = clasp(['show-authorized-user'], { json: true, allowFail: true });
   if (who.status === 0 && who.json?.loggedIn !== false && /@/.test(who.out)) return ok('already signed in: ' + (who.json?.email || who.out.trim()));
   log('   A browser window opens: choose ahmedmego967@gmail.com and click "Allow".');
-  const r = spawnSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', [...CLASP, 'login'], { cwd: WORK, stdio: 'inherit' });
-  if (r.status !== 0) throw new Error('clasp login failed');
+  const r = run('npx', [...CLASP, 'login'], { cwd: WORK, stdio: 'inherit' });
+  if (r.status !== 0) throw new Error('clasp login failed' + (r.error ? ': ' + r.error.message : ''));
 }
 
 async function ensureProject() {
@@ -266,7 +282,7 @@ function connectApp() {
   const code = `MEGO1|${state.url}|${state.token}`;
   const link = `${APP_URL}#/settings?connect=${encodeURIComponent(code)}`;
   log('   Scan this QR code with your Samsung camera (it opens MEGO and connects it — your phone data is compared, kept and uploaded):');
-  const qr = spawnSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['-y', 'qrcode-terminal@0.12.0', link, '--small'], { stdio: ['ignore', 'inherit', 'ignore'] });
+  const qr = run('npx', ['-y', 'qrcode-terminal@0.12.0', link, '--small'], { stdio: ['ignore', 'inherit', 'ignore'] });
   if (qr.status !== 0) log('   (QR code unavailable — open the link below on your phone instead, e.g. send it to yourself privately)');
   log('   🔗 ' + link);
   log('   Keep this link private (it contains your token). Re-print it any time with: node scripts/laptop-setup.mjs --test');
@@ -274,9 +290,9 @@ function connectApp() {
 
 /* ------------------------------------------------------------------ public platform: Firebase Spark (free) */
 
-const FB = [process.platform === 'win32' ? 'npx.cmd' : 'npx', ['--no-install', 'firebase']];
+const FB = ['--no-install', 'firebase'];
 function firebase(cmdArgs, { json = false, allowFail = false } = {}) {
-  const r = spawnSync(FB[0], [...FB[1], ...cmdArgs, ...(json ? ['--json'] : []), '--non-interactive'], { cwd: ROOT, encoding: 'utf8' });
+  const r = run('npx', [...FB, ...cmdArgs, ...(json ? ['--json'] : []), '--non-interactive'], { cwd: ROOT, encoding: 'utf8' });
   const out = (r.stdout || '') + (r.stderr || '');
   if (r.status !== 0 && !allowFail) throw new Error('firebase ' + cmdArgs.join(' ') + ': ' + out.slice(-600));
   return { status: r.status, out, json: json ? safeJson(r.stdout) : null };
@@ -298,10 +314,10 @@ async function gapi(url, method, body, project) {
 
 async function setupCloud(adminEmail) {
   step('Public platform on Firebase (free Spark plan — no billing account)');
-  if (!existsSync(path.join(ROOT, 'node_modules/firebase-tools'))) spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['ci'], { cwd: ROOT, stdio: 'inherit' });
+  if (!existsSync(path.join(ROOT, 'node_modules/firebase-tools'))) run('npm', ['ci'], { cwd: ROOT, stdio: 'inherit' });
   if (!/@/.test(firebase(['login:list'], { allowFail: true }).out)) {
     log('   A browser window opens: choose your Google account and click "Allow".');
-    spawnSync(FB[0], [...FB[1], 'login'], { cwd: ROOT, stdio: 'inherit' });
+    run('npx', [...FB, 'login'], { cwd: ROOT, stdio: 'inherit' });
   }
   if (!state.fbProject) {
     const id = 'mego-' + randomBytes(3).toString('hex');
@@ -381,8 +397,8 @@ async function liveVerify() {
   let ok = spawnSync('node', ['-e', "require('playwright')"], { cwd: ROOT }).status === 0;
   if (!ok) {
     log('   installing the test browser (Playwright, free, local only)…');
-    spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--no-save', 'playwright@1.63.0'], { cwd: ROOT, stdio: 'inherit' });
-    spawnSync(process.platform === 'win32' ? 'npx.cmd' : 'npx', ['playwright', 'install', 'chromium'], { cwd: ROOT, stdio: 'inherit' });
+    run('npm', ['install', '--no-save', 'playwright@1.63.0'], { cwd: ROOT, stdio: 'inherit' });
+    run('npx', ['playwright', 'install', 'chromium'], { cwd: ROOT, stdio: 'inherit' });
   }
   const v = spawnSync('node', [path.join(ROOT, 'scripts/live-verify.mjs'), APP_URL], { cwd: ROOT, stdio: 'inherit', env: { ...process.env, MEGO_BACKEND_DIR: WORK } });
   record('live verification with real accounts (see live-verify report)', v.status === 0, v.status === 0 ? '' : 'one or more live checks failed');

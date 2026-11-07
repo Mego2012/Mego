@@ -46,3 +46,5 @@ Autonomous work session (cloud container). Newest entries last.
   calls "more carbohydrate" better; "complete my macros" options that exceed the remaining calories (allowed up to 10 %) now say so.
 * Scroll regression caught by the touch-swipe suite: a swipe starting on a food photo was treated as an image drag on the
   412 px Arabic Foods page (page stopped at 595/1107 px). Photos are now non-draggable and pass touches to the row → 103/103.
+* Windows fix: Node 18.20+/20.12+ refuses to spawn npx.cmd/npm.cmd without a shell, so 'clasp login' failed instantly on
+  the owner's Windows laptop (Node 26.13). The setup script now starts npm/npx through node.exe directly.

@@ -18,7 +18,7 @@ export async function saveLocalBackup(reason: LocalBackup['reason'], release?: s
 }
 
 /** App release identifier — changing it triggers one pre-update backup per device database. */
-export const APP_RELEASE = '1.2-cardio';
+export const APP_RELEASE = '1.3-training';
 
 /**
  * Before a new release writes anything, save a full snapshot of this device database (once per release and

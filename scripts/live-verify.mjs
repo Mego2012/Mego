@@ -169,6 +169,22 @@ try {
     if (await B.page.getByTestId('cardio-row').count()) throw new Error("A's cardio visible to B");
     return "routine session stored under A's account · B → 403 · B's history empty";
   });
+  await check('Workouts (account A): program and a logged session sync to the owner only', async () => {
+    await A.page.goto(BASE + '#/workouts?tab=today');
+    await A.page.getByTestId('today-tab').waitFor({ timeout: 30000 });
+    if (await A.page.getByTestId('start-workout').count()) await A.page.getByTestId('start-workout').click();
+    else { await A.page.locator('details summary').click(); await A.page.locator('details .chip').first().click(); }
+    await A.page.getByTestId('session-logger').waitFor();
+    const card = A.page.getByTestId('ex-card').first();
+    await card.getByTestId('set-weight').first().fill('40');
+    await card.getByTestId('set-reps').first().fill('10');
+    await card.getByTestId('set-done').first().check();
+    await A.page.getByTestId('finish-workout').click();
+    await until(async () => { const r = await get(`users/${a.uid}/kv`, a.idToken); const j = await r.json(); const names = (j.documents ?? []).map((d) => decodeURIComponent(d.name)); return r.status === 200 && names.some((n) => n.includes('/kv/workout:')) && names.some((n) => n.includes('/kv/program:')); });
+    const rb = await get(`users/${a.uid}/kv`, b.idToken);
+    if (rb.status !== 403) throw new Error("B reading A's workouts: HTTP " + rb.status);
+    return "program + session stored under A's account · B → 403";
+  });
   await check('Cloud sync to a second device (account A signs in elsewhere)', async () => {
     const L = await device('en-US');
     try {

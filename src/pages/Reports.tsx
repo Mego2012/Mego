@@ -2,6 +2,7 @@ import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
 import { useBundle, useCardio } from '../app/hooks';
+import { TrainingReport } from '../components/TrainingReport';
 import { cardioReport } from '../lib/cardio';
 import { fitnessOf } from '../lib/energy';
 import { CaloriesChart, MacrosChart, WeightChart } from '../components/charts';
@@ -122,6 +123,8 @@ export default function Reports({ kind }: { kind: 'week' | 'month' }) {
       </Card>
 
       <CardioAndGoals sessions={cardio} dates={r.dates} prevDates={p.dates} completeDays={r.completeDays} inRange={r.caloriesInRangeDays} proteinDays={r.proteinHitDays} />
+
+      <TrainingReport dates={r.dates} prevDates={p.dates} />
 
       <Card title={`${t('macroSplit')} · ${t('water')} · ${t('fiberIndicator')}`}>
         <div className="grid3 report-extra" data-testid="report-extra">

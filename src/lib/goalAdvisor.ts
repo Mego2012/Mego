@@ -9,6 +9,7 @@ import { totalsFor, datesBack, type CardioSession } from './cardio';
 import { fitnessOf } from './energy';
 import { buildPeriod, progressEstimate, type DataBundle } from './reports';
 import type { Macros, Settings } from './types';
+import { tdeeOf } from './goals';
 
 export interface CheckIn {
   /** Monday-or-configured week start date YYYY-MM-DD. */
@@ -105,6 +106,15 @@ export function adviseGoals(data: DataBundle, sessions: CardioSession[], checkin
   if (recentCheck && recentCheck.recovery <= 2 && week.minutes > goalMin * 1.5 && goalMin > 0) out.push({ id: 'recovery', key: 'adv_recoveryCardio', level: 'warn' });
   if (recentCheck && recentCheck.resistanceSessions < fit.resistanceDaysPerWeek) out.push({ id: 'resistance', key: 'adv_resistanceBelow', params: { done: recentCheck.resistanceSessions, goal: fit.resistanceDaysPerWeek }, level: 'info' });
   if (!recentCheck) out.push({ id: 'checkin', key: 'adv_checkIn', level: 'info' });
+  // Fat-loss goals: a suggested increase may reduce the deficit but never create a surplus (target ≤ 90 % of TDEE).
+  if (LOSS.has(p.goalType)) {
+    const ceiling = Math.round(tdeeOf({ ...p, currentWeight: weight }) * 0.9);
+    for (const a of out) if (a.action?.kind === 'kcal' && a.action.delta > 0) {
+      const room = ceiling - s.targets.training.kcal;
+      if (room < 50) { delete a.action; a.key = 'adv_noSurplus'; a.params = { ...(a.params ?? {}), ceiling }; }
+      else if (room < a.action.delta) a.action = { kind: 'kcal', delta: Math.floor(room / 10) * 10 };
+    }
+  }
   return out;
 }
 

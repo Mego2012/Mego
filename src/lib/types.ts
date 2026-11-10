@@ -323,6 +323,13 @@ export interface FitnessGoals {
   resistanceDaysPerWeek: number;
   cardioSessionsPerWeek: number;
   cardioMinPerSession: number;
+  /** Weekly hard-set target per muscle group (training goals). */
+  setsPerMuscle?: number;
+  experience?: 'beginner' | 'intermediate' | 'advanced';
+  /** Available equipment for the program generator and exercise alternatives. */
+  equipment?: string[];
+  pullupsPerWeek?: number;
+  dipsPerWeek?: number;
 }
 
 export interface OutboxItem {

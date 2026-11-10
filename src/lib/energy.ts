@@ -15,11 +15,15 @@
 import { addDays } from './dates';
 import { type CardioSession } from './cardio';
 import type { FitnessGoals, GoalType, Settings } from './types';
+import { isCompleted, sessionMinutes, type WorkoutSession } from './workouts';
+
+/** Compendium: resistance training, moderate effort ≈ 3.5 MET (net 2.5). */
+export const RESISTANCE_MET = 3.5;
 
 export const MAX_DAILY_ADD = 400;
 
 export function defaultFitness(s: Pick<Settings, 'profile'>): FitnessGoals {
-  return { resistanceDaysPerWeek: s.profile.trainingDaysPerWeek ?? 3, cardioSessionsPerWeek: 3, cardioMinPerSession: 10 };
+  return { resistanceDaysPerWeek: s.profile.trainingDaysPerWeek ?? 3, cardioSessionsPerWeek: 3, cardioMinPerSession: 10, setsPerMuscle: 14, experience: 'intermediate', pullupsPerWeek: 2, dipsPerWeek: 2 };
 }
 export const fitnessOf = (s: Settings): FitnessGoals => ({ ...defaultFitness(s), ...(s.fitness ?? {}) });
 
@@ -36,6 +40,10 @@ export interface EnergyBreakdown {
   cardioKcal: number;
   /** Net (above resting) cardio calories today. */
   cardioNetKcal: number;
+  /** Resistance sessions today beyond the planned weekly number (counted as extra). */
+  extraWorkouts: number;
+  /** Net kcal of those extra resistance sessions. */
+  workoutExtraNet: number;
   /** Weekly planned cardio minutes treated as already inside the base target. */
   plannedWeeklyMin: number;
   /** Minutes in the last 7 days (today included) up to and including today. */
@@ -50,7 +58,7 @@ export interface EnergyBreakdown {
   reasons: { key: string; params?: Record<string, string | number> }[];
 }
 
-export function energyFor(date: string, baseKcal: number, consumed: number, sessions: CardioSession[], settings: Settings): EnergyBreakdown {
+export function energyFor(date: string, baseKcal: number, consumed: number, sessions: CardioSession[], settings: Settings, workouts: WorkoutSession[] = []): EnergyBreakdown {
   const mode = settings.cardioCalorieMode ?? 'smart';
   const fit = fitnessOf(settings);
   const today = sessions.filter((s) => s.date === date);
@@ -73,12 +81,23 @@ export function energyFor(date: string, baseKcal: number, consumed: number, sess
     if (extraMin > 0) extraNet += s.netKcal * (extraMin / s.durationMin);
   }
   const weekMinutes = before + today.reduce((a, s) => a + s.durationMin, 0);
+  // Resistance training: the planned weekly sessions are inside the TDEE (activity level). Only sessions beyond
+  // that number in the last 7 days count, as net energy of a moderate session (3.5 MET) for their duration.
+  const weight = settings.profile.currentWeight;
+  const done = workouts.filter((w) => isCompleted(w) && w.date >= from && w.date <= date).sort((a, b) => a.date.localeCompare(b.date) || a.startedAt - b.startedAt);
+  const plannedRes = sedentary ? 0 : fit.resistanceDaysPerWeek;
+  const extraToday = done.slice(plannedRes).filter((w) => w.date === date);
+  const workoutExtraNet = Math.round(extraToday.reduce((a, w) => a + (RESISTANCE_MET - 1) * weight * (sessionMinutes(w) / 60), 0));
+  extraNet += workoutExtraNet;
   let allowed = 0;
   if (mode === 'off') reasons.push({ key: 'en_off' });
-  else if (!today.length) reasons.push({ key: 'en_noCardio' });
-  else {
+  else if (!today.length && !extraToday.length) {
+    reasons.push({ key: 'en_noCardio' });
+    if (done.some((w) => w.date === date)) reasons.push({ key: 'en_workoutPlanned', params: { n: plannedRes } });
+  } else {
+    if (done.some((w) => w.date === date)) reasons.push(extraToday.length ? { key: 'en_workoutExtra', params: { n: plannedRes, kcal: workoutExtraNet } } : { key: 'en_workoutPlanned', params: { n: plannedRes } });
     reasons.push({ key: sedentary ? 'en_sedentary' : 'en_planned', params: { min: plannedWeeklyMin, level: settings.profile.activityLevel ?? 'moderate' } });
-    reasons.push({ key: 'en_net', params: { gross: Math.round(cardioKcal), net: Math.round(cardioNetKcal) } });
+    if (today.length) reasons.push({ key: 'en_net', params: { gross: Math.round(cardioKcal), net: Math.round(cardioNetKcal) } });
     if (extraNet <= 0) reasons.push({ key: 'en_withinPlan', params: { week: weekMinutes, plan: plannedWeeklyMin } });
     else {
       allowed = Math.min(MAX_DAILY_ADD, Math.round((extraNet * replenishPct) / 100 / 10) * 10);
@@ -88,7 +107,7 @@ export function energyFor(date: string, baseKcal: number, consumed: number, sess
   }
   const adjusted = baseKcal + allowed;
   return {
-    mode, base: baseKcal, cardioKcal, cardioNetKcal, plannedWeeklyMin, weekMinutes, extraNetKcal: Math.round(extraNet), replenishPct,
+    mode, base: baseKcal, cardioKcal, cardioNetKcal, extraWorkouts: extraToday.length, workoutExtraNet, plannedWeeklyMin, weekMinutes, extraNetKcal: Math.round(extraNet), replenishPct,
     allowed, adjusted, consumed, remaining: adjusted - consumed, reasons
   };
 }

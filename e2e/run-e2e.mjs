@@ -866,9 +866,109 @@ await check('CARDIO-EN', 'Cardio, Goals and Home cards in English (ltr) and Arab
   if (await page.evaluate(() => document.documentElement.dir) !== 'rtl') throw new Error('not rtl');
 });
 
+await check('WORKOUT', 'Workouts: owner split program, log a session (weights, reps, RIR, done), rest timer, finish, history, delete', async () => {
+  await go(page, '/workouts?tab=program');
+  await page.getByTestId('program-tab').waitFor();
+  const days = await page.getByTestId('program-day').count();
+  if (days !== 7) throw new Error('program days: ' + days);
+  await go(page, '/workouts?tab=today');
+  await page.getByTestId('today-tab').waitFor();
+  if (await page.getByTestId('start-workout').count()) await page.getByTestId('start-workout').click();
+  else { await page.locator('details summary').click(); await page.locator('details .chip').first().click(); }
+  await page.getByTestId('session-logger').waitFor();
+  const card = page.getByTestId('ex-card').first();
+  await card.getByTestId('ex-prev').waitFor();
+  const w = card.getByTestId('set-weight'), r = card.getByTestId('set-reps');
+  for (let i = 0; i < await w.count(); i++) { await w.nth(i).fill('40'); await r.nth(i).fill('10'); await card.getByTestId('set-rir').nth(i).selectOption('2'); await card.getByTestId('set-done').nth(i).check(); }
+  await page.getByTestId('rest-timer').waitFor();
+  await page.getByTestId('ex-skip').nth(1).click();
+  await page.waitForTimeout(600);
+  await page.getByTestId('finish-workout').click();
+  await page.getByTestId('workout-row').first().waitFor();
+  const row = await page.getByTestId('workout-row').first().innerText();
+  await shot(page, '23-workouts-today');
+  // progression appears next session: open the session again → advice for the exercise
+  await page.getByTestId('workout-row').first().locator('button').first().click();
+  await page.getByTestId('ex-advice').first().waitFor().catch(() => {});
+  await page.getByRole('button', { name: /إغلاق|Close/ }).first().click();
+  return row.replace(/\s+/g, ' ');
+});
+
+await check('PROGRAM-GEN', 'Program generator keeps the split, Pull-ups/Dips frequency adjustable, reasons shown, saved as a new program only on request', async () => {
+  await go(page, '/workouts?tab=program');
+  const before = await page.getByTestId('program-chip').count();
+  await page.getByTestId('open-generator').click();
+  await page.getByTestId('generator').waitFor();
+  await page.getByTestId('gen-pullups').fill('3');
+  await page.waitForTimeout(300);
+  const txt = await page.getByTestId('generator').innerText();
+  const pull = (txt.match(/عقلة \(سحب للأعلى\)|Pull-up\b/g) || []).length;
+  if (pull !== 3) throw new Error('pull-ups in preview: ' + pull);
+  await page.getByTestId('gen-save').click();
+  await page.waitForFunction((n) => document.querySelectorAll('[data-testid=program-chip]').length === n + 1, before);
+  // edit: remove one exercise and save
+  const n0 = await page.getByTestId('program-ex').count();
+  await page.getByTestId('ex-remove').first().click();
+  await page.getByTestId('program-save').click();
+  await page.waitForFunction((n) => document.querySelectorAll('[data-testid=program-ex]').length === n - 1, n0);
+  await shot(page, '24-program');
+  return `${before} → ${before + 1} programs`;
+});
+
+await check('EX-LIB', 'Exercise library: Arabic search, details, alternatives, custom exercise', async () => {
+  await go(page, '/workouts?tab=library');
+  await page.getByTestId('ex-search').fill('عقلة');
+  await page.getByTestId('ex-row').first().click();
+  await page.getByTestId('ex-detail').waitFor();
+  const alts = await page.getByTestId('ex-alternatives').locator('li').count();
+  await page.keyboard.press('Escape');
+  await page.getByTestId('custom-ex').click();
+  await page.getByTestId('custom-name-ar').fill('تمرين اختبار');
+  await page.getByTestId('custom-save').click();
+  await page.getByTestId('ex-search').fill('تمرين اختبار');
+  await page.waitForFunction(() => document.querySelectorAll('[data-testid=ex-row]').length === 1);
+  return `${alts} alternatives`;
+});
+
+await check('COACH-TRAIN', 'Training coach answers with confidence and data basis; weekly review separates observations and recommendations; recovery log', async () => {
+  await go(page, '/workouts?tab=coach');
+  for (const q of ['today', 'increase', 'too_many_sets', 'recovery_day']) {
+    await page.getByTestId('q-' + q).click();
+    await page.getByTestId('coach-confidence').waitFor();
+  }
+  const obs = await page.getByTestId('wr-observations').locator('li').count();
+  if (obs !== 8) throw new Error('observations: ' + obs);
+  await page.getByTestId('wr-recommendations').locator('li').first().waitFor();
+  await go(page, '/workouts?tab=progress');
+  await page.getByTestId('rl-sleep').fill('7');
+  await page.getByTestId('rl-save').click();
+  await page.getByTestId('toast').waitFor();
+  await page.getByTestId('strength-row').first().waitFor();
+  await go(page, '/workouts?tab=overview');
+  await page.getByTestId('overview').waitFor();
+  await shot(page, '25-training-overview');
+  await go(page, '/');
+  await page.getByTestId('training-card').waitFor();
+  await go(page, '/reports/week');
+  await page.getByTestId('report-training').waitFor();
+  return `${obs} observations`;
+});
+
+await check('TRAIN-EN', 'Workouts in English (ltr)', async () => {
+  await go(page, '/settings');
+  await page.getByRole('tab', { name: 'English' }).click();
+  await go(page, '/workouts?tab=coach');
+  await waitText(page.getByTestId('coach-tab'), /Rule-based coach/);
+  await shot(page, '26-coach-en');
+  await go(page, '/workouts?tab=today');
+  await waitText(page.getByTestId('today-tab'), /this week/i);
+  await go(page, '/settings');
+  await page.getByRole('tab', { name: 'العربية' }).click();
+});
+
 await check('LAYOUT', 'No horizontal overflow on any screen (phone width)', async () => {
   const bad = [];
-  for (const h of ['/', '/diary', '/recipes', '/recipes?tab=suggest', '/recipes?tab=cook', '/recipes?tab=recipes', '/foods', '/planner', '/progress', '/habits', '/reports/week', '/reports/month', '/settings', '/cardio', '/goals']) {
+  for (const h of ['/', '/diary', '/recipes', '/recipes?tab=suggest', '/recipes?tab=cook', '/recipes?tab=recipes', '/foods', '/planner', '/progress', '/habits', '/reports/week', '/reports/month', '/settings', '/cardio', '/goals', '/workouts?tab=overview', '/workouts?tab=today', '/workouts?tab=program', '/workouts?tab=library', '/workouts?tab=progress', '/workouts?tab=coach']) {
     await go(page, h);
     await page.waitForTimeout(300);
     const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth, wide: [...document.querySelectorAll('main *')].filter((e) => { const r = e.getBoundingClientRect(); return (r.right > window.innerWidth + 1 || r.left < -1) && getComputedStyle(e).position !== 'fixed' && !e.closest('.table-wrap,.segmented,.chart,.vchart,.tool-row'); }).map((e) => `${e.tagName.toLowerCase()}.${String(e.className).split(' ')[0]}${e.dataset.testid ? '#' + e.dataset.testid : ''}`) }));

@@ -1,7 +1,8 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
-import { useBundle, useCardio } from '../app/hooks';
+import { useBundle, useCardio, useTraining } from '../app/hooks';
+import { TrainingCard } from '../components/TrainingCard';
 import { EnergyCard } from '../components/EnergyCard';
 import { energyFor } from '../lib/energy';
 import { CaloriesChart } from '../components/charts';
@@ -21,6 +22,7 @@ export default function Dashboard() {
   const { t, n, d, settings } = useApp();
   const data = useBundle();
   const cardio = useCardio();
+  const training = useTraining();
   const { run } = useAsync();
   const date = today();
 
@@ -34,9 +36,9 @@ export default function Dashboard() {
     return {
       day, week, last7, latestWeight, trend: weightTrend(data.body, date), insights: generateInsights(data, date),
       coach: dailyCoach(data, date, [])[0], est: progressEstimate(data.body, settings.profile.targetWeight, date),
-      energy: energyFor(date, day.target.kcal, day.totals.kcal, cardio, settings)
+      energy: energyFor(date, day.target.kcal, day.totals.kcal, cardio, settings, training?.workouts ?? [])
     };
-  }, [data, date, settings, cardio]);
+  }, [data, date, settings, cardio, training]);
 
   if (!view) return null;
   const { day, week, last7, latestWeight, trend, insights, coach, est, energy } = view;
@@ -82,6 +84,7 @@ export default function Dashboard() {
       </section>
 
       <EnergyCard e={energy} />
+      <TrainingCard />
 
       <nav className="quick" aria-label={t('quickActions')}>
         <Link to="/diary?add=1" data-testid="quick-add"><span className="q-ico"><Icon name="plus" /></span>{t('addFood')}</Link>

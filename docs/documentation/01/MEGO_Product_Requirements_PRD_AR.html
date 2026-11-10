@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Product_Requirements_PRD_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — مستند متطلبات المنتج (PRD)</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>معرّف المستند</td><td>MEGO-DOC-03</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-07</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-07</td></tr>
+<tr><td>المالك</td><td>مالك مشروع MEGO (MEGO Project Owner)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع، المطوّرون، المختبرون</td></tr>
+<tr><td>مستندات ذات صلة</td><td>MEGO_Product_Overview، MEGO_Features_and_Capabilities، MEGO_Product_Roadmap، MEGO_Testing_Strategy، MEGO_Security_Architecture</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">يوثّق هذا المستند أهداف المنتج والمستخدمين المستهدفين والمتطلبات الوظيفية وغير الوظيفية لتطبيق MEGO، ويربط كل متطلب بتنفيذه في المستودع مع حالة: <b>منفَّذ</b>، أو <b>جزئي</b> (منفَّذ لكنه محدود أو غير متحقَّق منه بالكامل)، أو <b>غير منفَّذ</b>. وهو يصف المنتج كما بُني في 7 نوفمبر 2026، وليس قائمة أمنيات؛ أما الأعمال المقترحة مستقبلًا ففي MEGO_Product_Roadmap.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">أهداف المنتج</li>
+<li dir="rtl">المستخدمون والشخصيات</li>
+<li dir="rtl">النطاق وما هو خارجه</li>
+<li dir="rtl">المتطلبات الوظيفية</li>
+<li dir="rtl">المتطلبات غير الوظيفية</li>
+<li dir="rtl">القيود والافتراضات</li>
+<li dir="rtl">ملخص حالة المتطلبات</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. أهداف المنتج</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المعرّف</th><th>الهدف</th><th>مقياس النجاح</th></tr>
+<tr><td>G1</td><td>جعل تتبّع التغذية اليومي الدقيق سريعًا على الهاتف بالعربية والإنجليزية.</td><td>إيجاد الطعام وتسجيله ببضع لمسات؛ القيم مأخوذة من قاعدة بيانات موثّقة لكل 100 جرام.</td></tr>
+<tr><td>G2</td><td>منح المستخدم أهدافًا يفهمها ويتحكم فيها.</td><td>أهداف مشتقة من معادلة شفافة ولا تُطبَّق دون تأكيد.</td></tr>
+<tr><td>G3</td><td>تحويل السجلات إلى ملاحظات صادقة.</td><td>التقارير والملاحظات والإرشاد تعتمد على البيانات المحفوظة فقط؛ الأيام الفارغة لا تُحسب صفرًا.</td></tr>
+<tr><td>G4</td><td>حماية البيانات الشخصية.</td><td>بيانات كل حساب لا يقرؤها إلا صاحبها، ويُفرض ذلك على الخادم.</td></tr>
+<tr><td>G5</td><td>التشغيل بتكلفة صفرية.</td><td>لا حساب فوترة في أي خدمة.</td></tr>
+<tr><td>G6</td><td>العمل دون اتصال.</td><td>التسجيل يعمل دون اتصال وتُزامَن البيانات لاحقًا.</td></tr>
+</table>
+
+<h2 dir="rtl">2. المستخدمون والشخصيات (Personas)</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الشخصية</th><th>الوصف</th><th>الاحتياجات الأساسية</th></tr>
+<tr><td>P1 – متتبّع موجَّه بالهدف</td><td>بالغ (18+) يتحدث العربية، يخسر الدهون مع الحفاظ على العضلات، ويسجل كل وجبة على هاتف Android.</td><td>بحث عربي سريع، تمييز النيء من المطبوخ، تركيز على البروتين، تقدّم أسبوعي.</td></tr>
+<tr><td>P2 – زائر عابر</td><td>يريد تجربة التطبيق دون إنشاء حساب.</td><td>وظائف كاملة على جهاز واحد دون تسجيل.</td></tr>
+<tr><td>P3 – مستخدم متعدد الأجهزة</td><td>يستخدم الهاتف واللابتوب.</td><td>حساب، مزامنة فورية، استعادة كلمة المرور، تصدير البيانات.</td></tr>
+<tr><td>P4 – مالك المشروع</td><td>يدير جدول الأطعمة الشخصي والخدمات.</td><td>مزامنة مركز Google Sheets، التحكم في مفتاح الذكاء الاصطناعي، النسخ الاحتياطي، صلاحيات المسؤول.</td></tr>
+<tr><td>P5 – المسؤول</td><td>يشرف على الخدمة العامة.</td><td>أعداد المستخدمين، الإيقاف وإعادة التفعيل، مراجعة الأطعمة المقترحة — دون رؤية البيانات الخاصة.</td></tr>
+</table>
+
+<h2 dir="rtl">3. النطاق وما هو خارجه</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>ضمن النطاق:</b> تسجيل التغذية، الأهداف، قياسات الجسم، الماء والعادات والصيام، الوصفات، التخطيط، الإرشاد، التقارير، الحسابات، المزامنة، النسخ الاحتياطي، تحليل صور الوجبات بالذكاء الاصطناعي.</li>
+<li dir="rtl"><b>خارج النطاق (عن قصد):</b> تتبّع التمارين؛ التشخيص أو العلاج الطبي؛ الخدمات المدفوعة؛ وصول المسؤول إلى السجلات الخاصة؛ إنشاء مسؤولين من داخل التطبيق.</li>
+</ul>
+
+<h2 dir="rtl">4. المتطلبات الوظيفية</h2>
+<h3 dir="rtl">4.1 الحسابات والوصول</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المعرّف</th><th>المتطلب</th><th>التنفيذ</th><th>الحالة</th></tr>
+<tr><td>FR-01</td><td>استخدام التطبيق كزائر دون حساب.</td><td><code dir="ltr">chooseGuest</code> في <code dir="ltr">src/lib/account.ts</code>؛ قاعدة الزائر <code dir="ltr">mego-nutrition</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-02</td><td>التسجيل في 3 خطوات: الحساب (الاسم، البريد، كلمة مرور ≥ 8 أحرف فيها حرف ورقم، الدولة، تأكيد السن 18+، قبول الخصوصية والشروط)، ثم الجسم والهدف، ثم الأهداف الغذائية.</td><td><code dir="ltr">RegisterFlow</code> في <code dir="ltr">src/pages/Account.tsx</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-03</td><td>تسجيل الدخول والخروج واستعادة كلمة المرور بالبريد.</td><td><code dir="ltr">login</code>، <code dir="ltr">logout</code>، <code dir="ltr">resetPassword</code> في <code dir="ltr">src/lib/firebase.ts</code></td><td>منفَّذ (طلب الاستعادة متحقَّق منه؛ وصول البريد غير متحقَّق منه)</td></tr>
+<tr><td>FR-04</td><td>استيراد بيانات الزائر اختياريًا إلى حساب جديد أو قائم.</td><td><code dir="ltr">enterAccount(uid, importGuest)</code>؛ خانة اختيار في الدخول والتسجيل</td><td>منفَّذ</td></tr>
+<tr><td>FR-05</td><td>تصدير بياناتي؛ حذف حسابي (البيانات السحابية ونسخة الجهاز) بعد تأكيد كلمة المرور.</td><td><code dir="ltr">AccountCard</code>، <code dir="ltr">deleteMyAccount</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-06</td><td>الحساب الموقوف يرى شاشة إيقاف وتبقى بياناته محفوظة.</td><td>عرض <code dir="ltr">Suspended</code>؛ قواعد Firestore تشترط الحالة <code dir="ltr">active</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-07</td><td>لوحة الإدارة: الأعداد، قائمة الحسابات، الإيقاف/إعادة التفعيل، مراجعة الأطعمة المقترحة، تقارير الأخطاء، نشر الأطعمة المشتركة.</td><td><code dir="ltr">AdminPage</code>؛ <code dir="ltr">adminStats</code>، <code dir="ltr">adminSetStatus</code>، <code dir="ltr">adminReview</code>، <code dir="ltr">adminListErrors</code></td><td>منفَّذ برمجيًا؛ لا يوجد حساب مسؤول بعد</td></tr>
+</table>
+
+<h3 dir="rtl">4.2 قاعدة الأطعمة والتسجيل</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المعرّف</th><th>المتطلب</th><th>التنفيذ</th><th>الحالة</th></tr>
+<tr><td>FR-10</td><td>سجلات أطعمة لكل 100 جرام مع فصل حالات النيء/المطبوخ/الجاهز (دون تحويل بينها).</td><td><code dir="ltr">src/lib/nutrition.ts</code>، <code dir="ltr">src/lib/types.ts</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-11</td><td>قاعدة مرجعية لأطعمة USDA متاحة دون اتصال.</td><td><code dir="ltr">public/fooddb/usda.json</code> (12,879 طعامًا)، يخزّنها عامل الخدمة مسبقًا</td><td>منفَّذ</td></tr>
+<tr><td>FR-12</td><td>بحث ثنائي اللغة يتسامح مع اختلافات الإملاء العربي والأخطاء.</td><td><code dir="ltr">src/lib/foodSearch.ts</code>، <code dir="ltr">normalize.ts</code>، <code dir="ltr">refFoods.ts</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-13</td><td>التسجيل في الفطور/الغداء/العشاء/الوجبات الخفيفة في أي تاريخ بوحدات g وkg وml وL والكوب والملاعق والقطعة والشريحة والحصص المخصّصة.</td><td><code dir="ltr">src/pages/Diary.tsx</code>، <code dir="ltr">nutrition.ts</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-14</td><td>كل إدخال يحفظ لقطة من القيم المستخدمة وقت التسجيل.</td><td>لقطة القيم في الإدخال (<code dir="ltr">src/lib/db.ts</code>، <code dir="ltr">repo.ts</code>)</td><td>منفَّذ</td></tr>
+<tr><td>FR-15</td><td>التعديل والتكرار والنسخ إلى تاريخ آخر والحذف بتأكيد والتراجع؛ نسخ وجبة/يوم/الأمس مع تنبيه قبل الإضافة إلى يوم غير فارغ.</td><td><code dir="ltr">Diary.tsx</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-16</td><td>أطعمة مخصّصة، واستيراد CSV/Excel مع معاينة تحقق، وتصدير.</td><td><code dir="ltr">customFoods.ts</code>، <code dir="ltr">sheetImport.ts</code>، <code dir="ltr">exporters.ts</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-17</td><td>الباركود: مسح بالكاميرا وإدخال يدوي وبحث في Open Food Facts.</td><td><code dir="ltr">src/lib/barcode.ts</code>، <code dir="ltr">BarcodeSheet.tsx</code> (واجهة BarcodeDetector)</td><td>جزئي — المسح بالكاميرا يعتمد على دعم المتصفح ولم يُختبر على هاتف حقيقي</td></tr>
+<tr><td>FR-18</td><td>اقتراح أطعمة لمراجعة المسؤول؛ المعتمد منها يصبح مشتركًا.</td><td><code dir="ltr">submitFood</code>، <code dir="ltr">adminReview</code>، مجموعتا <code dir="ltr">foodSubmissions</code> و<code dir="ltr">foods</code></td><td>منفَّذ (مُختبَر على المحاكي)</td></tr>
+<tr><td>FR-19</td><td>صور للأطعمة الشائعة.</td><td><code dir="ltr">src/lib/foodPhotos.ts</code>، 74 صورة في <code dir="ltr">public/food-img/</code></td><td>جزئي — 74 طعامًا لها صور؛ الوصفات تستخدم رموزًا تعبيرية</td></tr>
+</table>
+
+<h3 dir="rtl">4.3 ماسح الوجبات بالذكاء الاصطناعي</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المعرّف</th><th>المتطلب</th><th>التنفيذ</th><th>الحالة</th></tr>
+<tr><td>FR-20</td><td>تحليل صورة وجبة (كاميرا أو معرض) وإرجاع العناصر ونطاقات الجرامات والحالة وطريقة الطهي مطابقةً لقاعدة بيانات المستخدم.</td><td><code dir="ltr">src/lib/mealScanner.ts</code>، <code dir="ltr">MealScanner.tsx</code>، <code dir="ltr">apps-script/Code.gs</code> (Gemini المجاني)</td><td>منفَّذ (تحقق من تحليل حقيقي واحد)</td></tr>
+<tr><td>FR-21</td><td>عدم الحفظ التلقائي؛ مراجعة إلزامية؛ أولوية قيم قاعدة البيانات؛ وسم تقديرات الذكاء الاصطناعي.</td><td>شاشة المراجعة في <code dir="ltr">MealScanner.tsx</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-22</td><td>حدود استخدام ورسائل خطأ واضحة (الحصة، الانشغال، عدم الاتصال، المنطقة).</td><td><code dir="ltr">AI_DAILY_LIMIT</code> (افتراضيًا 40)، <code dir="ltr">AI_USER_DAILY_LIMIT</code> (افتراضيًا 10) في <code dir="ltr">Code.gs</code></td><td>منفَّذ</td></tr>
+</table>
+
+<h3 dir="rtl">4.4 الأهداف والجسم والعادات</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المعرّف</th><th>المتطلب</th><th>التنفيذ</th><th>الحالة</th></tr>
+<tr><td>FR-30</td><td>اقتراح الأهداف من الملف الشخصي والهدف (معادلة Mifflin-St Jeor للأيض الأساسي × النشاط، تعديل الهدف، بروتين جم/كجم) وتطبيقها بعد التأكيد فقط.</td><td><code dir="ltr">src/lib/goals.ts</code>، <code dir="ltr">targets.ts</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-31</td><td>أهداف لأيام التمرين والراحة وتجاوزات لكل يوم.</td><td><code dir="ltr">targets.ts</code>، <code dir="ltr">Settings.tsx</code>، جدول <code dir="ltr">days</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-32</td><td>الوزن والخصر وقياسات أخرى؛ اتجاه مع متوسط 7 أيام؛ صور تقدّم على الجهاز فقط.</td><td><code dir="ltr">src/pages/Progress.tsx</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-33</td><td>هدف الماء، عادات مخصّصة، مؤقّت الصيام.</td><td><code dir="ltr">src/pages/Habits.tsx</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-34</td><td>تذكيرات للماء والوجبات والوزن.</td><td><code dir="ltr">src/lib/reminders.ts</code> (واجهة Notification)</td><td>جزئي — تعمل فقط والتطبيق مفتوح أو في الخلفية؛ لا توجد خدمة إشعارات فورية (Push)</td></tr>
+</table>
+
+<h3 dir="rtl">4.5 الوصفات والتخطيط والإرشاد والتقارير</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المعرّف</th><th>المتطلب</th><th>التنفيذ</th><th>الحالة</th></tr>
+<tr><td>FR-40</td><td>مكتبة وصفات مدمجة محسوبة من قاعدة الأطعمة مع مرشّحات وتقييمات ومفضلة.</td><td><code dir="ltr">recipeLibraryData.ts</code> (60) + <code dir="ltr">recipeLibraryData2.ts</code> (41) = 101 وصفة؛ <code dir="ltr">recipeEngine.ts</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-41</td><td>اقتراحات مما تبقى اليوم، و«ماذا أطبخ اليوم؟» من المكوّنات المختارة.</td><td><code dir="ltr">src/pages/Recipes.tsx</code> (تبويبات المكتبة والاقتراحات والطبخ والوصفات والوجبات)</td><td>منفَّذ</td></tr>
+<tr><td>FR-42</td><td>مخطط أسبوعي، خطة أسبوع تلقائية، قائمة تسوق، المخطَّط مقابل الفعلي.</td><td><code dir="ltr">src/pages/Planner.tsx</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-43</td><td>مدرّب بتبويبات اليوم/الأسبوع/الشهر، وترتيب الأطعمة ومقارنتها، ومقالات تثقيفية.</td><td><code dir="ltr">src/pages/Coach.tsx</code>، <code dir="ltr">coach.ts</code>، <code dir="ltr">foodIntel.ts</code>، <code dir="ltr">education.ts</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-44</td><td>تقارير أسبوعية وشهرية مع مقارنة بالفترة السابقة؛ CSV وExcel والطباعة إلى PDF.</td><td><code dir="ltr">src/pages/Reports.tsx</code>، <code dir="ltr">reports.ts</code>، <code dir="ltr">exporters.ts</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-45</td><td>ملاحظات مبنية على البيانات المحفوظة فقط (تحتاج 3 أيام مسجَّلة كليًا على الأقل).</td><td><code dir="ltr">src/lib/insights.ts</code></td><td>منفَّذ</td></tr>
+</table>
+
+<h3 dir="rtl">4.6 البيانات والمزامنة والنسخ الاحتياطي</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المعرّف</th><th>المتطلب</th><th>التنفيذ</th><th>الحالة</th></tr>
+<tr><td>FR-50</td><td>قاعدة بيانات محلية تعمل دون اتصال أولًا.</td><td>Dexie/IndexedDB، <code dir="ltr">src/lib/db.ts</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-51</td><td>مزامنة سحابية فورية للحسابات بين الأجهزة؛ النسخة الأقدم لا تستبدل الأحدث.</td><td><code dir="ltr">src/lib/cloudSync.ts</code>، <code dir="ltr">firebase/firestore.rules</code></td><td>منفَّذ (متحقَّق منه حيًا)</td></tr>
+<tr><td>FR-52</td><td>مزامنة مركز المالك مع Google Sheets (طابور صادر، إعادة محاولة، كشف التعارض، حذف ناعم).</td><td><code dir="ltr">src/lib/sync.ts</code> ↔ <code dir="ltr">apps-script/Code.gs</code></td><td>منفَّذ (متحقَّق منه حيًا)</td></tr>
+<tr><td>FR-53</td><td>نسخ احتياطية تلقائية على الجهاز (آخر 10)، ونسخة قبل العمليات الحساسة، وتنزيل/استعادة ملف (دمج فقط).</td><td><code dir="ltr">localBackup.ts</code>، <code dir="ltr">backup.ts</code></td><td>منفَّذ</td></tr>
+<tr><td>FR-54</td><td>نسخ احتياطية إلى Google Drive.</td><td>العملية <code dir="ltr">backup</code> في Apps Script</td><td>جزئي — لمركز المالك فقط؛ لم يُتحقق منها منفصلة على الإنتاج</td></tr>
+</table>
+
+<h2 dir="rtl">5. المتطلبات غير الوظيفية</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المعرّف</th><th>المتطلب</th><th>التنفيذ / الدليل</th><th>الحالة</th></tr>
+<tr><td>NFR-01 الأمان</td><td>كل مستخدم يقرأ ويكتب بياناته فقط؛ المسؤول لا يقرأ السجلات الخاصة؛ لا أحد يرقّي نفسه إلى مسؤول.</td><td><code dir="ltr">firebase/firestore.rules</code>؛ اختبارات القواعد 14؛ live-verify 14/14 (فحوص 403)</td><td>منفَّذ</td></tr>
+<tr><td>NFR-02 الأسرار</td><td>لا مفتاح ذكاء اصطناعي على الجهاز أو في المستودع.</td><td>المفتاح في خصائص السكربت (Script Properties) فقط</td><td>منفَّذ (يوصى بالتدوير)</td></tr>
+<tr><td>NFR-03 الخصوصية</td><td>صور الذكاء الاصطناعي تُصغَّر (≤ 1024 بكسل) ويُعاد ترميزها لإزالة EXIF/GPS ولا تُخزَّن؛ صور التقدّم لا تُزامَن.</td><td><code dir="ltr">mealScanner.ts</code>؛ جدول <code dir="ltr">photos</code> محلي فقط</td><td>منفَّذ</td></tr>
+<tr><td>NFR-04 العمل دون اتصال</td><td>هيكل التطبيق والخطوط وقاعدة USDA وصور الأطعمة المعروضة متاحة دون اتصال.</td><td>إعداد Workbox في <code dir="ltr">vite.config.ts</code></td><td>منفَّذ</td></tr>
+<tr><td>NFR-05 التعريب</td><td>عربية كاملة من اليمين لليسار وإنجليزية من اليسار لليمين.</td><td><code dir="ltr">src/lib/i18n*.ts</code></td><td>منفَّذ</td></tr>
+<tr><td>NFR-06 إمكانية الوصول</td><td>أنماط التركيز، أحجام اللمس، دعم تقليل الحركة.</td><td><code dir="ltr">src/styles.css</code> (<code dir="ltr">prefers-reduced-motion</code>)</td><td>جزئي — لا يوجد تدقيق رسمي لإمكانية الوصول</td></tr>
+<tr><td>NFR-07 قابلية الاستخدام على الجوال</td><td>كل شاشة تُمرَّر بشكل صحيح على مقاسات الهواتف؛ زر الرجوع يغلق النوافذ المنبثقة.</td><td>حزمة اللمس/التمرير 103/103 (محاكاة)</td><td>جزئي — لم يُختبر جهاز حقيقي</td></tr>
+<tr><td>NFR-08 الدقة</td><td>تخزين بدقة 0.01 والتقريب عند العرض فقط؛ فحوص اتساق Atwater.</td><td><code dir="ltr">nutrition.ts</code>؛ اختبارات الوحدات</td><td>منفَّذ</td></tr>
+<tr><td>NFR-09 التكلفة</td><td>خطط مجانية فقط؛ التوقف بدل الفوترة.</td><td>Firebase Spark، Gemini المجاني، GitHub Pages، Apps Script</td><td>منفَّذ</td></tr>
+<tr><td>NFR-10 الموثوقية</td><td>شاشة خطأ بدل صفحة فارغة؛ إعادة محاولة المزامنة تلقائيًا.</td><td><code dir="ltr">ErrorBoundary.tsx</code>؛ إعادة المحاولة في <code dir="ltr">sync.ts</code></td><td>منفَّذ</td></tr>
+<tr><td>NFR-11 الأداء</td><td>تحميل الصفحات الثقيلة عند الطلب؛ الرسوم البيانية في حزمة منفصلة.</td><td><code dir="ltr">lazy()</code> في <code dir="ltr">src/App.tsx</code>؛ <code dir="ltr">manualChunks</code> في <code dir="ltr">vite.config.ts</code></td><td>منفَّذ؛ لم تُقَس ميزانية أداء رسمية</td></tr>
+<tr><td>NFR-12 الجانب القانوني</td><td>سياسة الخصوصية والشروط متاحة داخل التطبيق.</td><td>المساران <code dir="ltr">#/privacy</code> و<code dir="ltr">#/terms</code></td><td>جزئي — مسودات بانتظار المراجعة القانونية</td></tr>
+</table>
+
+<h2 dir="rtl">6. القيود والافتراضات</h2>
+<ul dir="rtl">
+<li dir="rtl">تنطبق حدود الخطط المجانية (حصص Firebase Spark وApps Script وGemini)؛ وعند بلوغها تتوقف الخدمة لبقية اليوم.</li>
+<li dir="rtl">شروط Gemini المجانية: يرفض وسيط الذكاء الاصطناعي حسابات الاتحاد الأوروبي/المنطقة الاقتصادية الأوروبية/المملكة المتحدة/سويسرا (<code dir="ltr">AI_RESTRICTED_COUNTRIES</code> في <code dir="ltr">src/lib/firebase.ts</code>).</li>
+<li dir="rtl">يجب أن يكون المستخدم في سن 18 أو أكثر (خانة التأكيد والسن ≥ 18 في الخطوة 2).</li>
+<li dir="rtl">التطبيق تطبيق ويب؛ لا توجد حزم في المتاجر (Play Store / App Store).</li>
+</ul>
+
+<h2 dir="rtl">7. ملخص حالة المتطلبات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحالة</th><th>المتطلبات</th></tr>
+<tr><td>منفَّذ</td><td>FR-01–06، FR-10–16، FR-18، FR-20–22، FR-30–33، FR-40–45، FR-50–53؛ NFR-01–05، 08–11</td></tr>
+<tr><td>جزئي</td><td>FR-07 (لا مسؤول بعد)، FR-17، FR-19، FR-34، FR-54؛ NFR-06، NFR-07، NFR-12</td></tr>
+<tr><td>غير منفَّذ</td><td>الإشعارات الفورية والتطبيق مغلق؛ حزم المتاجر؛ تتبّع التمارين (خارج النطاق)</td></tr>
+</table>
+
+<h2 dir="rtl">8. حالة التحقق</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>متحقَّق منه حيًا:</b> FR-02/03 (التسجيل، طلب الاستعادة)، FR-05 (الحذف)، FR-51، FR-52، FR-20 (تحليل واحد)، NFR-01.</li>
+<li dir="rtl"><b>مُختبَر على المحاكيات/الحزم الآلية فقط:</b> FR-07، FR-18، NFR-07 وجميع مسارات الزائر (e2e 44، التمرير 103، تعدد المستخدمين 8).</li>
+<li dir="rtl"><b>غير مُتحقَّق منه:</b> كاميرا FR-17 على هاتف حقيقي، موثوقية FR-34، FR-54 على الإنتاج، وصول بريد استعادة كلمة المرور، المطابقة لمعايير إمكانية الوصول.</li>
+</ul>
+
+<h2 dir="rtl">9. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

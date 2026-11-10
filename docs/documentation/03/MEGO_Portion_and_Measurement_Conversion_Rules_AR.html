@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Portion_and_Measurement_Conversion_Rules_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — قواعد تحويل الحصص ووحدات القياس</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>القيمة</th></tr>
+<tr><td>رقم المستند</td><td>MEGO-DOC-26</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-07</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-07</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>المطوّرون، مراجعو التغذية، مسؤولو قاعدة الأطعمة، فريق الدعم</td></tr>
+<tr><td>مستندات ذات صلة</td><td dir="ltr">MEGO_Nutritional_Values_and_Units_Reference, MEGO_Calorie_and_Macronutrient_Calculation_Methodology, MEGO_Food_Tracking_Guide, MEGO_Recipes_and_Custom_Foods_Guide, MEGO_Nutrition_Calculation_Accuracy_Tests</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">يحدد هذا المستند بدقة كيف يحوّل MEGO الكمية التي يكتبها المستخدم (غرام، كيلوغرام، مل، لتر، كوب، ملعقة كبيرة، ملعقة صغيرة، حبة، شريحة، حصة) إلى غرامات، وكيف تتحول الغرامات إلى سعرات وعناصر غذائية كبرى (Macronutrients). ويشرح أيضًا تحويل قيم ملصق التغذية المُدخلة «لكل 100 مل» أو «لكل حصة» إلى الأساس الداخلي لكل 100 غ، وقواعد التقريب. كل القواعد مأخوذة من الشيفرة: <code dir="ltr">src/lib/nutrition.ts</code> و<code dir="ltr">src/pages/Foods.tsx</code> (محرر الطعام) و<code dir="ltr">src/components/FoodPicker.tsx</code> و<code dir="ltr">src/lib/refFoods.ts</code> و<code dir="ltr">src/lib/barcode.ts</code>.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">المبدأ الأساسي: كل شيء يُخزَّن لكل 100 غ</li>
+<li dir="rtl">ثوابت الوحدات ودالة toGrams</li>
+<li dir="rtl">الوحدات المتاحة لكل طعام</li>
+<li dir="rtl">الكثافة (gramsPerMl) وافتراض 1 مل = 1 غ</li>
+<li dir="rtl">وزن الحبة/الشريحة والحصص</li>
+<li dir="rtl">الوصفات (أساس لكل حصة)</li>
+<li dir="rtl">تحويل الملصق في محرر الطعام</li>
+<li dir="rtl">قواعد التقريب</li>
+<li dir="rtl">أمثلة محلولة</li>
+<li dir="rtl">الأخطاء والحالات الخاصة</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. المبدأ الأساسي: كل شيء يُخزَّن لكل 100 غ</h2>
+<p dir="rtl">لكل سجل طعام مجموعة قيم <code dir="ltr">per100</code> (السعرات، البروتين، الكربوهيدرات، الدهون، واختياريًا الألياف والسكر والصوديوم بالملغ والدهون المشبعة) معبَّرًا عنها <b>لكل 100 غ</b> من الطعام بالحالة المسجّلة عليه (نيء أو مطبوخ أو أخرى). عند تسجيل طعام يقوم MEGO بما يلي:</p>
+<ol dir="rtl">
+<li dir="rtl">يحوّل الكمية والوحدة إلى غرامات بالدالة <code dir="ltr">toGrams()</code>؛</li>
+<li dir="rtl">يضرب قيم الـ100 غ في <code dir="ltr">grams / 100</code> (الدالة <code dir="ltr">scaleMacros</code>)؛</li>
+<li dir="rtl">يخزّن الناتج بدقة 0.01 (<code dir="ltr">preciseMacros</code>) مع <b>لقطة</b> (Snapshot) من أساس الحساب (<code dir="ltr">EntryBasis</code>: per100 وpieceGrams وgramsPerMl وservings).</li>
+</ol>
+<p dir="rtl">ولأن اللقطة محفوظة داخل قيد اليومية، فإن تعديل الطعام لاحقًا لا يغيّر القيود السابقة أبدًا. وينص تعليق الشيفرة على <code dir="ltr">toGrams</code> على القاعدة الأساسية الثانية: <b>لا يحوّل MEGO أبدًا بين الوزن النيء والمطبوخ</b>. الأرز النيء والأرز المطبوخ سجلّان منفصلان بقيم منفصلة، وعلى المستخدم اختيار السجل المطابق لما وزنه.</p>
+<pre dir="ltr">
+ quantity + unit ──► toGrams(basis) ──► grams ──► per100 × grams/100 ──► macros (0.01 precision)
+                       │                                             └─► snapshot stored on the entry
+                       └─ uses ONLY values stored on the food: gramsPerMl, pieceGrams, servings
+</pre>
+
+<h2 dir="rtl">2. ثوابت الوحدات ودالة toGrams</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الوحدة</th><th>المعادلة في <code dir="ltr">toGrams()</code></th><th>الثابت</th></tr>
+<tr><td>غ (g)</td><td>الكمية</td><td>—</td></tr>
+<tr><td>كغ (kg)</td><td>الكمية × 1000</td><td>—</td></tr>
+<tr><td>مل (ml)</td><td>الكمية × الكثافة</td><td>الكثافة = gramsPerMl أو 1</td></tr>
+<tr><td>لتر (l)</td><td>الكمية × 1000 × الكثافة</td><td>—</td></tr>
+<tr><td>كوب (cup)</td><td>الكمية × CUP_ML × الكثافة</td><td><code dir="ltr">CUP_ML = 240</code></td></tr>
+<tr><td>ملعقة كبيرة (tbsp)</td><td>الكمية × TBSP_ML × الكثافة</td><td><code dir="ltr">TBSP_ML = 15</code></td></tr>
+<tr><td>ملعقة صغيرة (tsp)</td><td>الكمية × TSP_ML × الكثافة</td><td><code dir="ltr">TSP_ML = 5</code></td></tr>
+<tr><td>حبة، شريحة (piece, slice)</td><td>الكمية × pieceGrams</td><td>يشترط pieceGrams &gt; 0</td></tr>
+<tr><td>حصة (serving)</td><td>الكمية × وزن الحصة بالغرام</td><td>الحصة المختارة، أو أول حصة إذا لم يُعثر على المعرّف</td></tr>
+</table>
+<p dir="rtl">الكثافة المستخدمة هي <code dir="ltr">basis.gramsPerMl</code> إذا كانت رقمًا موجبًا، وإلا فهي <b>1</b>. وتُرفض أي كمية ليست رقمًا محدودًا أكبر من الصفر (<code dir="ltr">UnitError('invalidQuantity')</code>).</p>
+
+<h2 dir="rtl">3. الوحدات المتاحة لكل طعام</h2>
+<p dir="rtl">تحدد الدالة <code dir="ltr">availableUnits(basis)</code> الوحدات المعروضة في نموذج الكمية:</p>
+<ul dir="rtl">
+<li dir="rtl">وصفة لها <code dir="ltr">perServing</code> فقط (بدون per100): وحدة <b>الحصة</b> فقط.</li>
+<li dir="rtl">أي طعام آخر: <b>g, kg, ml, l, cup, tbsp, tsp</b>.</li>
+<li dir="rtl">وتُضاف <b>الحبة</b> و<b>الشريحة</b> فقط عندما يكون <code dir="ltr">pieceGrams &gt; 0</code>.</li>
+<li dir="rtl">وتُضاف <b>الحصة</b> فقط عندما يكون للطعام حصة واحدة معرّفة على الأقل.</li>
+</ul>
+<p dir="rtl">تحسب <code dir="ltr">gramsPerUnit()</code> عدد غرامات الوحدة الواحدة (مقرّبًا إلى 0.1 غ) لعرض عبارات مثل «1 كوب = 240 غ»، ولا تعيد شيئًا عندما يتعذّر التحويل.</p>
+
+<h2 dir="rtl">4. الكثافة (gramsPerMl) وافتراض 1 مل = 1 غ</h2>
+<p dir="rtl">وحدات الحجم (مل، لتر، كوب، ملعقة كبيرة، ملعقة صغيرة) تحتاج إلى كثافة لتتحول إلى غرامات. يحفظها حقل الطعام <code dir="ltr">gramsPerMl</code> («الكثافة (غ لكل مل)» في محرر الطعام). وعند غيابها <b>يفترض MEGO أن 1 مل = 1 غ</b> ويُعلم المستخدم بذلك: يعرض نموذج الكمية «لا توجد كثافة — يُحسب 1 مل = 1 غ.» عندما تكون الوحدة مل أو ملعقة كبيرة أو صغيرة والطعام بلا كثافة؛ ويعرض محرر الطعام «لم تُدخل الكثافة: يُفترض أن 1 مل = 1 غ.» عند إدخال القيم لكل 100 مل بلا كثافة.</p>
+<p dir="rtl">النتيجة: الافتراض قريب للأطعمة الشبيهة بالماء (الحليب والعصائر)، وأقل دقة للزيوت (كثافتها أقل من 1) وللشراب والعسل (أكثر من 1)، لذا ينبغي للمستخدم إدخال الكثافة. لا توجد قيم كثافة مدمجة في التطبيق — يملأ الحقلَ المستخدمُ فقط (أو استيراد/نسخة احتياطية تحمله). أطعمة USDA المرجعية لا تضبط gramsPerMl، وبدلًا من ذلك تصبح حصصها المنزلية المنشورة حصصًا للطعام (القسم 5).</p>
+<p dir="rtl">ملاحظة: يظهر تنبيه الكثافة في نموذج الكمية للوحدات مل وملعقة كبيرة وصغيرة، ولا يظهر للكوب واللتر رغم أن الافتراض نفسه يُطبَّق عليهما في <code dir="ltr">toGrams()</code>.</p>
+
+<h2 dir="rtl">5. وزن الحبة/الشريحة والحصص</h2>
+<h3 dir="rtl">5.1 الحبة والشريحة</h3>
+<p dir="rtl"><code dir="ltr">pieceGrams</code> هو وزن الحبة أو الشريحة أو الحصة القياسية (عمود الـ Hub «وزن الحبة/الحصة»، والعمود المنظَّم <code dir="ltr">piece_g</code>). تستخدم «الحبة» و«الشريحة» القيمة نفسها. وبدونها يرفع التسجيل بالحبة/الشريحة الخطأ <code dir="ltr">UnitError('needsPieceWeight')</code>. مصادر pieceGrams:</p>
+<ul dir="rtl">
+<li dir="rtl">استيراد الـ Hub الخاص بالمالك أو ملف CSV/Excel (عمود الحبة؛ تُحفظ القيم &gt; 0 فقط)؛</li>
+<li dir="rtl">حقل «وزن الحبة / الشريحة (غ)» في محرر الطعام؛</li>
+<li dir="rtl">Open Food Facts: تُقترح قيمة <code dir="ltr">serving_quantity</code> للمنتج كوزن للحبة في نموذج المنتج (ويمكن للمستخدم تغييرها).</li>
+</ul>
+<h3 dir="rtl">5.2 الحصص</h3>
+<p dir="rtl">يمكن أن يكون للطعام قائمة حصص مسمّاة (<code dir="ltr">CustomServing</code>: المعرّف، الاسم، الغرامات). مصادرها:</p>
+<ul dir="rtl">
+<li dir="rtl">أطعمة USDA المرجعية: عند أول استخدام لطعام USDA تنسخ الدالة <code dir="ltr">materializeRefFood()</code> حتى ست حصص منزلية منشورة (اسم ≤ 60 حرفًا، ووزن &gt; 0)؛</li>
+<li dir="rtl">محرر الطعام (قائمة الحصص المخصصة)؛</li>
+<li dir="rtl">ملصق تغذية مُدخل «لكل حصة»: تُضاف حصة الملصق تلقائيًا باسم «حصة الملصق» (إن لم توجد حصة بالوزن نفسه).</li>
+</ul>
+
+<h2 dir="rtl">6. الوصفات (أساس لكل حصة)</h2>
+<p dir="rtl">قيد الوصفة يستخدم أساسًا فيه <code dir="ltr">perServing</code> وليس فيه <code dir="ltr">per100</code>. عندها تضرب <code dir="ltr">macrosFor()</code> قيم الحصة في عدد الحصص، وتكون غرامات القيد 0 في هذا المسار. وإذا لم يكن في الأساس per100 ولا perServing يظهر الخطأ <code dir="ltr">needsRecipe</code> («Missing nutrition basis»).</p>
+
+<h2 dir="rtl">7. تحويل الملصق في محرر الطعام</h2>
+<p dir="rtl">في محرر الطعام («طعام جديد» / «تعديل الطعام») يحتوي الحقل «القيم المُدخلة لكل» على ثلاثة خيارات. وأيًّا كان الاختيار <b>تُحفظ القيم لكل 100 غ</b>. يُحسب معامل التحويل في <code dir="ltr">FoodEditor</code>:</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الخيار</th><th>المعامل المطبَّق على كل قيمة مُدخلة</th><th>ملاحظات</th></tr>
+<tr><td>لكل 100 غ (افتراضي)</td><td>× 1</td><td>—</td></tr>
+<tr><td>لكل 100 مل</td><td>× 1 / الكثافة</td><td>الكثافة = حقل الكثافة، أو 1 إذا كان فارغًا (مع عرض التنبيه)</td></tr>
+<tr><td>لكل حصة (ملصق التغذية)</td><td>× 100 / S</td><td>S = «حجم الحصة» بالغرام؛ زر الحفظ معطَّل ما دام S ليس &gt; 0</td></tr>
+</table>
+<p dir="rtl">تُقرَّب كل قيمة محوَّلة إلى منزلتين عشريتين. يُطبَّق المعامل على السعرات والبروتين والكربوهيدرات والدهون، وعلى الألياف والسكر والدهون المشبعة والصوديوم إن أُدخلت. ويعرض المحرر أيضًا الطاقة المحسوبة بمعاملات 4/4/9 وشرحًا لفرق الطاقة (انظر MEGO_Food_Data_Validation_and_Quality_Control).</p>
+<p dir="rtl"><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/food-editor-ar-light.png" width="300" alt="محرر الطعام"></p>
+<p dir="rtl">منتجات Open Food Facts تُقرأ دائمًا من حقول <code dir="ltr">_100g</code>؛ وتُحوَّل الطاقة بالكيلوجول بالقسمة على 4.184 عند غياب السعرات، ويُحوَّل الصوديوم من غرام إلى ملغ (× 1000).</p>
+
+<h2 dir="rtl">8. قواعد التقريب</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الموضع</th><th>القاعدة</th><th>الدالة</th></tr>
+<tr><td>قيم القيد المخزَّنة</td><td>0.01 للسعرات والعناصر الكبرى والاختيارية — حتى لا تنحرف المجاميع مع كثرة القيود الصغيرة</td><td><code dir="ltr">preciseMacros</code></td></tr>
+<tr><td>القيم المعروضة</td><td>سعرات صحيحة؛ 0.1 غ للبروتين والكربوهيدرات والدهون والعناصر الاختيارية</td><td><code dir="ltr">roundMacros</code></td></tr>
+<tr><td>غرامات القيد</td><td>0.1 غ</td><td><code dir="ltr">round(grams, 1)</code></td></tr>
+<tr><td>عبارات «1 وحدة = x غ»</td><td>0.1 غ</td><td><code dir="ltr">gramsPerUnit</code></td></tr>
+<tr><td>تحويل الملصق في المحرر</td><td>0.01</td><td><code dir="ltr">round(x × factor, 2)</code></td></tr>
+<tr><td>حصص اقتراحات المدرّب</td><td>مضاعفات 5 غ، وبحد أدنى 5 غ</td><td><code dir="ltr">roundG</code> في <code dir="ltr">coach.ts</code></td></tr>
+</table>
+<p dir="rtl">تستخدم <code dir="ltr">round(n, digits)</code> الصيغة <code dir="ltr">Math.round((n + Number.EPSILON) × 10^digits) / 10^digits</code>. تُجمع مجاميع اليوم من القيم الدقيقة ولا تُقرَّب إلا عند العرض (يُظهر اختبار وحدة أن عشرة قيود من الطماطم بنحو 2.7 غ تعطي 5 سعرات، والقيمة الدقيقة 4.86).</p>
+
+<h2 dir="rtl">9. أمثلة محلولة</h2>
+<p dir="rtl">الأمثلة 1–7 مأخوذة من اختبارات الوحدة (<code dir="ltr">tests/core.test.ts</code> و<code dir="ltr">tests/v2.test.ts</code> و<code dir="ltr">tests/fooddb.test.ts</code>)؛ والمثال 8 حساب توضيحي يتبع الشيفرة نفسها.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>المُدخل</th><th>الحساب</th><th>النتيجة</th></tr>
+<tr><td>1</td><td>ملعقة كبيرة زيت (884 سعرة/100 غ) بلا كثافة</td><td dir="ltr">1 × 15 × 1 = 15 g; 884 × 0.15 = 132.6</td><td>15 غ، 133 سعرة</td></tr>
+<tr><td>2</td><td>ملعقة كبيرة زيت مع gramsPerMl = 0.91</td><td dir="ltr">1 × 15 × 0.91 = 13.65</td><td>13.7 غ</td></tr>
+<tr><td>3</td><td>ملعقتان صغيرتان / 0.1 كغ من الزيت نفسه</td><td dir="ltr">2 × 5 × 1 = 10; 0.1 × 1000 = 100</td><td>10 غ / 100 غ</td></tr>
+<tr><td>4</td><td>3 حبات بيض كامل، pieceGrams = 55</td><td dir="ltr">3 × 55 = 165 g</td><td>165 غ، 236 سعرة (قيم الـ Hub)</td></tr>
+<tr><td>5</td><td>3 شرائح توست بر، 28 غ للشريحة</td><td dir="ltr">3 × 28 = 84 g</td><td>84 غ، 207 سعرات</td></tr>
+<tr><td>6</td><td>كوب / نصف لتر حليب قليل الدسم بلا كثافة</td><td dir="ltr">1 × 240 × 1; 0.5 × 1000 × 1</td><td>240 غ / 500 غ</td></tr>
+<tr><td>7</td><td>ملصق: حصة 30 غ = 120 سعرة، 3 غ بروتين، 18 غ كربوهيدرات، 4 غ دهون</td><td>المعامل 100/30 ← 400 سعرة، 10 غ بروتين، 60 غ كربوهيدرات، 13.33 غ دهون لكل 100 غ؛ حصتان = 60 غ</td><td>60 غ، 240 سعرة (اختبار في fooddb.test.ts)</td></tr>
+<tr><td>8</td><td>ملصق مشروب 42 سعرة لكل 100 مل، كثافة 1.03؛ يسجّل المستخدم 250 مل</td><td dir="ltr">42 / 1.03 = 40.78 per 100 g; 250 × 1.03 = 257.5 g; 40.78 × 2.575 ≈ 105</td><td>257.5 غ، ≈105 سعرات (توضيحي)</td></tr>
+</table>
+<p dir="rtl">يبيّن المثال 8 أن تحويل «لكل 100 مل ← لكل 100 غ» وتحويل «مل ← غ» يلغي أحدهما الآخر، فتساوي السعرات المسجّلة قيمة الملصق (42 × 2.5 = 105 سعرات) أيًّا كانت الكثافة المُدخلة — بشرط استخدام الكثافة نفسها في الحالتين.</p>
+
+<h2 dir="rtl">10. الأخطاء والحالات الخاصة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الرمز</th><th>متى يظهر</th></tr>
+<tr><td><code dir="ltr">invalidQuantity</code></td><td>الكمية ليست رقمًا محدودًا أكبر من 0</td></tr>
+<tr><td><code dir="ltr">needsPieceWeight</code></td><td>اختيار الحبة/الشريحة مع غياب pieceGrams أو كونه ≤ 0</td></tr>
+<tr><td><code dir="ltr">needsServing</code></td><td>اختيار الحصة والطعام بلا حصص</td></tr>
+<tr><td><code dir="ltr">needsRecipe</code></td><td>الأساس بلا per100 ولا perServing</td></tr>
+<tr><td><code dir="ltr">INCOMPLETE_FOOD</code></td><td>الطعام موسوم «غير مكتمل» (بلا قيم صالحة) — يُمنع تسجيله في <code dir="ltr">addFoodEntry</code></td></tr>
+<tr><td><code dir="ltr">DUPLICATE_ENTRY</code></td><td>إضافة الطعام نفسه بالكمية والوحدة والوجبة والتاريخ نفسها مرة أخرى خلال 1.5 ثانية (حماية من النقر المزدوج)</td></tr>
+</table>
+
+<h2 dir="rtl">11. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>الثوابت (240/15/5 مل) ومعادلات toGrams ودوال التقريب</td><td>مُتحقَّق منها في الشيفرة (<code dir="ltr">src/lib/nutrition.ts</code>)</td></tr>
+<tr><td>الأمثلة 1–7</td><td>مغطّاة باختبارات وحدة ناجحة (109 اختبارات وحدة ناجحة على الشيفرة النهائية)</td></tr>
+<tr><td>المثال 8</td><td>حساب مشتق من الشيفرة؛ لا يوجد اختبار مخصص</td></tr>
+<tr><td>تحويل ملصق «لكل حصة» في المحرر (حصة 30 غ، 120 سعرة ← 400 سعرة/100 غ؛ 60 غ ← 240 سعرة)</td><td>مُختبَر في مجموعة اختبارات المتصفح للضيف (<code dir="ltr">e2e/run-e2e.mjs</code>، 44/44 ناجحة)</td></tr>
+<tr><td>تحويل «لكل 100 مل» وتنبيهات الكثافة</td><td>مُتحقَّق منها في الشيفرة فقط — لم يُعثر على اختبار مخصص</td></tr>
+<tr><td>السلوك على هاتف Android حقيقي</td><td>غير مُتحقَّق منه (أجهزة محاكاة فقط)</td></tr>
+<tr><td>دقة افتراض 1 مل = 1 غ لطعام معيّن</td><td>غير مُتحقَّق منه — يعتمد على الطعام؛ أدخل الكثافة للزيوت والشراب والعسل</td></tr>
+</table>
+
+<h2 dir="rtl">12. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>الإصدار الأول</td><td>Claude لصالح MEGO Project Owner</td></tr>
+</table>
+</body></html>

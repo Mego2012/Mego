@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Nutritional_Values_and_Units_Reference_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — مرجع القيم الغذائية والوحدات</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>القيمة</th></tr>
+<tr><td>رقم المستند</td><td>MEGO-DOC-23</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-07</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-07</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>المطوّرون، مسؤولو قاعدة الأطعمة، مراجعو التغذية، الدعم</td></tr>
+<tr><td>مستندات ذات صلة</td><td dir="ltr">MEGO_Food_Database_Documentation, MEGO_Calorie_and_Macronutrient_Calculation_Methodology, MEGO_Portion_and_Measurement_Conversion_Rules, MEGO_Food_Data_Validation_and_Quality_Control</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">مرجع موحّد لكل حقل غذائي يخزّنه MEGO ووحدته وأساسه، وكيفية تمثيل القيمة «غير المعروفة»، وكل وحدة تسجيل يدعمها التطبيق. المصادر: <code dir="ltr">src/lib/types.ts</code> و<code dir="ltr">src/lib/nutrition.ts</code>، وتحويلات الاستيراد من <code dir="ltr">sheetImport.ts</code> و<code dir="ltr">barcode.ts</code> و<code dir="ltr">refFoods.ts</code>.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">بنية Macros</li>
+<li dir="rtl">الأساس: لكل 100 غ</li>
+<li dir="rtl">العناصر الاختيارية و«غير المعروف»</li>
+<li dir="rtl">ربط الحقول بكل مصدر</li>
+<li dir="rtl">العناصر الإضافية (للترتيب فقط)</li>
+<li dir="rtl">وحدات التسجيل</li>
+<li dir="rtl">الدقة والعرض</li>
+<li dir="rtl">حدود التحقق من القيم</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. بنية Macros</h2>
+<pre dir="ltr">interface Macros {
+  kcal: number;      // energy, kilocalories
+  protein: number;   // g
+  carbs: number;     // g
+  fat: number;       // g
+  fiber?: number;    // g    (optional)
+  sugar?: number;    // g    (optional)
+  sodium?: number;   // mg   (optional)
+  satFat?: number;   // g    saturated fat (optional)
+}
+OPTIONAL_NUTRIENTS = ['fiber', 'sugar', 'sodium', 'satFat']</pre>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>الوحدة</th><th>إلزامي</th><th>ملاحظات</th></tr>
+<tr><td dir="ltr">kcal</td><td>سعرة حرارية (kcal)</td><td>نعم</td><td>الطاقة كما نُشرت؛ لا يُعاد حسابها من المغذيات الكبرى</td></tr>
+<tr><td dir="ltr">protein</td><td>غ</td><td>نعم</td><td>البروتين</td></tr>
+<tr><td dir="ltr">carbs</td><td>غ</td><td>نعم</td><td>إجمالي الكربوهيدرات (كما ينشرها المصدر)</td></tr>
+<tr><td dir="ltr">fat</td><td>غ</td><td>نعم</td><td>إجمالي الدهون</td></tr>
+<tr><td dir="ltr">fiber</td><td>غ</td><td>لا</td><td>الألياف الغذائية</td></tr>
+<tr><td dir="ltr">sugar</td><td>غ</td><td>لا</td><td>إجمالي السكريات</td></tr>
+<tr><td dir="ltr">sodium</td><td><b>ملغ</b></td><td>لا</td><td>الحقل الوحيد بالمليغرام</td></tr>
+<tr><td dir="ltr">satFat</td><td>غ</td><td>لا</td><td>الدهون المشبعة</td></tr>
+</table>
+<p dir="rtl">تُستخدم البنية نفسها لقيم <code dir="ltr">per100</code> للطعام، و<code dir="ltr">macros</code> لقيد اليوميات، و<code dir="ltr">totals</code>/<code dir="ltr">perServing</code> للوصفة، وأهداف اليوم (تستخدم الأهداف السعرات والبروتين والكربوهيدرات والدهون فقط).</p>
+
+<h2 dir="rtl">2. الأساس: لكل 100 غ</h2>
+<p dir="rtl">يحمل <code dir="ltr">Food.per100</code> القيم لكل 100 غ من الطعام في حالته المذكورة (نيء أو مطبوخ أو أخرى). للسوائل يبقى الأساس لكل 100 غ، وتُحوَّل المليلترات إلى غرامات عبر <code dir="ltr">gramsPerMl</code> (الكثافة). إذا لم تكن للطعام كثافة يُفترض <b>1 مل = 1 غ</b> ويُعرض ذلك للمستخدم. بيانات USDA «لكل 100 غ من الجزء الصالح للأكل»؛ وقيم Open Food Facts من حقول <code dir="ltr">*_100g</code>؛ وأعمدة المركز هي <code dir="ltr">kcal_100g</code> و<code dir="ltr">protein_100g</code> وغيرها.</p>
+<p dir="rtl">الاستثناء هو الوصفات: أساس قيد الوصفة هو <code dir="ltr">perServing</code> (القيم لكل حصة من الوصفة) ولا تُسجَّل إلا بوحدة <code dir="ltr">serving</code>.</p>
+
+<h2 dir="rtl">3. العناصر الاختيارية و«غير المعروف»</h2>
+<ul dir="rtl">
+<li dir="rtl">العنصر الاختياري ذو القيمة <code dir="ltr">undefined</code> يعني <b>غير معروف</b> — ولا يُعامل أبدًا كصفر.</li>
+<li dir="rtl">التحجيم (<code dir="ltr">scaleMacros</code>) والتقريب يحتفظان بالحقل فقط إذا كان موجودًا في المصدر.</li>
+<li dir="rtl">الجمع (<code dir="ltr">addMacros</code>): إذا امتلك أحد الطرفين العنصر احتواه المجموع، مع احتساب الطرف المفقود صفرًا. لذلك تحتفظ التقارير أيضًا بـ <code dir="ltr">coverage</code>: عدد قيود اليوم التي احتوت فعلًا كل عنصر اختياري، ليُعرف أن المجموع جزئي.</li>
+<li dir="rtl">الحقول الإلزامية (السعرات/البروتين/الكربوهيدرات/الدهون) أرقام دائمًا. الطعام الذي قيمه الأربع كلها 0 يُعدّ <code dir="ltr">incomplete</code> (غير مكتمل).</li>
+</ul>
+
+<h2 dir="rtl">4. ربط الحقول بكل مصدر</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>حقل MEGO</th><th>USDA (عمود usda.json / عنصر FDC)</th><th>Open Food Facts</th><th>Food_Database في المركز</th></tr>
+<tr><td dir="ltr">kcal</td><td dir="ltr">kcal (1008; fallback 2048, 2047)</td><td dir="ltr">energy-kcal_100g, else energy_100g ÷ 4.184</td><td dir="ltr">kcal_100g</td></tr>
+<tr><td dir="ltr">protein</td><td dir="ltr">protein (1003)</td><td dir="ltr">proteins_100g</td><td dir="ltr">protein_100g</td></tr>
+<tr><td dir="ltr">carbs</td><td dir="ltr">carbs (1005)</td><td dir="ltr">carbohydrates_100g</td><td dir="ltr">carbs_100g</td></tr>
+<tr><td dir="ltr">fat</td><td dir="ltr">fat (1004)</td><td dir="ltr">fat_100g</td><td dir="ltr">fat_100g</td></tr>
+<tr><td dir="ltr">fiber</td><td dir="ltr">fiber (1079)</td><td dir="ltr">fiber_100g</td><td dir="ltr">fiber_100g</td></tr>
+<tr><td dir="ltr">sugar</td><td dir="ltr">sugar (2000; fallback 1063)</td><td dir="ltr">sugars_100g</td><td dir="ltr">sugar_100g</td></tr>
+<tr><td dir="ltr">sodium (mg)</td><td dir="ltr">sodiumMg (1093)</td><td>sodium_100g (غ) × 1000، مقرّب</td><td dir="ltr">sodium_mg_100g</td></tr>
+<tr><td dir="ltr">satFat</td><td dir="ltr">satFat (1258)</td><td dir="ltr">saturated-fat_100g</td><td>— (لا يوجد عمود)</td></tr>
+</table>
+<p dir="rtl">يقرّب سكربت البناء قيم USDA إلى منزلتين عشريتين. في usda.json تُكتب القيمة الاختيارية المفقودة <code dir="ltr">null</code> وتُحذف عند التحويل (<code dir="ltr">toRefFood</code>). أرقام المركز تقبل الأرقام العربية الهندية (٠–٩) والفاصلة العشرية مثل «2,6» (تُقرأ 2.6 ويُبلَّغ عنها)؛ أما «1,234» فتُقرأ 1234.</p>
+
+<h2 dir="rtl">5. العناصر الإضافية (للترتيب فقط)</h2>
+<p dir="rtl">يحتوي <code dir="ltr">public/fooddb/usda-extra.json</code> لكل 100 غ: الدهون الأحادية غير المشبعة (MUFA) غ، والمتعددة (PUFA) غ، وALA غ، وEPA غ، وDHA غ، وDPA غ، والكالسيوم ملغ، والحديد ملغ، والمغنيسيوم ملغ، والبوتاسيوم ملغ، والزنك ملغ، وفيتامين A ميكروغرام RAE، وفيتامين E ملغ، وفيتامين C ملغ، وفيتامين B12 ميكروغرام، والفولات ميكروغرام DFE، و11 حمضًا أمينيًا أساسيًا (غ/100 غ طعام: His, Ile, Leu, Lys, Met, Cys, Phe, Tyr, Thr, Trp, Val). تُستخدم فقط في ترتيبات ذكاء الأطعمة ولا تُخزَّن في أطعمة المستخدم أو قيود اليوميات.</p>
+
+<h2 dir="rtl">6. وحدات التسجيل</h2>
+<p dir="rtl"><code dir="ltr">UNITS = ['g', 'kg', 'ml', 'l', 'cup', 'piece', 'slice', 'tbsp', 'tsp', 'serving']</code>. الثوابت: <code dir="ltr">CUP_ML = 240</code>، <code dir="ltr">TBSP_ML = 15</code>، <code dir="ltr">TSP_ML = 5</code>. الكثافة d = <code dir="ltr">gramsPerMl</code> إذا كانت &gt; 0، وإلا 1.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الوحدة</th><th>الغرامات للكمية q</th><th>متاحة عندما</th><th>الخطأ عند الغياب</th></tr>
+<tr><td>غرام (g)</td><td dir="ltr">q</td><td>للطعام per100</td><td>—</td></tr>
+<tr><td>كيلوغرام (kg)</td><td dir="ltr">q × 1000</td><td>للطعام per100</td><td>—</td></tr>
+<tr><td>مليلتر (ml)</td><td dir="ltr">q × d</td><td>للطعام per100</td><td>—</td></tr>
+<tr><td>لتر (l)</td><td dir="ltr">q × 1000 × d</td><td>للطعام per100</td><td>—</td></tr>
+<tr><td>كوب (cup)</td><td dir="ltr">q × 240 × d</td><td>للطعام per100</td><td>—</td></tr>
+<tr><td>ملعقة كبيرة (tbsp)</td><td dir="ltr">q × 15 × d</td><td>للطعام per100</td><td>—</td></tr>
+<tr><td>ملعقة صغيرة (tsp)</td><td dir="ltr">q × 5 × d</td><td>للطعام per100</td><td>—</td></tr>
+<tr><td>حبة/شريحة (piece, slice)</td><td dir="ltr">q × pieceGrams</td><td dir="ltr">pieceGrams &gt; 0</td><td dir="ltr">needsPieceWeight</td></tr>
+<tr><td>حصة (serving) لطعام</td><td>q × غرامات الحصة المختارة (أو أول حصة إن لم تُختر)</td><td>حصة واحدة على الأقل</td><td dir="ltr">needsServing</td></tr>
+<tr><td>حصة (serving) لوصفة</td><td>القيم = perServing × q (لا تُستخدم الغرامات)</td><td>أساس الوصفة فقط — الوحدة الوحيدة</td><td>—</td></tr>
+</table>
+<p dir="rtl">يجب أن تكون الكمية عددًا منتهيًا &gt; 0 (وإلا <code dir="ltr">invalidQuantity</code>). الأساس الذي ليس فيه per100 ولا perServing يرفع <code dir="ltr">needsRecipe</code>. وحدات الحجم تُحوَّل دائمًا عبر الكثافة، ولا يوجد تحويل بين النيء والمطبوخ. تنتج الدالة <code dir="ltr">gramsPerUnit</code> تسميات مثل «1 كوب = 240 غ» (مقرّبة إلى 0.1 غ). القواعد الكاملة والأمثلة في MEGO_Portion_and_Measurement_Conversion_Rules.</p>
+<p dir="rtl"><b>الحصص حسب المصدر</b>: تصبح حصص USDA حصصًا مسمّاة (مثل «1 cup, chopped or diced» = 140 غ)؛ ويعطي <code dir="ltr">serving_quantity</code> من Open Food Facts وزن الحصة؛ ويصبح <code dir="ltr">piece_g</code> في المركز <code dir="ltr">pieceGrams</code>.</p>
+
+<h2 dir="rtl">7. الدقة والعرض</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الدالة</th><th>السعرات</th><th>بروتين/كربوهيدرات/دهون</th><th>الاختيارية</th><th>الاستخدام</th></tr>
+<tr><td dir="ltr">preciseMacros</td><td>0.01</td><td>0.01</td><td>0.01</td><td>القيم المخزنة للقيود والوصفات</td></tr>
+<tr><td dir="ltr">roundMacros</td><td>1 (عدد صحيح)</td><td>0.1</td><td>0.1</td><td>العرض ومجاميع اليوم</td></tr>
+</table>
+<p dir="rtl">يستخدم التقريب <code dir="ltr">Math.round((n + Number.EPSILON) × 10^d) / 10^d</code>. وتُقرَّب الغرامات المسجّلة إلى 0.1 غ.</p>
+
+<h2 dir="rtl">8. حدود التحقق من القيم</h2>
+<p dir="rtl">تُرجع الدالة <code dir="ltr">validateMacros</code> (لقيم كل 100 غ) رموز الأخطاء التالية:</p>
+<ul dir="rtl">
+<li dir="rtl"><code dir="ltr">&lt;field&gt;:nan</code> — حقل إلزامي مفقود أو غير منتهٍ (الاختيارية يمكن أن تكون undefined).</li>
+<li dir="rtl"><code dir="ltr">&lt;field&gt;:negative</code> — أي قيمة أقل من 0.</li>
+<li dir="rtl"><code dir="ltr">macros:over100g</code> — البروتين + الكربوهيدرات + الدهون &gt; 100.5 غ.</li>
+<li dir="rtl"><code dir="ltr">fiber:overCarbs</code> — الألياف &gt; الكربوهيدرات + 0.5 (عندما الكربوهيدرات &gt; 0).</li>
+<li dir="rtl"><code dir="ltr">sugar:overCarbs</code> — السكر &gt; الكربوهيدرات + 0.5.</li>
+<li dir="rtl"><code dir="ltr">kcal:over900</code> — السعرات &gt; 900.5 لكل 100 غ.</li>
+</ul>
+<p dir="rtl">لا يمكن إنشاء طعام يفشل في التحقق (<code dir="ltr">createFood</code>) ولا استيراده من ملف أطعمة مخصصة.</p>
+
+<h2 dir="rtl">9. حالة التحقق</h2>
+<ul dir="rtl">
+<li dir="rtl">مُتحقَّق منه في المستودع: جميع أسماء الحقول والوحدات والثوابت والتحويلات والحدود (منقولة من الشيفرة).</li>
+<li dir="rtl">اختبارات الوحدة (vitest، 109 ناجحة) تغطي محرّك التغذية؛ ولا تُسرد الحالات بعينها هنا.</li>
+<li dir="rtl">غير مُتحقَّق منه: صحة بيانات الطرف الثالث (Open Food Facts) والقيم التي يُدخلها المالك أبعد من الفحوص التلقائية.</li>
+</ul>
+
+<h2 dir="rtl">10. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-07</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

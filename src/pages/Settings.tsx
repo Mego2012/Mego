@@ -421,6 +421,16 @@ function DataCheckCard() {
             <li><span>{t('dc_backup')}</span><b className="num">{r.preUpdate ? `${d(new Date(r.preUpdate.at).toISOString().slice(0, 10))} · ${r.preUpdate.release ?? ''} · ${n(r.preUpdate.entries)}` : '—'}</b></li>
           </ul>
           <div className={`banner small ${r.intact === false ? 'error' : 'info'}`} data-testid="dc-intact">{r.intact === null ? t('dc_noBackup') : r.intact ? t('dc_ok') : t('dc_fewer')}</div>
+          {(r.duplicateEntries.length > 0 || r.duplicateFoods.length > 0) && (
+            <div className="banner info small" data-testid="dc-duplicates">
+              {t('dc_dupTitle', { e: r.duplicateEntries.length, f: r.duplicateFoods.length })}
+              <ul className="tiny" style={{ margin: '4px 0 0', paddingInlineStart: 18 }}>
+                {r.duplicateEntries.slice(0, 30).map((g, i) => <li key={'e' + i}>{d(g.date)} · {t(g.meal)} · {g.name} · {n(g.grams)} {t('g')} × {g.copies}</li>)}
+                {r.duplicateFoods.map((g, i) => <li key={'f' + i}>{t('dc_dupFood')}: {g.name} × {g.copies}</li>)}
+              </ul>
+              <div className="tiny">{t('dc_dupNote')}</div>
+            </div>
+          )}
           {r.suspectFoods.map((f) => (
             <div key={f.id} className="banner error small" data-testid="dc-suspect">
               {t('dc_suspect', { name: f.name, kcal: n(f.kcal), p: n(f.protein, 1) })}

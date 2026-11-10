@@ -21,6 +21,10 @@ export interface DataCheck {
   preUpdate: { at: number; release?: string; entries: number; body: number; days: number; foods: number; recipes: number } | null;
   /** true when every table has at least as many records as in the pre-update backup. */
   intact: boolean | null;
+  /** Diary entries that look entered twice (same day, meal, name and grams) — shown for review, never removed. */
+  duplicateEntries: { date: string; meal: string; name: string; grams: number; copies: number }[];
+  /** Own foods with the same name more than once. */
+  duplicateFoods: { name: string; copies: number }[];
   suspectFoods: { id: string; name: string; kcal: number; protein: number; diaryEntries: number; myRecipes: string[]; libraryRecipes: string[] }[];
 }
 
@@ -51,7 +55,24 @@ export async function runDataCheck(): Promise<DataCheck> {
     myRecipes: recipes.filter((r) => r.ingredients.some((i) => i.foodId === f.id)).map((r) => r.name),
     libraryRecipes: LIBRARY.filter((l) => l.ingredients.some((i) => i[0] === f.nameAr)).map((l) => l.nameAr)
   }));
+  const groups = new Map<string, { date: string; meal: string; name: string; grams: number; copies: number }>();
+  for (const e of entries) {
+    if (e.deleted) continue;
+    const k = `${e.date}|${e.meal}|${e.name.trim().toLowerCase()}|${Math.round(e.grams)}`;
+    const g = groups.get(k);
+    if (g) g.copies++; else groups.set(k, { date: e.date, meal: e.meal, name: e.name, grams: Math.round(e.grams), copies: 1 });
+  }
+  const duplicateEntries = [...groups.values()].filter((g) => g.copies > 1).sort((a, b) => b.date.localeCompare(a.date));
+  const fg = new Map<string, { name: string; copies: number }>();
+  for (const f of foods) {
+    if (f.archived || f.source === 'sheet' || f.source === 'usda') continue;
+    const name = (f.nameAr || f.nameEn).trim();
+    const g = fg.get(name.toLowerCase());
+    if (g) g.copies++; else fg.set(name.toLowerCase(), { name, copies: 1 });
+  }
+  const duplicateFoods = [...fg.values()].filter((g) => g.copies > 1);
   return {
+    duplicateEntries, duplicateFoods,
     counts, firstEntry: dates[0] ?? null, lastEntry: dates[dates.length - 1] ?? null,
     targets: settings ? { training: settings.targets.training.kcal, rest: settings.targets.rest.kcal } : null,
     preUpdate, intact, suspectFoods

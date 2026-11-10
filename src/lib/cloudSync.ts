@@ -94,6 +94,15 @@ async function applyRemote(table: SyncTable, key: string, rec: { data: string; u
   if (rec.deleted) { if (local) await t.delete(table === 'foodChanges' ? Number(key) : key); return; }
   let value: Record<string, unknown>;
   try { value = JSON.parse(rec.data); } catch { return; }
+  if (table === 'body') {
+    // one measurement per date on this device (unique index): when the same date exists under another id (entered
+    // again after a data loss), the newer one is shown here; the other stays untouched in the cloud
+    const other = await db.body.where('date').equals(String(value.date)).first();
+    if (other && other.id !== key) {
+      if ((other.updatedAt ?? 0) >= rec.updatedAt) return;
+      await db.body.delete(other.id);
+    }
+  }
   if (table === 'settings') {
     const cur = await db.settings.get('main');
     await db.settings.put({ ...(value as unknown as Settings), id: 'main', sync: cur?.sync ?? (value as unknown as Settings).sync });
@@ -131,7 +140,8 @@ async function listen() {
       for (const ch of snap.docChanges()) {
         if (ch.type === 'removed') continue;
         const rec = ch.doc.data() as { data: string; updatedAt: number; deleted?: boolean };
-        await applyRemote(table, ch.doc.id, rec);
+        // one record that cannot be applied must never stop the rest of the download
+        try { await applyRemote(table, ch.doc.id, rec); } catch (e) { reportError('sync-apply', `${table}/${ch.doc.id}: ${(e as Error).message}`); }
         setLast(table, rec.updatedAt);
       }
     }, (e) => { setStatus({ state: 'error', error: e.message }); }));

@@ -35,6 +35,14 @@ try {
   await p.getByTestId('fe-save').click(); await p.getByTestId('qty-input').fill('200'); await p.getByTestId('qty-submit').click(); await p.keyboard.press('Escape');
   await p.waitForTimeout(6000); // let the outbox reach the cloud and the listener advance its markers
   console.log('before loss: entries', await entries(), '· target', await kcalTarget());
+  // the SECOND loss of a user who re-entered data after the first one: the cloud holds the old copy and the
+  // re-entered copy (other ids), including two weigh-ins for the same date (unique per date on the device)
+  const uidNow = await p.evaluate(() => localStorage.getItem('mego.activeUid'));
+  const put = (table, id, obj) => fetch(`http://127.0.0.1:8080/v1/projects/demo-mego/databases/(default)/documents/users/${uidNow}/${table}/${id}`, { method: 'PATCH', headers: { Authorization: 'Bearer owner', 'content-type': 'application/json' }, body: JSON.stringify({ fields: { data: { stringValue: JSON.stringify(obj) }, updatedAt: { integerValue: String(obj.updatedAt) } } }) }).then((r) => r.status);
+  const t0 = Date.now() - 86400000 * 3;
+  const w = { date: '2026-11-01', notes: '', createdAt: t0, waist: 82 };
+  console.log('cloud seed', await put('body', 'w-old', { ...w, id: 'w-old', weight: 80.4, updatedAt: t0 }), await put('body', 'w-new', { ...w, id: 'w-new', weight: 80.1, updatedAt: t0 + 1000 }),
+    await put('entries', 'e-old', { id: 'e-old', date: '2026-11-01', meal: 'dinner', name: 'Old dinner', state: 'cooked', quantity: 100, unit: 'g', grams: 100, basis: 'cooked', macros: { kcal: 200, protein: 20, carbs: 10, fat: 5 }, order: 0, createdAt: t0, updatedAt: t0 }));
   // the incident: IndexedDB (records + Firebase session) is gone, localStorage survives
   await p.evaluate(async () => { for (const d of await indexedDB.databases()) await new Promise((r) => { const q = indexedDB.deleteDatabase(d.name); q.onsuccess = q.onerror = q.onblocked = r; }); });
   await p.goto(BASE); await p.reload();
@@ -43,9 +51,12 @@ try {
   await p.getByTestId('login-submit').click(); await p.getByTestId('dashboard').waitFor();
   await p.waitForTimeout(8000);
   const n = await entries(), k = await kcalTarget();
+  const weight = await p.evaluate(() => new Promise((res) => { const r = indexedDB.open('mego-u-' + localStorage.getItem('mego.activeUid')); r.onsuccess = () => { const q = r.result.transaction('body').objectStore('body').getAll(); q.onsuccess = () => res(q.result.map((b) => b.date + ':' + b.weight).join(',')); }; }));
+  console.log('after sign-in: weigh-ins', weight, '(newer copy of 2026-11-01 expected: 80.1)');
+  if (!weight.includes('2026-11-01:80.1') || n < 2) failed = true;
   await p.goto(BASE + '#/diary'); const text = await p.getByTestId('diary').innerText();
   console.log('after sign-in: entries', n, '· target', k, '· food visible in diary', text.includes(FOOD));
-  if (!(n >= 1 && k === 2110 && text.includes(FOOD))) { failed = true; console.log('RESULT: data NOT recovered'); } else console.log('RESULT: data recovered');
+  if (!(n >= 2 && k === 2110 && text.includes(FOOD))) { failed = true; console.log('RESULT: data NOT recovered'); } else console.log('RESULT: data recovered');
 } catch (e) { failed = true; console.log('ERROR', String(e.message).split('\n')[0]); await p.screenshot({ path: path.join(ROOT, 'e2e', 'storage-loss-fail.png') }); }
 await browser.close(); server.kill();
 process.exit(failed ? 1 : 0);

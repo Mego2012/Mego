@@ -34,7 +34,7 @@
 /** The original Hub file (Excel). Kept untouched as the backup after conversion. */
 var SOURCE_ID = '1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI';
 var HUB_NAME = 'MEGO Nutrition Hub';
-var SCRIPT_VERSION = 6;
+var SCRIPT_VERSION = 7;
 /**
  * One-time automated install (scripts/laptop-setup.mjs). Empty in the public repository = disabled.
  * The laptop setup writes the SHA-256 of a random secret here only in YOUR private copy of the script; the
@@ -809,7 +809,7 @@ var AI_TEMPORARY = ['AI_OVERLOADED', 'AI_SERVER_ERROR', 'AI_TIMEOUT', 'AI_NETWOR
 
 /**
  * One generateContent call with retries: temporary errors are retried with exponential backoff (2 s, 4 s) on the
- * same model; if the model stays overloaded/failing, the next FREE Flash model in AI_FREE_MODELS is tried (same
+ * same model (except 503 overloaded, which moves on at once); if the model stays failing, the next FREE Flash model in AI_FREE_MODELS is tried (same
  * provider, same free tier — never a paid model). Returns { ok, model, out } or the last mapped error with `tried`.
  */
 function geminiGenerate_(key, body, deadlineMs) {
@@ -840,6 +840,9 @@ function geminiGenerate_(key, body, deadlineMs) {
       tried.push(model + ':' + code);
       console.warn('Gemini ' + model + ' → ' + code + ' ' + (last.google ? last.google.status + ' ' + last.google.message : ''));
       if (AI_TEMPORARY.indexOf(last.error) < 0) { last.tried = tried; return last; } // quota, key, config: never retried
+      // "overloaded" (503) is per model and lasts minutes (seen live: 3 × 503 in a row, ~20 s each), so waiting on the
+      // same model only costs time: go straight to the next free model. Other temporary errors keep the backoff.
+      if (last.error === 'AI_OVERLOADED' && i < models.length - 1) break;
       if (attempt < 2) Utilities.sleep(2000 * Math.pow(2, attempt));
     }
   }

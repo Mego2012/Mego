@@ -283,7 +283,7 @@ describe('MEGO Nutrition Hub backend (real Code.gs v3 on an emulated Hub)', () =
     expect(gas.post({ action: 'ping', token: 'bad' })).toEqual({ ok: false, error: 'unauthorized' });
     expect(gas.post({ action: 'ping' }).error).toBe('unauthorized');
     const ping = gas.post({ action: 'ping', token: 'tok' });
-    expect(ping).toMatchObject({ ok: true, spreadsheetId: HUB_ID, sourceId: HUB_ID, mode: 'xlsx', writable: false, scriptVersion: 6 });
+    expect(ping).toMatchObject({ ok: true, spreadsheetId: HUB_ID, sourceId: HUB_ID, mode: 'xlsx', writable: false, scriptVersion: 7 });
     const before = JSON.stringify(gas.sheet('قاعدة بيانات الأطعمة').data);
     const foods = gas.post({ action: 'foods', token: 'tok' });
     expect(foods).toMatchObject({ ok: true, structured: false, readOnly: true });

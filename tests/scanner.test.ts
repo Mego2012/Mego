@@ -413,21 +413,29 @@ describe('AI "busy" root cause: precise errors, retries, fallback, no wasted quo
   }
   const k = { GEMINI_API_KEY: KEY };
 
-  it('temporary 503 is retried on the same model and succeeds; only the success is counted', async () => {
-    const g = seq({ 'gemini-3.8-flash': [503, 503] });
+  it('temporary 500 is retried on the same model and succeeds; only the success is counted', async () => {
+    const g = seq({ 'gemini-3.8-flash': [500, 500] });
     gas = createGas({ token: TOKEN, scriptProps: k, ai: g.fn });
     const { result } = await scan('salad');
     expect(result.items.length).toBeGreaterThan(0);
     expect(g.calls).toEqual(['gemini-3.8-flash', 'gemini-3.8-flash', 'gemini-3.8-flash']);
     expect(Number(gas.props.get('AI_USED_' + new Date().toISOString().slice(0, 10)))).toBe(1);
   });
-  it('a model that stays overloaded falls back to the next FREE Flash model', async () => {
+  it('an overloaded model (503) moves straight to the next FREE Flash model, without waiting on the same one', async () => {
     const g = seq({ 'gemini-3.8-flash': [503, 503, 503] });
     gas = createGas({ token: TOKEN, scriptProps: k, ai: g.fn });
     const r = gas.post({ action: 'analyzeMeal', token: TOKEN, image: IMG, foods: buildCatalog(foods).lines, lang: 'en', note: 'SCENARIO:salad' }) as { ok: boolean; model: string; tried: string[] };
     expect(r.ok, JSON.stringify(r).slice(0, 300)).toBe(true);
     expect(r.model).toBe('gemini-3.6-flash');
-    expect(r.tried).toEqual(['gemini-3.8-flash:503', 'gemini-3.8-flash:503', 'gemini-3.8-flash:503']);
+    expect(r.tried).toEqual(['gemini-3.8-flash:503']);
+    expect(g.calls).toEqual(['gemini-3.8-flash', 'gemini-3.6-flash']);
+  });
+  it('when every free model is overloaded, the last one still gets its retries before AI_OVERLOADED', async () => {
+    const g = seq({ 'gemini-3.8-flash': [503], 'gemini-3.6-flash': [503], 'gemini-3.5-flash-lite': [503, 503, 503] });
+    gas = createGas({ token: TOKEN, scriptProps: k, ai: g.fn });
+    const e = await errOf(scan('salad')) as ScanError;
+    expect(e.code).toBe('AI_OVERLOADED');
+    expect(g.calls).toEqual(['gemini-3.8-flash', 'gemini-3.6-flash', 'gemini-3.5-flash-lite', 'gemini-3.5-flash-lite', 'gemini-3.5-flash-lite']);
   });
   it('500 → AI_SERVER_ERROR, 504 → AI_TIMEOUT, other 400 → AI_CONFIG with Google\'s own message; failures do not use quota', async () => {
     for (const [code, want] of [[500, 'AI_SERVER_ERROR'], [504, 'AI_TIMEOUT']] as const) {

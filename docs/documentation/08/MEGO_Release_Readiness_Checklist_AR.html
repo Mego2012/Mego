@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Release_Readiness_Checklist_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — قائمة التحقق من جاهزية الإصدار</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-66</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع، المطورون، مسؤول الإصدار</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Build_and_Release_Procedures، MEGO_Production_Verification_Checklist، MEGO_Update_and_Rollback_Procedures، MEGO_Testing_Strategy، MEGO_Known_Bugs_and_Limitations، MEGO_Android_Device_Testing، MEGO_Data_Backup_and_Recovery</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تُستخدم هذه القائمة قبل كل إصدار من MEGO وبعده لتقرير ما إذا كان يمكن نشر الإصدار. تسرد البوابات الإلزامية (جودة الكود، الاختبارات الآلية، سلامة البيانات، الأمان، الخادم الخلفي، التوثيق)، وفحوص ما بعد النشر، والاعتماد النهائي. يعرض العمود الأخير حالة الكود الحالي (الإصدار 1.3 مع إكمال قاعدة الأطعمة في 10 نوفمبر 2026). لا يُنشر الإصدار إلا عندما يكون كل بند <b>مانع</b> ✅ أو يقبله المالك صراحةً.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">طريقة استخدام القائمة</li>
+<li dir="rtl">البوابة A — الكود والبناء</li>
+<li dir="rtl">البوابة B — الاختبارات الآلية</li>
+<li dir="rtl">البوابة C — سلامة البيانات</li>
+<li dir="rtl">البوابة D — الأمان والخصوصية</li>
+<li dir="rtl">البوابة E — الخادم الخلفي والخدمات</li>
+<li dir="rtl">البوابة F — بعد النشر</li>
+<li dir="rtl">البوابة G — بنود الإطلاق العام</li>
+<li dir="rtl">الاعتماد</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. طريقة استخدام القائمة</h2>
+<ol dir="rtl">
+<li dir="rtl">انسخ الجداول إلى ملاحظات الإصدار أو أشّر عليها في نسخة من هذه الوثيقة.</li>
+<li dir="rtl">نفّذ البوابات بالترتيب A ← F. فشل أي بند مانع يوقف الإصدار.</li>
+<li dir="rtl">النشر تلقائي: الدفع إلى <code dir="ltr">claude/nutrition-tracking-app-989rku</code> (أو <code dir="ltr">main</code>) يشغّل <code dir="ltr">.github/workflows/deploy.yml</code> ← <code dir="ltr">npm ci</code> و<code dir="ltr">npm test</code> و<code dir="ltr">npm run build</code> ← GitHub Pages. إذا فشلت الاختبارات أو البناء لا يُنشر شيء.</li>
+<li dir="rtl">التراجع (Rollback): انظر MEGO_Update_and_Rollback_Procedures.</li>
+</ol>
+<p dir="rtl">المفتاح: ✅ مُنجز/ناجح · ⏳ معلّق · ❌ فاشل · B = مانع لأي إصدار · L = مانع للإطلاق العام فقط.</p>
+
+<h2 dir="rtl">2. البوابة A — الكود والبناء</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>الفحص</th><th>الأمر / الدليل</th><th>النوع</th><th>الحالة الحالية</th></tr>
+<tr><td>A1</td><td>TypeScript يُترجَم دون أخطاء</td><td><code dir="ltr">npx tsc -b</code></td><td>B</td><td>لم يُعَد لهذه الوثيقة</td></tr>
+<tr><td>A2</td><td>نجاح البناء الإنتاجي</td><td><code dir="ltr">npm run build</code> (وفي CI أيضًا)</td><td>B</td><td>✅ (لا ينشر CI إلا عند النجاح)</td></tr>
+<tr><td>A3</td><td>لا أخطاء جديدة في وحدة التحكم/الصفحة على الشاشات الرئيسية</td><td>مجموعات المتصفح تسجّل <code dir="ltr">pageerror</code></td><td>B</td><td>✅ وفق آخر التشغيلات</td></tr>
+<tr><td>A4</td><td>تحديث معرّف الإصدار عند تغييرات نموذج البيانات التي تحتاج نسخة احتياطية قبل التحديث</td><td><code dir="ltr">APP_RELEASE</code> في <code dir="ltr">src/lib/localBackup.ts</code> (حاليًا <code dir="ltr">'1.3-training'</code>)</td><td>B</td><td>✅</td></tr>
+<tr><td>A5</td><td>مفاتيح الترجمة كاملة بالعربية والإنجليزية</td><td><code dir="ltr">tests/i18n-keys.test.ts</code>، <code dir="ltr">i18n-parity.test.ts</code></td><td>B</td><td>✅</td></tr>
+</table>
+
+<h2 dir="rtl">3. البوابة B — الاختبارات الآلية</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>المجموعة</th><th>الأمر</th><th>المطلوب</th><th>آخر نتيجة</th></tr>
+<tr><td>B1</td><td>الوحدة</td><td><code dir="ltr">npm test</code></td><td>نجاح الكل</td><td>✅ ‏199/199، 14 ملفًا (تشغيل 10 نوفمبر 2026)</td></tr>
+<tr><td>B2</td><td>قبول المتصفح</td><td><code dir="ltr">npm run e2e</code></td><td>57/57</td><td>✅ ‏57/57</td></tr>
+<tr><td>B3</td><td>التمرير باللمس</td><td><code dir="ltr">npm run e2e:scroll</code></td><td>103/103</td><td>✅ ‏103/103</td></tr>
+<tr><td>B4</td><td>قواعد Firestore + المزامنة السحابية</td><td><code dir="ltr">npm run test:rules</code></td><td>14/14 (عند تغيير القواعد أو كود المزامنة)</td><td>✅ ‏14/14</td></tr>
+<tr><td>B5</td><td>تعدد المستخدمين</td><td><code dir="ltr">npm run e2e:multi</code></td><td>8/8 (عند تغيير الحسابات/المشرف/وسيط الذكاء الاصطناعي)</td><td>✅ ‏8/8</td></tr>
+<tr><td>B6</td><td>الاستعادة بعد فقدان التخزين</td><td><code dir="ltr">firebase emulators:exec … "node e2e/storage-loss.mjs"</code></td><td>«data recovered» (عند تغيير كود المزامنة)</td><td>✅ ينجح بعد إصلاح 10 نوفمبر</td></tr>
+<tr><td>B7</td><td>إعداد الحاسوب المحمول</td><td><code dir="ltr">npm run e2e:laptop</code></td><td>10/10 (عند تغيير سكربت الإعداد أو Code.gs)</td><td>✅ ‏10/10</td></tr>
+<tr><td>B8</td><td>إكمال أطعمة Hub</td><td><code dir="ltr">node e2e/hub-complete-test.mjs</code></td><td>9/9 (عند تغيير ذلك الأمر أو Code.gs)</td><td>✅ ‏9/9</td></tr>
+<tr><td>B9</td><td>مسار الترقية (فقط عند تغيير مخطط التخزين)</td><td><code dir="ltr">node e2e/migration-test.mjs &lt;dir&gt;</code></td><td>بقاء البيانات؛ ووجود نسخة ما قبل الترحيل</td><td>غير مطلوب حاليًا (مخطط Dexie ما زال v2)</td></tr>
+</table>
+
+<h2 dir="rtl">4. البوابة C — سلامة البيانات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>الفحص</th><th>النوع</th><th>الحالة الحالية</th></tr>
+<tr><td>C1</td><td>الميزات الجديدة لا تغيّر السجلات الموجودة أبدًا (اختبارات «تضيف سجلات فقط / السجلات الموجودة دون مساس»)</td><td>B</td><td>✅ (اختبارات cardio-goals وworkouts وlibrary-foods)</td></tr>
+<tr><td>C2</td><td>نسخة احتياطية واحدة قبل التحديث لكل إصدار، محمية من التدوير اليومي</td><td>B</td><td>✅ مختبَرة</td></tr>
+<tr><td>C3</td><td>النسخ الاحتياطي ← الاستعادة إلى قاعدة فارغة يعمل</td><td>B</td><td>✅ مختبَر</td></tr>
+<tr><td>C4</td><td>الاستعادة بعد فقدان قاعدة البيانات المحلية: تسجيل الدخول مجددًا يعيد الحساب</td><td>B</td><td>✅ سيناريو المحاكي + تأكيد المالك</td></tr>
+<tr><td>C5</td><td>القيم الناقصة لا تُختلق أبدًا (الأطعمة غير المكتملة، اللبنة، الأحماض الأمينية)</td><td>B</td><td>✅ مختبَر</td></tr>
+<tr><td>C6</td><td>الكتابة في Hub: نسخة احتياطية يومية في Drive قبل الكتابة؛ وملف Excel الأصلي دون مساس</td><td>B</td><td>✅ مختبَر على gas-mock</td></tr>
+</table>
+
+<h2 dir="rtl">5. البوابة D — الأمان والخصوصية</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>الفحص</th><th>النوع</th><th>الحالة الحالية</th></tr>
+<tr><td>D1</td><td>لا أسرار في المستودع (مفاتيح API، رموز، رابط /exec، رموز اتصال)؛ ولا يُنشر إلا إعداد Firebase العام للويب</td><td>B</td><td>✅ وفق آخر فحص للأسرار (7 نوفمبر) — يُعاد قبل كل إصدار</td></tr>
+<tr><td>D2</td><td>جدول الأطعمة الخاص خارج Git ‏(<code dir="ltr">tests/private/</code> مستثنى)</td><td>B</td><td>✅</td></tr>
+<tr><td>D3</td><td>قواعد Firestore المنشورة تطابق <code dir="ltr">firebase/firestore.rules</code></td><td>B</td><td>✅ نُشرت في 7 نوفمبر؛ يُعاد النشر عند التغيير</td></tr>
+<tr><td>D4</td><td>ماسح الذكاء الاصطناعي يستخدم نماذج Gemini المجانية فقط؛ والمفتاح في Script Properties فقط</td><td>B</td><td>✅ مختبَر</td></tr>
+<tr><td>D5</td><td>تدوير مفتاح Gemini ورابط اتصال الخادم بعد ظهورهما في محادثة</td><td>L</td><td>⏳ موصى به، إجراء من المالك</td></tr>
+<tr><td>D6</td><td>إزالة الإيداعات العامة القديمة التي تحوي ملف الأطعمة من ذاكرة GitHub</td><td>L</td><td>⏳ الطلب جاهز (<code dir="ltr">docs/GITHUB-SUPPORT-REQUEST.md</code>)</td></tr>
+</table>
+
+<h2 dir="rtl">6. البوابة E — الخادم الخلفي والخدمات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>الفحص</th><th>النوع</th><th>الحالة الحالية</th></tr>
+<tr><td>E1</td><td>إذا تغيّر <code dir="ltr">apps-script/Code.gs</code>: النشر بالأمر <code dir="ltr">git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend</code> (الرابط نفسه، البيانات دون مساس)</td><td>B</td><td>الكود عند إصدار الخادم 8؛ أما تشغيل النشر الحي للإصدار 8 فغير مُتحقَّق منه</td></tr>
+<tr><td>E2</td><td>تشخيص الذكاء الاصطناعي بعد تحديث الخادم (فحص <code dir="ltr">aiDiag</code> لكل نموذج عبر إعداد الحاسوب)</td><td>B (إن انطبق E1)</td><td>غير مُتحقَّق منه للإصدار 8</td></tr>
+<tr><td>E3</td><td>إعداد Firebase متاح على <code dir="ltr">/firebase-config.json</code> في الموقع الحي</td><td>B</td><td>✅ (يعمل منذ 7 نوفمبر)</td></tr>
+</table>
+
+<h2 dir="rtl">7. البوابة F — بعد النشر</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>الفحص</th><th>الأمر</th><th>آخر تسجيل</th></tr>
+<tr><td>F1</td><td>نجاح مهمة النشر في GitHub Actions</td><td>تبويب Actions في المستودع</td><td>لم يُفحص مجددًا لهذه الوثيقة</td></tr>
+<tr><td>F2</td><td>مجموعة المتصفح على الرابط الحي</td><td><code dir="ltr">E2E_BASE=https://mego2012.github.io/Mego/ npm run e2e</code></td><td>44/44 (7 نوفمبر)؛ الـ 57 كاملة غير مسجلة على الحي</td></tr>
+<tr><td>F3</td><td>مجموعة اللمس على الرابط الحي</td><td><code dir="ltr">node e2e/scroll-test.mjs https://mego2012.github.io/Mego/</code></td><td>103/103</td></tr>
+<tr><td>F4</td><td>التحقق على الإنتاج بحسابات مؤقتة</td><td><code dir="ltr">node scripts/live-verify.mjs</code></td><td>14/14 (7 نوفمبر)؛ النسخة المحدَّثة غير مسجلة</td></tr>
+<tr><td>F5</td><td>صفحات التمارين على الموقع الحي</td><td>فحص EX-GUIDE على الرابط الحي</td><td>54/54 (10 نوفمبر)</td></tr>
+<tr><td>F6</td><td>صورة وجبة حقيقية عبر التطبيق الحي</td><td>يدوي، بحساب مؤقت</td><td>✅ ≈ 64 ثانية، 4 عناصر (10 نوفمبر)</td></tr>
+<tr><td>F7</td><td>فتح التطبيق على هاتف المالك والتأكد من سلامة يوميات اليوم</td><td>يدوي</td><td>استخدام يومي من المالك (ليس اختبارًا مسجَّلًا)</td></tr>
+</table>
+
+<h2 dir="rtl">8. البوابة G — بنود الإطلاق العام</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>البند</th><th>الحالة</th></tr>
+<tr><td>G1</td><td>إكمال قائمة فحص جهاز أندرويد الحقيقي (<code dir="ltr">docs/ANDROID-TEST.md</code>) وتسجيلها</td><td>⏳ لم تُنفَّذ</td></tr>
+<tr><td>G2</td><td>إنشاء حساب المشرف (التسجيل ثم <code dir="ltr">--cloud &lt;e-mail&gt;</code> مرة أخرى)</td><td>⏳ بانتظار المالك</td></tr>
+<tr><td>G3</td><td>مراجعة سياسة الخصوصية والشروط من مختص قانوني مؤهل (<code dir="ltr">docs/LEGAL-REVIEW.md</code>)</td><td>⏳ مسودات</td></tr>
+<tr><td>G4</td><td>البندان D5 وD6 أعلاه</td><td>⏳</td></tr>
+<tr><td>G5</td><td>مراجعة الأخطاء المعروفة والقيود وقبولها (MEGO_Known_Bugs_and_Limitations)</td><td>⏳ مراجعة المالك</td></tr>
+</table>
+<p dir="rtl"><b>الجاهزية الحالية:</b> التطبيق يعمل مباشرة ويستخدمه المالك يوميًا؛ والبوابات A–C ناجحة وفق آخر التشغيلات المسجلة. <b>الإطلاق العام غير جاهز</b> حتى تكتمل البوابة G.</p>
+
+<h2 dir="rtl">9. الاعتماد</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الدور</th><th>الاسم</th><th>التاريخ</th><th>القرار (نشر / عدم نشر)</th></tr>
+<tr><td>مالك المشروع</td><td></td><td></td><td></td></tr>
+<tr><td>المطوّر (المُعِد)</td><td></td><td></td><td></td></tr>
+</table>
+
+<h2 dir="rtl">10. حالة التحقق</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>مُتحقَّق منه لهذه الوثيقة:</b> مجموعة الوحدة 199/199 (14 ملفًا) في 10 نوفمبر 2026؛ خطوات سير عمل CI؛ قيمة <code dir="ltr">APP_RELEASE</code>؛ إصدار مخطط Dexie ‏2.</li>
+<li dir="rtl"><b>آخر نتائج مسجلة (لم تُعَد هنا):</b> e2e ‏57/57، اللمس 103/103، القواعد 14/14، تعدد المستخدمين 8/8، إعداد الحاسوب 10/10، إكمال أطعمة Hub ‏9/9، سيناريو فقدان التخزين، والفحوص الحية في البوابة F.</li>
+<li dir="rtl"><b>غير مُتحقَّق منه:</b> إصدار الخادم الحي؛ حالة تشغيل CI الحالية؛ تشغيل حي كامل لمجموعة الـ 57 فحصًا ولنسخة التحقق المباشر المحدَّثة.</li>
+</ul>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

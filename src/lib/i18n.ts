@@ -44,7 +44,7 @@ const en: Dict = {
   history: 'Change history', version: 'Version', duplicateFood: 'A food with the same name and raw/cooked state already exists.',
   invalidValues: 'Please check the nutrition values.', importExport: 'Import / export', importFile: 'Import CSV / Excel',
   exportCSV: 'Export CSV', exportXLSX: 'Export Excel', exportPDF: 'Print / save PDF', issues: 'Data issues', flagged: 'Flagged',
-  issue_zeroValues: 'No nutrition values (0/0/0/0)', issue_energyMismatch: 'Calories don’t match macros (>15%)', issue_duplicateName: 'Duplicate name',
+  issue_zeroValues: 'No nutrition values (0/0/0/0)', issue_energyMismatch: 'Calories don’t match macros (≥10%)', issue_duplicateName: 'Duplicate name',
   issue_flaggedInNotes: 'Marked unverified/estimated in notes', issue_over100g: 'Macros exceed 100 g', foodCount: '{n} foods',
   importPreview: 'Import preview', importNow: 'Import', importDone: 'Imported: {added} new, {updated} updated, {unchanged} unchanged. Nothing was deleted.',
   // recipes
@@ -151,7 +151,7 @@ const ar: Dict = {
   history: 'سجل التغييرات', version: 'الإصدار', duplicateFood: 'يوجد طعام بنفس الاسم ونفس الحالة (نيء/مطبوخ).',
   invalidValues: 'يرجى التحقق من القيم الغذائية.', importExport: 'استيراد / تصدير', importFile: 'استيراد CSV / Excel',
   exportCSV: 'تصدير CSV', exportXLSX: 'تصدير Excel', exportPDF: 'طباعة / حفظ PDF', issues: 'ملاحظات جودة البيانات', flagged: 'عليه ملاحظة',
-  issue_zeroValues: 'بدون قيم غذائية (0/0/0/0)', issue_energyMismatch: 'السعرات لا تطابق الماكروز (>15%)', issue_duplicateName: 'اسم مكرر',
+  issue_zeroValues: 'بدون قيم غذائية (0/0/0/0)', issue_energyMismatch: 'السعرات لا تطابق الماكروز (≥10%)', issue_duplicateName: 'اسم مكرر',
   issue_flaggedInNotes: 'مُعلَّم كغير محقق/تقديري في الملاحظات', issue_over100g: 'مجموع الماكروز أكثر من 100غ', foodCount: '{n} طعام',
   importPreview: 'معاينة الاستيراد', importNow: 'استيراد', importDone: 'تم الاستيراد: {added} جديد، {updated} محدَّث، {unchanged} بدون تغيير. لم يُحذف أي شيء.',
   newRecipe: 'وصفة جديدة', recipeName: 'اسم الوصفة', servings: 'عدد الحصص', ingredients: 'المكونات', addIngredient: 'إضافة مكوّن',

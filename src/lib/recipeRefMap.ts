@@ -3,7 +3,7 @@
  * Used ONLY when the user's own food list has no food with that exact Arabic name. State is matched to how the
  * recipe weighs the ingredient (e.g. "أرز أبيض" is dry weight, "أرز أبيض مطبوخ" cooked; "…نيء/جاف" is dry/raw). `null` = no reliable
  * USDA equivalent exists → the ingredient is shown as missing and its nutrition is never estimated.
- * Every id was checked against public/fooddb/usda.json (tests/recipes-ref.test.ts verifies they exist).
+ * Every id was checked against public/fooddb/usda.json (tests/cardio-goals.test.ts verifies they exist).
  */
 export const RECIPE_REF: Record<string, string | null> = {
   'زيت زيتون': 'S171413',            // Oil, olive, salad or cooking

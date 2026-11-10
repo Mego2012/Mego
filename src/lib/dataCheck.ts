@@ -67,8 +67,9 @@ export async function runDataCheck(): Promise<DataCheck> {
   for (const f of foods) {
     if (f.archived || f.source === 'sheet' || f.source === 'usda') continue;
     const name = (f.nameAr || f.nameEn).trim();
-    const g = fg.get(name.toLowerCase());
-    if (g) g.copies++; else fg.set(name.toLowerCase(), { name, copies: 1 });
+    const k = name.toLowerCase() + '|' + f.state; // a raw and a cooked food with the same name are different foods
+    const g = fg.get(k);
+    if (g) g.copies++; else fg.set(k, { name, copies: 1 });
   }
   const duplicateFoods = [...fg.values()].filter((g) => g.copies > 1);
   return {

@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Multi_User_Testing_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Multi-User Testing</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-63</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Developers, testers, administrators, project owner</td></tr>
+<tr><td>Related documents</td><td>MEGO_Testing_Strategy, MEGO_Integration_Testing, MEGO_Access_Control_and_Permissions, MEGO_Authentication_and_Authorization_Architecture, MEGO_Admin_User_Manual, MEGO_Production_Verification_Checklist</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>MEGO is a public multi-user app: each person registers an account (Firebase Email/Password) and their records are stored under their own user id in Cloud Firestore. This document describes how the guarantees of a multi-user system are tested — data isolation, simultaneous devices, administrator limits, suspension, per-user AI limits, password reset and account deletion — at three levels: security rules on emulators, real browsers against emulators, and production.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Multi-user guarantees under test</li>
+<li>Level 1 — security rules and SDK sync (emulators)</li>
+<li>Level 2 — browser multi-user suite (e2e/multiuser-test.mjs)</li>
+<li>Level 3 — production verification (scripts/live-verify.mjs)</li>
+<li>Coverage matrix</li>
+<li>Running the tests</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Multi-user guarantees under test</h2>
+<ol>
+<li>A user can read and write only their own records; changing the user id in a request does not help; signed-out requests are refused.</li>
+<li>Each account has a separate local database on the device (<code>mego-u-&lt;uid&gt;</code>), so data of one account never appears in another.</li>
+<li>Several devices of the same account receive changes live; an older offline copy never overwrites a newer one.</li>
+<li>An administrator sees account cards and counts but never private records; can suspend or reactivate but change nothing else; nobody can make themselves an administrator.</li>
+<li>A suspended user is blocked by the server and sees the suspended screen.</li>
+<li>Shared foods: everyone reads, only administrators write; user submissions wait for review.</li>
+<li>AI meal scanning is limited per user per day, plus a global daily cap.</li>
+<li>Deleting an account removes its login, profile and records and leaves other users untouched.</li>
+</ol>
+
+<h2>2. Level 1 — security rules and SDK sync (emulators)</h2>
+<p><code>tests-rules/rules.test.ts</code> (10 tests) seeds three users (alice, bob, carol) and one administrator and checks every rule above with <code>assertSucceeds</code>/<code>assertFails</code> against Google's Firestore emulator running the real <code>firebase/firestore.rules</code>. <code>tests-rules/cloud.test.ts</code> (4 tests) uses the app's real sync code with the Firebase SDK: registration with age confirmation, records only under the own uid, a second device of the same user receiving data live while other users' data never appears, and the older-copy rule. Result: <b>14/14</b>. Details in MEGO_Integration_Testing.</p>
+
+<h2>3. Level 2 — browser multi-user suite (e2e/multiuser-test.mjs)</h2>
+<h3>3.1 Environment</h3>
+<ul>
+<li>Several isolated Chromium contexts with the Playwright "Pixel 7" profile = several phones used at the same time (Alice in Arabic, Bob in English, Carol registered from country DE).</li>
+<li>The built app served by <code>vite preview</code> (port 4188) with a demo Firebase config pointing to the Auth (9099) and Firestore (8080) emulators, project <code>demo-mego</code>.</li>
+<li>AI backend = the real <code>apps-script/Code.gs</code> in <code>e2e/gas-mock.mjs</code> with <code>AI_USER_DAILY_LIMIT</code> set to 1 for the test; Gemini is a scripted stand-in.</li>
+<li>Test accounts use <code>@example.com</code> addresses; <code>SHOTS=1</code> also captures the welcome, registration, account and admin screenshots.</li>
+</ul>
+<h3>3.2 The 8 checks</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Scenario</th><th>Pass condition</th></tr>
+<tr><td>REGISTER-3</td><td>Alice, Bob and Carol register through the 3-step registration</td><td>3 profiles on the server; Alice's calorie target from onboarding is 1700</td></tr>
+<tr><td>LOG+ISOLATION</td><td>Alice logs "Alice chicken" 200 g, Bob logs "Bob chicken" 300 g</td><td>Each record lands under its own uid; each diary shows only its own food; Bob's own token reading Alice's entries gets <b>HTTP 403</b></td></tr>
+<tr><td>SECOND-DEVICE-LIVE</td><td>Alice signs in on a second device ("laptop"); then adds 250 ml water on the phone</td><td>Laptop shows Alice's diary and the water update without reload</td></tr>
+<tr><td>AI-SCAN-ACCOUNT</td><td>Alice scans a meal photo twice</td><td>First scan reaches the review screen; second is refused with the per-user limit message</td></tr>
+<tr><td>PASSWORD-RESET</td><td>"Forgot password" for Bob; the reset code is taken from the emulator and a new password is set</td><td>Reset e-mail generated; sign-in with the new password works</td></tr>
+<tr><td>FOOD-SUBMISSION</td><td>Bob submits his personal food to the shared database</td><td>A submission exists; the shared <code>foods</code> collection is still empty (not published before review)</td></tr>
+<tr><td>ADMIN</td><td>Carol is made administrator (written directly to the emulator); opens #/admin; approves the submission; suspends Bob, Bob signs in; reactivates Bob</td><td>Stats show 3 accounts; approved food appears in shared foods; no private food names visible to the admin; Bob sees the suspended screen; status returns to Active</td></tr>
+<tr><td>LOGOUT+DELETE</td><td>Alice signs out, signs in, deletes her account with her password</td><td>Profile returns 404 and no entries remain for Alice; Bob's entry still exists</td></tr>
+</table>
+<p>Result: <b>8/8</b> (latest recorded run).</p>
+
+<h2>4. Level 3 — production verification (scripts/live-verify.mjs)</h2>
+<p>Runs against the live site and the real Firebase project with two disposable accounts (A and B) that are deleted at the end. Its multi-user checks: two independent registrations; profiles stored on the server, each user reads only their own; food logging synced to the cloud; data isolation enforced by the server (cross-account read and anonymous read refused, 403); second-device sync; administrator functions refused for a regular account (cannot list profiles, cannot promote itself, cannot suspend others); deletion of both accounts. The run of 7 Nov 2026 passed <b>14/14</b>. The script has since gained checks that cardio and workout records sync to the owner only and stay invisible to account B; a production run of that version is not recorded (Not verified).</p>
+
+<h2>5. Coverage matrix</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Guarantee</th><th>Rules (emulator)</th><th>Browser suite (emulator)</th><th>Production</th></tr>
+<tr><td>Own records only / 403 for others</td><td>✔</td><td>✔</td><td>✔</td></tr>
+<tr><td>Separate local database per account</td><td>✔ (cloud.test.ts; also unit-tested in cardio-goals.test.ts)</td><td>—</td><td>—</td></tr>
+<tr><td>Live second device</td><td>✔</td><td>✔</td><td>✔</td></tr>
+<tr><td>Older copy never overwrites newer</td><td>✔</td><td>—</td><td>—</td></tr>
+<tr><td>Admin sees counts, not private data</td><td>✔</td><td>✔</td><td>— (no admin account exists yet)</td></tr>
+<tr><td>Regular account cannot act as admin</td><td>✔</td><td>—</td><td>✔</td></tr>
+<tr><td>Suspension blocks the user</td><td>✔</td><td>✔</td><td>—</td></tr>
+<tr><td>Shared food review</td><td>✔</td><td>✔</td><td>—</td></tr>
+<tr><td>Per-user AI limit</td><td>—</td><td>✔ (also unit-tested in scanner.test.ts)</td><td>—</td></tr>
+<tr><td>Password reset</td><td>—</td><td>✔ (full reset)</td><td>✔ (request accepted, HTTP 200; inbox not checked)</td></tr>
+<tr><td>Account deletion, others untouched</td><td>—</td><td>✔</td><td>✔</td></tr>
+</table>
+
+<h2>6. Running the tests</h2>
+<pre>
+npm run build
+npm run test:rules     # 14 — Level 1
+npm run e2e:multi      # 8  — Level 2 (firebase emulators:exec … node e2e/multiuser-test.mjs)
+SHOTS=1 npm run e2e:multi   # also refreshes account/admin screenshots
+node scripts/live-verify.mjs   # Level 3 — production, disposable accounts
+</pre>
+
+<h2>7. Verification status</h2>
+<ul>
+<li><b>Tested on emulators:</b> rules + cloud 14/14; browser multi-user 8/8.</li>
+<li><b>Verified live:</b> isolation (403), second-device sync, admin enforcement for regular accounts, password-reset request, deletion — live-verify 14/14 (7 Nov 2026).</li>
+<li><b>Not verified:</b> administrator functions on production (the owner has not yet created the admin account); suspension and shared-food review on production; per-user AI limit on production; behaviour with many concurrent users or near Firebase Spark free-tier limits; delivery of the reset e-mail to a real inbox. These suites were not re-run while writing this document.</li>
+</ul>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

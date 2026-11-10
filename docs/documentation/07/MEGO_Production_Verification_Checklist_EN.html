@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MEGO_Production_Verification_Checklist_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Production Verification Checklist</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-57</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Project owner, maintainers, testers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Production_Deployment_Guide, MEGO_Build_and_Release_Procedures, MEGO_Update_and_Rollback_Procedures, MEGO_Release_Readiness_Checklist, MEGO_Acceptance_Testing, MEGO_Android_Device_Testing, MEGO_Gemini_API_Setup_Guide</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This checklist is run after every production deployment (app, backend or rules) to prove that the live system works: the GitHub Pages site, accounts and data isolation on the real Firebase project, the live browser and touch suites, the 54 live exercise pages, the Apps Script backend and the Gemini AI scanner. Each item names the command, the expected result and the last recorded result. Only items with a ✅ in a live run may be called "live".</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>How to use this checklist</li>
+<li>Site and deployment</li>
+<li>Accounts and cloud: scripts/live-verify.mjs</li>
+<li>Live browser suites and exercise pages</li>
+<li>Owner backend and Hub</li>
+<li>AI scanner: diagnostic and real photo</li>
+<li>Manual and device checks</li>
+<li>Security checks</li>
+<li>Sign-off record</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. How to use this checklist</h2>
+<ul>
+<li>Run on the owner's laptop with the repository up to date (<code>git pull</code>) and Playwright installed (<code>npm install --no-save playwright@1.63.0 &amp;&amp; npx playwright install chromium</code>).</li>
+<li>Which sections are required: app release → 2, 3, 4; backend release → 5, 6 (and 3 if the AI proxy changed); rules release → 3.</li>
+<li>Record each result in section 9. A failed item blocks the release; follow MEGO_Update_and_Rollback_Procedures.</li>
+</ul>
+
+<h2>2. Site and deployment</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>#</th><th>Check</th><th>How</th><th>Expected</th></tr>
+<tr><td>2.1</td><td>Deploy workflow</td><td>GitHub → Actions → "Test &amp; deploy to GitHub Pages"</td><td>build and deploy jobs green for the pushed commit</td></tr>
+<tr><td>2.2</td><td>App loads</td><td>Open https://mego2012.github.io/Mego/</td><td>Welcome screen (accounts enabled)</td></tr>
+<tr><td>2.3</td><td>Public config</td><td>Open <code>/Mego/firebase-config.json</code></td><td>HTTP 200, <code>projectId</code> = <code>mego-473920</code></td></tr>
+<tr><td>2.4</td><td>Installed app updates</td><td>Reopen the installed PWA twice</td><td>New version active; Settings → Data check shows "All records are intact"</td></tr>
+</table>
+
+<h2>3. Accounts and cloud: scripts/live-verify.mjs</h2>
+<pre>node scripts/live-verify.mjs                  # production
+node scripts/laptop-setup.mjs --verify        # same, started by the setup script</pre>
+<p>The verifier runs the deployed app in a real browser (Pixel 7 profile) against the real Firebase project, creates two disposable accounts (<code>mego-verify-&lt;random&gt;-a/b@example.com</code>), uses only their own tokens (so every allow/deny is the production rules at work) and deletes both accounts at the end, also when a check fails. Report: <code>~/.mego-backend/live-verify-&lt;time&gt;.md</code>. The current script defines 17 checks:</p>
+<ol>
+<li>Live site serves the app and the public Firebase config</li>
+<li>Registration (account A) on the live site</li>
+<li>Registration (account B) — an independent account</li>
+<li>Profiles stored on the server; each user reads only their own</li>
+<li>Food logging (account A) and sync to the cloud</li>
+<li>Data isolation enforced by the server</li>
+<li>Recipe library shows calories and macros for a new account with an empty food list (account B)</li>
+<li>Cardio logging (account A): synced to the owner only, invisible to account B</li>
+<li>Workouts (account A): program and a logged session sync to the owner only</li>
+<li>Cloud sync to a second device (account A signs in elsewhere)</li>
+<li>Weekly report from the logged day</li>
+<li>Monthly report from the logged day</li>
+<li>Admin functions are enforced by the server (regular account)</li>
+<li>Password recovery request accepted by Firebase (from the app screen)</li>
+<li>Sign-out and sign-in again (persistent account)</li>
+<li>Account deletion (test account A) — login, profile and records removed</li>
+<li>Account deletion (test account B)</li>
+</ol>
+<p><b>Expected:</b> "17/17 live checks passed". <b>Last recorded production result:</b> 14/14 on 7 Nov 2026 (version of the script before checks 7–9 were added). To test the verifier itself without touching production: <code>node scripts/live-verify.mjs --emulator</code>.</p>
+
+<h2>4. Live browser suites and exercise pages</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>#</th><th>Suite</th><th>Command</th><th>Expected / last result</th></tr>
+<tr><td>4.1</td><td>Browser e2e against the live site (guest mode; the suite runs without the production Firebase config)</td><td><code>E2E_BASE=https://mego2012.github.io/Mego/ npm run e2e</code><br>(Windows PowerShell: <code>$env:E2E_BASE="https://mego2012.github.io/Mego/"; npm run e2e</code>)</td><td>all checks pass (57/57 is the current suite size)</td></tr>
+<tr><td>4.2</td><td>Live exercise pages — check EX-GUIDE inside the e2e suite: all 54 exercise pages in Arabic and English (demonstration, start/finish, technique, mistakes, safety, muscles, prescription, history, no broken images, next/previous)</td><td>part of 4.1</td><td>54/54 on the live site (10 Nov 2026)</td></tr>
+<tr><td>4.3</td><td>Touch / scroll against the live site</td><td><code>node e2e/scroll-test.mjs https://mego2012.github.io/Mego/</code></td><td>103/103</td></tr>
+</table>
+
+<h2>5. Owner backend and Hub</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>#</th><th>Check</th><th>How</th><th>Expected</th></tr>
+<tr><td>5.1</td><td>Backend live tests (10)</td><td><code>node scripts/laptop-setup.mjs --test</code></td><td>All ✅: token accepted, Hub identity, native + writable, installMego verification, wrong token refused, Food_Database readable, write phone → Hub, read Hub → phone, older copy never overwrites newer, soft delete into Deleted_Records</td></tr>
+<tr><td>5.2</td><td>Backend version</td><td>Output of <code>--update-backend</code> ("backend version …")</td><td>8 (current repository)</td></tr>
+<tr><td>5.3</td><td>Hub food completion (only after <code>--hub-complete-foods</code>)</td><td>Command output</td><td>"added … rows", "English names filled: …"; a second run adds nothing; listed ingredients without verified values are not added</td></tr>
+<tr><td>5.4</td><td>Report</td><td><code>~/.mego-backend/report-&lt;time&gt;.md</code></td><td>"All live checks passed"</td></tr>
+</table>
+<p>Note: <code>--test</code> also prints the private connection QR/link at the end — do not share or screenshot it.</p>
+
+<h2>6. AI scanner: diagnostic and real photo</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>#</th><th>Check</th><th>How</th><th>Expected</th></tr>
+<tr><td>6.1</td><td>AI diagnostic (aiDiag)</td><td><code>git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend</code></td><td>For each free model (gemini-3.8-flash, gemini-3.6-flash, gemini-3.5-flash-lite) ✅ HTTP 200; a ❌ shows Google's status and message (e.g. AI_OVERLOADED = temporary)</td></tr>
+<tr><td>6.2</td><td>Real photo through the backend</td><td><code>node scripts/laptop-setup.mjs --test</code> (optional <code>--photo meal.jpg</code>)</td><td>"Gemini photo analysis (live call)" ✅ with model, items and seconds</td></tr>
+<tr><td>6.3</td><td>Real photo through the live app UI</td><td>Sign in (disposable account), Home → camera → analyse → review</td><td>Items recognised and shown for review; nothing saved until confirmed. Last result 10 Nov 2026: ≈ 64 s, 4 items</td></tr>
+</table>
+<p>The free tier can be slow or busy at peak times; a temporary error is not a release failure if the diagnostic shows the key and models are valid.</p>
+
+<h2>7. Manual and device checks</h2>
+<ul>
+<li>Real Android phone: follow docs/ANDROID-TEST.md (install, offline use, camera, barcode, scrolling). <b>Not done yet.</b></li>
+<li>Arabic RTL and English LTR, light and dark theme: spot-check Home, Diary, Reports.</li>
+<li>Admin dashboard: only after the owner's admin account exists (pending).</li>
+</ul>
+
+<h2>8. Security checks</h2>
+<ul>
+<li>No keys, tokens, /exec URLs, connection codes or personal data in the pushed diff.</li>
+<li>Live verifier items 6 and 13 show 403 for cross-account and admin actions.</li>
+<li>Open items: rotate the Gemini key and the backend token (both shown in a chat during setup); GitHub support request for old commits (docs/GITHUB-SUPPORT-REQUEST.md).</li>
+</ul>
+
+<h2>9. Sign-off record</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Date</th><th>Commit</th><th>Section</th><th>Result</th><th>Checked by</th></tr>
+<tr><td>2026-11-07</td><td>—</td><td>3 (14-check version)</td><td>14/14 ✅</td><td>Recorded in the project status facts</td></tr>
+<tr><td>2026-11-10</td><td>—</td><td>4.2 exercise pages; 6.3 AI via live UI</td><td>54/54 ✅; analysis ✅</td><td>Recorded in the project status facts</td></tr>
+<tr><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+
+<h2>10. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Commands, check names, expected outputs</td><td>Verified in scripts/live-verify.mjs, scripts/laptop-setup.mjs, e2e/run-e2e.mjs, e2e/scroll-test.mjs, apps-script/Code.gs</td></tr>
+<tr><td>Live verifier with 17 checks against production</td><td>Not verified (no recorded run)</td></tr>
+<tr><td>Live e2e 57/57 and scroll 103/103 against the live site after the latest commit</td><td>Not verified for the latest commit</td></tr>
+<tr><td>Backend v8 live and <code>--hub-complete-foods</code> on the real Hub</td><td>Not verified</td></tr>
+<tr><td>Real Android device</td><td>Not done</td></tr>
+</table>
+
+<h2>11. Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

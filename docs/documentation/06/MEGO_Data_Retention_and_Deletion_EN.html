@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Data_Retention_and_Deletion_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Data Retention and Deletion</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-48</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires legal review</td></tr>
+<tr><td>Audience</td><td>Project owner, developers, support, legal reviewer</td></tr>
+<tr><td>Related documents</td><td>MEGO_Privacy_Policy_Draft, MEGO_User_Data_Protection, MEGO_Data_Backup_and_Recovery, MEGO_Authentication_and_Session_Management, MEGO_Access_Control_and_Permissions, MEGO_User_Management_Procedures, MEGO_Security_Audit_and_Known_Risks</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document states how long each kind of MEGO data is kept, how single records are deleted, and exactly what the in-app account deletion does — traced through the code path in <code>src/pages/Account.tsx</code> (<code>deleteMyAccount</code>). It also lists the data that deletion does <b>not</b> remove. The retention period for inactive accounts is a business and legal decision that has not been taken (item 7 in <code>docs/LEGAL-REVIEW.md</code>).</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Retention policy as implemented</li>
+<li>Deleting single records</li>
+<li>Account deletion: user steps</li>
+<li>Account deletion: code path</li>
+<li>What account deletion does not remove</li>
+<li>Failure behaviour and edge cases</li>
+<li>Administrator and owner actions</li>
+<li>Open decisions and recommendations</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Retention policy as implemented</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Data</th><th>Retention</th><th>Basis in code / text</th></tr>
+<tr><td>Account, profile, synced records (Firestore)</td><td>While the account exists. No automatic expiry for inactive accounts.</td><td>Privacy text <code>pp_6</code>: "Data is kept while your account exists."</td></tr>
+<tr><td>Deletion tombstones in Firestore</td><td>Until account deletion (record content replaced by <code>{}</code>, key and timestamp remain)</td><td><code>serialise()</code> in <code>cloudSync.ts</code></td></tr>
+<tr><td>Suspended accounts</td><td>Kept unchanged; "nothing has been deleted"</td><td>Suspended screen text</td></tr>
+<tr><td>Device database (guest or account)</td><td>Until the user deletes it (account deletion, clearing site data) or the browser evicts it</td><td>No expiry in code</td></tr>
+<tr><td>On-device automatic backups</td><td>Last 10 plus the 3 most recent pre-update backups</td><td><code>localBackup.ts</code> (<code>KEEP = 10</code>)</td></tr>
+<tr><td>Pre-migration snapshots</td><td>No automatic removal</td><td><code>db.ts</code></td></tr>
+<tr><td>Meal photos sent to the AI scanner</td><td>Not stored by MEGO (provider handling: Gemini free-tier terms)</td><td><code>Code.gs</code>: "Nothing about the meal is stored."</td></tr>
+<tr><td>AI daily counters (per uid and global)</td><td>Removed after 8 days <b>if</b> the optional time trigger for <code>cleanupAiCounters</code> is set; otherwise kept</td><td><code>Code.gs</code></td></tr>
+<tr><td>Error reports</td><td>Until an admin deletes them</td><td>Rules: admins read/delete</td></tr>
+<tr><td>Food submissions</td><td>Kept after review (status approved/rejected)</td><td><code>adminReview</code></td></tr>
+<tr><td>Owner Hub: <code>Deleted_Records</code>, Drive backup copies, JSON backups</td><td>No automatic removal</td><td><code>Code.gs</code></td></tr>
+<tr><td>Backup files downloaded by the user</td><td>Under the user's control</td><td>—</td></tr>
+</table>
+
+<h2>2. Deleting single records</h2>
+<ul>
+<li>Diary entries, measurements, recipes, saved meals, plans, planned days, cardio/workout items: deleted from the device database at once (<code>repo.ts</code>, e.g. <code>deleteEntry</code>) and queued as a <code>delete</code> in the outbox.</li>
+<li>Account mode: the outbox writes a tombstone <code>{data: '{}', updatedAt, deleted: true}</code>. Other devices delete their copy when they receive it. The record content is no longer in the cloud.</li>
+<li>Owner Hub: the row is copied to <code>Deleted_Records</code> and then removed from its tab.</li>
+<li>Copies in local backups and downloaded backup files are not changed.</li>
+<li>Progress photos: deleted from the device (<code>db.photos.delete</code>); they were never uploaded.</li>
+</ul>
+
+<h2>3. Account deletion: user steps</h2>
+<ol>
+<li>Settings → Account card → <b>Delete account</b>.</li>
+<li>The warning appears: "This permanently deletes your account, your cloud data and this device's copy of it. Export your data first if you want to keep it."</li>
+<li>(Recommended) cancel, tap <b>Export my data</b>, then return.</li>
+<li>Enter the current password and confirm.</li>
+<li>After success the app reloads into the welcome screen.</li>
+</ol>
+
+<h2>4. Account deletion: code path</h2>
+<p><code>deleteMyAccount(uid, password)</code> in <code>src/pages/Account.tsx</code>, in this order:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Step</th><th>Call</th><th>Effect</th></tr>
+<tr><td>1</td><td><code>reauthenticateWithCredential(user, EmailAuthProvider.credential(email, password))</code></td><td>Verifies the password first. Wrong password → error, <b>nothing deleted</b>.</td></tr>
+<tr><td>2</td><td>For each of the 12 synced tables: <code>getDocs(users/{uid}/{table})</code>, then <code>deleteDoc</code> for every document</td><td>All private cloud records and tombstones removed (rule: owner and active)</td></tr>
+<tr><td>3</td><td><code>deleteDoc(profiles/{uid})</code></td><td>Account card removed (rule: owner may always delete)</td></tr>
+<tr><td>4</td><td><code>deleteAccountAuth(password)</code> → re-authenticate, <code>deleteUser</code></td><td>Firebase login removed; the e-mail can be registered again</td></tr>
+<tr><td>5</td><td><code>indexedDB.deleteDatabase('mego-u-&lt;uid&gt;')</code></td><td>Device copy including its local backups removed</td></tr>
+<tr><td>6</td><td><code>leaveAccount()</code></td><td>Removes <code>mego.activeUid</code> and reloads</td></tr>
+</table>
+<pre>
+password ─► re-auth ─► delete users/{uid}/*/* ─► delete profiles/{uid}
+         ─► delete Firebase user ─► delete local DB mego-u-&lt;uid&gt; ─► reload (welcome)
+</pre>
+<p>The guest database <code>mego-nutrition</code> on the device is not touched.</p>
+
+<h2>5. What account deletion does not remove</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Why</th><th>How to remove</th></tr>
+<tr><td><code>foodSubmissions</code> created by the user (contain <code>ownerUid</code>)</td><td>Not in the deletion loop</td><td>Admin deletes them (rules allow) or Firebase console</td></tr>
+<tr><td><code>errorReports</code></td><td>Have no uid; cannot be linked to the user</td><td>Admin deletes old reports</td></tr>
+<tr><td>Approved foods copied to <code>foods/U-…</code></td><td>Shared database content, no personal fields</td><td>Admin, if requested</td></tr>
+<tr><td>AI counters <code>AI_U_&lt;date&gt;_&lt;uid&gt;</code> in Script Properties</td><td>Outside Firestore</td><td><code>cleanupAiCounters</code> (8 days) when its trigger is set</td></tr>
+<tr><td>localStorage sync markers <code>mego.cloud2.&lt;uid&gt;.*</code></td><td>Not cleared by <code>leaveAccount</code></td><td>Clear site data (timestamps only, no content)</td></tr>
+<tr><td><code>admins/{uid}</code> (only if the user was an admin)</td><td>Write-denied for everyone in the app</td><td>Firebase console</td></tr>
+<tr><td>Backup files the user downloaded; guest data on the device</td><td>Outside the account</td><td>User</td></tr>
+<tr><td>Data held by providers under their own terms (e.g. Gemini free tier, Firebase logs)</td><td>Outside MEGO's control</td><td>Provider terms — Not verified</td></tr>
+</table>
+
+<h2>6. Failure behaviour and edge cases</h2>
+<ul>
+<li><b>Not atomic:</b> if the connection drops after step 2 started, some records may already be deleted while the account still exists. Running the deletion again completes it (deleting is idempotent). This was not specifically tested.</li>
+<li><b>Suspended accounts:</b> the suspended screen offers only sign-out, and the rules require an active account to delete private records. A suspended user therefore cannot delete their data in the app; an administrator must reactivate the account first, or the owner deletes it in the Firebase console.</li>
+<li><b>Recent sign-in:</b> handled by the re-authentication with the password.</li>
+<li><b>Offline:</b> the Firestore calls fail and the error is shown; nothing is reported as deleted.</li>
+<li><b>Other devices</b> that were signed in to the deleted account: their Firebase session ends; their local database <code>mego-u-&lt;uid&gt;</code> stays on those devices until site data is cleared (Not verified on a real second device).</li>
+</ul>
+
+<h2>7. Administrator and owner actions</h2>
+<ul>
+<li>Administrators cannot delete user accounts or private data in the app; they can only suspend/reactivate, delete error reports and manage submissions.</li>
+<li>For a deletion request that the user cannot perform (e.g. lost password, suspended account), the owner can use the Firebase console: delete <code>users/{uid}</code> sub-collections, <code>profiles/{uid}</code>, the user's <code>foodSubmissions</code>, and the user in Authentication. Record the request without copying personal data into tickets.</li>
+<li>Lost password: the user first uses "Forgot password?", then deletes the account normally.</li>
+</ul>
+
+<h2>8. Open decisions and recommendations</h2>
+<ul>
+<li>Decide a retention period for inactive accounts (legal item 7) and, if adopted, implement a scheduled clean-up.</li>
+<li>Extend <code>deleteMyAccount</code> to delete the user's <code>foodSubmissions</code> and the <code>mego.cloud2.&lt;uid&gt;.*</code> markers.</li>
+<li>Allow suspended users to delete their data, or document an owner-assisted process in the privacy policy.</li>
+<li>Set the time trigger for <code>cleanupAiCounters</code> in Apps Script.</li>
+<li>Define a retention period for error reports.</li>
+</ul>
+
+<h2>9. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Account deletion of two test accounts in production</td><td>Verified live (<code>scripts/live-verify.mjs</code>, 14/14)</td></tr>
+<tr><td>Account deletion in the browser UI</td><td>Tested on emulators (multi-user suite, 8 checks)</td></tr>
+<tr><td>Partial-failure behaviour, other signed-in devices</td><td>Not verified</td></tr>
+<tr><td>Provider-side retention (Google)</td><td>Not verified</td></tr>
+<tr><td>Inactive-account retention period</td><td>Not decided</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

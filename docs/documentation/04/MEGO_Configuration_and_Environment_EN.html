@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Configuration_and_Environment_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Configuration and Environment</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-38</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Developers, maintainers, the project owner</td></tr>
+<tr><td>Related documents</td><td>MEGO_Developer_Setup_and_Local_Installation, MEGO_Production_Deployment_Guide, MEGO_Firebase_Setup_Guide, MEGO_Apps_Script_Setup_Guide, MEGO_Gemini_API_Setup_Guide, MEGO_Firebase_Integration, MEGO_Google_Sheets_Integration_and_Sync, MEGO_API_Documentation, MEGO_Security_Architecture</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document lists every configuration point of MEGO: build-time variables, runtime configuration files, per-device settings, browser storage keys, Apps Script project settings and Script Properties, Firebase project files, and the variables and flags of the setup and test scripts. Values that are secrets (tokens, keys, URLs of the private backend) are named but <b>never reproduced</b>.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Environments at a glance</li>
+<li>Build-time configuration</li>
+<li>Runtime configuration file: firebase-config.json</li>
+<li>Per-device settings and browser storage</li>
+<li>Client constants that act as configuration</li>
+<li>Apps Script project configuration</li>
+<li>Firebase project configuration</li>
+<li>Setup and test scripts: variables and flags</li>
+<li>Where secrets live</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Environments at a glance</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Environment</th><th>How it runs</th><th>Accounts / cloud</th><th>Hub backend</th></tr>
+<tr><td>Local development</td><td><code>npm run dev</code> (Vite dev server, base "/")</td><td>Uses <code>public/firebase-config.json</code> if present — that file is committed and points to the production Firebase project (see section 3)</td><td>Only if a connection code is entered on that device</td></tr>
+<tr><td>Local preview</td><td><code>npm run build</code> then <code>npm run preview</code> (port 4173)</td><td>Same as above</td><td>Same as above</td></tr>
+<tr><td>Emulator tests</td><td><code>npm run test:rules</code>, <code>npm run e2e:multi</code>: <code>firebase emulators:exec --project demo-mego --only firestore,auth …</code></td><td>Firebase emulators (auth 9099, firestore 8080); tests inject a config with an <code>emulator</code> block</td><td>Mocked (<code>e2e/gas-mock.mjs</code>)</td></tr>
+<tr><td>Production</td><td>GitHub Pages, workflow <code>.github/workflows/deploy.yml</code> on pushes to <code>main</code> and <code>claude/nutrition-tracking-app-989rku</code></td><td>Firebase project (Spark plan)</td><td>Owner's Apps Script web app (owner device) and AI proxy for accounts</td></tr>
+</table>
+
+<h2>2. Build-time configuration</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Variable / setting</th><th>Where</th><th>Effect</th></tr>
+<tr><td><code>BASE_PATH</code></td><td><code>vite.config.ts</code>; set by deploy.yml to <code>/&lt;repository name&gt;/</code></td><td>Vite <code>base</code>, PWA <code>start_url</code> and <code>scope</code>. Default "/". At runtime the app reads it as <code>import.meta.env.BASE_URL</code> to fetch firebase-config.json, the food database and food photos.</td></tr>
+<tr><td><code>VITE_DEMO=1</code></td><td><code>src/main.tsx</code></td><td>Screenshot/audit builds only: exposes <code>window.__megoSeedDemo</code> (demo data). Production builds drop this branch and the demo module.</td></tr>
+<tr><td>Node.js 22, <code>npm ci</code>, <code>npm test</code>, <code>npm run build</code></td><td>deploy.yml</td><td>CI order: install, unit tests, build, upload <code>dist</code> to Pages. A failing unit test stops the deployment.</td></tr>
+<tr><td>PWA (vite-plugin-pwa)</td><td>vite.config.ts</td><td><code>registerType: 'autoUpdate'</code>; manifest name "MEGO — Nutrition", <code>lang: 'ar'</code>, <code>display: 'standalone'</code>, portrait; precache of js/css/html/svg/png/woff2 and <code>fooddb/usda.json</code> (max file size 3 MB); runtime caches for <code>usda-extra.json</code>, food photos (CacheFirst, 200 entries, 1 year), Google Fonts; the Apps Script path <code>/macros/</code> is excluded from the navigation fallback.</td></tr>
+<tr><td>Chunking</td><td>vite.config.ts</td><td>recharts and d3 go into a separate <code>charts</code> chunk; chunk-size warning at 900 kB.</td></tr>
+<tr><td>Unit test config</td><td>vite.config.ts <code>test</code>; <code>vitest.rules.config.ts</code></td><td>Node environment, <code>tests/**/*.test.ts</code>, setup <code>tests/setup.ts</code>; rules tests: <code>tests-rules/**</code>, 30 s timeouts, no file parallelism.</td></tr>
+</table>
+<p>The repository contains no <code>.env</code> file; no other <code>VITE_*</code> variable is read by the source code.</p>
+
+<h2>3. Runtime configuration file: firebase-config.json</h2>
+<p>Location: <code>public/firebase-config.json</code>, served at <code>&lt;base&gt;/firebase-config.json</code> and fetched by <code>loadCloudConfig()</code> with <code>cache: 'no-cache'</code>. It is written by <code>scripts/laptop-setup.mjs --cloud</code> and committed ("Enable public accounts (Firebase config: public identifiers only)").</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Key</th><th>Content</th><th>Secret?</th></tr>
+<tr><td><code>apiKey</code></td><td>Firebase web API key</td><td>Public identifier (access is enforced by Firestore rules); still never copied into documents</td></tr>
+<tr><td><code>authDomain</code>, <code>projectId</code>, <code>appId</code></td><td>Firebase project identifiers</td><td>Public</td></tr>
+<tr><td><code>aiBackendUrl</code></td><td>Apps Script web app used as the AI proxy by signed-in accounts (they authenticate with their Firebase ID token, not the app token)</td><td>Not a secret by design, but not reproduced here</td></tr>
+<tr><td><code>emulator</code> (optional)</td><td><code>{ authUrl, firestoreHost, firestorePort }</code></td><td>Tests only; absent in production</td></tr>
+</table>
+<p><b>Effect:</b> file missing or without <code>apiKey</code>/<code>projectId</code> → guest-only app. File present → welcome screen with sign-in/registration and an optional guest mode.</p>
+
+<h2>4. Per-device settings and browser storage</h2>
+<h3>4.1 settings.sync (IndexedDB, device-local)</h3>
+<p>Part of the <code>settings</code> record but <b>removed before any upload</b> (Hub and Firestore):</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Default</th><th>Meaning</th></tr>
+<tr><td><code>url</code></td><td>""</td><td>Apps Script web app URL (from the connection code)</td></tr>
+<tr><td><code>token</code></td><td>""</td><td>App token (secret)</td></tr>
+<tr><td><code>autoSync</code></td><td>true</td><td>Push automatically</td></tr>
+<tr><td><code>writeFoodsToSheet</code></td><td>false</td><td>Write edits of shared foods back to the Hub</td></tr>
+<tr><td><code>lastPushAt</code>, <code>lastPullAt</code>, <code>lastFoodsPullAt</code>, <code>lastError</code>, <code>serverVersion</code>, <code>hubNativeId</code></td><td>—</td><td>Sync state; <code>hubNativeId</code> pins the native Hub sheet</td></tr>
+</table>
+<h3>4.2 localStorage keys</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Key</th><th>Set by</th><th>Meaning</th></tr>
+<tr><td><code>mego.activeUid</code></td><td>account.ts</td><td>Signed-in account on this device → selects database <code>mego-u-&lt;uid&gt;</code></td></tr>
+<tr><td><code>mego.guest</code></td><td>account.ts</td><td>User chose guest mode</td></tr>
+<tr><td><code>mego.importGuestFor</code></td><td>account.ts</td><td>Copy guest data into this uid once at next boot</td></tr>
+<tr><td><code>mego.pendingSetup.&lt;uid&gt;</code></td><td>Account.tsx (registration)</td><td>Profile and targets from registration, applied once</td></tr>
+<tr><td><code>mego.cloud2.&lt;uid&gt;.&lt;table&gt;</code></td><td>cloudSync.ts</td><td>"Last seen" <code>updatedAt</code> per synced table (see MEGO_Firebase_Integration, section 6)</td></tr>
+</table>
+<h3>4.3 IndexedDB databases</h3>
+<p><code>mego-nutrition</code> (guest), <code>mego-u-&lt;uid&gt;</code> (one per account), <code>mego-nutrition-premigration</code> (snapshot taken before a Dexie schema upgrade). Persistent storage is requested at start (<code>navigator.storage.persist()</code>); whether the browser grants it is not controlled by the app.</p>
+
+<h2>5. Client constants that act as configuration</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Constant</th><th>Value</th><th>File</th></tr>
+<tr><td><code>DB_SCHEMA_VERSION</code></td><td>2</td><td>src/lib/db.ts</td></tr>
+<tr><td><code>APP_RELEASE</code></td><td>'1.3-training' (one pre-update backup per release and database)</td><td>src/lib/localBackup.ts</td></tr>
+<tr><td>Local backup rotation <code>KEEP</code></td><td>10</td><td>src/lib/localBackup.ts</td></tr>
+<tr><td>Hub sync backoff</td><td>5 s doubling, max 5 min</td><td>src/lib/sync.ts</td></tr>
+<tr><td>AI client</td><td>retries after 3 s and 8 s; request timeout 280 s; input image ≤ 30 MB; upload ≤ 2,400,000 base64 chars</td><td>src/lib/mealScanner.ts</td></tr>
+<tr><td>Default settings</td><td>language ar, theme system, week starts Saturday, tolerances ±10 % kcal / −5 % protein, complete-day threshold 60 %, water 3000 ml, fasting 16 h</td><td>src/lib/defaults.ts</td></tr>
+</table>
+
+<h2>6. Apps Script project configuration</h2>
+<h3>6.1 appsscript.json</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Setting</th><th>Value</th></tr>
+<tr><td>timeZone</td><td>Asia/Riyadh</td></tr>
+<tr><td>runtimeVersion</td><td>V8</td></tr>
+<tr><td>Advanced service</td><td>Drive API v3 (symbol <code>Drive</code>)</td></tr>
+<tr><td>exceptionLogging</td><td>STACKDRIVER</td></tr>
+<tr><td>webapp</td><td>executeAs USER_DEPLOYING, access ANYONE_ANONYMOUS</td></tr>
+<tr><td>oauthScopes</td><td>spreadsheets, drive, script.external_request</td></tr>
+</table>
+<h3>6.2 Code constants (apps-script/Code.gs)</h3>
+<p><code>SOURCE_ID</code> (original Hub file), <code>HUB_NAME</code> = "MEGO Nutrition Hub", <code>SCRIPT_VERSION</code> = 8, <code>BOOTSTRAP_HASH</code> (empty in the public repository), <code>SCHEMA_VERSION</code> = 3, <code>MAX_CHANGES</code> = 500, <code>MAX_PAYLOAD_CHARS</code> = 45000, <code>MAX_KEY_CHARS</code> = 200, <code>AI_FREE_MODELS</code> = gemini-3.8-flash, gemini-3.6-flash, gemini-3.5-flash-lite, <code>AI_DEFAULT_MODEL</code> = gemini-3.8-flash, <code>AI_MAX_IMAGE_CHARS</code> = 2,800,000, <code>AI_MAX_FOODS</code> = 800.</p>
+<h3>6.3 Script Properties (names only)</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Property</th><th>Set by</th><th>Purpose</th></tr>
+<tr><td>APP_TOKEN</td><td>setup() / rotateToken()</td><td>Secret app token (two UUIDs without dashes)</td></tr>
+<tr><td>HUB_NATIVE_ID, HUB_PENDING_ID, HUB_CONVERTED_AT, HUB_VERIFIED</td><td>installMego()</td><td>Native Hub ID after successful verification; conversion state</td></tr>
+<tr><td>BOOTSTRAP_DONE</td><td>bootstrap_</td><td>Disables the one-time install</td></tr>
+<tr><td>LAST_HUB_BACKUP</td><td>backupOncePerDay_</td><td>Date of the last daily Hub backup (yyyyMMdd)</td></tr>
+<tr><td>GEMINI_API_KEY</td><td>setAiKey action</td><td>Gemini key (secret)</td></tr>
+<tr><td>AI_MODEL</td><td>manual (optional)</td><td>Preferred model; ignored unless in AI_FREE_MODELS</td></tr>
+<tr><td>AI_DAILY_LIMIT, AI_USER_DAILY_LIMIT</td><td>setCloudConfig or manual</td><td>Global (code default 40) and per-user (default 10) daily scans</td></tr>
+<tr><td>FIREBASE_API_KEY, FIREBASE_PROJECT_ID</td><td>setCloudConfig</td><td>Public Firebase identifiers for verifying ID tokens</td></tr>
+<tr><td>AI_USED_&lt;date&gt;, AI_U_&lt;date&gt;_&lt;uid&gt;</td><td>analyzeMeal</td><td>Usage counters; removed after 8 days by cleanupAiCounters()</td></tr>
+</table>
+
+<h2>7. Firebase project configuration</h2>
+<ul>
+<li><code>firebase.json</code>: rules file <code>firebase/firestore.rules</code>, indexes <code>firebase/firestore.indexes.json</code> (empty), emulators auth 9099 and firestore 8080, UI disabled, single-project mode.</li>
+<li>Production (brief, verified 7 Nov 2026): project id <code>mego-473920</code>, Firestore <code>(default)</code> in <code>me-central2</code>, Email/Password provider enabled, Spark plan (no billing).</li>
+<li>Admin role: a document <code>admins/{uid}</code>, which the rules never allow clients to write; created by the setup script with the owner's credentials.</li>
+</ul>
+
+<h2>8. Setup and test scripts: variables and flags</h2>
+<h3>8.1 scripts/laptop-setup.mjs</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Flag / variable</th><th>Effect</th></tr>
+<tr><td>(none)</td><td>Full setup or update (safe to run again)</td></tr>
+<tr><td><code>--test</code></td><td>Only the live integration tests against the existing backend</td></tr>
+<tr><td><code>--update-backend</code></td><td>Upload the latest Code.gs to the same deployment (same URL, data untouched) and run the AI diagnostic</td></tr>
+<tr><td><code>--hub-complete-foods</code></td><td>Implies backend update; then adds missing recipe-library ingredients and library meals to the Hub's Food_Database and fills empty English names (adds only; daily Drive backup first)</td></tr>
+<tr><td><code>--photo &lt;file&gt;</code></td><td>Use your own photo for the real AI test</td></tr>
+<tr><td><code>--ai-key-from-clipboard</code></td><td>Read the Gemini key from the clipboard instead of typing it</td></tr>
+<tr><td><code>--auto</code></td><td>No keyboard prompts (also automatic when not in a terminal)</td></tr>
+<tr><td><code>--cloud [admin-email]</code></td><td>Also set up Firebase (project, web app, Firestore with rules, e-mail sign-in, admin, public config)</td></tr>
+<tr><td><code>--verify</code></td><td>Re-run <code>scripts/live-verify.mjs</code> against the deployed site</td></tr>
+<tr><td><code>MEGO_BACKEND_DIR</code></td><td>Private state folder (default <code>~/.mego-backend/</code>); <code>state.json</code> is written with file mode 600 and holds script ID, URL and token</td></tr>
+<tr><td><code>MEGO_FAKE_BACKEND</code>, <code>MEGO_FAKE_SECRET</code></td><td>Test mode against a local fake backend (used by e2e tests)</td></tr>
+</table>
+<h3>8.2 Test scripts</h3>
+<ul>
+<li><code>E2E_BASE</code> — run <code>e2e/run-e2e.mjs</code> against a deployed URL instead of a local preview.</li>
+<li><code>KEEP_PROFILE</code> — keep the browser profile after e2e (used for screenshots).</li>
+<li><code>e2e/scroll-test.mjs</code> reads <code>PAGES</code>, <code>PROBE</code>, <code>FIXCSS</code>; <code>e2e/multiuser-test.mjs</code> reads <code>SHOTS</code>. Their exact semantics: Not verified in this document (see the scripts).</li>
+</ul>
+
+<h2>9. Where secrets live</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Secret</th><th>Stored in</th><th>Never in</th></tr>
+<tr><td>App token</td><td>Script Properties; owner's phone (settings.sync.token, not uploaded); laptop state.json (mode 600)</td><td>Repository, Firestore, Hub tabs</td></tr>
+<tr><td>Gemini API key</td><td>Script Properties only (the app does not keep it)</td><td>App, repository</td></tr>
+<tr><td>Bootstrap secret</td><td>Laptop only; the script holds only its SHA-256 in the private copy</td><td>Repository</td></tr>
+<tr><td>User passwords</td><td>Firebase Authentication</td><td>App storage, Firestore</td></tr>
+</table>
+<p>Operational note (brief): the owner's Gemini key and backend connection link were shown in a chat during setup; rotating both is recommended (<code>rotateToken()</code> for the token; a new key via Settings → AI).</p>
+
+<h2>10. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>All settings, keys, constants and flags</td><td>Verified in vite.config.ts, package.json, deploy.yml, firebase.json, apps-script/appsscript.json, Code.gs, src/lib/*.ts, scripts/laptop-setup.mjs</td></tr>
+<tr><td>Production deployment and Firebase configuration</td><td>Verified live 7 Nov 2026 (deploy green, live-verify 14/14)</td></tr>
+<tr><td>Current values of Script Properties in production (e.g. AI limits, AI_MODEL)</td><td>Not verified</td></tr>
+<tr><td>Whether browsers grant persistent storage on the owner's phone</td><td>Not verified</td></tr>
+<tr><td>Token and key rotation after the chat exposure</td><td>Not verified (recommended, owner action)</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

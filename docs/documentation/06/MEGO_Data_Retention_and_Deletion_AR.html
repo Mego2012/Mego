@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Data_Retention_and_Deletion_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — الاحتفاظ بالبيانات وحذفها</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-48</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب مراجعة قانونية</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع، المطوّرون، الدعم، المراجع القانوني</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Privacy_Policy_Draft، MEGO_User_Data_Protection، MEGO_Data_Backup_and_Recovery، MEGO_Authentication_and_Session_Management، MEGO_Access_Control_and_Permissions، MEGO_User_Management_Procedures، MEGO_Security_Audit_and_Known_Risks</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تحدّد هذه الوثيقة مدة الاحتفاظ بكل نوع من بيانات MEGO، وكيف تُحذف السجلات المفردة، وما الذي يفعله حذف الحساب داخل التطبيق بالضبط — بتتبّع مسار الشيفرة في <code dir="ltr">src/pages/Account.tsx</code> ‏(<code dir="ltr">deleteMyAccount</code>). وتسرد أيضًا البيانات التي <b>لا</b> يزيلها الحذف. أما مدة الاحتفاظ بالحسابات غير النشطة فقرار تجاري وقانوني لم يُتخذ بعد (البند 7 في <code dir="ltr">docs/LEGAL-REVIEW.md</code>).</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">سياسة الاحتفاظ كما هي منفّذة</li>
+<li dir="rtl">حذف السجلات المفردة</li>
+<li dir="rtl">حذف الحساب: خطوات المستخدم</li>
+<li dir="rtl">حذف الحساب: مسار الشيفرة</li>
+<li dir="rtl">ما لا يزيله حذف الحساب</li>
+<li dir="rtl">السلوك عند الإخفاق والحالات الخاصة</li>
+<li dir="rtl">إجراءات المشرف والمالك</li>
+<li dir="rtl">قرارات مفتوحة وتوصيات</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. سياسة الاحتفاظ كما هي منفّذة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البيانات</th><th>مدة الاحتفاظ</th><th>الأساس في الشيفرة / النص</th></tr>
+<tr><td>الحساب والملف الشخصي والسجلات المتزامنة (Firestore)</td><td>ما دام الحساب موجودًا. لا انتهاء تلقائي للحسابات غير النشطة.</td><td>نص الخصوصية <code dir="ltr">pp_6</code>: «تُحفظ البيانات ما دام حسابك موجودًا.»</td></tr>
+<tr><td>شواهد الحذف في Firestore</td><td>حتى حذف الحساب (يُستبدل محتوى السجل بـ <code dir="ltr">{}</code> ويبقى المفتاح والطابع الزمني)</td><td><code dir="ltr">serialise()</code> في <code dir="ltr">cloudSync.ts</code></td></tr>
+<tr><td>الحسابات الموقوفة</td><td>تبقى دون تغيير؛ «لم يُحذف شيء»</td><td>نص شاشة الإيقاف</td></tr>
+<tr><td>قاعدة بيانات الجهاز (ضيف أو حساب)</td><td>حتى يحذفها المستخدم (حذف الحساب، مسح بيانات الموقع) أو يزيلها المتصفح</td><td>لا انتهاء في الشيفرة</td></tr>
+<tr><td>النسخ التلقائية على الجهاز</td><td>آخر 10 نسخ إضافة إلى أحدث 3 نسخ pre-update</td><td><code dir="ltr">localBackup.ts</code> ‏(<code dir="ltr">KEEP = 10</code>)</td></tr>
+<tr><td>لقطات ما قبل الترحيل</td><td>لا إزالة تلقائية</td><td><code dir="ltr">db.ts</code></td></tr>
+<tr><td>صور الوجبات المرسلة إلى الماسح</td><td>لا يحفظها MEGO (معالجة المزوّد: شروط الفئة المجانية من Gemini)</td><td><code dir="ltr">Code.gs</code>: ‏"Nothing about the meal is stored."</td></tr>
+<tr><td>عدّادات الذكاء الاصطناعي اليومية (لكل uid والعامة)</td><td>تُزال بعد 8 أيام <b>إذا</b> ضُبط المشغّل الزمني الاختياري لـ <code dir="ltr">cleanupAiCounters</code>؛ وإلا تبقى</td><td><code dir="ltr">Code.gs</code></td></tr>
+<tr><td>تقارير الأخطاء</td><td>حتى يحذفها مشرف</td><td>القواعد: المشرفون يقرؤون ويحذفون</td></tr>
+<tr><td>مقترحات الأطعمة</td><td>تبقى بعد المراجعة (حالة معتمد/مرفوض)</td><td><code dir="ltr">adminReview</code></td></tr>
+<tr><td>الـ Hub الخاص بالمالك: <code dir="ltr">Deleted_Records</code> ونسخ Drive ونسخ JSON</td><td>لا إزالة تلقائية</td><td><code dir="ltr">Code.gs</code></td></tr>
+<tr><td>ملفات النسخ التي نزّلها المستخدم</td><td>تحت تصرّف المستخدم</td><td>—</td></tr>
+</table>
+
+<h2 dir="rtl">2. حذف السجلات المفردة</h2>
+<ul dir="rtl">
+<li dir="rtl">إدخالات اليوميات والقياسات والوصفات والوجبات المحفوظة والخطط والأيام المخطط لها وعناصر الكارديو/التمارين: تُحذف فورًا من قاعدة الجهاز (<code dir="ltr">repo.ts</code>، مثل <code dir="ltr">deleteEntry</code>) وتُضاف عملية <code dir="ltr">delete</code> إلى الصندوق الصادر.</li>
+<li dir="rtl">في وضع الحساب: يكتب الصندوق الصادر شاهد حذف <code dir="ltr">{data: '{}', updatedAt, deleted: true}</code>، وتحذف الأجهزة الأخرى نسختها عند استلامه. ولا يبقى محتوى السجل في السحابة.</li>
+<li dir="rtl">الـ Hub الخاص بالمالك: يُنسخ الصف إلى <code dir="ltr">Deleted_Records</code> ثم يُزال من تبويبه.</li>
+<li dir="rtl">لا تتغير النسخ الموجودة في النسخ المحلية أو ملفات النسخ المنزّلة.</li>
+<li dir="rtl">صور التقدّم: تُحذف من الجهاز (<code dir="ltr">db.photos.delete</code>)، ولم تُرفع أصلًا.</li>
+</ul>
+
+<h2 dir="rtl">3. حذف الحساب: خطوات المستخدم</h2>
+<ol dir="rtl">
+<li dir="rtl">الإعدادات ← بطاقة الحساب ← <b>حذف الحساب</b>.</li>
+<li dir="rtl">يظهر التحذير: «سيُحذف حسابك وبياناتك السحابية ونسختها على هذا الجهاز نهائيًا. صدّر بياناتك أولًا إن أردت الاحتفاظ بها.»</li>
+<li dir="rtl">(موصى به) ألغِ، واضغط <b>تصدير بياناتي</b>، ثم عد.</li>
+<li dir="rtl">أدخل كلمة المرور الحالية وأكّد.</li>
+<li dir="rtl">بعد النجاح يُعاد تحميل التطبيق إلى شاشة الترحيب.</li>
+</ol>
+
+<h2 dir="rtl">4. حذف الحساب: مسار الشيفرة</h2>
+<p dir="rtl">الدالة <code dir="ltr">deleteMyAccount(uid, password)</code> في <code dir="ltr">src/pages/Account.tsx</code>، بهذا الترتيب:</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الخطوة</th><th>الاستدعاء</th><th>الأثر</th></tr>
+<tr><td>1</td><td><code dir="ltr">reauthenticateWithCredential(user, EmailAuthProvider.credential(email, password))</code></td><td>يتحقق من كلمة المرور أولًا. كلمة مرور خاطئة ← خطأ، و<b>لا يُحذف شيء</b>.</td></tr>
+<tr><td>2</td><td>لكل جدول من الجداول المتزامنة الـ 12: <code dir="ltr">getDocs(users/{uid}/{table})</code> ثم <code dir="ltr">deleteDoc</code> لكل مستند</td><td>تُزال كل السجلات السحابية الخاصة وشواهد الحذف (القاعدة: المالك والحساب نشط)</td></tr>
+<tr><td>3</td><td><code dir="ltr">deleteDoc(profiles/{uid})</code></td><td>تُزال بطاقة الحساب (القاعدة: للمالك الحذف دائمًا)</td></tr>
+<tr><td>4</td><td><code dir="ltr">deleteAccountAuth(password)</code> ← إعادة مصادقة ثم <code dir="ltr">deleteUser</code></td><td>يُزال تسجيل الدخول في Firebase، ويمكن تسجيل البريد مجددًا</td></tr>
+<tr><td>5</td><td><code dir="ltr">indexedDB.deleteDatabase('mego-u-&lt;uid&gt;')</code></td><td>تُزال نسخة الجهاز بما فيها نسخها الاحتياطية المحلية</td></tr>
+<tr><td>6</td><td><code dir="ltr">leaveAccount()</code></td><td>يزيل <code dir="ltr">mego.activeUid</code> ويعيد التحميل</td></tr>
+</table>
+<pre dir="ltr">
+password ─► re-auth ─► delete users/{uid}/*/* ─► delete profiles/{uid}
+         ─► delete Firebase user ─► delete local DB mego-u-&lt;uid&gt; ─► reload (welcome)
+</pre>
+<p dir="rtl">لا تُمس قاعدة بيانات الضيف <code dir="ltr">mego-nutrition</code> على الجهاز.</p>
+
+<h2 dir="rtl">5. ما لا يزيله حذف الحساب</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>السبب</th><th>طريقة الإزالة</th></tr>
+<tr><td>مستندات <code dir="ltr">foodSubmissions</code> التي أنشأها المستخدم (تحتوي <code dir="ltr">ownerUid</code>)</td><td>ليست ضمن حلقة الحذف</td><td>يحذفها مشرف (تسمح القواعد) أو عبر وحدة تحكم Firebase</td></tr>
+<tr><td><code dir="ltr">errorReports</code></td><td>بلا uid؛ لا يمكن ربطها بالمستخدم</td><td>يحذف المشرف التقارير القديمة</td></tr>
+<tr><td>الأطعمة المعتمدة المنسوخة إلى <code dir="ltr">foods/U-…</code></td><td>محتوى قاعدة مشتركة بلا حقول شخصية</td><td>المشرف، عند الطلب</td></tr>
+<tr><td>عدّادات <code dir="ltr">AI_U_&lt;date&gt;_&lt;uid&gt;</code> في خصائص السكربت</td><td>خارج Firestore</td><td><code dir="ltr">cleanupAiCounters</code> ‏(8 أيام) عند ضبط مشغّلها</td></tr>
+<tr><td>علامات المزامنة في localStorage ‏<code dir="ltr">mego.cloud2.&lt;uid&gt;.*</code></td><td>لا يمسحها <code dir="ltr">leaveAccount</code></td><td>مسح بيانات الموقع (طوابع زمنية فقط بلا محتوى)</td></tr>
+<tr><td><code dir="ltr">admins/{uid}</code> (إن كان المستخدم مشرفًا فقط)</td><td>الكتابة ممنوعة على الجميع داخل التطبيق</td><td>وحدة تحكم Firebase</td></tr>
+<tr><td>ملفات النسخ التي نزّلها المستخدم؛ وبيانات الضيف على الجهاز</td><td>خارج الحساب</td><td>المستخدم</td></tr>
+<tr><td>بيانات لدى المزوّدين وفق شروطهم (مثل الفئة المجانية من Gemini وسجلات Firebase)</td><td>خارج سيطرة MEGO</td><td>شروط المزوّد — غير مُتحقَّق منه</td></tr>
+</table>
+
+<h2 dir="rtl">6. السلوك عند الإخفاق والحالات الخاصة</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>ليست عملية ذرّية:</b> إذا انقطع الاتصال بعد بدء الخطوة 2، فقد تكون بعض السجلات حُذفت بينما الحساب لا يزال موجودًا. وتكرار الحذف يُكمله (الحذف قابل للتكرار بأمان). لم يُختبر هذا تحديدًا.</li>
+<li dir="rtl"><b>الحسابات الموقوفة:</b> شاشة الإيقاف لا تعرض إلا تسجيل الخروج، والقواعد تشترط حسابًا نشطًا لحذف السجلات الخاصة. لذا لا يستطيع المستخدم الموقوف حذف بياناته من التطبيق؛ يجب أن يعيد المشرف تفعيل الحساب أولًا، أو يحذفه المالك من وحدة تحكم Firebase.</li>
+<li dir="rtl"><b>تسجيل الدخول الحديث:</b> تعالجه إعادة المصادقة بكلمة المرور.</li>
+<li dir="rtl"><b>دون اتصال:</b> تفشل استدعاءات Firestore ويظهر الخطأ؛ ولا يُعلن حذف أي شيء.</li>
+<li dir="rtl"><b>الأجهزة الأخرى</b> المسجّل فيها الحساب المحذوف: تنتهي جلسة Firebase فيها، وتبقى قاعدتها المحلية <code dir="ltr">mego-u-&lt;uid&gt;</code> حتى تُمسح بيانات الموقع (غير مُتحقَّق منه على جهاز ثانٍ حقيقي).</li>
+</ul>
+
+<h2 dir="rtl">7. إجراءات المشرف والمالك</h2>
+<ul dir="rtl">
+<li dir="rtl">لا يستطيع المشرفون حذف حسابات المستخدمين أو بياناتهم الخاصة من التطبيق؛ يستطيعون فقط الإيقاف وإعادة التفعيل، وحذف تقارير الأخطاء، وإدارة المقترحات.</li>
+<li dir="rtl">لطلب حذف لا يستطيع المستخدم تنفيذه (كفقدان كلمة المرور أو إيقاف الحساب) يمكن للمالك استخدام وحدة تحكم Firebase: حذف المجموعات الفرعية تحت <code dir="ltr">users/{uid}</code>، و<code dir="ltr">profiles/{uid}</code>، ومقترحات المستخدم في <code dir="ltr">foodSubmissions</code>، والمستخدم في Authentication. ويُسجَّل الطلب دون نسخ بيانات شخصية إلى التذاكر.</li>
+<li dir="rtl">نسيان كلمة المرور: يستخدم المستخدم أولًا «نسيت كلمة المرور؟» ثم يحذف حسابه بالطريقة العادية.</li>
+</ul>
+
+<h2 dir="rtl">8. قرارات مفتوحة وتوصيات</h2>
+<ul dir="rtl">
+<li dir="rtl">تحديد مدة احتفاظ للحسابات غير النشطة (البند القانوني 7)، وتنفيذ تنظيف مجدول إن اعتُمد.</li>
+<li dir="rtl">توسيع <code dir="ltr">deleteMyAccount</code> ليحذف مقترحات المستخدم في <code dir="ltr">foodSubmissions</code> وعلامات <code dir="ltr">mego.cloud2.&lt;uid&gt;.*</code>.</li>
+<li dir="rtl">السماح للمستخدمين الموقوفين بحذف بياناتهم، أو توثيق إجراء بمساعدة المالك في سياسة الخصوصية.</li>
+<li dir="rtl">ضبط المشغّل الزمني لـ <code dir="ltr">cleanupAiCounters</code> في Apps Script.</li>
+<li dir="rtl">تحديد مدة احتفاظ لتقارير الأخطاء.</li>
+</ul>
+
+<h2 dir="rtl">9. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>حذف حسابي اختبار على الإنتاج</td><td>مُتحقَّق منه مباشرة (<code dir="ltr">scripts/live-verify.mjs</code>، ‏14/14)</td></tr>
+<tr><td>حذف الحساب من واجهة المتصفح</td><td>مختبر على المحاكيات (مجموعة تعدد المستخدمين، 8 فحوص)</td></tr>
+<tr><td>السلوك عند الإخفاق الجزئي، والأجهزة الأخرى المسجّلة</td><td>غير مُتحقَّق منه</td></tr>
+<tr><td>الاحتفاظ لدى المزوّد (Google)</td><td>غير مُتحقَّق منه</td></tr>
+<tr><td>مدة الاحتفاظ بالحسابات غير النشطة</td><td>لم تُحسم</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

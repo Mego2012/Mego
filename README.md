@@ -1,7 +1,7 @@
 # Mego Nutrition — personal nutrition & diet tracker (PWA)
 
 A mobile-first, installable, offline-capable nutrition tracker built around **your own Google Sheets food database**.
-Arabic (full RTL) and English, light and dark mode. No workouts — nutrition, body weight and progress only.
+Arabic (full RTL) and English, light and dark mode. Nutrition, body weight and progress, plus cardio tracking, strength-training programs with a rule-based training coach, and an illustrated guide for 54 exercises.
 
 * **Live app:** https://mego2012.github.io/Mego/
 * **Architecture, security model, free-tier limits:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
@@ -28,7 +28,7 @@ stops with a clear message when the free quota is used up) · phone storage + Dr
 | AI meal scanner | Photo (camera or gallery) → foods, grams with ranges, raw/cooked, cooking method, matched to YOUR food database → editable review → saved only after you confirm. Nutrition always from your database; AI estimates clearly marked |
 | Food diary | Breakfast / lunch / dinner / snacks; g, kg, ml, piece, slice, tbsp, tsp and custom servings; edit, move, duplicate, delete; copy meal / day / yesterday; saved meals; any past date; day marked fully / partially logged; training vs rest day; per-day target override |
 | Food database | Search Arabic + English (forgiving of أ/ا, ة/ه…), filters (category, raw/cooked, kcal, protein, carbs, fat), favorites, recent, custom foods, edit with version history, delete = archive with confirmation, CSV/Excel import with audit preview, CSV/Excel export in the sheet's own column layout |
-| Recipes «وصفاتي» | 60 built-in recipes computed from your own food database, smart suggestions from what's left today, recipe builder, ratings, favorites, saved meals |
+| Recipes «وصفاتي» | 101 built-in recipes computed from your own foods (USDA references where you have none; missing ingredients are never estimated), smart suggestions from what's left today, recipe builder, ratings, favorites, saved meals |
 | Meal planner | Week view, reusable day plans, automatic week plan from the library, shopping list with check-off, planned-vs-actual |
 | Water & habits | Water target and quick add, daily habits, fasting timer, optional reminders |
 | Progress | Weight, waist and optional measurements (one record per date), daily + 7-day average chart, weekly/monthly averages, change from start, waist trend, editable history |

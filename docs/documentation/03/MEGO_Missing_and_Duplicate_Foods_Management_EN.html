@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Missing_and_Duplicate_Foods_Management_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Missing and Duplicate Foods Management</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-29</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>End users, project owner, support, developers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Food_Database_Import_and_Update_Procedures, MEGO_Food_Data_Validation_and_Quality_Control, MEGO_Food_Search_and_Database_Guide, MEGO_Recipes_and_Custom_Foods_Guide, MEGO_Food_Database_Administration</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document explains what MEGO does when a food is <b>missing</b> (not found, incomplete, or a recipe ingredient without verified values) and how it <b>prevents, detects and resolves duplicates</b> (foods and diary entries). Core principle: a missing value is shown as missing and is <b>never invented</b>; a possible duplicate is <b>reported, never deleted automatically</b>. Sources: <code>src/lib/repo.ts</code>, <code>src/lib/recipeEngine.ts</code>, <code>src/lib/recipeRefMap.ts</code>, <code>src/lib/libraryFoods.ts</code>, <code>src/lib/foodNames.ts</code>, <code>src/lib/refFoods.ts</code>, <code>src/lib/foodIntel.ts</code>, <code>src/lib/sheetImport.ts</code>, <code>src/lib/customFoods.ts</code>, <code>src/lib/barcode.ts</code>, <code>src/lib/dataCheck.ts</code>, <code>src/components/FoodPicker.tsx</code>, <code>src/pages/RecipeLibrary.tsx</code>.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Principles</li>
+<li>A food is not found when searching</li>
+<li>Incomplete foods</li>
+<li>Missing recipe ingredients</li>
+<li>Completing the database from the recipe library</li>
+<li>Missing names and missing reference data</li>
+<li>Preventing duplicate foods</li>
+<li>Preventing duplicate diary entries</li>
+<li>Duplicates report in Data check</li>
+<li>Resolving duplicates</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Principles</h2>
+<ul>
+<li>No estimated or "typical" values are ever filled in for a missing food, nutrient or ingredient.</li>
+<li>Adding foods never changes existing foods; imports and completion features add only.</li>
+<li>Duplicates are blocked at entry where the match is certain (same name and same raw/cooked state) and only reported where it is not.</li>
+</ul>
+
+<h2>2. A food is not found when searching</h2>
+<p>The food picker searches in this order and offers the next step when nothing fits:</p>
+<pre>
+ My foods (incl. Hub foods)  →  USDA reference DB (12,879, Arabic/English search)
+        │ not found / not right
+        ▼
+ [+ Create "…" as my food]   — food editor pre-filled with the search text as name;
+                               values typed per 100 g, per 100 ml or per serving (converted to per 100 g)
+ [Search Open Food Facts]    — packaged products; only products with kcal, protein, carbs and fat are listed
+ [Barcode]                   — local food with that barcode first, else Open Food Facts; if not found,
+                               an empty product form opens for the label values
+</pre>
+<p>A USDA food picked from search is copied once into "My foods"; the next pick reuses that copy.</p>
+
+<h2>3. Incomplete foods</h2>
+<p>A food with all four main values 0, or imported with an empty/unreadable required value, is marked <code>incomplete</code>. It stays in the list (counted in Foods → Issues) but cannot be logged (<code>INCOMPLETE_FOOD</code>) and is not used in recipes. The user completes it by editing the food with the label values.</p>
+
+<h2>4. Missing recipe ingredients</h2>
+<p>For each ingredient of a library recipe, <code>computeLibraryRecipe</code> resolves the nutrition in this order:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Order</th><th>Source</th><th>Label in the recipe</th></tr>
+<tr><td>1</td><td>The user's own food with the same Arabic name (exact or normalised), not incomplete</td><td>My food</td></tr>
+<tr><td>2</td><td>Hand-checked USDA match in <code>recipeRefMap.ts</code> (68 entries)</td><td>USDA</td></tr>
+<tr><td>3</td><td>Nothing reliable (map value <code>null</code>, or reference DB not loaded offline)</td><td>Missing</td></tr>
+</table>
+<p>A missing ingredient contributes <b>nothing</b> to the totals. The recipe shows "Incomplete: {list} is not in your foods and has no reliable reference — not included in the totals." with an <b>Add this food</b> button that opens the food editor with the ingredient name. While an ingredient is missing, the recipe cannot be added to the diary or plan or saved to My recipes (saving throws <code>MISSING_INGREDIENT</code>).</p>
+<p><b>Example — labneh (لبنة):</b> mapped to <code>null</code> ("no USDA equivalent; must be added/approved by the user"). Recipe <i>lib-labneh-plate</i> is therefore the only one of the 101 library recipes that is unresolved on a new account (<code>docs/RECIPE-AUDIT.md</code>, 2026-11-10). Once the user adds labneh from its label, the recipe resolves with the user's own values.</p>
+
+<h2>5. Completing the database from the recipe library</h2>
+<p>Foods → <b>Complete my food database</b> previews and then adds (after a local backup) every library ingredient missing from the user's foods (USDA values) and every library meal whose ingredients are all known as a ready food with a one-serving portion. On a new account (computed 10 Nov 2026): 68 ingredients to add, 1 missing (labneh), 100 ready meals, 1 skipped (lib-labneh-plate). The message "No verified values for: {names}. Add it yourself in Foods (from the label) to complete: {r}." lists what the user must add. Existing foods (same Arabic name, or for meals the same sourceRef) are not added again. The owner's Hub has the equivalent command <code>node scripts/laptop-setup.mjs --hub-complete-foods</code>. Details: MEGO_Food_Database_Import_and_Update_Procedures §7.</p>
+
+<h2>6. Missing names and missing reference data</h2>
+<ul>
+<li><b>Names:</b> Foods → <b>Arabic &amp; English names</b> fills only <i>empty</i> Arabic or English names from <code>public/fooddb/food-names.json</code>; foods for which no translation exists are listed as "Still missing a name — add these yourself from the food editor". On the Hub, the backend action <code>fillFoodNames</code> fills only empty <code>name_en</code> cells.</li>
+<li><b>USDA build:</b> foods without a published energy value or without protein, carbs or fat are skipped (1 in the current build), not estimated.</li>
+<li><b>Optional nutrients:</b> a nutrient not reported stays unknown (not 0) in totals; the coach says how many entries lack fibre instead of guessing.</li>
+<li><b>Food rankings:</b> catalog ids missing from USDA are skipped; foods with an unmeasured indicator are ranked after all fully measured foods ("partial data" group); only animal foods without a fibre value count as 0 g fibre (animal tissue has none).</li>
+</ul>
+
+<h2>7. Preventing duplicate foods</h2>
+<p><code>findDuplicateFood</code> treats two non-archived foods as duplicates when they have the <b>same state</b> (raw/cooked/other) and the same Arabic name <i>or</i> the same English name after trimming, collapsing spaces and lower-casing. Creating or renaming a food to such a name is refused with "A food with the same name and raw/cooked state already exists." "Chicken breast" raw and "Chicken breast" cooked are <b>not</b> duplicates.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Path</th><th>Duplicate protection</th></tr>
+<tr><td>Food editor (create / rename)</td><td>refused by <code>findDuplicateFood</code></td></tr>
+<tr><td>Hub / CSV / Excel import</td><td>matched by sheet key (Hub food_id or name), legacy name re-keyed to the stable ID, name-keyed rows matched to Hub foods by name + state; duplicate names inside a file flagged and keyed <code>name#2</code></td></tr>
+<tr><td>Personal foods JSON import</td><td>same name + state already present → skipped</td></tr>
+<tr><td>USDA pick</td><td>reuses the existing copy with the same sourceRef</td></tr>
+<tr><td>Recipe match approval / Complete my food database</td><td>only names not already in the user's foods are added; meals checked by sourceRef or Arabic name</td></tr>
+<tr><td>Barcode</td><td>a local food with the same barcode is used instead of a new one</td></tr>
+<tr><td>Filling names</td><td>a name that would duplicate another food is not written</td></tr>
+</table>
+
+<h2>8. Preventing duplicate diary entries</h2>
+<p>Adding the same food with the same date, meal, quantity, unit and serving within 1.5 seconds is refused (<code>DUPLICATE_ENTRY</code>), which protects against double taps. Intentional repeats later are allowed.</p>
+
+<h2>9. Duplicates report in Data check</h2>
+<p>Settings → Data check → Run check also reports "Possible duplicates: {e} diary items and {f} foods appear more than once (for example entered again after a data loss)." It was added after the 10 Nov 2026 data-loss incident, when some days could have been re-entered by hand before the cloud copy came back.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Report</th><th>Grouping key</th><th>Excluded</th></tr>
+<tr><td>Diary items</td><td>date | meal | name (trimmed, lower-case) | grams rounded to whole g; listed when copies &gt; 1 (newest dates first, first 30 shown)</td><td>deleted entries</td></tr>
+<tr><td>Foods</td><td>Arabic name (or English if none), trimmed, lower-case; listed when copies &gt; 1</td><td>archived foods and foods from the Hub (<code>sheet</code>) or USDA (<code>usda</code>)</td></tr>
+</table>
+<p><b>Example:</b> 2026-11-08, Breakfast, "Oats" 40 g logged twice and "oats " 40.2 g once → one group "Oats · 40 g × 3". The note reads: "Nothing was removed. Check these days in the diary and delete the extra copy yourself if it is a duplicate."</p>
+<p>Note: the food report groups by name only (not by state), so a raw and a cooked food with the same name appear as a possible duplicate although the editor allows them. Review such cases before acting.</p>
+
+<h2>10. Resolving duplicates</h2>
+<ol>
+<li>Diary items: open the listed day in the Diary, compare the entries and delete the extra one. Deletions sync to the account.</li>
+<li>Foods: decide which record to keep; <b>archive</b> the other (archived foods leave lists, duplicate checks and exports; past diary entries keep their snapshot values; archiving is reversible with Restore). Renaming one of them is also possible.</li>
+<li>Hub foods: compare via the Hub check (only in Hub / only on phone / different values) and correct in the Food_Database tab, then import again.</li>
+<li>Run Data check again to confirm.</li>
+</ol>
+
+<h2>11. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Rules and messages</td><td>Verified in the listed source files and i18n strings</td></tr>
+<tr><td>Library completion counts (68 / 1 / 100 / 1)</td><td>Computed by running <code>planLibraryFoods</code> on 10 Nov 2026</td></tr>
+<tr><td>Automated tests</td><td>Unit tests 199/199 (run 10 Nov 2026), incl. <code>tests/library-foods.test.ts</code> (never estimated, adds only, idempotent, names), <code>tests/cardio-goals.test.ts</code> (labneh flagged missing), <code>tests/fooddb.test.ts</code> (create missing food, JSON import without duplicates), <code>tests/cloud-recovery.test.ts</code> (Data check); Hub completion <code>e2e/hub-complete-test.mjs</code> 9/9 (emulated backend)</td></tr>
+<tr><td>Duplicate cleanup on the owner's real data after the incident</td><td>Not verified in this document</td></tr>
+</table>
+
+<h2>12. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

@@ -22,7 +22,7 @@ const VIEWPORTS = [
   { name: 'Galaxy A54 (412×915)', width: 412, height: 915, dpr: 2.625 },
   { name: 'Galaxy S9+ (320×658)', width: 320, height: 658, dpr: 4.5 }
 ];
-const PAGES = ['/', '/diary', '/recipes', '/recipes?tab=suggest', '/recipes?tab=cook', '/recipes?tab=recipes', '/foods', '/planner', '/progress', '/habits', '/reports/week', '/reports/month', '/settings'];
+const PAGES = process.env.PAGES ? process.env.PAGES.split(',') : ['/', '/diary', '/recipes', '/recipes?tab=suggest', '/recipes?tab=cook', '/recipes?tab=recipes', '/foods', '/planner', '/progress', '/habits', '/reports/week', '/reports/month', '/settings'];
 
 let server;
 if (!EXTERNAL) {
@@ -42,13 +42,20 @@ async function fingerSwipe(cdp, vp) {
 
 async function swipeToBottom(page, cdp) {
   // Up to 40 real swipes (finger moving up) until the page stops moving.
-  let last = -1;
+  // Stops after two swipes in a row that do not move the page (one can land between momentum frames).
+  let last = -1, still = 0;
   for (let i = 0; i < 40; i++) {
     const vp = page.viewportSize();
+    const before = process.env.PROBE ? await page.evaluate(() => { const e = document.elementFromPoint(window.innerWidth / 2, window.innerHeight * 0.72); return e ? e.tagName + '.' + e.className : ''; }) : '';
     await fingerSwipe(cdp, vp);
-    await page.waitForTimeout(120);
+    if (process.env.PROBE) console.log('  swipe from', before.slice(0, 50));
+    await page.waitForTimeout(160);
     const y = await page.evaluate(() => window.scrollY);
-    if (y === last) break;
+    if (process.env.PROBE && last >= 0 && y - last < 60) {
+      const info = await page.evaluate(() => { const e = document.elementFromPoint(window.innerWidth / 2, window.innerHeight * 0.72); const chain = []; for (let x = e; x && chain.length < 6; x = x.parentElement) chain.push(x.tagName.toLowerCase() + '.' + String(x.className).split(' ').join('.')); return { chain, sel: String(getSelection()), active: document.activeElement?.tagName, sh: document.scrollingElement.scrollHeight }; });
+      console.log('  PROBE stuck at', y, JSON.stringify(info));
+    }
+    if (y === last) { if (++still >= 2) break; } else still = 0;
     last = y;
   }
   return page.evaluate(() => {
@@ -60,7 +67,8 @@ async function swipeToBottom(page, cdp) {
     const cards = [...document.querySelectorAll('main .card, main .stat, main .btn')].filter((e) => e.offsetParent);
     const lastEl = cards[cards.length - 1];
     const lastBottom = lastEl ? lastEl.getBoundingClientRect().bottom : 0;
-    return { scrollY: window.scrollY, max, scrollable: max > 5, atBottom: window.scrollY >= max - 2, lastVisibleAboveNav: lastBottom <= navTop + 1, bodyOverflow: getComputedStyle(document.body).overflow, inlineLock: document.body.classList.contains('scroll-locked') ? 'hidden' : document.body.style.overflow, hscroll: se.scrollWidth > se.clientWidth };
+    const under = document.elementFromPoint(window.innerWidth / 2, window.innerHeight * 0.72);
+    return { under: under ? under.tagName.toLowerCase() + '.' + String(under.className).split(' ')[0] : '', scrollY: window.scrollY, max, scrollable: max > 5, atBottom: window.scrollY >= max - 2, lastVisibleAboveNav: lastBottom <= navTop + 1, bodyOverflow: getComputedStyle(document.body).overflow, inlineLock: document.body.classList.contains('scroll-locked') ? 'hidden' : document.body.style.overflow, hscroll: se.scrollWidth > se.clientWidth };
   });
 }
 
@@ -114,6 +122,7 @@ for (const vp of VIEWPORTS) {
     for (const p of PAGES) {
       await page.goto(BASE + '#' + p);
       await page.waitForLoadState('networkidle');
+      if (process.env.FIXCSS) await page.addStyleTag({ content: process.env.FIXCSS });
       await page.waitForTimeout(500);
       await page.evaluate(() => window.scrollTo(0, 0));
       const r = await swipeToBottom(page, cdp);

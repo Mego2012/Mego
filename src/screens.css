@@ -96,7 +96,8 @@
 .fr-fav svg { width: 18px; height: 18px; }
 .macro-split { display: flex; gap: 2px; height: 4px; width: min(160px, 70%); margin: 5px 0 4px; border-radius: 99px; overflow: hidden; }
 .macro-split > i { display: block; min-width: 2px; flex-basis: 0; }
-.src-tag { display: inline-flex; align-items: center; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); color: var(--muted); vertical-align: 1px; }
+/* non-interactive label: a swipe that starts on it must scroll the page (Chrome on Android could swallow it) */
+.src-tag { pointer-events: none; display: inline-flex; align-items: center; font-size: 10.5px; font-weight: 700; letter-spacing: .04em; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); color: var(--muted); vertical-align: 1px; }
 .src-tag.usda { background: color-mix(in srgb, var(--info) 14%, transparent); color: var(--info); }
 .src-tag.openfoodfacts { background: color-mix(in srgb, var(--warn) 14%, transparent); color: var(--warn); }
 .src-tag.sheet { background: var(--primary-soft); color: var(--primary); }

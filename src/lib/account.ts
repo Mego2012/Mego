@@ -27,6 +27,9 @@ export async function bootAccount(): Promise<AccountState> {
   initCloud(cfg);
   const uid = ls.get(ACTIVE);
   if (uid) {
+    // a missing local database (browser storage cleared) must be downloaded in full from the cloud again
+    const { default: Dexie } = await import('dexie');
+    if (!(await Dexie.exists(userDbName(uid)).catch(() => true))) { const { resetCloudMarkers } = await import('./cloudSync'); resetCloudMarkers(uid); }
     useDatabase(userDbName(uid));
     await db.open();
     if (ls.get(IMPORT) === uid) { await copyGuestData(); ls.del(IMPORT); }

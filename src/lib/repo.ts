@@ -28,7 +28,8 @@ async function enqueue(table: SyncTable, key: string, op: 'upsert' | 'delete', p
 export async function getSettings(): Promise<Settings> {
   const s = await db.settings.get('main');
   if (s) return mergeSettings(s);
-  const d = defaultSettings();
+  // updatedAt 0: an untouched default never outranks the account's own settings arriving from the cloud
+  const d = { ...defaultSettings(), updatedAt: 0 };
   await db.settings.put(d);
   return d;
 }

@@ -12,6 +12,7 @@ import { db, SYNC_TABLES, type SyncTable } from './db';
 import { cloud, currentUser, reportError } from './firebase';
 import { coalesce, setStatus } from './sync';
 import { importParsedFoods, type ParsedFood } from './sheetImport';
+import { defaultSettings } from './defaults';
 import type { Food, OutboxItem, Settings } from './types';
 
 let uid = '';
@@ -19,7 +20,10 @@ let unsubs: Unsubscribe[] = [];
 let pushing = false;
 let timer: ReturnType<typeof setTimeout> | undefined;
 
-const lastKey = (t: string) => `mego.cloud.${uid}.${t}`;
+// "cloud2": markers of the first version are ignored once, so every device re-downloads its account in full one time
+// (a device whose records were lost while the old markers survived gets them back; newer local copies are kept).
+const MARK = 'mego.cloud2.';
+const lastKey = (t: string) => `${MARK}${uid}.${t}`;
 const getLast = (t: string) => { try { return Number(localStorage.getItem(lastKey(t))) || 0; } catch { return 0; } };
 const setLast = (t: string, v: number) => { try { if (v > getLast(t)) localStorage.setItem(lastKey(t), String(v)); } catch { /* ignore */ } };
 
@@ -73,11 +77,20 @@ export async function pushCloud(): Promise<{ pushed: number; conflicts: number }
   return { pushed, conflicts };
 }
 
+/** True when a settings record is exactly the app's defaults (ignoring id, timestamps and the device-local sync config). */
+export function isPristineDefault(s: Settings | undefined): boolean {
+  if (!s) return false;
+  const strip = (x: Settings) => { const { updatedAt: _u, sync: _s, id: _i, ...rest } = x as Settings & { updatedAt?: number }; return JSON.stringify(rest); };
+  return strip(s) === strip(defaultSettings());
+}
+
 async function applyRemote(table: SyncTable, key: string, rec: { data: string; updatedAt: number; deleted?: boolean }) {
   const t = db.table(table);
   const local = (await t.get(table === 'foodChanges' ? Number(key) : key)) as { updatedAt?: number; at?: number } | undefined;
   const lUpd = local?.updatedAt ?? local?.at ?? -1;
-  if (local && lUpd > rec.updatedAt) return; // local is newer — it will be pushed
+  // untouched default settings (created on this device, never saved by the user) never outrank the account's settings
+  const pristine = table === 'settings' && isPristineDefault(local as unknown as Settings | undefined);
+  if (local && !pristine && lUpd > rec.updatedAt) return; // local is newer — it will be pushed
   if (rec.deleted) { if (local) await t.delete(table === 'foodChanges' ? Number(key) : key); return; }
   let value: Record<string, unknown>;
   try { value = JSON.parse(rec.data); } catch { return; }
@@ -89,10 +102,31 @@ async function applyRemote(table: SyncTable, key: string, rec: { data: string; u
   await t.put(value);
 }
 
-function listen() {
+/**
+ * Where the live listener starts for a table. The "last seen" marker lives in localStorage while the records live in
+ * IndexedDB; if the records are gone (browser storage partly cleared, a new local database for the same account) but
+ * the marker survived, starting from the marker would never download the older records again. So an empty local
+ * table always starts from 0 (full download). Nothing local is overwritten: applyRemote keeps newer local copies.
+ */
+async function startFrom(table: SyncTable): Promise<number> {
+  const last = getLast(table);
+  if (!last || table === 'settings') return 0; // settings is one document: always re-read it
+  try { if ((await db.table(table).count()) === 0) return 0; } catch { /* fall back to the marker */ }
+  return last;
+}
+
+/** Forgets every "last seen" marker of this account so the next start downloads everything again (non-destructive). */
+export function resetCloudMarkers(userId: string) {
+  for (const t of Object.keys(SYNC_TABLES)) { try { localStorage.removeItem(`${MARK}${userId}.${t}`); } catch { /* ignore */ } }
+}
+
+async function listen() {
   const { fs } = cloud();
+  const me = uid;
   for (const table of Object.keys(SYNC_TABLES) as SyncTable[]) {
-    const q = query(collection(fs, 'users', uid, table), where('updatedAt', '>', getLast(table)));
+    const from = await startFrom(table);
+    if (uid !== me) return; // stopped meanwhile
+    const q = query(collection(fs, 'users', uid, table), where('updatedAt', '>', from));
     unsubs.push(onSnapshot(q, async (snap) => {
       for (const ch of snap.docChanges()) {
         if (ch.type === 'removed') continue;
@@ -113,7 +147,7 @@ function listen() {
 export function startCloudSync(userId: string, onLocalChange: (fn: () => void) => void) {
   stopCloudSync();
   uid = userId;
-  listen();
+  void listen();
   const schedule = (ms = 1500) => { clearTimeout(timer); timer = setTimeout(() => { pushCloud(); }, ms); };
   onLocalChange(() => schedule());
   if (typeof window !== 'undefined') {

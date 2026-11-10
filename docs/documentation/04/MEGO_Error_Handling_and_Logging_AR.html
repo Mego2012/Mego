@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Error_Handling_and_Logging_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — معالجة الأخطاء والتسجيل</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-40</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>المطورون، فريق الصيانة، الدعم</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_API_Documentation، MEGO_Gemini_AI_Integration، MEGO_Firebase_Integration، MEGO_Google_Sheets_Integration_and_Sync، MEGO_Troubleshooting_Manual، MEGO_Monitoring_and_Maintenance، MEGO_Support_and_Incident_Management، MEGO_State_Management</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تصف هذه الوثيقة كيف يكتشف MEGO الأخطاء ويعرضها ويعيد المحاولة ويسجّلها: الحماية من انهيار الواجهة، والرسائل الظاهرة للمستخدم، وأخطاء التحقق من المدخلات، وأخطاء المزامنة (الـ Hub وFirestore)، ورموز أخطاء ماسح الوجبات الذكي في الخادم والعميل، وأخطاء المصادقة، وآلية <code dir="ltr">reportError</code>، والسجلات الأخرى الموجودة (تبويبات الـ Hub وسجل Apps Script). لا يستخدم MEGO أي خدمة خارجية لتتبع الأخطاء أو للتحليلات؛ والسجل البعيد الوحيد للأخطاء هو مجموعة Firestore ‏<code dir="ltr">errorReports</code>.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">المبادئ</li>
+<li dir="rtl">الحماية من انهيار الواجهة (ErrorBoundary)</li>
+<li dir="rtl">الأخطاء الظاهرة للمستخدم والتحقق من المدخلات</li>
+<li dir="rtl">أخطاء الإقلاع</li>
+<li dir="rtl">أخطاء المزامنة: Hub جداول Google</li>
+<li dir="rtl">أخطاء المزامنة: Firestore</li>
+<li dir="rtl">أخطاء ماسح الوجبات الذكي</li>
+<li dir="rtl">أخطاء المصادقة</li>
+<li dir="rtl">الإبلاغ عن الأخطاء: reportError وerrorReports</li>
+<li dir="rtl">سجلات ومسارات تدقيق أخرى</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. المبادئ</h2>
+<ul dir="rtl">
+<li dir="rtl">لا يجوز أن يتلف الخطأ البيانات أو يستبدلها بصمت: تُرفض النسخ الأقدم، والحذف في الـ Hub ناعم، وتُؤخذ نسخ احتياطية محلية قبل العمليات الحساسة.</li>
+<li dir="rtl">الإخفاقات المؤقتة يُعاد تجربتها تلقائيًا مع تراجع زمني؛ أما الدائمة (رمز خاطئ، جدول خاطئ، حصة منتهية، مفتاح غير صالح) فلا يُعاد تجربتها وتُعرض للمستخدم.</li>
+<li dir="rtl">الإبلاغ عن الخطأ لا يجوز أن يعطّل التطبيق (<code dir="ltr">reportError</code> تبتلع أخطاءها).</li>
+<li dir="rtl">تقارير الأخطاء لا تحتوي بيانات شخصية ولا مفاتيح ولا رموزًا (تفاصيل <code dir="ltr">google</code> في الخادم تستثني المفتاح).</li>
+</ul>
+
+<h2 dir="rtl">2. الحماية من انهيار الواجهة (ErrorBoundary)</h2>
+<p dir="rtl">يلفّ <code dir="ltr">src/components/ErrorBoundary.tsx</code> الصفحات الموجَّهة داخل الإطار، ومفتاحه هو المسار الحالي، فينعدم أثره عند الانتقال لصفحة أخرى. عند حدوث خطأ في العرض:</p>
+<ul dir="rtl">
+<li dir="rtl">يسجّل <code dir="ltr">console.error('UI error', error)</code> في وحدة تحكم المتصفح؛</li>
+<li dir="rtl">ويعرض بطاقة استرداد (<code dir="ltr">data-testid="error-screen"</code>) بعنوان ونص مترجمين ورسالة الخطأ (من اليسار لليمين)، وزرين: <b>إعادة المحاولة</b> (يمسح الخطأ ويعيد العرض) و<b>إعادة التحميل</b> (ينتقل إلى <code dir="ltr">#/</code> ويعيد التحميل).</li>
+</ul>
+<p dir="rtl">البيانات في IndexedDB ولا تتأثر بخطأ الواجهة. ولا تُرسل انهيارات الواجهة إلى <code dir="ltr">errorReports</code>.</p>
+
+<h2 dir="rtl">3. الأخطاء الظاهرة للمستخدم والتحقق من المدخلات</h2>
+<p dir="rtl">تمر معظم الإجراءات عبر <code dir="ltr">useAsync().run()</code> ‏(<code dir="ltr">src/components/ui.tsx</code>): تضبط حالة الانشغال، وتعرض رسالة نجاح اختيارية، وعند الفشل تعرض تنبيهًا «خطأ: &lt;الرسالة&gt;» (ويُعرض خطأ <code dir="ltr">DUPLICATE:</code> برسالة «طعام مكرر» المترجمة).</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>مصدر الخطأ</th><th>الرسالة</th></tr>
+<tr><td dir="ltr">createFood / updateFood (repo.ts)</td><td><code dir="ltr">Invalid nutrition values: …</code>، <code dir="ltr">Name is required</code>، <code dir="ltr">DUPLICATE:&lt;food id&gt;</code>، <code dir="ltr">Food not found</code></td></tr>
+<tr><td dir="ltr">saveSettings (repo.ts)</td><td><code dir="ltr">Invalid targets: kcal, protein …</code> (يجب أن تكون السعرات &gt; 0 والعناصر الكبرى ≥ 0)</td></tr>
+<tr><td dir="ltr">firebase.ts</td><td><code dir="ltr">AGE_REQUIRED</code>، <code dir="ltr">NOT_SIGNED_IN</code>، <code dir="ltr">CLOUD_NOT_CONFIGURED</code></td></tr>
+</table>
+<p dir="rtl">التغييرات الحساسة (مثل تغيّر الـ Hub ‏<code dir="ltr">HUB_CHANGED</code>) تطلب تأكيدًا في نافذة قبل تغيير أي شيء.</p>
+
+<h2 dir="rtl">4. أخطاء الإقلاع</h2>
+<ul dir="rtl">
+<li dir="rtl">إخفاق <code dir="ltr">preMigrationBackup()</code> أو <code dir="ltr">preUpdateBackup()</code> يُسجَّل بـ <code dir="ltr">console.warn</code> ولا يوقف التطبيق.</li>
+<li dir="rtl">إخفاق <code dir="ltr">bootAccount()</code> يعود إلى وضع الضيف.</li>
+<li dir="rtl">غياب <code dir="ltr">firebase-config.json</code> أو أي خطأ في جلبه أو تحليله ← وضع الضيف فقط (دون عرض خطأ).</li>
+<li dir="rtl">جلسة منتهية أو تخص معرّفًا آخر ← يُمسح الحساب النشط وتُعاد تحميل الصفحة إلى شاشة الترحيب.</li>
+</ul>
+
+<h2 dir="rtl">5. أخطاء المزامنة: Hub جداول Google</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الخطأ</th><th>المصدر</th><th>المعالجة</th></tr>
+<tr><td><code dir="ltr">Sync URL not configured</code></td><td dir="ltr">callScript</td><td>الحالة <code dir="ltr">disabled</code> (ويُتخطى الرفع مسبقًا)</td></tr>
+<tr><td><code dir="ltr">HTTP &lt;status&gt;</code></td><td>رد غير ناجح</td><td>إعادة المحاولة مع التراجع</td></tr>
+<tr><td><code dir="ltr">unauthorized</code></td><td>رمز خاطئ</td><td>دائم — لا يُعاد</td></tr>
+<tr><td><code dir="ltr">WRONG_SPREADSHEET: …</code></td><td>checkHub: الخادم غير متصل بالـ Hub</td><td>دائم — لا يُعاد</td></tr>
+<tr><td><code dir="ltr">HUB_CHANGED: …</code></td><td>checkHub: جدول أصلي مختلف</td><td>تطلب الإعدادات تأكيدًا قبل إعادة التثبيت</td></tr>
+<tr><td><code dir="ltr">HUB_IS_XLSX: …</code></td><td>الخادم في وضع Excel للقراءة فقط</td><td>دائم — لا يُعاد</td></tr>
+<tr><td>تحقق الخادم (<code dir="ltr">… invalid change(s) rejected</code>، <code dir="ltr">too many changes in one request</code>)</td><td dir="ltr">push_</td><td>يُعاد مع التراجع (غير مُتحقَّق منه ما إذا كانت مثل هذه الدفعة يمكن أن تنجح دون تدخل المستخدم)</td></tr>
+<tr><td>التعارضات (<code dir="ltr">conflicts[]</code> في رد الرفع)</td><td dir="ltr">push_</td><td>ليست خطأ: تُعدّ في الحالة وتعيد <code dir="ltr">pullAll()</code> السجلات الأحدث</td></tr>
+</table>
+<p dir="rtl">عند الإخفاق: <code dir="ltr">backoffMs(n) = min(300000, 5000 × 2^(n−1))</code>، ويُحفظ <code dir="ltr">sync.lastError</code> في الإعدادات، وتعرض شارة الحالة <code dir="ltr">error</code> (أو <code dir="ltr">offline</code>) مع «إعادة المحاولة خلال N ث». أخطاء مزامنة الـ Hub <b>لا</b> تُرسل إلى <code dir="ltr">errorReports</code> (أجهزة الضيف/المالك عادةً غير مسجلة الدخول).</p>
+
+<h2 dir="rtl">6. أخطاء المزامنة: Firestore</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>permission-denied عند الرفع:</b> يُعدّ تعارضًا (الخادم يملك نسخة أحدث، أو الحساب موقوف)؛ ويُحذف العنصر من الصادر.</li>
+<li dir="rtl"><b>أخطاء رفع أخرى:</b> تتوقف الدورة، والحالة <code dir="ltr">error</code> مع الرسالة، و<code dir="ltr">reportError('sync', message)</code>.</li>
+<li dir="rtl"><b>فشل تطبيق سجل وارد:</b> <code dir="ltr">reportError('sync-apply', '&lt;table&gt;/&lt;id&gt;: &lt;message&gt;')</code>؛ ويستمر التنزيل بالسجل التالي.</li>
+<li dir="rtl"><b>خطأ المستمع:</b> الحالة <code dir="ltr">error</code> مع الرسالة. ومستمع الأطعمة المشتركة يتجاهل الأخطاء (دون اتصال تبقى النسخة المحلية تعمل).</li>
+<li dir="rtl"><b>دون اتصال:</b> الحالة <code dir="ltr">offline</code>؛ ويُستأنف الرفع بعد 300 مللي ث من عودة الاتصال.</li>
+</ul>
+
+<h2 dir="rtl">7. أخطاء ماسح الوجبات الذكي</h2>
+<h3 dir="rtl">7.1 التحويل في الخادم (Code.gs، الدالة aiError_)</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>رد Google</th><th>الرمز</th><th>سلوك الخادم</th></tr>
+<tr><td>503 / UNAVAILABLE</td><td dir="ltr">AI_OVERLOADED</td><td>الانتقال فورًا إلى النموذج المجاني التالي</td></tr>
+<tr><td>500 وأخطاء 5xx الأخرى</td><td dir="ltr">AI_SERVER_ERROR</td><td>إعادة المحاولة على النموذج نفسه بعد 2 ث ثم 4 ث، ثم النموذج التالي</td></tr>
+<tr><td>504 / DEADLINE_EXCEEDED</td><td dir="ltr">AI_TIMEOUT</td><td>كما سبق</td></tr>
+<tr><td>استثناء شبكة</td><td dir="ltr">AI_NETWORK</td><td>كما سبق</td></tr>
+<tr><td>429 يومي / بالدقيقة</td><td dir="ltr">AI_QUOTA_DAY / AI_QUOTA_MINUTE (+ retryAfter)</td><td>لا يُعاد</td></tr>
+<tr><td>401/403 أو مفتاح غير صالح</td><td dir="ltr">AI_KEY_INVALID</td><td>لا يُعاد</td></tr>
+<tr><td>الموقع غير مدعوم</td><td dir="ltr">AI_REGION</td><td>لا يُعاد</td></tr>
+<tr><td>404</td><td dir="ltr">AI_MODEL_UNAVAILABLE</td><td>لا يُعاد</td></tr>
+<tr><td>400 بسبب الصورة / 400 آخر</td><td dir="ltr">AI_BAD_IMAGE / AI_CONFIG</td><td>لا يُعاد</td></tr>
+<tr><td>أي رمز HTTP آخر</td><td dir="ltr">AI_HTTP_&lt;code&gt;</td><td>لا يُعاد</td></tr>
+</table>
+<p dir="rtl">سلسلة النماذج (المستوى المجاني فقط): gemini-3.8-flash ← gemini-3.6-flash ← gemini-3.5-flash-lite، بمهلة إجمالية 240 ث. تُسجَّل كل محاولة فاشلة عبر <code dir="ltr">console.warn('Gemini &lt;model&gt; → &lt;code&gt; …')</code> في Apps Script (تسجيل الاستثناءات: STACKDRIVER). رموز أخرى من الخادم: AI_NOT_CONFIGURED وAI_DAILY_LIMIT وAI_USER_LIMIT وAI_REGION_RESTRICTED وAI_REFUSED وAI_BAD_OUTPUT وAI_TRUNCATED. التحليل الفاشل لا يستهلك الحصة اليومية (العداد العام يزداد عند النجاح فقط، وعداد المستخدم يُستردّ).</p>
+<h3 dir="rtl">7.2 المعالجة في العميل (src/lib/mealScanner.ts وMealScanner.tsx)</h3>
+<ul dir="rtl">
+<li dir="rtl">التحقق من الصورة قبل الإرسال: <code dir="ltr">AI_UNSUPPORTED_FORMAT</code> (ليست صورة أو تعذّر فك ترميزها — لا تُرسل الصورة الأصلية أبدًا)، و<code dir="ltr">AI_IMAGE_TOO_LARGE</code> (أكبر من 30 ميغابايت، أو ما زالت فوق حد الرفع بعد التصغير).</li>
+<li dir="rtl">قبل الطلب: <code dir="ltr">AI_NO_BACKEND</code> (لا خادم مهيأ / غير مسجل الدخول)، و<code dir="ltr">AI_OFFLINE</code>؛ ومهلة العميل 280 ث ← <code dir="ltr">AI_TIMEOUT</code>.</li>
+<li dir="rtl">تحويل ردود الخادم: <code dir="ltr">AI_QUOTA_DAY</code> مع وقت إعادة التعيين (منتصف الليل بتوقيت America/Los_Angeles، معروضًا بالتوقيت المحلي)؛ <code dir="ltr">AI_QUOTA_MINUTE</code> مع الثواني؛ <code dir="ltr">AI_USER_LIMIT</code> مع الحد؛ <code dir="ltr">AI_HTTP_*</code> ← <code dir="ltr">AI_SERVER_ERROR</code>؛ <code dir="ltr">unauthorized</code> ← <code dir="ltr">AI_UNAUTHORIZED</code>؛ <code dir="ltr">unknown action</code> ← <code dir="ltr">AI_OLD_BACKEND</code>؛ HTTP 5xx ← <code dir="ltr">AI_SERVER_ERROR</code>؛ HTTP 4xx ← <code dir="ltr">AI_CONFIG</code>؛ وأي شيء آخر ← <code dir="ltr">AI_NETWORK</code>. وتُمرَّر حالة Google ورسالتها كسطر تفصيلي («قالت Google: …»).</li>
+<li dir="rtl">إعادة المحاولة التلقائية: الرموز المؤقتة (<code dir="ltr">AI_OVERLOADED, AI_SERVER_ERROR, AI_TIMEOUT, AI_NETWORK, AI_BUSY</code>) بعد 3 ث و8 ث (ولا يُعاد <code dir="ltr">AI_NETWORK</code> دون اتصال)؛ وتُنتظر حصة الدقيقة إذا كانت ≤ 20 ث. وتعرض الشاشة «إعادة المحاولة n/2 (السبب)». ولا تُرسل الصورة نفسها مرتين في وقت واحد.</li>
+<li dir="rtl">عند الفشل النهائي تُعرض الرسالة المترجمة (والرموز غير المعروفة ← <code dir="ltr">AI_ERROR</code>)؛ وفي الأخطاء المؤقتة تُحفظ الصورة ليعيد المستخدم المحاولة يدويًا.</li>
+<li dir="rtl">يُتحقق من صحة النتائج (<code dir="ltr">AI_BAD_OUTPUT</code> عند الخلل)؛ ولا يُحفظ شيء تلقائيًا.</li>
+</ul>
+<p dir="rtl">السبب الجذري لرسالة «الذكاء الاصطناعي مشغول» العامة سابقًا: ضغط 503 لدى Google على النموذج الأساسي، والذي كان الخادم القديم يبلّغ عنه كانشغال دون إعادة محاولة (أُصلح في الإصدار 7 من الخادم).</p>
+
+<h2 dir="rtl">8. أخطاء المصادقة</h2>
+<p dir="rtl">تُحوَّل أخطاء Firebase حسب الرمز (<code dir="ltr">auth/…</code>) إلى رسائل مترجمة بالبادئة <code dir="ltr">authErr_</code>؛ والرموز غير المعروفة تستخدم <code dir="ltr">authErr_generic</code>. الرموز المحوَّلة: email_already_in_use وinvalid_credential وinvalid_email وnetwork_request_failed وrequires_recent_login وtoo_many_requests وuser_disabled وuser_not_found وweak_password وwrong_password. وتُتجاهل إخفاقات تحديث الملف الشخصي دون اتصال أو عند الإيقاف (<code dir="ltr">touchProfile</code>).</p>
+
+<h2 dir="rtl">9. الإبلاغ عن الأخطاء: reportError وerrorReports</h2>
+<pre dir="ltr">
+reportError(kind, message)
+  └─ only if Firebase is initialised AND a user is signed in
+  └─ setDoc(errorReports/&lt;auto id&gt;, { at: Date.now(), kind: kind[0..40], message: message[0..400], app: '1' })
+  └─ any failure is swallowed
+</pre>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>النوع (المستدعون الحاليون)</th><th>متى</th></tr>
+<tr><td><code dir="ltr">sync</code></td><td>فشلت دورة رفع إلى Firestore بخطأ غير permission-denied</td></tr>
+<tr><td><code dir="ltr">sync-apply</code></td><td>تعذّر تطبيق سجل وارد محليًا</td></tr>
+</table>
+<ul dir="rtl">
+<li dir="rtl">قواعد الأمان: يحق لأي مستخدم مسجل <b>إنشاء</b> تقرير بالمفاتيح at/kind/message/app فقط ورسالة أقل من 500 حرف؛ والقراءة والحذف للمشرفين فقط.</li>
+<li dir="rtl">لوحة المشرف (<code dir="ltr">#/admin</code>): تعرض <code dir="ltr">adminListErrors(50)</code> أحدث 50 تقريرًا (شارة النوع، الرسالة، التاريخ). لا توجد تنبيهات تلقائية.</li>
+<li dir="rtl">لا توجد مهمة احتفاظ أو تنظيف لـ <code dir="ltr">errorReports</code> (وحذفها يدويًا غير مُتحقَّق منه).</li>
+</ul>
+
+<h2 dir="rtl">10. سجلات ومسارات تدقيق أخرى</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>السجل</th><th>المكان</th><th>المحتوى</th></tr>
+<tr><td dir="ltr">Sync_Metadata</td><td>تبويب في الـ Hub</td><td dir="ltr">dataVersion, lastWriteAt, lastSyncAt, lastConflicts, appSchemaVersion, schemaVersion, migratedAt</td></tr>
+<tr><td dir="ltr">Deleted_Records</td><td>تبويب في الـ Hub</td><td>كل سجل محذوف (الجدول، المفتاح، الوقت، json) — حذف ناعم</td></tr>
+<tr><td dir="ltr">Backup_Log</td><td>تبويب في الـ Hub</td><td>نسخ Drive ولقطات التطبيق (الوقت، النوع، الملف، الحالة، التفاصيل)</td></tr>
+<tr><td dir="ltr">Migration_Report</td><td>تبويب في الـ Hub</td><td>خطوات migrateHub() وأعدادها</td></tr>
+<tr><td dir="ltr">Food_Change_Log / foodChanges</td><td>تبويب في الـ Hub وجدول محلي</td><td>تاريخ إنشاء الأطعمة وتعديلها وأرشفتها (قبل/بعد، والمصدر)</td></tr>
+<tr><td>سجل تنفيذ Apps Script</td><td>سجلات Google Cloud ‏(exceptionLogging STACKDRIVER)</td><td>مخرجات <code dir="ltr">Logger.log</code> لدوال الإعداد؛ و<code dir="ltr">console.warn</code> لكل محاولة Gemini فاشلة</td></tr>
+<tr><td>وحدة تحكم المتصفح</td><td>على الجهاز فقط</td><td>أخطاء الواجهة وتحذيرات النسخ الاحتياطي</td></tr>
+<tr><td>عدادات استخدام الذكاء الاصطناعي</td><td>خصائص السكربت</td><td>أعداد فقط (AI_USED_&lt;date&gt; وAI_U_&lt;date&gt;_&lt;uid&gt;)؛ يراها المشرفون عبر aiStats؛ وتُنظَّف بعد 8 أيام بـ cleanupAiCounters()</td></tr>
+</table>
+
+<h2 dir="rtl">11. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>كل الرموز والرسائل والمسارات أعلاه</td><td>مُتحقَّق منها في <code dir="ltr">src/components/ErrorBoundary.tsx, ui.tsx, MealScanner.tsx, src/lib/mealScanner.ts, sync.ts, cloudSync.ts, firebase.ts, repo.ts, src/pages/Account.tsx, apps-script/Code.gs, firebase/firestore.rules</code></td></tr>
+<tr><td>تحويل أخطاء الذكاء الاصطناعي، وإعادة المحاولة، والانتقال بين النماذج، وعدم استهلاك الحصة عند الفشل</td><td>مختبرة بوحدات على Code.gs الحقيقي داخل محاكي (<code dir="ltr">tests/scanner.test.ts</code>)؛ وحيًا في 10 نوفمبر 2026: حُللت صورة حقيقية (≈ 64 ث، 4 عناصر)</td></tr>
+<tr><td>قواعد errorReports (المستخدمون يكتبون، والمشرفون فقط يقرؤون)</td><td>مختبرة على المحاكيات (<code dir="ltr">tests-rules/rules.test.ts</code>)</td></tr>
+<tr><td>استرداد فقدان التخزين و«سجل تالف واحد لا يوقف التنزيل»</td><td>مُتحقَّق منهما على المحاكيات (<code dir="ltr">e2e/storage-loss.mjs</code>)</td></tr>
+<tr><td>وصول تقارير أخطاء فعلية في الإنتاج</td><td>غير مُتحقَّق منه</td></tr>
+<tr><td>سجلات Apps Script في Google Cloud</td><td>غير مُتحقَّق منها</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

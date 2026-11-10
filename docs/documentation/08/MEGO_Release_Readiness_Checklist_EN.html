@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Release_Readiness_Checklist_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Release Readiness Checklist</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-66</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Project owner, developers, release manager</td></tr>
+<tr><td>Related documents</td><td>MEGO_Build_and_Release_Procedures, MEGO_Production_Verification_Checklist, MEGO_Update_and_Rollback_Procedures, MEGO_Testing_Strategy, MEGO_Known_Bugs_and_Limitations, MEGO_Android_Device_Testing, MEGO_Data_Backup_and_Recovery</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This checklist is used before and after every MEGO release to decide whether the release may go live. It lists the mandatory gates (code quality, automated tests, data safety, security, backend, documentation), the post-deployment checks and the sign-off. The last column shows the status of the current code (release 1.3 plus the food-database completion of 10 November 2026). A release ships only when every <b>blocking</b> item is ✅ or explicitly accepted by the owner.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>How to use this checklist</li>
+<li>Gate A — code and build</li>
+<li>Gate B — automated tests</li>
+<li>Gate C — data safety</li>
+<li>Gate D — security and privacy</li>
+<li>Gate E — backend and services</li>
+<li>Gate F — after deployment</li>
+<li>Gate G — public-launch items</li>
+<li>Sign-off</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. How to use this checklist</h2>
+<ol>
+<li>Copy the tables into the release notes or tick them in a copy of this document.</li>
+<li>Run the gates in order A → F. A failed blocking item stops the release.</li>
+<li>Deployment is automatic: a push to <code>claude/nutrition-tracking-app-989rku</code> (or <code>main</code>) runs <code>.github/workflows/deploy.yml</code> → <code>npm ci</code>, <code>npm test</code>, <code>npm run build</code> → GitHub Pages. If tests or build fail, nothing is deployed.</li>
+<li>Rollback: see MEGO_Update_and_Rollback_Procedures.</li>
+</ol>
+<p>Legend: ✅ done/passing · ⏳ pending · ❌ failing · B = blocking for any release · L = blocking for public launch only.</p>
+
+<h2>2. Gate A — code and build</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>Check</th><th>Command / evidence</th><th>Type</th><th>Current status</th></tr>
+<tr><td>A1</td><td>TypeScript compiles with 0 errors</td><td><code>npx tsc -b</code></td><td>B</td><td>Not re-run for this document</td></tr>
+<tr><td>A2</td><td>Production build succeeds</td><td><code>npm run build</code> (also in CI)</td><td>B</td><td>✅ (CI deploys only on success)</td></tr>
+<tr><td>A3</td><td>No new console/page errors on main screens</td><td>Browser suites log <code>pageerror</code></td><td>B</td><td>✅ per latest suite runs</td></tr>
+<tr><td>A4</td><td>Release identifier updated when data-model changes need a pre-update backup</td><td><code>APP_RELEASE</code> in <code>src/lib/localBackup.ts</code> (currently <code>'1.3-training'</code>)</td><td>B</td><td>✅</td></tr>
+<tr><td>A5</td><td>Translation keys complete in Arabic and English</td><td><code>tests/i18n-keys.test.ts</code>, <code>i18n-parity.test.ts</code></td><td>B</td><td>✅</td></tr>
+</table>
+
+<h2>3. Gate B — automated tests</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>Suite</th><th>Command</th><th>Required</th><th>Latest result</th></tr>
+<tr><td>B1</td><td>Unit</td><td><code>npm test</code></td><td>all pass</td><td>✅ 199/199, 14 files (run 10 Nov 2026)</td></tr>
+<tr><td>B2</td><td>Browser acceptance</td><td><code>npm run e2e</code></td><td>57/57</td><td>✅ 57/57</td></tr>
+<tr><td>B3</td><td>Touch scrolling</td><td><code>npm run e2e:scroll</code></td><td>103/103</td><td>✅ 103/103</td></tr>
+<tr><td>B4</td><td>Firestore rules + cloud sync</td><td><code>npm run test:rules</code></td><td>14/14 (whenever rules or sync code change)</td><td>✅ 14/14</td></tr>
+<tr><td>B5</td><td>Multi-user</td><td><code>npm run e2e:multi</code></td><td>8/8 (when accounts/admin/AI proxy change)</td><td>✅ 8/8</td></tr>
+<tr><td>B6</td><td>Storage-loss recovery</td><td><code>firebase emulators:exec … "node e2e/storage-loss.mjs"</code></td><td>"data recovered" (when sync code changes)</td><td>✅ passes after the 10 Nov fix</td></tr>
+<tr><td>B7</td><td>Laptop setup</td><td><code>npm run e2e:laptop</code></td><td>10/10 (when setup script or Code.gs change)</td><td>✅ 10/10</td></tr>
+<tr><td>B8</td><td>Hub food completion</td><td><code>node e2e/hub-complete-test.mjs</code></td><td>9/9 (when that command or Code.gs change)</td><td>✅ 9/9</td></tr>
+<tr><td>B9</td><td>Upgrade path (only for storage schema changes)</td><td><code>node e2e/migration-test.mjs &lt;dir&gt;</code></td><td>data survives; pre-migration backup present</td><td>Not needed now (Dexie schema still v2)</td></tr>
+</table>
+
+<h2>4. Gate C — data safety</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>Check</th><th>Type</th><th>Current status</th></tr>
+<tr><td>C1</td><td>Existing records are never changed by new features (tests "adds records only / existing records untouched")</td><td>B</td><td>✅ (cardio-goals, workouts, library-foods tests)</td></tr>
+<tr><td>C2</td><td>One pre-update backup per release, protected from daily rotation</td><td>B</td><td>✅ tested</td></tr>
+<tr><td>C3</td><td>Backup → restore into an empty database works</td><td>B</td><td>✅ tested</td></tr>
+<tr><td>C4</td><td>Recovery after local database loss: signing in again restores the account</td><td>B</td><td>✅ emulator scenario + owner confirmation</td></tr>
+<tr><td>C5</td><td>Missing values are never invented (incomplete foods, labneh, amino acids)</td><td>B</td><td>✅ tested</td></tr>
+<tr><td>C6</td><td>Hub writes: daily Drive backup before writing; original Excel untouched</td><td>B</td><td>✅ tested on gas-mock</td></tr>
+</table>
+
+<h2>5. Gate D — security and privacy</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>Check</th><th>Type</th><th>Current status</th></tr>
+<tr><td>D1</td><td>No secrets in the repository (API keys, tokens, /exec URL, connection codes); only the public Firebase web config is published</td><td>B</td><td>✅ per the last secret scan (7 Nov) — re-check before each release</td></tr>
+<tr><td>D2</td><td>Private food table stays out of Git (<code>tests/private/</code> ignored)</td><td>B</td><td>✅</td></tr>
+<tr><td>D3</td><td>Firestore rules deployed match <code>firebase/firestore.rules</code></td><td>B</td><td>✅ deployed 7 Nov; redeploy if changed</td></tr>
+<tr><td>D4</td><td>AI scanner uses only free Gemini models; key only in Script Properties</td><td>B</td><td>✅ tested</td></tr>
+<tr><td>D5</td><td>Gemini key and backend connection link rotated after being shown in a chat</td><td>L</td><td>⏳ recommended, owner action</td></tr>
+<tr><td>D6</td><td>Old public commits with the food CSV removed from GitHub caches</td><td>L</td><td>⏳ request prepared (<code>docs/GITHUB-SUPPORT-REQUEST.md</code>)</td></tr>
+</table>
+
+<h2>6. Gate E — backend and services</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>Check</th><th>Type</th><th>Current status</th></tr>
+<tr><td>E1</td><td>If <code>apps-script/Code.gs</code> changed: deploy with <code>git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend</code> (same URL, data untouched)</td><td>B</td><td>Code is at backend version 8; whether the live deployment runs version 8 is Not verified</td></tr>
+<tr><td>E2</td><td>AI diagnostic after a backend update (<code>aiDiag</code> per-model check via laptop setup)</td><td>B (if E1)</td><td>Not verified for v8</td></tr>
+<tr><td>E3</td><td>Firebase config served at <code>/firebase-config.json</code> on the live site</td><td>B</td><td>✅ (live since 7 Nov)</td></tr>
+</table>
+
+<h2>7. Gate F — after deployment</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>Check</th><th>Command</th><th>Latest recorded</th></tr>
+<tr><td>F1</td><td>GitHub Actions deploy job green</td><td>Actions tab of the repository</td><td>Not re-checked for this document</td></tr>
+<tr><td>F2</td><td>Browser suite against the live URL</td><td><code>E2E_BASE=https://mego2012.github.io/Mego/ npm run e2e</code></td><td>44/44 (7 Nov); full 57 not recorded live</td></tr>
+<tr><td>F3</td><td>Touch suite against the live URL</td><td><code>node e2e/scroll-test.mjs https://mego2012.github.io/Mego/</code></td><td>103/103</td></tr>
+<tr><td>F4</td><td>Production verification with disposable accounts</td><td><code>node scripts/live-verify.mjs</code></td><td>14/14 (7 Nov); updated version not recorded</td></tr>
+<tr><td>F5</td><td>Exercise pages on the live site</td><td>EX-GUIDE check against the live URL</td><td>54/54 (10 Nov)</td></tr>
+<tr><td>F6</td><td>One real meal photo through the live app</td><td>Manual, disposable account</td><td>✅ ≈ 64 s, 4 items (10 Nov)</td></tr>
+<tr><td>F7</td><td>Open the app on the owner's phone and check today's diary is intact</td><td>Manual</td><td>Daily use by the owner (not a recorded test)</td></tr>
+</table>
+
+<h2>8. Gate G — public-launch items</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>Item</th><th>Status</th></tr>
+<tr><td>G1</td><td>Real Android device checklist (<code>docs/ANDROID-TEST.md</code>) completed and recorded</td><td>⏳ NOT DONE</td></tr>
+<tr><td>G2</td><td>Administrator account created (register, then <code>--cloud &lt;e-mail&gt;</code> again)</td><td>⏳ waiting for owner</td></tr>
+<tr><td>G3</td><td>Privacy policy and terms reviewed by a qualified legal professional (<code>docs/LEGAL-REVIEW.md</code>)</td><td>⏳ drafts</td></tr>
+<tr><td>G4</td><td>D5 and D6 above</td><td>⏳</td></tr>
+<tr><td>G5</td><td>Known bugs and limitations reviewed and accepted (MEGO_Known_Bugs_and_Limitations)</td><td>⏳ owner review</td></tr>
+</table>
+<p><b>Current readiness:</b> the app is live and in daily use by the owner; gates A–C pass on the latest recorded runs. <b>Public launch is not ready</b> until Gate G is complete.</p>
+
+<h2>9. Sign-off</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Role</th><th>Name</th><th>Date</th><th>Decision (go / no-go)</th></tr>
+<tr><td>Project owner</td><td></td><td></td><td></td></tr>
+<tr><td>Developer (prepared by)</td><td></td><td></td><td></td></tr>
+</table>
+
+<h2>10. Verification status</h2>
+<ul>
+<li><b>Verified for this document:</b> unit suite 199/199 (14 files) run on 10 Nov 2026; CI workflow steps; <code>APP_RELEASE</code> value; Dexie schema version 2.</li>
+<li><b>Latest recorded results (not re-run here):</b> e2e 57/57, touch 103/103, rules 14/14, multi-user 8/8, laptop-setup 10/10, hub-complete 9/9, storage-loss scenario, live checks listed in Gate F.</li>
+<li><b>Not verified:</b> live backend version; current CI run status; a full live run of the 57-check suite and of the updated live verifier.</li>
+</ul>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Error_Handling_and_Logging_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Error Handling and Logging</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-40</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Developers, maintainers, support</td></tr>
+<tr><td>Related documents</td><td>MEGO_API_Documentation, MEGO_Gemini_AI_Integration, MEGO_Firebase_Integration, MEGO_Google_Sheets_Integration_and_Sync, MEGO_Troubleshooting_Manual, MEGO_Monitoring_and_Maintenance, MEGO_Support_and_Incident_Management, MEGO_State_Management</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes how MEGO detects, presents, retries and records errors: UI crash protection, user-facing messages, validation errors, sync errors (Hub and Firestore), AI meal-scanner error codes on the backend and client, authentication errors, the <code>reportError</code> mechanism and the other logs that exist (Hub tabs, Apps Script logging). MEGO has no third-party error-tracking or analytics service; the only remote error log is the Firestore collection <code>errorReports</code>.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Principles</li>
+<li>UI crash protection (ErrorBoundary)</li>
+<li>User-facing errors and validation</li>
+<li>Boot-time errors</li>
+<li>Sync errors: Google Sheets Hub</li>
+<li>Sync errors: Firestore</li>
+<li>AI meal-scanner errors</li>
+<li>Authentication errors</li>
+<li>Error reporting: reportError and errorReports</li>
+<li>Other logs and audit trails</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Principles</h2>
+<ul>
+<li>An error must never destroy or silently overwrite data: older copies are refused, deletes are soft on the Hub, local backups are taken before risky operations.</li>
+<li>Temporary failures are retried automatically with backoff; permanent ones (bad token, wrong spreadsheet, quota, invalid key) are not retried and are shown to the user.</li>
+<li>Reporting must never break the app (<code>reportError</code> swallows its own failures).</li>
+<li>Error reports contain no personal data and never contain keys or tokens (the backend's <code>google</code> detail excludes the key).</li>
+</ul>
+
+<h2>2. UI crash protection (ErrorBoundary)</h2>
+<p><code>src/components/ErrorBoundary.tsx</code> wraps the routed pages inside the layout and is keyed by the current path, so navigating to another page resets it. When a render error occurs it:</p>
+<ul>
+<li>logs <code>console.error('UI error', error)</code> in the browser console;</li>
+<li>shows a recovery card (<code>data-testid="error-screen"</code>) with a translated title and body, the error message (LTR), and two buttons: <b>Retry</b> (clears the error and re-renders) and <b>Reload</b> (goes to <code>#/</code> and reloads).</li>
+</ul>
+<p>Data lives in IndexedDB and is not affected by a UI error. UI crashes are not sent to <code>errorReports</code>.</p>
+
+<h2>3. User-facing errors and validation</h2>
+<p>Most actions run through <code>useAsync().run()</code> (<code>src/components/ui.tsx</code>): it sets a busy flag, shows an optional success toast, and on failure shows a toast "Error: &lt;message&gt;" (a <code>DUPLICATE:</code> error is shown as the translated "duplicate food" message).</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Thrown by (src/lib/repo.ts)</th><th>Message</th></tr>
+<tr><td>createFood / updateFood</td><td><code>Invalid nutrition values: …</code>, <code>Name is required</code>, <code>DUPLICATE:&lt;food id&gt;</code>, <code>Food not found</code></td></tr>
+<tr><td>saveSettings</td><td><code>Invalid targets: kcal, protein …</code> (kcal must be &gt; 0, macros ≥ 0)</td></tr>
+<tr><td>firebase.ts</td><td><code>AGE_REQUIRED</code>, <code>NOT_SIGNED_IN</code>, <code>CLOUD_NOT_CONFIGURED</code></td></tr>
+</table>
+<p>Destructive confirmations (e.g. Hub change <code>HUB_CHANGED</code>) use a confirmation dialog before anything is changed.</p>
+
+<h2>4. Boot-time errors</h2>
+<ul>
+<li><code>preMigrationBackup()</code> and <code>preUpdateBackup()</code> failures are logged with <code>console.warn</code> and do not stop the app.</li>
+<li><code>bootAccount()</code> failure falls back to guest mode.</li>
+<li>A missing <code>firebase-config.json</code> or any fetch/parse error → guest-only mode (no error shown).</li>
+<li>A signed-in session that has expired or belongs to another uid → the active account is cleared and the page reloads to the welcome screen.</li>
+</ul>
+
+<h2>5. Sync errors: Google Sheets Hub</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Error</th><th>Source</th><th>Handling</th></tr>
+<tr><td><code>Sync URL not configured</code></td><td>callScript</td><td>Status <code>disabled</code> (push is skipped earlier)</td></tr>
+<tr><td><code>HTTP &lt;status&gt;</code></td><td>non-2xx response</td><td>Retried with backoff</td></tr>
+<tr><td><code>unauthorized</code></td><td>wrong token</td><td>Permanent — not retried</td></tr>
+<tr><td><code>WRONG_SPREADSHEET: …</code></td><td>checkHub: backend not connected to the Hub</td><td>Permanent — not retried</td></tr>
+<tr><td><code>HUB_CHANGED: …</code></td><td>checkHub: different native Hub</td><td>Settings asks for confirmation before re-pinning</td></tr>
+<tr><td><code>HUB_IS_XLSX: …</code></td><td>backend in read-only Excel mode</td><td>Permanent — not retried</td></tr>
+<tr><td>Server validation (<code>… invalid change(s) rejected</code>, <code>too many changes in one request</code>)</td><td>push_</td><td>Retried with backoff (Not verified whether such a batch can ever succeed without user action)</td></tr>
+<tr><td>Conflicts (<code>conflicts[]</code> in the push answer)</td><td>push_</td><td>Not an error: counted in status, <code>pullAll()</code> brings the newer records</td></tr>
+</table>
+<p>On failure: <code>backoffMs(n) = min(300000, 5000 × 2^(n−1))</code>, <code>sync.lastError</code> is stored in settings, and the status chip shows <code>error</code> (or <code>offline</code>) with "retry in N s". Hub sync errors are <b>not</b> sent to <code>errorReports</code> (guest/owner devices are usually not signed in).</p>
+
+<h2>6. Sync errors: Firestore</h2>
+<ul>
+<li><b>permission-denied on push:</b> counted as a conflict (the server holds a newer copy, or the account is suspended); the item is removed from the outbox.</li>
+<li><b>Other push errors:</b> the run stops, status <code>error</code> with the message, <code>reportError('sync', message)</code>.</li>
+<li><b>Applying a received record fails:</b> <code>reportError('sync-apply', '&lt;table&gt;/&lt;id&gt;: &lt;message&gt;')</code>; the download continues with the next record.</li>
+<li><b>Listener error:</b> status <code>error</code> with the message. The shared-foods listener ignores errors (offline: the local copy keeps working).</li>
+<li><b>Offline:</b> status <code>offline</code>; pushes resume 300 ms after the browser is online again.</li>
+</ul>
+
+<h2>7. AI meal-scanner errors</h2>
+<h3>7.1 Backend mapping (Code.gs, aiError_)</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Google answer</th><th>Code</th><th>Backend behaviour</th></tr>
+<tr><td>503 / UNAVAILABLE</td><td>AI_OVERLOADED</td><td>Move at once to the next free model</td></tr>
+<tr><td>500 and other 5xx</td><td>AI_SERVER_ERROR</td><td>Retry same model after 2 s, 4 s, then next model</td></tr>
+<tr><td>504 / DEADLINE_EXCEEDED</td><td>AI_TIMEOUT</td><td>Same as above</td></tr>
+<tr><td>Network exception</td><td>AI_NETWORK</td><td>Same as above</td></tr>
+<tr><td>429 per day / per minute</td><td>AI_QUOTA_DAY / AI_QUOTA_MINUTE (+ retryAfter)</td><td>Not retried</td></tr>
+<tr><td>401/403, invalid key</td><td>AI_KEY_INVALID</td><td>Not retried</td></tr>
+<tr><td>Location not supported</td><td>AI_REGION</td><td>Not retried</td></tr>
+<tr><td>404</td><td>AI_MODEL_UNAVAILABLE</td><td>Not retried</td></tr>
+<tr><td>400 about the image / other 400</td><td>AI_BAD_IMAGE / AI_CONFIG</td><td>Not retried</td></tr>
+<tr><td>other HTTP</td><td>AI_HTTP_&lt;code&gt;</td><td>Not retried</td></tr>
+</table>
+<p>Model chain (free tier only): gemini-3.8-flash → gemini-3.6-flash → gemini-3.5-flash-lite; overall deadline 240 s. Each failed attempt is logged with <code>console.warn('Gemini &lt;model&gt; → &lt;code&gt; …')</code> in Apps Script (exception logging: STACKDRIVER). Other backend codes: AI_NOT_CONFIGURED, AI_DAILY_LIMIT, AI_USER_LIMIT, AI_REGION_RESTRICTED, AI_REFUSED, AI_BAD_OUTPUT, AI_TRUNCATED. A failed analysis does not use up the daily allowance (global counter only on success; per-user counter refunded).</p>
+<h3>7.2 Client handling (src/lib/mealScanner.ts, MealScanner.tsx)</h3>
+<ul>
+<li>Image validation before sending: <code>AI_UNSUPPORTED_FORMAT</code> (not an image or cannot be decoded — the original is never sent), <code>AI_IMAGE_TOO_LARGE</code> (&gt; 30 MB, or still over the upload limit after shrinking).</li>
+<li>Before the request: <code>AI_NO_BACKEND</code> (no backend configured / not signed in), <code>AI_OFFLINE</code>; client timeout after 280 s → <code>AI_TIMEOUT</code>.</li>
+<li>Mapping of backend answers: <code>AI_QUOTA_DAY</code> gets the reset time (midnight America/Los_Angeles, shown in local time); <code>AI_QUOTA_MINUTE</code> gets seconds; <code>AI_USER_LIMIT</code> gets the limit; <code>AI_HTTP_*</code> → <code>AI_SERVER_ERROR</code>; <code>unauthorized</code> → <code>AI_UNAUTHORIZED</code>; <code>unknown action</code> → <code>AI_OLD_BACKEND</code>; HTTP 5xx → <code>AI_SERVER_ERROR</code>; HTTP 4xx → <code>AI_CONFIG</code>; anything else → <code>AI_NETWORK</code>. Google's status/message is passed through as a detail line ("Google said: …").</li>
+<li>Automatic retry: temporary codes (<code>AI_OVERLOADED, AI_SERVER_ERROR, AI_TIMEOUT, AI_NETWORK, AI_BUSY</code>) after 3 s and 8 s (not <code>AI_NETWORK</code> while offline); a per-minute quota of ≤ 20 s is waited out. The screen shows "retrying n/2 (reason)". The same image is never sent twice at once.</li>
+<li>On final failure the translated message is shown (unknown codes → <code>AI_ERROR</code>); for temporary errors the photo is kept so the user can retry manually.</li>
+<li>Results are validated (<code>AI_BAD_OUTPUT</code> if malformed); nothing is saved automatically.</li>
+</ul>
+<p>Root cause of the former generic "AI is busy" message: Google 503 overload on the primary model, which the old backend reported as busy without retry (fixed in backend version 7).</p>
+
+<h2>8. Authentication errors</h2>
+<p>Firebase errors are mapped by code (<code>auth/…</code>) to translated messages with the prefix <code>authErr_</code>; unknown codes use <code>authErr_generic</code>. Mapped codes: email_already_in_use, invalid_credential, invalid_email, network_request_failed, requires_recent_login, too_many_requests, user_disabled, user_not_found, weak_password, wrong_password. Profile updates that fail while offline or suspended are ignored (<code>touchProfile</code>).</p>
+
+<h2>9. Error reporting: reportError and errorReports</h2>
+<pre>
+reportError(kind, message)
+  └─ only if Firebase is initialised AND a user is signed in
+  └─ setDoc(errorReports/&lt;auto id&gt;, { at: Date.now(), kind: kind[0..40], message: message[0..400], app: '1' })
+  └─ any failure is swallowed
+</pre>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Kind (current callers)</th><th>When</th></tr>
+<tr><td><code>sync</code></td><td>A Firestore push run failed with an error other than permission-denied</td></tr>
+<tr><td><code>sync-apply</code></td><td>A received record could not be applied locally</td></tr>
+</table>
+<ul>
+<li>Security rules: any signed-in user may <b>create</b> a report with only the keys at/kind/message/app and a message under 500 characters; only admins may read or delete.</li>
+<li>Admin dashboard (<code>#/admin</code>): <code>adminListErrors(50)</code> lists the newest 50 reports (kind chip, message, date). No automatic alerting exists.</li>
+<li>No retention or clean-up job exists for <code>errorReports</code> (Not verified whether reports are deleted manually).</li>
+</ul>
+
+<h2>10. Other logs and audit trails</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Log</th><th>Where</th><th>Content</th></tr>
+<tr><td>Sync_Metadata</td><td>Hub tab</td><td>dataVersion, lastWriteAt, lastSyncAt, lastConflicts, appSchemaVersion, schemaVersion, migratedAt</td></tr>
+<tr><td>Deleted_Records</td><td>Hub tab</td><td>Every deleted record (table, key, time, json) — soft delete</td></tr>
+<tr><td>Backup_Log</td><td>Hub tab</td><td>Drive copies and app snapshots (time, kind, file, status, details)</td></tr>
+<tr><td>Migration_Report</td><td>Hub tab</td><td>Steps and counts of migrateHub()</td></tr>
+<tr><td>Food_Change_Log / foodChanges</td><td>Hub tab and local table</td><td>Food create/update/archive history (before/after, origin)</td></tr>
+<tr><td>Apps Script execution log</td><td>Google Cloud logging (exceptionLogging STACKDRIVER)</td><td><code>Logger.log</code> output of setup functions; <code>console.warn</code> per failed Gemini attempt</td></tr>
+<tr><td>Browser console</td><td>Device only</td><td>UI errors, backup warnings</td></tr>
+<tr><td>AI usage counters</td><td>Script Properties</td><td>Counts only (AI_USED_&lt;date&gt;, AI_U_&lt;date&gt;_&lt;uid&gt;); visible to admins via aiStats; cleaned after 8 days by cleanupAiCounters()</td></tr>
+</table>
+
+<h2>11. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>All codes, messages and flows above</td><td>Verified in src/components/ErrorBoundary.tsx, ui.tsx, MealScanner.tsx, src/lib/mealScanner.ts, sync.ts, cloudSync.ts, firebase.ts, repo.ts, src/pages/Account.tsx, apps-script/Code.gs, firebase/firestore.rules</td></tr>
+<tr><td>AI error mapping, retries, model fallback, no quota used on failure</td><td>Unit-tested against the real Code.gs in a mock (<code>tests/scanner.test.ts</code>); live 10 Nov 2026: real photo analysed (≈ 64 s, 4 items)</td></tr>
+<tr><td>errorReports rules (users write, only admins read)</td><td>Tested on emulators (<code>tests-rules/rules.test.ts</code>)</td></tr>
+<tr><td>Storage-loss recovery and "one bad record never stops the download"</td><td>Verified on emulators (<code>e2e/storage-loss.mjs</code>)</td></tr>
+<tr><td>Error reports actually received in production</td><td>Not verified</td></tr>
+<tr><td>Apps Script logs in Google Cloud logging</td><td>Not verified</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

@@ -1,0 +1,14 @@
+42	MEGO_Authentication_and_Authorization_Architecture_EN.html	1bJ8NAAV5mzbu3y7ANSxQ9Eiwv5VFjeTnOdSiVlMvwz8	1386	folder 05; content verified in Drive
+42	MEGO_Authentication_and_Authorization_Architecture_AR.html	1BfTMF4wq3xv94aGorQsKAqv9Q9lxxmqBTibIyZC98Po	1357	folder 05
+43	MEGO_Security_Architecture_EN.html	1f5PBwrPqeTryIpTn3MNJQYjSmPnOKbjLAMZguIPWPY4	1473	folder 06
+43	MEGO_Security_Architecture_AR.html	1cf0ccImGQyBQlqs6JPci3YJHKRuhzeMTzXuzpvmZq_I	1493	folder 06
+44	MEGO_User_Data_Protection_EN.html	1hGckyFYHF_a60eAPVVc7zAoJf2F7uRSKXsRfjLRK04o	1282	folder 06; status Draft - requires legal review
+44	MEGO_User_Data_Protection_AR.html	17AfItDRemkVzWZ596eifS1jOoGPAcJCNwCe8qNEyHAk	1237	folder 06; status Draft - requires legal review
+45	MEGO_Access_Control_and_Permissions_EN.html	1TypRmUZ9GGFIbYg5GCRxdTsJMCJIdslW26JWFzXFkiI	1834	folder 06; full firestore.rules text included
+45	MEGO_Access_Control_and_Permissions_AR.html	1Y64ueo5nLvWFAxu57ObZW8RCg15hRUw4xEc26O5STQU	1769	folder 06; Drive text export shows $(database) as (database) in rules block - check in Docs
+47	MEGO_Data_Backup_and_Recovery_EN.html	1LwoJa2IcEYQYHQ_IT27NAYkvpa7iYQlrl-rryHtyUnI	1599	folder 06; includes 10 Nov storage-loss incident + fix
+47	MEGO_Data_Backup_and_Recovery_AR.html	1__1aKsOIcKEckAz7V_v0B2_WMkUGXh4aCm5miMbxiAA	1485	folder 06
+48	MEGO_Data_Retention_and_Deletion_EN.html	10tOQU1JykBpnA5Of6QJnAH792Yb9vADAe5LeTg1jDz0	1158	folder 06; status Draft - requires legal review
+48	MEGO_Data_Retention_and_Deletion_AR.html	1B7MvHHd4HGXRz35ucyildTwJt8GMK8wmx4xewIs-rz8	1079	folder 06
+49	MEGO_Security_Audit_and_Known_Risks_EN.html	1FWlL-KhItTLzEDMbESOdfGrL58K-DePA6lpkPtuweVs	1669	folder 06; status Draft - requires owner approval; 21-item risk register
+49	MEGO_Security_Audit_and_Known_Risks_AR.html	12yt8HV6UtK3SSD6lFdGX5NVXxo7RS8hlURUf3__yh8k	1653	folder 06

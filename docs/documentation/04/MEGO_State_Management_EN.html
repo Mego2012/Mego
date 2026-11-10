@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_State_Management_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — State Management</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-39</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Developers, maintainers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Frontend_Architecture, MEGO_Database_Schema_and_Relationships, MEGO_Firebase_Integration, MEGO_Google_Sheets_Integration_and_Sync, MEGO_Configuration_and_Environment, MEGO_Error_Handling_and_Logging</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document explains where MEGO keeps its state and how changes flow through the app: the React context (<code>src/app/AppContext.tsx</code>), the data hooks (<code>src/app/hooks.ts</code>), Dexie live queries over IndexedDB, the repository layer and its change notifications (<code>src/lib/repo.ts</code>), the generic key/value table (<code>kv</code>) and its keys, and the small module-level stores for account and sync status. MEGO uses no external state library (no Redux, Zustand or similar); the local database is the single source of truth.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Design principles</li>
+<li>State layers</li>
+<li>AppContext</li>
+<li>Data hooks and Dexie live queries</li>
+<li>Writes: repository, outbox and change notifications</li>
+<li>The kv table and its keys</li>
+<li>Module-level stores: account and sync status</li>
+<li>Boot order and database selection</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Design principles</h2>
+<ul>
+<li><b>Database first:</b> persistent data lives in IndexedDB (Dexie). Screens read it through live queries, so any write — local, from the Hub pull or from the Firestore listener — re-renders the affected screens automatically.</li>
+<li><b>One write path:</b> every persistent change goes through <code>repo.ts</code> (or modules built on it), which also queues the change in the <code>outbox</code> for sync.</li>
+<li><b>Settings are data:</b> the settings record (<code>settings/main</code>) is read through a live query in AppContext, so language, theme and targets change everywhere at once.</li>
+<li><b>Component state is local:</b> forms, dialogs and selections use React <code>useState</code> inside the component.</li>
+</ul>
+
+<h2>2. State layers</h2>
+<pre>
+┌──────────────────────────────────────────────────────────────────┐
+│ React components (pages/*, components/*)  — useState for UI only │
+├──────────────────────────────────────────────────────────────────┤
+│ AppContext: settings, ready, lang, dir, t(), n(), d(), toast()   │
+│ hooks.ts: useEntries, useDayLog, useBody, useBundle, useCardio,  │
+│           useTraining   (all useLiveQuery)                       │
+│ accountHook.ts useAccount()   Layout.tsx useSyncStatus()         │
+├──────────────────────────────────────────────────────────────────┤
+│ repo.ts (writes) → Dexie tables + outbox → onLocalChange()       │
+│ account.ts (AccountState store)   sync.ts (SyncStatus store)     │
+├──────────────────────────────────────────────────────────────────┤
+│ IndexedDB: mego-nutrition | mego-u-&lt;uid&gt;   localStorage (keys)   │
+└──────────────────────────────────────────────────────────────────┘
+</pre>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>State</th><th>Where</th><th>Lifetime</th></tr>
+<tr><td>User data (diary, foods, body, days, recipes, plans, fasting, kv …)</td><td>Dexie tables</td><td>Persistent per device database; synced</td></tr>
+<tr><td>Settings (profile, targets, language, theme, sync config)</td><td>Dexie <code>settings</code>, id "main"</td><td>Persistent; synced except the <code>sync</code> block</td></tr>
+<tr><td>Sync queue</td><td>Dexie <code>outbox</code></td><td>Until pushed</td></tr>
+<tr><td>Local backups, progress photos</td><td>Dexie <code>backups</code>, <code>photos</code></td><td>Persistent, device only (not synced)</td></tr>
+<tr><td>Account mode, profile, admin, suspended</td><td>account.ts module store</td><td>Session (rebuilt at boot)</td></tr>
+<tr><td>Sync status (state, pending, error, retryIn, conflicts)</td><td>sync.ts module store</td><td>Session</td></tr>
+<tr><td>Account selection and sync markers</td><td>localStorage (<code>mego.*</code>)</td><td>Persistent per browser</td></tr>
+<tr><td>Toast message</td><td>AppContext <code>useState</code></td><td>2.8 s (6 s with an action button)</td></tr>
+</table>
+
+<h2>3. AppContext</h2>
+<p><code>AppProvider</code> wraps the whole app (outside the router). It reads <code>db.settings.get('main')</code> with <code>useLiveQuery</code> and merges it over <code>defaultSettings()</code> (nested merge of profile, targets, tolerance and sync), so new setting fields always have a value.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Member</th><th>Meaning</th></tr>
+<tr><td><code>settings</code></td><td>Merged settings object</td></tr>
+<tr><td><code>ready</code></td><td><code>true</code> once the live query has returned (the splash screen is removed and routes render)</td></tr>
+<tr><td><code>lang</code>, <code>dir</code></td><td>"ar" → "rtl", "en" → "ltr"; applied to <code>&lt;html lang dir&gt;</code> and the document title</td></tr>
+<tr><td><code>t(key, params)</code></td><td>Translation (<code>translate(lang, …)</code>)</td></tr>
+<tr><td><code>n(value, digits)</code>, <code>d(iso, opts)</code></td><td>Number and date formatting for the current language</td></tr>
+<tr><td><code>toast(msg, action?)</code></td><td>Shows a status message (role="status"); optional action button (e.g. Undo)</td></tr>
+</table>
+<p>A second effect applies the theme: <code>system</code> removes <code>data-theme</code>; <code>light</code>/<code>dark</code> sets it. <code>useApp()</code> throws "useApp outside provider" if used outside the provider.</p>
+
+<h2>4. Data hooks and Dexie live queries</h2>
+<p><code>useLiveQuery</code> (package <code>dexie-react-hooks</code> 1.1.7) re-runs a query whenever data it read is modified. It is used in 14 source files (AppContext, FoodPicker, MealScanner and pages such as Diary, Foods, Recipes, RecipeLibrary, Planner, Habits, Progress, Goals, Cardio, Settings).</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Hook (src/app/hooks.ts)</th><th>Query</th><th>Default while loading</th></tr>
+<tr><td><code>useEntries(date)</code></td><td>entries where date = date, sorted by <code>order</code></td><td>[]</td></tr>
+<tr><td><code>useDayLog(date)</code></td><td>days.get(date)</td><td>undefined</td></tr>
+<tr><td><code>useBody()</code></td><td>body ordered by date</td><td>[]</td></tr>
+<tr><td><code>useBundle()</code></td><td>all entries, days, body + settings (for reports; "personal scale — a few thousand rows")</td><td>null</td></tr>
+<tr><td><code>useCardio()</code></td><td>kv keys starting with <code>cardio:</code>, newest first</td><td>[]</td></tr>
+<tr><td><code>useTraining()</code></td><td>kv prefixes <code>workout:</code>, <code>program:</code>, <code>recovery:</code>, <code>exercise:</code> plus keys <code>activeProgram</code>, <code>preferredExercises</code></td><td>null</td></tr>
+</table>
+
+<h2>5. Writes: repository, outbox and change notifications</h2>
+<ol>
+<li>A screen calls a repository function (e.g. <code>addFoodEntry</code>, <code>saveSettings</code>, <code>kvSet</code>).</li>
+<li>The function validates (e.g. <code>validateMacros</code>, <code>validateTargets</code>, duplicate check), writes the Dexie table (in a transaction where several tables change) and calls <code>enqueue(table, key, op, payload)</code>.</li>
+<li><code>enqueue</code> adds an outbox item <code>{ table, key, op, payload, at }</code> and notifies every <code>onLocalChange</code> listener.</li>
+<li>Listeners: the Hub auto-sync (<code>startAutoSync</code>, push after 2.5 s) or the Firestore sync (<code>startCloudSync</code>, push after 1.5 s), depending on mode.</li>
+<li>Dexie live queries re-render the screens that read the changed tables.</li>
+</ol>
+<p><b>Settings specifics:</b> <code>getSettings()</code> creates the default record with <code>updatedAt: 0</code> on first run, so an untouched default never outranks the account's settings arriving from the cloud. <code>saveSettings(update)</code> clones the current settings, applies the update, validates training and rest targets (kcal &gt; 0, macros ≥ 0), sets <code>updatedAt</code>, writes, and queues the record <b>without</b> the <code>sync</code> block.</p>
+<p><b>Incoming changes:</b> the Firestore listener (<code>applyRemote</code>) and the Hub pull (<code>pullAll</code>) write Dexie directly (not through the outbox) and keep the newer copy by <code>updatedAt</code>; the live queries then update the UI.</p>
+
+<h2>6. The kv table and its keys</h2>
+<p><code>kv</code> (Dexie v2, primary key <code>key</code>, index <code>updatedAt</code>) stores records <code>{ key, value, updatedAt }</code>. It is synced like the other tables (Firestore <code>users/{uid}/kv/{key}</code>; Hub tab <code>App_KeyValue</code>). Helpers in repo.ts: <code>kvGet(key, fallback)</code>, <code>kvSet(key, value)</code>, <code>kvDelete(key)</code>. New features since the 7 Nov release store their data here, so the Dexie schema is still version 2.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Key / prefix</th><th>Value</th><th>Module</th></tr>
+<tr><td><code>cardio:&lt;id&gt;</code></td><td>Cardio session</td><td>src/lib/cardio.ts</td></tr>
+<tr><td><code>cardioRoutine</code></td><td>Saved cardio routine</td><td>cardio.ts</td></tr>
+<tr><td><code>checkin:&lt;week&gt;</code></td><td>Weekly check-in</td><td>goalAdvisor.ts, pages/Goals.tsx</td></tr>
+<tr><td><code>program:&lt;id&gt;</code></td><td>Training program</td><td>workouts.ts</td></tr>
+<tr><td><code>activeProgram</code></td><td>Id of the active program</td><td>workouts.ts, pages/Workouts.tsx</td></tr>
+<tr><td><code>workout:&lt;id&gt;</code></td><td>Workout session</td><td>workouts.ts</td></tr>
+<tr><td><code>recovery:&lt;date&gt;</code></td><td>Recovery log</td><td>workouts.ts</td></tr>
+<tr><td><code>exercise:&lt;id&gt;</code></td><td>Custom exercise</td><td>exercises.ts</td></tr>
+<tr><td><code>preferredExercises</code></td><td>List of preferred exercise ids</td><td>pages/ExerciseDetail.tsx</td></tr>
+<tr><td><code>shopping:&lt;week&gt;</code></td><td>Checked shopping-list items (also mirrored to the Hub tab Shopping_List)</td><td>pages/Planner.tsx</td></tr>
+<tr><td><code>pantry</code></td><td>Pantry ingredient names</td><td>pages/RecipeLibrary.tsx</td></tr>
+<tr><td><code>recipeFavorites</code>, <code>recipeRatings</code></td><td>Recipe-library favourites and ratings</td><td>pages/RecipeLibrary.tsx</td></tr>
+<tr><td><code>remindersFired</code></td><td>Reminders already shown</td><td>src/lib/reminders.ts</td></tr>
+</table>
+
+<h2>7. Module-level stores: account and sync status</h2>
+<ul>
+<li><b>account.ts</b> keeps <code>AccountState { mode, cloud, uid?, profile?, admin?, suspended? }</code> with <code>accountState()</code>, <code>subscribeAccount(fn)</code> and an internal <code>set()</code> that notifies listeners. React reads it through <code>useAccount()</code> (src/pages/accountHook.ts, kept separate so the main bundle does not load the Firebase screens). <code>Routed</code> in App.tsx uses it to show the welcome, suspended or legal pages without the app shell.</li>
+<li><b>sync.ts</b> keeps <code>SyncStatus { state, pending, lastPushAt?, error?, retryIn?, conflicts? }</code> with <code>subscribeSync</code> and <code>setStatus</code>. Both the Hub sync and the Firestore sync report into it; the header chip reads it with <code>useSyncStatus()</code> (Layout.tsx).</li>
+<li>Switching account or guest mode always <b>reloads the page</b>, so no in-memory state from the previous account survives.</li>
+</ul>
+
+<h2>8. Boot order and database selection</h2>
+<ol>
+<li><code>preMigrationBackup()</code> — snapshot before a Dexie upgrade (if needed).</li>
+<li><code>bootAccount()</code> — selects <code>mego-nutrition</code> or <code>mego-u-&lt;uid&gt;</code> (<code>useDatabase</code>) before anything renders.</li>
+<li><code>preUpdateBackup()</code> — once per release (<code>APP_RELEASE</code>).</li>
+<li><code>getSettings()</code> — creates defaults on first run.</li>
+<li>React renders <code>&lt;App/&gt;</code> inside <code>StrictMode</code>.</li>
+<li>Account mode: <code>watchSession</code> → <code>startCloudSync</code>; otherwise <code>startAutoSync</code> (Hub). Then reminders, daily local backup, service-worker registration.</li>
+</ol>
+
+<h2>9. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Statements about context, hooks, repository, kv keys and stores</td><td>Verified in src/app/AppContext.tsx, src/app/hooks.ts, src/lib/repo.ts, db.ts, account.ts, sync.ts, cloudSync.ts, src/main.tsx, src/App.tsx and the modules listed in section 6</td></tr>
+<tr><td>Live UI updates after local and remote changes</td><td>Covered by browser e2e tests (guest) and the multi-user emulator test (second device receives data live); second-device live sync verified in production (live-verify, 7 Nov 2026)</td></tr>
+<tr><td>Performance of <code>useBundle()</code> with very large histories</td><td>Not verified (designed for personal scale)</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

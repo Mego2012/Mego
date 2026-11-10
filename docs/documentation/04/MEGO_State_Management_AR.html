@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_State_Management_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — إدارة الحالة</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-39</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>المطورون، فريق الصيانة</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Frontend_Architecture، MEGO_Database_Schema_and_Relationships، MEGO_Firebase_Integration، MEGO_Google_Sheets_Integration_and_Sync، MEGO_Configuration_and_Environment، MEGO_Error_Handling_and_Logging</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">توضح هذه الوثيقة أين يحتفظ MEGO بحالته وكيف تنتقل التغييرات داخل التطبيق: سياق React ‏(<code dir="ltr">src/app/AppContext.tsx</code>)، وخطافات البيانات (<code dir="ltr">src/app/hooks.ts</code>)، والاستعلامات الحية (live queries) في Dexie فوق IndexedDB، وطبقة المستودع وإشعارات التغيير (<code dir="ltr">src/lib/repo.ts</code>)، وجدول المفتاح/القيمة العام (<code dir="ltr">kv</code>) ومفاتيحه، والمخازن الصغيرة على مستوى الوحدات لحالة الحساب والمزامنة. لا يستخدم MEGO أي مكتبة حالة خارجية (لا Redux ولا Zustand ولا ما يشبههما)؛ فقاعدة البيانات المحلية هي مصدر الحقيقة الوحيد.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">مبادئ التصميم</li>
+<li dir="rtl">طبقات الحالة</li>
+<li dir="rtl">AppContext</li>
+<li dir="rtl">خطافات البيانات واستعلامات Dexie الحية</li>
+<li dir="rtl">الكتابة: المستودع وصندوق الصادر وإشعارات التغيير</li>
+<li dir="rtl">جدول kv ومفاتيحه</li>
+<li dir="rtl">مخازن الوحدات: الحساب وحالة المزامنة</li>
+<li dir="rtl">ترتيب الإقلاع واختيار قاعدة البيانات</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. مبادئ التصميم</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>قاعدة البيانات أولًا:</b> البيانات الدائمة في IndexedDB ‏(Dexie). تقرؤها الشاشات عبر استعلامات حية، فأي كتابة — محلية أو من استقبال الـ Hub أو من مستمع Firestore — تعيد رسم الشاشات المعنية تلقائيًا.</li>
+<li dir="rtl"><b>مسار كتابة واحد:</b> كل تغيير دائم يمر عبر <code dir="ltr">repo.ts</code> (أو وحدات مبنية عليه)، والذي يضع التغيير أيضًا في <code dir="ltr">outbox</code> للمزامنة.</li>
+<li dir="rtl"><b>الإعدادات بيانات:</b> سجل الإعدادات (<code dir="ltr">settings/main</code>) يُقرأ باستعلام حي في AppContext، فتتغير اللغة والمظهر والأهداف في كل مكان دفعة واحدة.</li>
+<li dir="rtl"><b>حالة المكوّن محلية:</b> النماذج والنوافذ والتحديدات تستخدم <code dir="ltr">useState</code> داخل المكوّن.</li>
+</ul>
+
+<h2 dir="rtl">2. طبقات الحالة</h2>
+<pre dir="ltr">
+┌──────────────────────────────────────────────────────────────────┐
+│ React components (pages/*, components/*)  — useState for UI only │
+├──────────────────────────────────────────────────────────────────┤
+│ AppContext: settings, ready, lang, dir, t(), n(), d(), toast()   │
+│ hooks.ts: useEntries, useDayLog, useBody, useBundle, useCardio,  │
+│           useTraining   (all useLiveQuery)                       │
+│ accountHook.ts useAccount()   Layout.tsx useSyncStatus()         │
+├──────────────────────────────────────────────────────────────────┤
+│ repo.ts (writes) → Dexie tables + outbox → onLocalChange()       │
+│ account.ts (AccountState store)   sync.ts (SyncStatus store)     │
+├──────────────────────────────────────────────────────────────────┤
+│ IndexedDB: mego-nutrition | mego-u-&lt;uid&gt;   localStorage (keys)   │
+└──────────────────────────────────────────────────────────────────┘
+</pre>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحالة</th><th>المكان</th><th>مدة البقاء</th></tr>
+<tr><td>بيانات المستخدم (اليوميات، الأطعمة، الجسم، الأيام، الوصفات، الخطط، الصيام، kv …)</td><td>جداول Dexie</td><td>دائمة لكل قاعدة جهاز؛ ومتزامنة</td></tr>
+<tr><td>الإعدادات (الملف الشخصي، الأهداف، اللغة، المظهر، إعداد المزامنة)</td><td>جدول Dexie ‏<code dir="ltr">settings</code>، المعرّف "main"</td><td>دائمة؛ متزامنة باستثناء كتلة <code dir="ltr">sync</code></td></tr>
+<tr><td>طابور المزامنة</td><td>جدول Dexie ‏<code dir="ltr">outbox</code></td><td>حتى الرفع</td></tr>
+<tr><td>النسخ الاحتياطية المحلية وصور التقدم</td><td>جدولا Dexie ‏<code dir="ltr">backups</code> و<code dir="ltr">photos</code></td><td>دائمة، على الجهاز فقط (لا تُزامن)</td></tr>
+<tr><td>وضع الحساب، الملف الشخصي، المشرف، الإيقاف</td><td>مخزن الوحدة في account.ts</td><td>الجلسة (يُعاد بناؤه عند الإقلاع)</td></tr>
+<tr><td>حالة المزامنة (الحالة، المعلّق، الخطأ، موعد إعادة المحاولة، التعارضات)</td><td>مخزن الوحدة في sync.ts</td><td>الجلسة</td></tr>
+<tr><td>اختيار الحساب ومؤشرات المزامنة</td><td>localStorage ‏(<code dir="ltr">mego.*</code>)</td><td>دائمة لكل متصفح</td></tr>
+<tr><td>رسالة التنبيه (toast)</td><td><code dir="ltr">useState</code> في AppContext</td><td>2.8 ث (6 ث مع زر إجراء)</td></tr>
+</table>
+
+<h2 dir="rtl">3. AppContext</h2>
+<p dir="rtl">يلفّ <code dir="ltr">AppProvider</code> التطبيق كله (خارج الموجّه). يقرأ <code dir="ltr">db.settings.get('main')</code> عبر <code dir="ltr">useLiveQuery</code> ويدمجه فوق <code dir="ltr">defaultSettings()</code> (دمج متداخل للملف الشخصي والأهداف والتسامح والمزامنة)، فيكون لحقول الإعدادات الجديدة قيمة دائمًا.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>العضو</th><th>المعنى</th></tr>
+<tr><td><code dir="ltr">settings</code></td><td>كائن الإعدادات المدمج</td></tr>
+<tr><td><code dir="ltr">ready</code></td><td><code dir="ltr">true</code> بعد عودة الاستعلام الحي (تُزال شاشة البداية وتُعرض المسارات)</td></tr>
+<tr><td><code dir="ltr">lang</code>، <code dir="ltr">dir</code></td><td>"ar" ← "rtl"، و"en" ← "ltr"؛ ويُطبَّقان على <code dir="ltr">&lt;html lang dir&gt;</code> وعنوان المستند</td></tr>
+<tr><td><code dir="ltr">t(key, params)</code></td><td>الترجمة (<code dir="ltr">translate(lang, …)</code>)</td></tr>
+<tr><td><code dir="ltr">n(value, digits)</code>، <code dir="ltr">d(iso, opts)</code></td><td>تنسيق الأرقام والتواريخ حسب اللغة الحالية</td></tr>
+<tr><td><code dir="ltr">toast(msg, action?)</code></td><td>يعرض رسالة حالة (role="status") مع زر إجراء اختياري (مثل التراجع)</td></tr>
+</table>
+<p dir="rtl">ويطبّق تأثير ثانٍ المظهر: <code dir="ltr">system</code> يزيل <code dir="ltr">data-theme</code>، و<code dir="ltr">light</code>/<code dir="ltr">dark</code> يضبطه. وترمي <code dir="ltr">useApp()</code> الخطأ «useApp outside provider» إذا استُخدمت خارج المزوّد.</p>
+
+<h2 dir="rtl">4. خطافات البيانات واستعلامات Dexie الحية</h2>
+<p dir="rtl">يعيد <code dir="ltr">useLiveQuery</code> (الحزمة <code dir="ltr">dexie-react-hooks</code> ‏1.1.7) تشغيل الاستعلام كلما تغيرت البيانات التي قرأها. ويُستخدم في 14 ملفًا مصدريًا (AppContext وFoodPicker وMealScanner وصفحات مثل Diary وFoods وRecipes وRecipeLibrary وPlanner وHabits وProgress وGoals وCardio وSettings).</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الخطاف (src/app/hooks.ts)</th><th>الاستعلام</th><th>القيمة أثناء التحميل</th></tr>
+<tr><td><code dir="ltr">useEntries(date)</code></td><td>عناصر اليوميات لهذا التاريخ مرتبة بـ <code dir="ltr">order</code></td><td>[]</td></tr>
+<tr><td><code dir="ltr">useDayLog(date)</code></td><td dir="ltr">days.get(date)</td><td>undefined</td></tr>
+<tr><td><code dir="ltr">useBody()</code></td><td>قياسات الجسم مرتبة بالتاريخ</td><td>[]</td></tr>
+<tr><td><code dir="ltr">useBundle()</code></td><td>كل عناصر اليوميات والأيام والجسم + الإعدادات (للتقارير؛ «بمقياس شخصي — بضعة آلاف صف»)</td><td>null</td></tr>
+<tr><td><code dir="ltr">useCardio()</code></td><td>مفاتيح kv التي تبدأ بـ <code dir="ltr">cardio:</code>، الأحدث أولًا</td><td>[]</td></tr>
+<tr><td><code dir="ltr">useTraining()</code></td><td>بادئات kv: <code dir="ltr">workout:</code> و<code dir="ltr">program:</code> و<code dir="ltr">recovery:</code> و<code dir="ltr">exercise:</code> والمفتاحان <code dir="ltr">activeProgram</code> و<code dir="ltr">preferredExercises</code></td><td>null</td></tr>
+</table>
+
+<h2 dir="rtl">5. الكتابة: المستودع وصندوق الصادر وإشعارات التغيير</h2>
+<ol dir="rtl">
+<li dir="rtl">تستدعي الشاشة دالة من المستودع (مثل <code dir="ltr">addFoodEntry</code> أو <code dir="ltr">saveSettings</code> أو <code dir="ltr">kvSet</code>).</li>
+<li dir="rtl">تتحقق الدالة من المدخلات (مثل <code dir="ltr">validateMacros</code> و<code dir="ltr">validateTargets</code> وفحص التكرار)، وتكتب جدول Dexie (داخل معاملة عند تغيّر عدة جداول)، وتستدعي <code dir="ltr">enqueue(table, key, op, payload)</code>.</li>
+<li dir="rtl">تضيف <code dir="ltr">enqueue</code> عنصرًا إلى الصادر <code dir="ltr">{ table, key, op, payload, at }</code> وتُخطر كل مستمعي <code dir="ltr">onLocalChange</code>.</li>
+<li dir="rtl">المستمعون: المزامنة التلقائية مع الـ Hub ‏(<code dir="ltr">startAutoSync</code>، رفع بعد 2.5 ث) أو مزامنة Firestore ‏(<code dir="ltr">startCloudSync</code>، رفع بعد 1.5 ث) حسب الوضع.</li>
+<li dir="rtl">تعيد استعلامات Dexie الحية رسم الشاشات التي تقرأ الجداول المتغيرة.</li>
+</ol>
+<p dir="rtl"><b>خصوصية الإعدادات:</b> تنشئ <code dir="ltr">getSettings()</code> السجل الافتراضي بـ <code dir="ltr">updatedAt: 0</code> عند أول تشغيل، فلا يتقدم إعداد افتراضي غير معدّل على إعدادات الحساب القادمة من السحابة. وتنسخ <code dir="ltr">saveSettings(update)</code> الإعدادات الحالية وتطبّق التحديث وتتحقق من أهداف أيام التمرين والراحة (السعرات &gt; 0 والعناصر الكبرى ≥ 0) وتضبط <code dir="ltr">updatedAt</code> ثم تكتب وتضع السجل في الطابور <b>دون</b> كتلة <code dir="ltr">sync</code>.</p>
+<p dir="rtl"><b>التغييرات الواردة:</b> مستمع Firestore ‏(<code dir="ltr">applyRemote</code>) واستقبال الـ Hub ‏(<code dir="ltr">pullAll</code>) يكتبان في Dexie مباشرة (لا عبر الصادر) ويحتفظان بالنسخة الأحدث حسب <code dir="ltr">updatedAt</code>؛ ثم تحدّث الاستعلامات الحية الواجهة.</p>
+
+<h2 dir="rtl">6. جدول kv ومفاتيحه</h2>
+<p dir="rtl">يخزّن <code dir="ltr">kv</code> (Dexie الإصدار 2، المفتاح الأساسي <code dir="ltr">key</code> وفهرس <code dir="ltr">updatedAt</code>) سجلات <code dir="ltr">{ key, value, updatedAt }</code>. ويُزامن كبقية الجداول (Firestore ‏<code dir="ltr">users/{uid}/kv/{key}</code>؛ وتبويب الـ Hub ‏<code dir="ltr">App_KeyValue</code>). الدوال المساعدة في repo.ts: <code dir="ltr">kvGet(key, fallback)</code> و<code dir="ltr">kvSet(key, value)</code> و<code dir="ltr">kvDelete(key)</code>. الميزات الجديدة منذ إصدار 7 نوفمبر تحفظ بياناتها هنا، ولذلك ما زال مخطط Dexie بالإصدار 2.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المفتاح / البادئة</th><th>القيمة</th><th>الوحدة</th></tr>
+<tr><td><code dir="ltr">cardio:&lt;id&gt;</code></td><td>جلسة كارديو</td><td dir="ltr">src/lib/cardio.ts</td></tr>
+<tr><td><code dir="ltr">cardioRoutine</code></td><td>روتين الكارديو المحفوظ</td><td dir="ltr">cardio.ts</td></tr>
+<tr><td><code dir="ltr">checkin:&lt;week&gt;</code></td><td>المراجعة الأسبوعية</td><td dir="ltr">goalAdvisor.ts, pages/Goals.tsx</td></tr>
+<tr><td><code dir="ltr">program:&lt;id&gt;</code></td><td>برنامج تدريب</td><td dir="ltr">workouts.ts</td></tr>
+<tr><td><code dir="ltr">activeProgram</code></td><td>معرّف البرنامج النشط</td><td dir="ltr">workouts.ts, pages/Workouts.tsx</td></tr>
+<tr><td><code dir="ltr">workout:&lt;id&gt;</code></td><td>جلسة تمرين</td><td dir="ltr">workouts.ts</td></tr>
+<tr><td><code dir="ltr">recovery:&lt;date&gt;</code></td><td>سجل الاستشفاء</td><td dir="ltr">workouts.ts</td></tr>
+<tr><td><code dir="ltr">exercise:&lt;id&gt;</code></td><td>تمرين مخصص</td><td dir="ltr">exercises.ts</td></tr>
+<tr><td><code dir="ltr">preferredExercises</code></td><td>قائمة معرّفات التمارين المفضلة</td><td dir="ltr">pages/ExerciseDetail.tsx</td></tr>
+<tr><td><code dir="ltr">shopping:&lt;week&gt;</code></td><td>عناصر قائمة التسوق المؤشَّر عليها (وتنعكس أيضًا في تبويب الـ Hub ‏Shopping_List)</td><td dir="ltr">pages/Planner.tsx</td></tr>
+<tr><td><code dir="ltr">pantry</code></td><td>أسماء مكونات المخزن</td><td dir="ltr">pages/RecipeLibrary.tsx</td></tr>
+<tr><td><code dir="ltr">recipeFavorites</code>، <code dir="ltr">recipeRatings</code></td><td>المفضلة والتقييمات في مكتبة الوصفات</td><td dir="ltr">pages/RecipeLibrary.tsx</td></tr>
+<tr><td><code dir="ltr">remindersFired</code></td><td>التذكيرات التي عُرضت</td><td dir="ltr">src/lib/reminders.ts</td></tr>
+</table>
+
+<h2 dir="rtl">7. مخازن الوحدات: الحساب وحالة المزامنة</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>account.ts</b> يحتفظ بـ <code dir="ltr">AccountState { mode, cloud, uid?, profile?, admin?, suspended? }</code> مع <code dir="ltr">accountState()</code> و<code dir="ltr">subscribeAccount(fn)</code> ودالة داخلية <code dir="ltr">set()</code> تُخطر المستمعين. ويقرؤه React عبر <code dir="ltr">useAccount()</code> ‏(src/pages/accountHook.ts، وهو منفصل كي لا تحمّل الحزمة الرئيسية شاشات Firebase مبكرًا). ويستخدمه <code dir="ltr">Routed</code> في App.tsx لعرض صفحات الترحيب أو الإيقاف أو الصفحات القانونية دون إطار التطبيق.</li>
+<li dir="rtl"><b>sync.ts</b> يحتفظ بـ <code dir="ltr">SyncStatus { state, pending, lastPushAt?, error?, retryIn?, conflicts? }</code> مع <code dir="ltr">subscribeSync</code> و<code dir="ltr">setStatus</code>. وتبلّغ فيه مزامنة الـ Hub ومزامنة Firestore معًا؛ وتقرؤه شارة الرأس عبر <code dir="ltr">useSyncStatus()</code> ‏(Layout.tsx).</li>
+<li dir="rtl">تبديل الحساب أو وضع الضيف <b>يعيد تحميل الصفحة</b> دائمًا، فلا تبقى في الذاكرة أي حالة من الحساب السابق.</li>
+</ul>
+
+<h2 dir="rtl">8. ترتيب الإقلاع واختيار قاعدة البيانات</h2>
+<ol dir="rtl">
+<li dir="rtl"><code dir="ltr">preMigrationBackup()</code> — لقطة قبل ترقية Dexie (عند الحاجة).</li>
+<li dir="rtl"><code dir="ltr">bootAccount()</code> — يختار <code dir="ltr">mego-nutrition</code> أو <code dir="ltr">mego-u-&lt;uid&gt;</code> ‏(<code dir="ltr">useDatabase</code>) قبل أي عرض.</li>
+<li dir="rtl"><code dir="ltr">preUpdateBackup()</code> — مرة لكل إصدار (<code dir="ltr">APP_RELEASE</code>).</li>
+<li dir="rtl"><code dir="ltr">getSettings()</code> — ينشئ الإعدادات الافتراضية عند أول تشغيل.</li>
+<li dir="rtl">يرسم React ‏<code dir="ltr">&lt;App/&gt;</code> داخل <code dir="ltr">StrictMode</code>.</li>
+<li dir="rtl">في وضع الحساب: <code dir="ltr">watchSession</code> ← <code dir="ltr">startCloudSync</code>؛ وإلا <code dir="ltr">startAutoSync</code> (الـ Hub). ثم التذكيرات، والنسخة المحلية اليومية، وتسجيل عامل الخدمة.</li>
+</ol>
+
+<h2 dir="rtl">9. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>العبارات حول السياق والخطافات والمستودع ومفاتيح kv والمخازن</td><td>مُتحقَّق منها في <code dir="ltr">src/app/AppContext.tsx, src/app/hooks.ts, src/lib/repo.ts, db.ts, account.ts, sync.ts, cloudSync.ts, src/main.tsx, src/App.tsx</code> والوحدات المذكورة في القسم 6</td></tr>
+<tr><td>تحديث الواجهة حيًا بعد التغييرات المحلية والبعيدة</td><td>مغطى باختبارات المتصفح (وضع الضيف) واختبار تعدد المستخدمين على المحاكيات (الجهاز الثاني يستقبل البيانات حيًا)؛ والمزامنة الحية لجهاز ثانٍ مُتحقَّق منها في الإنتاج (live-verify، ‏7 نوفمبر 2026)</td></tr>
+<tr><td>أداء <code dir="ltr">useBundle()</code> مع سجلات تاريخية كبيرة جدًا</td><td>غير مُتحقَّق منه (مصمم لمقياس شخصي)</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

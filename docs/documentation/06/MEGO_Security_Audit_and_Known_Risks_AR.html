@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Security_Audit_and_Known_Risks_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — التدقيق الأمني والمخاطر المعروفة</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-49</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع، المطوّرون، مراجعو الأمان</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Security_Architecture، MEGO_Access_Control_and_Permissions، MEGO_Authentication_and_Session_Management، MEGO_User_Data_Protection، MEGO_Data_Retention_and_Deletion، MEGO_Data_Backup_and_Recovery، MEGO_Known_Bugs_and_Limitations، MEGO_Support_and_Incident_Management</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تسجّل هذه الوثيقة نتيجة مراجعة أمنية داخلية لشيفرة MEGO وإعداداته حتى 10 نوفمبر 2026، وتحتفظ بسجل للمخاطر المعروفة مع درجة الخطورة والحالة والإجراء المطلوب. وهي مراجعة للشيفرة والإعدادات أجراها كاتب الوثائق، وليست اختبار اختراق مستقلًا. ودرجة الخطورة تقدير نوعي (مرتفعة / متوسطة / منخفضة) قائم على الاحتمال والأثر لنشر صغير على فئات مجانية.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">منهجية التدقيق ونطاقه</li>
+<li dir="rtl">الملخص</li>
+<li dir="rtl">الإجراءات المطلوبة من المالك (حسب الأولوية)</li>
+<li dir="rtl">سجل المخاطر</li>
+<li dir="rtl">إجراءات تدوير بيانات الاعتماد</li>
+<li dir="rtl">إيداعات عامة قديمة تكشف ملف CSV</li>
+<li dir="rtl">حدود الفئة المجانية (Spark) بوصفها خطرًا تشغيليًا</li>
+<li dir="rtl">نتائج إيجابية</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. منهجية التدقيق ونطاقه</h2>
+<ul dir="rtl">
+<li dir="rtl">ما رُوجع: <code dir="ltr">firebase/firestore.rules</code>، و<code dir="ltr">src/lib/firebase.ts</code>، و<code dir="ltr">account.ts</code>، و<code dir="ltr">cloudSync.ts</code>، و<code dir="ltr">sync.ts</code>، و<code dir="ltr">backup.ts</code>، و<code dir="ltr">localBackup.ts</code>، و<code dir="ltr">mealScanner.ts</code>، و<code dir="ltr">src/pages/Account.tsx</code>، و<code dir="ltr">apps-script/Code.gs</code> و<code dir="ltr">appsscript.json</code>، و<code dir="ltr">.github/workflows/deploy.yml</code>، و<code dir="ltr">index.html</code>، والتقارير الموجودة في <code dir="ltr">docs/</code>.</li>
+<li dir="rtl">أدلة السلوك: اختبارات القواعد (14، على المحاكيات)، وفحوص المتصفح لتعدد المستخدمين (8، على المحاكيات)، والتحقق المباشر على الإنتاج (14/14)، واختبارات إعداد الحاسوب الحية، وسيناريو فقدان التخزين على المحاكي.</li>
+<li dir="rtl">خارج النطاق / لم يُنفَّذ: اختبار الاختراق، وفحص ثغرات الاعتماديات (لم تُراجع نتائج <code dir="ltr">npm audit</code> — غير مُتحقَّق منه)، وإعدادات وحدة تحكم Firebase، وأعضاء Google Cloud IAM.</li>
+</ul>
+
+<h2 dir="rtl">2. الملخص</h2>
+<p dir="rtl">تصميم التحكم في الوصول الأساسي سليم: البيانات الخاصة معزولة لكل مستخدم بقواعد على الخادم، ولا وصول للمشرفين إلى السجلات الخاصة، ولا يستطيع أحد ترقية نفسه، ومفتاح الذكاء الاصطناعي لا يصل إلى الجهاز أبدًا. وأهم البنود المفتوحة تشغيلية: بيانا اعتماد ظهرا في محادثة ويجب تدويرهما، وإيداعان عامان قديمان لا يزالان يكشفان ملف CSV خاصًا، وحدود الفئات المجانية تقيّد السعة. وتُسرد أدناه عدة بنود تحصين متوسطة ومنخفضة.</p>
+
+<h2 dir="rtl">3. الإجراءات المطلوبة من المالك (حسب الأولوية)</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>الإجراء</th><th>رقم الخطر</th></tr>
+<tr><td>1</td><td>تدوير مفتاح Gemini API (القسم 5.1)</td><td>R-01</td></tr>
+<tr><td>2</td><td>تدوير رمز خلفية Apps Script وإعادة ربط أجهزة المالك (القسم 5.2)</td><td>R-02</td></tr>
+<tr><td>3</td><td>إرسال طلب دعم GitHub المُعدّ (<code dir="ltr">docs/GITHUB-SUPPORT-REQUEST.md</code>) بشأن الإيداعين a7b5bbb و3fb3c82</td><td>R-03</td></tr>
+<tr><td>4</td><td>تسجيل حساب المالك ثم تشغيل <code dir="ltr">node scripts/laptop-setup.mjs --cloud &lt;e-mail&gt;</code> مجددًا لإنشاء أول مشرف</td><td>R-12</td></tr>
+<tr><td>5</td><td>إتمام المراجعة القانونية (<code dir="ltr">docs/LEGAL-REVIEW.md</code>) قبل فتح التسجيل للعامة</td><td>R-17</td></tr>
+<tr><td>6</td><td>تنفيذ قائمة الفحص على جهاز حقيقي <code dir="ltr">docs/ANDROID-TEST.md</code></td><td>R-18</td></tr>
+</table>
+
+<h2 dir="rtl">4. سجل المخاطر</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الرقم</th><th>الخطر</th><th>الخطورة</th><th>الحالة</th><th>الإجراء الموصى به</th></tr>
+<tr><td>R-01</td><td>ظهر مفتاح Gemini API الخاص بالمالك في محادثة أثناء الإعداد؛ ومن يحمله يستطيع استهلاك حصة المالك المجانية.</td><td>مرتفعة</td><td>مفتوح</td><td>التدوير (5.1)</td></tr>
+<tr><td>R-02</td><td>ظهر رابط اتصال الخلفية (عنوان تطبيق الويب + APP_TOKEN) في محادثة؛ ويستطيع حامله قراءة الـ Hub الخاص بالمالك والكتابة فيه عبر الإجراءات المحمية بالرمز.</td><td>مرتفعة</td><td>مفتوح</td><td>تدوير الرمز (5.2)؛ واختياريًا عنوان نشر جديد</td></tr>
+<tr><td>R-03</td><td>لا يزال الإيداعان العامان القديمان a7b5bbb و3fb3c82 يقدّمان <code dir="ltr">tests/fixtures/foods-160.csv</code> (جدول المالك الخاص بـ 160 طعامًا) عبر بصمة الإيداع.</td><td>متوسطة</td><td>مفتوح — الطلب مُعدّ وعلى المالك إرساله</td><td>القسم 6</td></tr>
+<tr><td>R-04</td><td>حدود الفئات المجانية (Firebase Spark والفئة المجانية من Gemini وApps Script) تقيّد الاستخدام؛ وعند استنفادها تتوقف الخدمة لبقية اليوم.</td><td>متوسطة (التوافر)</td><td>مقبول</td><td>القسم 7؛ ومراقبة الاستخدام</td></tr>
+<tr><td>R-05</td><td>التحقق من البريد غير مفروض (لا التطبيق ولا القواعد تفحص <code dir="ltr">email_verified</code>)؛ فيمكن إنشاء حسابات ببريد لا يملكه صاحبه.</td><td>متوسطة</td><td>مفتوح</td><td>اشتراط بريد مُتحقَّق منه في القواعد للكتابة، أو منع الدخول حتى التحقق</td></tr>
+<tr><td>R-06</td><td>البيانات المحلية (IndexedDB) غير مشفّرة وتبقى بعد تسجيل الخروج؛ ويمكن قراءتها على جهاز مشترك أو مفقود غير مقفل.</td><td>متوسطة</td><td>مفتوح</td><td>توفير خيار «إزالة نسخة هذا الجهاز عند الخروج»؛ ونصح المستخدم بقفل الجهاز</td></tr>
+<tr><td>R-07</td><td>لا توجد سياسة أمان محتوى CSP (لا يستطيع GitHub Pages ضبط الترويسات، ولا توجد CSP عبر meta في <code dir="ltr">index.html</code>). موارد خارجية: Google Fonts.</td><td>منخفضة</td><td>مفتوح</td><td>إضافة CSP عبر meta تقيّد مصادر السكربتات</td></tr>
+<tr><td>R-08</td><td>يعمل تطبيق Apps Script بهوية المالك وبإتاحة «لأي شخص» وبنطاقات واسعة (Sheets، وDrive كاملًا، والطلبات الخارجية)؛ ويعتمد الأمان على الرمز.</td><td>متوسطة</td><td>مقبول بحكم التصميم</td><td>الحفاظ على سرية الرمز وتدويره عند أي انكشاف</td></tr>
+<tr><td>R-09</td><td>تُقارن APP_TOKEN بالعامل <code dir="ltr">!==</code> (ليست مقارنة ثابتة الزمن)؛ وحقل الرمز في الإعدادات نص ظاهر؛ ويُطبع رمز الاتصال في السجلات/الطرفية.</td><td>منخفضة</td><td>مفتوح</td><td>إخفاء الحقل؛ والمقارنة ثابتة الزمن تحصين ثانوي</td></tr>
+<tr><td>R-10</td><td>لا تتحقق القواعد من نوع <code dir="ltr">displayName</code>/<code dir="ltr">country</code> أو طولهما عند تحديث المالك؛ والدولة يصرّح بها المستخدم، فيمكن لمستخدم غير صادق تجاوز قيد المنطقة في الذكاء الاصطناعي.</td><td>منخفضة</td><td>مفتوح</td><td>إضافة فحوص <code dir="ltr">is string</code> والحجم؛ واعتبار فحص المنطقة جهدًا قدر الإمكان</td></tr>
+<tr><td>R-11</td><td>يمكن لأي مستخدم مسجّل (حتى الموقوف) إنشاء <code dir="ltr">errorReports</code>، وحقول <code dir="ltr">foodSubmissions</code> غير مفحوصة — احتمال إغراق لوحات المشرف.</td><td>منخفضة</td><td>مفتوح</td><td>اشتراط <code dir="ltr">isActive()</code>؛ وفحص شكل المقترح</td></tr>
+<tr><td>R-12</td><td>لا يوجد مشرف بعد: الإيقاف ومراجعة الأطعمة غير ممكنين على الإنتاج.</td><td>متوسطة (تشغيلية)</td><td>بانتظار المالك</td><td>إجراء المالك رقم 4</td></tr>
+<tr><td>R-13</td><td>حذف الحساب يترك مقترحات المستخدم في <code dir="ltr">foodSubmissions</code> وعلامات المزامنة المحلية وعدّادات الذكاء الاصطناعي (حتى التنظيف)، وليس عملية ذرّية.</td><td>منخفضة</td><td>مفتوح</td><td>انظر MEGO_Data_Retention_and_Deletion §8</td></tr>
+<tr><td>R-14</td><td>لا يستطيع المستخدم الموقوف حذف سجلاته (القواعد تشترط حسابًا نشطًا).</td><td>منخفضة (إجراءات الخصوصية)</td><td>مفتوح</td><td>حذف بمساعدة المالك أو تعديل القاعدة</td></tr>
+<tr><td>R-15</td><td>فقدان التخزين على Android ترك حسابًا مسجّلًا فارغًا بعد إعادة الدخول (حادثة 10 نوفمبر 2026).</td><td>مرتفعة (سابقًا)</td><td><b>أُصلح ومعمول به</b></td><td>انظر MEGO_Data_Backup_and_Recovery §9؛ وبيانات الضيف لا تزال على الجهاز فقط</td></tr>
+<tr><td>R-16</td><td>الفئة المجانية من Gemini: قد تستخدم Google المحتوى المرسل لتحسين منتجاتها وقد يطّلع عليه مراجعون بشريون؛ والخدمة قد تكون بطيئة أو مشغولة.</td><td>متوسطة (خصوصية/تجربة)</td><td>مُفصح عنه في مسودة الخصوصية</td><td>إبقاء الإفصاح؛ ورفض الاتحاد الأوروبي/المنطقة الاقتصادية/المملكة المتحدة/سويسرا</td></tr>
+<tr><td>R-17</td><td>سياسة الخصوصية والشروط مسودات؛ وهوية المشغّل والقانون الحاكم والاحتفاظ والموافقات لم تُحسم.</td><td>متوسطة (قانونية)</td><td>مفتوح</td><td>مراجعة قانونية</td></tr>
+<tr><td>R-18</td><td>لم يُختبر التطبيق على جهاز Android حقيقي (أجهزة محاكاة فقط).</td><td>متوسطة</td><td>مفتوح</td><td><code dir="ltr">docs/ANDROID-TEST.md</code></td></tr>
+<tr><td>R-19</td><td>لا مصادقة متعددة العوامل ولا مهلة خمول.</td><td>منخفضة</td><td>مقبول حاليًا</td><td>النظر فيها لحسابات المشرفين</td></tr>
+<tr><td>R-20</td><td>لم تُفحص إعدادات مشروع Firebase (سياسة كلمات المرور، الحماية من تعداد البريد، النطاقات المصرّح بها).</td><td>منخفضة</td><td>غير مُتحقَّق منه</td><td>مراجعتها في وحدة تحكم Firebase</td></tr>
+<tr><td>R-21</td><td>لا توجد نسخة احتياطية ذات إصدارات لـ Firestore على الخادم؛ والنسخة السحابية تعكس عمليات الحذف.</td><td>متوسطة</td><td>مفتوح</td><td>تنزيل المستخدمين ملفات النسخ؛ والنظر في تصدير دوري</td></tr>
+</table>
+
+<h2 dir="rtl">5. إجراءات تدوير بيانات الاعتماد</h2>
+<h3 dir="rtl">5.1 مفتاح Gemini API ‏(R-01)</h3>
+<ol dir="rtl">
+<li dir="rtl">أنشئ مفتاح API جديدًا في Google AI Studio (حساب المالك). لا تفعّل الفوترة.</li>
+<li dir="rtl">انسخ المفتاح إلى حافظة الحاسوب وشغّل <code dir="ltr">node scripts/laptop-setup.mjs --ai-key-from-clipboard</code>، أو احفظه من جهاز المالك (الإعدادات ← مفتاح ماسح الذكاء الاصطناعي، الذي يستدعي <code dir="ltr">setAiKey</code>). تتحقق الخلفية من المفتاح لدى Google قبل حفظه في خصائص السكربت (<code dir="ltr">GEMINI_API_KEY</code>).</li>
+<li dir="rtl">جرّب مسح وجبة واحدة.</li>
+<li dir="rtl">احذف المفتاح القديم في Google AI Studio.</li>
+<li dir="rtl">لا تلصق المفاتيح أبدًا في المحادثات أو التذاكر أو الوثائق.</li>
+</ol>
+<h3 dir="rtl">5.2 رمز الخلفية APP_TOKEN ‏(R-02)</h3>
+<ol dir="rtl">
+<li dir="rtl">افتح مشروع Apps Script بحساب المالك وشغّل <code dir="ltr">rotateToken()</code> (يحذف <code dir="ltr">APP_TOKEN</code> وينشئ رمزًا جديدًا بطول 256 بت عبر <code dir="ltr">setup()</code>؛ وتُكتب القيمة الجديدة في سجل التنفيذ).</li>
+<li dir="rtl">احصل على رمز الاتصال الجديد (شغّل <code dir="ltr">installMego()</code> مجددًا — آمن عند التكرار — أو كوّنه من السجل). وعامل السجل بوصفه سرًا.</li>
+<li dir="rtl">على كل جهاز للمالك: الإعدادات ← اتصال الـ Hub ← الصق الرمز الجديد ← اختبر. يُرفض الرمز القديم فورًا.</li>
+<li dir="rtl">حدّث النسخة على الحاسوب في <code dir="ltr">~/.mego-backend/</code> (خطوة التحديث الدقيقة غير مُتحقَّق منها؛ ويعيد <code dir="ltr">--test</code> النتيجة "unauthorized" ما دامت قديمة).</li>
+<li dir="rtl">اختياري: أنشئ نشرًا جديدًا لتطبيق الويب لتغيير العنوان، وأرشف النشر القديم.</li>
+<li dir="rtl">احذف رسائل المحادثة أو لقطات الشاشة أو الملاحظات التي تحتوي الرابط القديم.</li>
+</ol>
+<p dir="rtl">لا يتأثر أصحاب الحسابات العامة بأي من التدويرين: فهم يصادقون على وسيط الذكاء الاصطناعي برمز هوية Firebase الخاص بهم.</p>
+
+<h2 dir="rtl">6. إيداعات عامة قديمة تكشف ملف CSV ‏(R-03)</h2>
+<ul dir="rtl">
+<li dir="rtl">الملف: <code dir="ltr">tests/fixtures/foods-160.csv</code> ‏(13,451 بايت) — جدول الأطعمة الخاص بالمالك.</li>
+<li dir="rtl">فُحص في 7 نوفمبر 2026: لا يزال قابلًا للتنزيل (HTTP 200) عبر الإيداعين <code dir="ltr">a7b5bbb…</code> و<code dir="ltr">3fb3c82…</code>؛ وغير موجود في الفرع الحالي (أُعيدت كتابة السجل ودُفع قسرًا)؛ والإيداعان 2523513 و5bc5b6b يعيدان 404.</li>
+<li dir="rtl">سبب بقائه: يحتفظ GitHub بالكائنات غير المرجعية، وتشير تشغيلات Actions القديمة رقم 2 و3 إلى هذين الإيداعين.</li>
+<li dir="rtl">الإجراء: يرسل المالك النص المُعدّ في <code dir="ltr">docs/GITHUB-SUPPORT-REQUEST.md</code> وهو مسجّل الدخول بصفته مالك المستودع؛ ويمكنه اختياريًا حذف تشغيلي Actions رقم 2 و3 أولًا؛ ثم يتأكد من أن العنوانين يعيدان 404.</li>
+<li dir="rtl">الوقاية: المجلد <code dir="ltr">tests/private/</code> مدرج في <code dir="ltr">.gitignore</code>؛ فاحفظ الملفات الخاصة هناك.</li>
+</ul>
+
+<h2 dir="rtl">7. حدود الفئة المجانية (Spark) بوصفها خطرًا تشغيليًا (R-04)</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الخدمة</th><th>الحد (كما هو مدوّن في <code dir="ltr">docs/ARCHITECTURE.md</code>؛ وقد تغيّره Google)</th><th>الأثر عند بلوغه</th></tr>
+<tr><td>مصادقة Firebase</td><td>3,000 مستخدم نشط يوميًا؛ 150 رسالة إعادة تعيين يوميًا؛ 100 تسجيل في الساعة لكل عنوان IP</td><td>رفض التسجيلات أو رسائل إعادة التعيين حتى التجدد</td></tr>
+<tr><td>Cloud Firestore</td><td>1 GiB تخزين؛ 50,000 قراءة و20,000 كتابة و20,000 حذف يوميًا</td><td>تتوقف المزامنة حتى التجدد اليومي؛ وتبقى البيانات المحلية تعمل دون اتصال</td></tr>
+<tr><td>الفئة المجانية من Gemini API</td><td>حصص Google بالدقيقة وباليوم؛ ويضيف MEGO حد 10 عمليات مسح لكل مستخدم يوميًا وحدًا عامًا (الافتراضي 40 في الشيفرة، و200 يضبطه سكربت الإعداد)</td><td>الأخطاء <code dir="ltr">AI_QUOTA_MINUTE</code>/<code dir="ltr">AI_QUOTA_DAY</code> و<code dir="ltr">AI_USER_LIMIT</code> و<code dir="ltr">AI_DAILY_LIMIT</code>؛ والضغط <code dir="ltr">AI_OVERLOADED</code></td></tr>
+<tr><td>Apps Script</td><td>حصص Google الخاصة بـ Apps Script (التنفيذات المتزامنة، استدعاءات URL fetch) — القيم الدقيقة غير مُتحقَّق منها</td><td>أخطاء في الخلفية وقت الذروة</td></tr>
+</table>
+<p dir="rtl">لا تستطيع الفئات المجانية إصدار فواتير، فالاستنفاد يعني توقف الخدمة لا تكلفة. وعمليات البحث في القواعد (<code dir="ltr">exists</code>/<code dir="ltr">get</code>) تُحتسب قراءات. وحذف الحسابات الكبيرة يستهلك قراءات وعمليات حذف.</p>
+
+<h2 dir="rtl">8. نتائج إيجابية</h2>
+<ul dir="rtl">
+<li dir="rtl">العزل على الخادم مُتحقَّق منه مباشرة: بيانات مستخدم آخر 403، والمجهول 403، ولا ترقية ذاتية، ولا يستطيع المستخدم العادي سرد الملفات أو إيقاف غيره.</li>
+<li dir="rtl">لا يقرأ المشرفون السجلات الخاصة؛ وكتابتهم في الملفات الشخصية مقصورة على <code dir="ltr">status</code>.</li>
+<li dir="rtl">الطابع <code dir="ltr">updatedAt</code> الأحادي يمنع استبدال الأحدث بالأقدم، في Firestore وفي الـ Hub.</li>
+<li dir="rtl">مفتاح Gemini يبقى على الخادم؛ ويقرأ وسيط الذكاء الاصطناعي الملف الشخصي برمز المستخدم نفسه.</li>
+<li dir="rtl">يُحذف رمز المزامنة من النسخ الاحتياطية والتصدير والنسخ السحابية.</li>
+<li dir="rtl">يُعاد ترميز صور الوجبات (إزالة EXIF) ولا تُحفظ.</li>
+<li dir="rtl">إعادة تعيين كلمة المرور لا تكشف وجود الحساب داخل التطبيق.</li>
+<li dir="rtl">يشغّل التكامل المستمر الاختبارات قبل كل نشر؛ ولم يجد فحص الأسرار (7 نوفمبر 2026) أي أسرار حقيقية في المستودع.</li>
+</ul>
+
+<h2 dir="rtl">9. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>النتائج الإيجابية في العزل وحدود المشرف</td><td>مُتحقَّق منها مباشرة (14/14) وعلى المحاكيات</td></tr>
+<tr><td>انكشاف ملف CSV عبر الإيداعات القديمة</td><td>فُحص مباشرة في 7 نوفمبر 2026 (HTTP 200)؛ ولم يُعد فحصه في 10 نوفمبر</td></tr>
+<tr><td>انكشاف بيانات الاعتماد في محادثة</td><td>مذكور في سجل المشروع؛ ولم يُنفَّذ التدوير بعد</td></tr>
+<tr><td>ثغرات الاعتماديات، إعدادات وحدة تحكم Firebase، IAM</td><td>غير مُتحقَّق منه</td></tr>
+<tr><td>اختبار اختراق مستقل</td><td>لم يُجرَ</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

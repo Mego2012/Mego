@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Known_Bugs_and_Limitations_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Known Bugs and Limitations</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-65</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Project owner, developers, testers, support</td></tr>
+<tr><td>Related documents</td><td>MEGO_Release_Readiness_Checklist, MEGO_Troubleshooting_Manual, MEGO_Support_and_Incident_Management, MEGO_Data_Backup_and_Recovery, MEGO_Security_Audit_and_Known_Risks, MEGO_Android_Device_Testing, MEGO_Future_Development_Recommendations</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document is the honest register of MEGO's defects and limits as of 10 November 2026: open bugs, bugs that were found and fixed (with dates, cause and fix — so that the same failure is recognised if it returns), the incident of 10 November 2026, and the limitations that remain by design or because a step is still pending. It contains no personal data.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Summary</li>
+<li>Open bugs</li>
+<li>Incident of 10 November 2026 — data not restored after the browser lost its local database</li>
+<li>Fixed bugs (history)</li>
+<li>Remaining limitations — pending owner actions</li>
+<li>Remaining limitations — by design or external</li>
+<li>Testing gaps</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Summary</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Category</th><th>Count / state</th></tr>
+<tr><td>Open, reproducible bugs</td><td>None known — all automated suites pass (unit 199/199 on 10 Nov 2026; e2e 57/57; touch 103/103; rules 14/14; multi-user 8/8; laptop-setup 10/10; hub-complete 9/9)</td></tr>
+<tr><td>Incidents in production</td><td>1 recorded (10 Nov 2026, data loss on an Android phone — fixed; it had happened once before)</td></tr>
+<tr><td>Pending owner actions</td><td>Admin account, real-device checklist, legal review, GitHub support request, key/link rotation</td></tr>
+<tr><td>Design limits</td><td>Free tiers (Gemini, Firebase Spark), estimates, data coverage — section 6</td></tr>
+</table>
+
+<h2>2. Open bugs</h2>
+<p>No open bug is known at the time of writing. Absence of known bugs is not proof of absence: physical-device testing has not been recorded (see section 7). New reports should be logged following MEGO_Support_and_Incident_Management.</p>
+
+<h2>3. Incident of 10 November 2026 — data not restored after the browser lost its local database</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Details</th></tr>
+<tr><td>Symptom</td><td>On an Android phone the app suddenly showed the welcome screen. After signing in again with the same account the diary was empty and the calorie target was the default 2000.</td></tr>
+<tr><td>Trigger</td><td>The browser lost the app's IndexedDB (all local records and the Firebase session) while <code>localStorage</code> survived. It had happened once before; the first time the user re-entered data manually, so the cloud then held both copies.</td></tr>
+<tr><td>Root causes</td><td>(1) The cloud listener resumed from "last seen" markers kept in <code>localStorage</code>, so older records were never downloaded into the new, empty database. (2) A fresh default settings record had <code>updatedAt</code> = now and outranked the account's saved settings.</td></tr>
+<tr><td>Fix (commits 114c128 and 5e872a8, live)</td><td>Markers renamed to <code>mego.cloud2.</code> — every device re-downloads its account once; a missing local database resets the markers; an empty table always downloads in full; settings are always re-read; untouched defaults (<code>updatedAt</code> 0) never outrank the cloud copy; each record is applied on its own, so one bad record never stops the download; two weigh-ins for the same date keep the newer one (the other stays untouched in the cloud); Settings → Data check lists diary items and own foods that appear more than once (read-only, nothing removed). Changes in <code>src/lib/cloudSync.ts</code>, <code>account.ts</code>, <code>repo.ts</code>, <code>dataCheck.ts</code>.</td></tr>
+<tr><td>Verification</td><td>Reproduced and verified on the emulators with <code>e2e/storage-loss.mjs</code> (including old + re-entered copies); unit tests in <code>tests/cloud-recovery.test.ts</code>; the owner confirmed the data came back on the phone.</td></tr>
+<tr><td>Lesson for users</td><td>Signed-in accounts are recoverable by signing in again. Guest data lives only on the device — guests should export backups regularly (MEGO_Backup_and_Export_Guide).</td></tr>
+<tr><td>Not known</td><td>Why the browser removed IndexedDB (storage pressure, browser cleanup, or another cause) — Not verified.</td></tr>
+</table>
+
+<h2>4. Fixed bugs (history)</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Date</th><th>Bug</th><th>Cause → fix</th></tr>
+<tr><td>2026-11-06</td><td>No screen scrolled with a finger on Android Chrome</td><td><code>html, body { overflow-x: hidden }</code> made body its own scroll container → overflow clipped on <code>.app</code> with <code>overflow-x: clip</code>; scroll lock reference-counted; Escape/Back close only the top sheet. Touch suite added.</td></tr>
+<tr><td>2026-11-07</td><td>Rankings: foods with missing indicators (e.g. shrimp) could outrank fully measured foods (shrimp was #1 for protein)</td><td>Fully measured foods rank first; partial-data foods follow in a labelled group; tests added</td></tr>
+<tr><td>2026-11-07</td><td>Education: three sources pointed to generic landing pages</td><td>Replaced with the exact documents; guard test added</td></tr>
+<tr><td>2026-11-07</td><td>Photo matching: «أبيض» ("white") matched «بيض» ("egg"); peanuts matched fava beans; "milk chocolate", "almond milk" got single-food photos</td><td>Whole-word Arabic matching and exclusions; 20 positive and 19 negative cases tested</td></tr>
+<tr><td>2026-11-07</td><td>Swipe starting on a food photo did not scroll (treated as image drag)</td><td>Photos non-draggable</td></tr>
+<tr><td>2026-11-07</td><td>Visual audit: English values clipped in Arabic inputs, Latin P/C/F letters in Arabic rows, names cut short, month ledger not aligned to weekdays, report status class collided with the empty-state style</td><td>Fixed during the 1.1 visual audit</td></tr>
+<tr><td>by 2026-11-07 (listed in the 1.1 test report)</td><td>File import after Hub stable IDs created 20 duplicates in the browser run</td><td>Fixed → 0 duplicates, values unchanged; test added</td></tr>
+<tr><td>2026-11-07</td><td>Laptop setup on the owner's Windows laptop: npx.cmd could not be spawned (Node 26); new Gemini key format <code>AQ.…</code> rejected; network errors not retried; Firebase could not be added before the owner accepted the Firebase terms; Firestore API not enabled; config commit failed silently without a Git identity</td><td>All fixed during the real run; setup completed live</td></tr>
+<tr><td>2026-11-07</td><td>Live verifier's second-device check failed (the check reloaded the page every 0.7 s)</td><td>Check fixed; Firestore also auto-detects networks that need long-polling</td></tr>
+<tr><td>2026-11-10</td><td>Fried-rice recipes did not use the cooked-rice record</td><td>Recipes now use cooked rice (release 1.2)</td></tr>
+<tr><td>2026-11-10</td><td>AI meal scanner always answered "AI is busy" (AI_BUSY), and each failure used the user's daily quota</td><td>Root cause: Google 503 overload on the primary model, reported as busy without retry. Backend v6/v7: precise error codes, 503 moves at once to the next free model (gemini-3.8-flash → gemini-3.6-flash → gemini-3.5-flash-lite), 500/504 retried after 2 s and 4 s, quota counted only on success; client retries 3 s / 8 s and keeps the image. Live: a real meal photo analysed in ≈ 64 s, 4 items.</td></tr>
+<tr><td>2026-11-10</td><td>A swipe starting on a food source tag did not scroll the page</td><td>Fixed; scroll-test diagnostics strengthened</td></tr>
+<tr><td>2026-11-10</td><td>Data not restored after local database loss</td><td>See section 3</td></tr>
+<tr><td>2026-11-10</td><td>Test servers corrupted Arabic text split across request chunks (test harness only)</td><td>Request bodies decoded as UTF-8</td></tr>
+</table>
+
+<h2>5. Remaining limitations — pending owner actions</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Impact</th><th>Action</th></tr>
+<tr><td>No administrator account yet</td><td>Admin dashboard, suspension and shared-food review cannot be used in production</td><td>Register in the app, then run <code>node scripts/laptop-setup.mjs --cloud &lt;e-mail&gt;</code> again</td></tr>
+<tr><td>Real Android checklist not run</td><td>Camera, barcode, install and font-size behaviour not formally recorded (the owner uses the app daily from the home-screen icon)</td><td>MEGO_Android_Device_Testing</td></tr>
+<tr><td>Legal pages are drafts</td><td>Privacy policy and terms need legal review before public launch</td><td><code>docs/LEGAL-REVIEW.md</code></td></tr>
+<tr><td>Old public commits a7b5bbb and 3fb3c82 still expose a food CSV file</td><td>The owner's food table is visible in old GitHub history</td><td>Send <code>docs/GITHUB-SUPPORT-REQUEST.md</code> to GitHub Support</td></tr>
+<tr><td>Gemini key and backend connection link were shown in a chat during setup</td><td>Credential exposure risk</td><td>Rotate both (MEGO_Security_Audit_and_Known_Risks)</td></tr>
+<tr><td>Backend updates</td><td>New backend versions reach the live Apps Script only when deployed</td><td><code>git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend</code></td></tr>
+</table>
+
+<h2>6. Remaining limitations — by design or external</h2>
+<ul>
+<li><b>Gemini free tier:</b> can be slow at peak times (≈ 64 s in the 10 Nov live run) and can return overload or quota errors; only free Flash models are allowed, never a paid one. Default limits in <code>Code.gs</code>: 10 scans per user per day and 40 per day overall (owner-configurable within bounds); the values configured live are Not verified.</li>
+<li><b>AI results are estimates:</b> the scanner never auto-saves; the user must review; matched foods use database values.</li>
+<li><b>Firebase Spark (free) limits</b> apply to reads, writes and storage; behaviour near the limits is not tested.</li>
+<li><b>Guest mode:</b> data exists only on the device; if the browser clears its storage, guest data is lost unless exported.</li>
+<li><b>Browser storage can be cleared</b> by the browser or the system (as in the incident); signed-in accounts recover from the cloud.</li>
+<li><b>Duplicates after re-entry</b> are reported by Data check but never removed automatically; the user decides.</li>
+<li><b>Same-date weigh-ins:</b> the device keeps one per date (the newer); the other copy remains in the cloud.</li>
+<li><b>Missing reference data is never invented:</b> labneh has no verified USDA match, so recipes containing it stay incomplete; foods without amino-acid data are ranked in a partial-data group.</li>
+<li><b>Food values</b> come from the user's table, USDA or Open Food Facts as they are; four placeholder rows (0/0/0/0) in the owner's table cannot be logged until values are entered.</li>
+<li><b>Cardio calories</b> are MET-based estimates; the training coach is local rule-based logic, not AI.</li>
+<li><b>Barcode camera scanning</b> needs the browser's BarcodeDetector API; otherwise the code is typed.</li>
+<li><b>Photos</b> exist for 74 common foods; other foods show a drawn placeholder; recipes have no dish photos.</li>
+<li><b>Password-reset e-mail</b> delivery depends on Firebase and the user's mail provider (may land in spam).</li>
+</ul>
+
+<h2>7. Testing gaps</h2>
+<ul>
+<li>No recorded physical-device test; camera, barcode hardware and install not formally verified.</li>
+<li>The full 57-check browser suite has not been recorded against the live URL (44/44 was, on 7 Nov).</li>
+<li>The newest <code>scripts/live-verify.mjs</code> (with recipe, cardio and workout checks) has no recorded production run; the last recorded production run is 14/14 (7 Nov).</li>
+<li>Open Food Facts is mocked in tests; no load testing; no code-coverage measurement.</li>
+</ul>
+
+<h2>8. Verification status</h2>
+<ul>
+<li><b>Verified:</b> incident cause and fixes in the commit history and code; unit suite 199/199 run on 10 Nov 2026; live AI analysis and the owner's confirmation of data recovery (per the documentation brief).</li>
+<li><b>Tested on emulators:</b> storage-loss recovery scenario.</li>
+<li><b>Not verified:</b> the reason the browser deleted IndexedDB; live AI quota settings; behaviour on a range of Android devices.</li>
+</ul>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

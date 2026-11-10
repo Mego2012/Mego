@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Food_Rankings_and_Coach_Methodology_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Food Rankings and Nutrition Coach Methodology</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-30</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Product owner, nutrition reviewers, developers, testers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Food_Database_Documentation, MEGO_Calorie_and_Macronutrient_Calculation_Methodology, MEGO_Daily_Calorie_Target_Calculation, MEGO_Progress_and_Insights_Guide, MEGO_Nutrition_Disclaimer</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes how the <b>Food Intelligence</b> rankings (Coach page → rankings) score and order foods, and how the rule-based <b>Nutrition Coach</b> produces its daily, weekly and monthly messages and food suggestions. Sources: <code>src/lib/foodIntel.ts</code>, <code>src/lib/intelCatalog.ts</code>, <code>src/lib/coach.ts</code>, <code>src/pages/Coach.tsx</code>, <code>src/pages/Dashboard.tsx</code>. The coach is local logic computed from the user's own data — it is not an AI service and never changes targets or diary entries. All numbers below were computed by running this code on 10 Nov 2026 with the shipped USDA files.</p>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/rankings-en-light.png" width="300" alt="Food rankings"> <img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/coach-en-light.png" width="300" alt="Nutrition coach"></p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Data and catalog</li>
+<li>Goal classes</li>
+<li>Sub-scores</li>
+<li>Ranking kinds and weights</li>
+<li>Ordering and missing data</li>
+<li>Worked example: protein ranking for a cut</li>
+<li>Amino-acid score and NRF9.3</li>
+<li>Pros, cons and uses</li>
+<li>Nutrition Coach — daily</li>
+<li>Nutrition Coach — weekly, monthly and tips</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Data and catalog</h2>
+<ul>
+<li><b>Catalog:</b> 83 foods (<code>intelCatalog.ts</code>), each pointing to exactly one USDA FoodData Central record, in the form usually eaten (meat, fish, grains, legumes cooked; fruit, vegetables, nuts, dairy as sold). Groups: protein, carb, fat, fiber; a food may be in several.</li>
+<li><b>Values:</b> kcal and macros, fibre, sugar, saturated fat, sodium from <code>usda.json</code>; MUFA, PUFA, ALA, EPA+DHA+DPA, minerals, vitamins and 11 essential amino acids from <code>usda-extra.json</code>. A catalog id missing from USDA is skipped.</li>
+<li><b>Origin</b> (animal/plant) and <b>whole food</b> flags are part of the catalog; origin is displayed but never used in scoring.</li>
+<li><b>Diet filters:</b> the ranking can be limited to foods allowed by the user's diet (any / vegetarian / vegan) and exclusions (meat, poultry, fish, shellfish, dairy, egg, nuts, peanut, soy, gluten, sesame).</li>
+</ul>
+
+<h2>2. Goal classes</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Class</th><th>User goals</th></tr>
+<tr><td>cut</td><td>fat_loss, fat_loss_preserve</td></tr>
+<tr><td>build</td><td>lean_bulk, bulk, performance</td></tr>
+<tr><td>maintain</td><td>recomp, maintain, healthy, custom</td></tr>
+</table>
+<p>The page starts with the user's class and the user may switch it to compare.</p>
+
+<h2>3. Sub-scores (each 0–1; "per 100 kcal" = value ÷ kcal × 100)</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Sub-score</th><th>Formula</th></tr>
+<tr><td>proteinDensity</td><td>min(1, protein per 100 kcal ÷ 20)</td></tr>
+<tr><td>proteinAmount</td><td>min(1, protein g per 100 g ÷ 30)</td></tr>
+<tr><td>aminoScore</td><td>amino-acid score (section 7); unknown if no amino-acid data</td></tr>
+<tr><td>lowSatFat</td><td>1 − min(1, saturated fat per 100 kcal ÷ 3); unknown if not reported</td></tr>
+<tr><td>fiberDensity</td><td>min(1, fibre per 100 kcal ÷ 4); not reported → 0 for animal foods (not powders), else unknown</td></tr>
+<tr><td>lowEnergyDensity</td><td>1 − min(1, kcal ÷ 400)</td></tr>
+<tr><td>carbAmount</td><td>min(1, carbs ÷ 70)</td></tr>
+<tr><td>wholeFood</td><td>1 if whole / minimally processed, else 0</td></tr>
+<tr><td>micronutrients</td><td>mean over K, Mg, Fe, vit C, folate, vit E of min(1, %DV per 100 kcal) — needs ≥ 3 known</td></tr>
+<tr><td>unsaturatedShare</td><td>min(1, (MUFA + PUFA) ÷ fat)</td></tr>
+<tr><td>omega3</td><td>0.4 × min(1, ALA ÷ 8) + 0.6 × min(1, EPA+DHA ÷ 1.5)</td></tr>
+</table>
+
+<h2>4. Ranking kinds and weights</h2>
+<p>Score = Σ(weight × sub-score) ÷ Σ(weights of sub-scores that have data) × 100, rounded to 0.1.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Ranking (foods)</th><th>cut</th><th>maintain</th><th>build</th></tr>
+<tr><td>Protein (group protein, 39)</td><td>density 0.40, amino 0.25, lowSatFat 0.15, amount 0.10, fibre 0.10</td><td>density 0.25, amino 0.25, amount 0.20, lowSatFat 0.15, fibre 0.15</td><td>amount 0.30, amino 0.30, density 0.20, lowSatFat 0.10, fibre 0.10</td></tr>
+<tr><td>Carbohydrate (group carb, 33)</td><td>fibre 0.30, lowEnergy 0.30, micro 0.20, whole 0.15, carbAmount 0.05</td><td>fibre 0.25, micro 0.25, whole 0.20, lowEnergy 0.15, carbAmount 0.15</td><td>carbAmount 0.30, fibre 0.20, micro 0.20, whole 0.15, lowEnergy 0.15</td></tr>
+<tr><td>Fat (group fat, 18)</td><td>unsat 0.30, omega3 0.20, lowSatFat 0.20, lowEnergy 0.15, fibre 0.10, micro 0.05</td><td colspan="2">unsat 0.30, omega3 0.25, lowSatFat 0.20, micro 0.10, fibre 0.10, lowEnergy 0.05</td></tr>
+</table>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Goal-independent ranking</th><th>Foods</th><th>Score</th></tr>
+<tr><td>Fibre</td><td>fibre &gt; 0 (56)</td><td>0.5 × min(1, fibre ÷ 10) + 0.5 × min(1, fibre per 100 kcal ÷ 8)</td></tr>
+<tr><td>Low calorie</td><td>all (83)</td><td>1 − min(1, kcal ÷ 900)</td></tr>
+<tr><td>Protein per calorie</td><td>protein ≥ 10 % of kcal (63)</td><td>min(1, protein per 100 kcal ÷ 25)</td></tr>
+<tr><td>Nutrient density</td><td>NRF9.3 computable (77)</td><td>NRF9.3 value (not 0–100)</td></tr>
+<tr><td>Cutting</td><td>all (83)</td><td>proteinDensity 0.4, lowEnergy 0.3, fibre 0.2, lowSatFat 0.1</td></tr>
+<tr><td>Building</td><td>protein ≥ 5 g (47)</td><td>proteinAmount 0.35, amino 0.35, proteinDensity 0.15, carbAmount 0.15</td></tr>
+</table>
+<p>Top results (10 Nov 2026): Protein/cut — tuna (yellowfin) cooked 88.9, cod 86.8, turkey breast 86.6; Carbohydrate/cut — strawberries 78.2, orange 76.7, guava 75.9; Fat/cut — flaxseed 59.5, chia 59.1, sardines 54.5; Fibre — chia 94.2; Low calorie — cucumber 98.3; Protein per calorie — shrimp 96.9; Nutrient density — spinach 529.9; Building — soy protein powder 86.9, chicken breast 84.1.</p>
+
+<h2>5. Ordering and missing data</h2>
+<pre>
+coverage = Σ weights with data ÷ Σ all weights
+order: (1) coverage = 1 first, (2) higher score, (3) lower kcal
+</pre>
+<p>A food with an unmeasured indicator is <b>never given an estimated value</b>: its score uses the remaining weights, but it is placed after every fully measured food, in a "partial data" group. In the protein ranking 4 foods are in that group (e.g. whey powder and shrimp have no amino-acid data); 2 in cutting and 4 in building.</p>
+
+<h2>6. Worked example: protein ranking for a cut</h2>
+<p>Chicken breast, roasted (FDC 171477): 165 kcal, protein 31.02 g, saturated fat 1.01 g, fibre 0 g per 100 g.</p>
+<pre>
+proteinDensity = min(1, 31.02/165×100 ÷ 20) = min(1, 18.80 ÷ 20) = 0.940
+aminoScore     = 1 (limiting leucine ratio 1.27, capped at 1)
+proteinAmount  = min(1, 31.02 ÷ 30)        = 1
+lowSatFat      = 1 − (1.01/165×100 ÷ 3)    = 1 − 0.204 = 0.796
+fiberDensity   = 0
+score = 0.40×0.940 + 0.25×1 + 0.10×1 + 0.15×0.796 + 0.10×0 = 0.845 → 84.5   (rank 7 of 39)
+</pre>
+<p>Lentils, cooked (FDC 172421; 116 kcal, P 9.02, fibre 7.9): density 0.389, amino 0.983, amount 0.301, lowSatFat 0.986, fibre 1 → 0.1555 + 0.2457 + 0.0301 + 0.1478 + 0.1 = 0.679 → <b>67.9</b> (rank 14). With the build weights the order shifts toward protein amount and amino score.</p>
+
+<h2>7. Amino-acid score and NRF9.3</h2>
+<p><b>Amino-acid score</b> (FAO/WHO/UNU 2007 adult pattern, mg per g protein: His 15, Ile 30, Leu 59, Lys 45, Met+Cys 22, Phe+Tyr 38, Thr 23, Trp 6, Val 39). For each essential amino acid: (g per 100 g × 1000 ÷ protein g) ÷ reference; the lowest ratio is the limiting amino acid; score = min(1, lowest ratio). Not corrected for digestibility (PDCAAS/DIAAS need data USDA does not publish) — the app states this.</p>
+<pre>
+Lentils: Met 0.077 + Cys 0.118 = 0.195 g/100 g → 0.195×1000 ÷ 9.02 = 21.6 mg/g ÷ 22 = 0.983 → score 0.98, limiting Met+Cys
+Almonds: lysine ratio 0.597 → score 0.60, limiting lysine
+</pre>
+<p><b>NRF9.3</b> (Fulgoni, Keast &amp; Drewnowski 2009), per 100 kcal: Σ of %DV (each capped at 100) for protein, fibre, vitamins A, C, E, calcium, iron, magnesium, potassium minus Σ %DV of saturated fat, total sugar (used instead of added sugar, which USDA SR does not report) and sodium. Daily Values (FDA 2016): protein 50 g, fibre 28 g, vit A 900 µg, vit C 90 mg, vit E 15 mg, Ca 1300 mg, Fe 18 mg, Mg 420 mg, K 4700 mg, sat. fat 20 g, sugar 50 g, sodium 2300 mg. If any of the 12 nutrients is not reported, NRF9.3 is not computed.</p>
+
+<h2>8. Pros, cons and uses</h2>
+<p>Generated from the values (<code>prosCons</code>): pros — protein ≥ 20 g; protein ≥ 15 g per 100 kcal; amino score ≥ 1; fibre ≥ 5 g; EPA+DHA ≥ 0.5 g; ALA ≥ 2 g; unsaturated ≥ 70 % of fat (fat ≥ 5 g); kcal ≤ 60; whole-grain carb. Cons — limiting amino acid; saturated fat ≥ 5 g; kcal ≥ 400; sodium ≥ 400 mg; refined carb; carb food with fibre &lt; 1 g and carbs &gt; 10 g. Uses — cutting, building, fuel, satiety, omega-3, small portions.</p>
+
+<h2>9. Nutrition Coach — daily</h2>
+<p>Computed from today's diary, targets, goal and diet (<code>dailyCoach</code>); Home shows the first message or, if none, the tip of the day.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Condition</th><th>Message</th></tr>
+<tr><td>no entries today</td><td>no-log message with today's kcal and protein target; nothing else is invented</td></tr>
+<tr><td>remaining protein &gt; 10 g</td><td>protein short (split over meals if &gt; 45 g) + up to 5 food options</td></tr>
+<tr><td>protein ≥ 95 % of target</td><td>protein done</td></tr>
+<tr><td>fat ≥ 90 % of target and protein gap &gt; 15 g</td><td>fat near limit + lean options (fat ≤ 3 g/100 g)</td></tr>
+<tr><td>over target by &gt; 50 kcal</td><td>over calories</td></tr>
+<tr><td>fibre known for every entry</td><td>fibre below 25 g (WHO 2023) message with source</td></tr>
+<tr><td>fibre unknown for some entries</td><td>says how many entries have fibre data</td></tr>
+</table>
+<p><b>Protein options</b> (<code>proteinOptions</code>): per meal gap = min(remaining protein, 45 g); foods taken in protein-ranking order; grams = gap ÷ protein per 100 g × 100, rounded to 5 g (min 5 g); portions &gt; 450 g or above 105 % of remaining kcal are skipped.</p>
+<pre>
+Remaining: protein 60 g, kcal 600, goal cut → gap = min(60, 45) = 45 g
+Tuna, yellowfin cooked (29.15 g P, 130 kcal /100 g): 45 ÷ 29.15 × 100 = 154.4 → 155 g → 202 kcal, 45.2 g P
+next: cod 195 g (205 kcal, 44.5 g), turkey breast 150 g (204 kcal, 44.3 g), haddock 225 g, canned tuna 230 g
+</pre>
+<p><b>Complete my macros</b> (<code>completeMacros</code>, needs ≥ 80 kcal remaining): combinations of the top-8 protein foods (P ≥ 9 g, fat &lt; 12 g), top-8 carb foods (carbs ≥ 15 g, P &lt; 10 g) and optionally one of the top-6 fat foods (fat ≥ 40 g). Grams are solved carbs → protein → fat, rounded to 5 g; combos over 110 % of remaining kcal or with unrealistic grams are dropped; ranked by relative deviation from remaining P, C, F; one combo per protein food. Example for remaining 700 kcal / P 50 / C 70 / F 20 (cut): tilapia 185 g + pear 460 g + canola oil 15 g → 632 kcal, P 50.1, C 70.1, F 20.5.</p>
+
+<h2>10. Nutrition Coach — weekly, monthly and tips</h2>
+<ul>
+<li><b>Weekly</b> (needs ≥ 3 fully logged days): calorie consistency (good if ≥ 70 %), protein days hit (warning if &lt; half), average fibre vs 25 g, repetitive protein source (one food &gt; 45 % of protein), diversity (distinct foods; good if ≥ 15), over-target days (warning if ≥ 3), improvements vs previous week (consistency +10 points, more protein days).</li>
+<li><b>Monthly</b> (needs ≥ 8 fully logged days): average kcal vs target (good within 5 %); weight change start→end (≥ 2 weigh-ins; &lt; −0.3 kg down, &gt; +0.3 kg up, else stable) compared with the goal direction; general guidance to reduce/increase intake labelled as guidance with source; weekly rate from the progress estimate (warning when the pace is fast).</li>
+<li><b>Tip of the day:</b> one of 10 general tips, chosen by the date number modulo 10 (e.g. 2026-11-10 → 20261110 mod 10 = 0 → "protein spread").</li>
+</ul>
+
+<h2>11. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Formulas, weights, thresholds</td><td>Verified in <code>foodIntel.ts</code>, <code>coach.ts</code>, <code>intelCatalog.ts</code></td></tr>
+<tr><td>Scores, ranks, examples</td><td>Computed by running the code on 10 Nov 2026 with <code>usda.json</code> / <code>usda-extra.json</code></td></tr>
+<tr><td>Automated tests</td><td><code>tests/intel.test.ts</code> (catalog = USDA values, known limiting amino acids, goal dependence, origin never scored, partial data ranked last) and <code>tests/coach.test.ts</code> (protein gap, diet restrictions, combos, no invented analysis, weekly review); unit suite 199/199 (10 Nov 2026)</td></tr>
+<tr><td>Nutritional appropriateness of rankings for an individual</td><td>Not verified — general guidance, see MEGO_Nutrition_Disclaimer</td></tr>
+</table>
+
+<h2>12. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

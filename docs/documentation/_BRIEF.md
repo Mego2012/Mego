@@ -226,6 +226,6 @@ Use Created/Last updated **2026-11-10** for new documents.
   weigh-ins keep the newer one. Reproduced and verified on emulators (e2e/storage-loss.mjs); the owner confirmed the
   data came back. Lesson for users: signed-in accounts are recoverable by signing in again; guest data lives only on
   the device.
-* Tests now: unit 195 (vitest, 13 files), browser e2e 57/57, touch/scroll 103/103, storage-loss emulator scenario,
+* Tests now: unit 199 (vitest, 14 files), browser e2e 57/57, touch/scroll 103/103, storage-loss emulator scenario,
   live exercise pages 54/54 on the live site.
 * The owner does not use whey protein (the per-serving whey flag is informational only).

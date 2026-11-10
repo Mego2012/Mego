@@ -919,9 +919,9 @@ await check('EX-LIB', 'Exercise library: Arabic search, details, alternatives, c
   await go(page, '/workouts?tab=library');
   await page.getByTestId('ex-search').fill('عقلة');
   await page.getByTestId('ex-row').first().click();
-  await page.getByTestId('ex-detail').waitFor();
-  const alts = await page.getByTestId('ex-alternatives').locator('li').count();
-  await page.keyboard.press('Escape');
+  await page.getByTestId('exercise-page').waitFor();
+  const alts = await page.getByTestId('exd-alternatives').locator('li').count();
+  await go(page, '/workouts?tab=library');
   await page.getByTestId('custom-ex').click();
   await page.getByTestId('custom-name-ar').fill('تمرين اختبار');
   await page.getByTestId('custom-save').click();
@@ -973,6 +973,46 @@ await check('DATACHECK', 'Settings → Data check: read-only record counts, pre-
   const entries = await page.getByTestId('dc-entries').innerText();
   const intact = await page.getByTestId('dc-intact').innerText();
   return `${entries.replace(/\s+/g, ' ')} · ${intact.slice(0, 60)}`;
+});
+
+await check('EX-GUIDE', 'All 54 exercise pages (AR + EN): demonstration, start/finish, technique, mistakes, safety, muscles, prescription, history; no broken images; next/prev', async () => {
+  const ids = await page.evaluate(() => null) ?? (await import('node:fs')).readFileSync(path.join(ROOT, 'src/lib/exercises.ts'), 'utf8').match(/^  X\('([a-z_]+)'/gm).map((x) => x.slice(5, -1));
+  if (ids.length !== 54) throw new Error('exercise ids: ' + ids.length);
+  const bad = [];
+  for (const lang of ['ar', 'en']) {
+    if (lang === 'en') { await go(page, '/settings'); await page.getByRole('tab', { name: 'English' }).click(); }
+    for (const id of ids) {
+      await go(page, '/exercise/' + id);
+      await page.getByTestId('exercise-page').waitFor();
+      const r = await page.evaluate(() => {
+        const q = (s) => document.querySelector(`[data-testid="${s}"]`);
+        const items = (s) => q(s)?.querySelectorAll('li').length ?? 0;
+        const figs = document.querySelectorAll('svg.ex-figure').length;
+        const broken = [...document.images].filter((i) => !i.complete || i.naturalWidth === 0).length;
+        const wide = document.documentElement.scrollWidth > document.documentElement.clientWidth + 1;
+        return { figs, setup: items('exd-setup'), steps: items('exd-steps'), mistakes: items('exd-mistakes'), safety: items('exd-safety'), chart: !!q('muscle-chart'), rx: !!q('exd-rx'), hist: !!(q('exd-history') || q('exd-history-empty')), broken, wide, dir: document.documentElement.dir };
+      });
+      const miss = [];
+      if (r.figs < 3) miss.push('figures ' + r.figs);
+      for (const k of ['setup', 'steps', 'mistakes', 'safety']) if (r[k] < 2) miss.push(k);
+      if (!r.chart || !r.rx || !r.hist) miss.push('sections');
+      if (r.broken) miss.push('broken images ' + r.broken);
+      if (r.wide) miss.push('horizontal overflow');
+      if (r.dir !== (lang === 'ar' ? 'rtl' : 'ltr')) miss.push('dir ' + r.dir);
+      if (miss.length) bad.push(`${lang}/${id}: ${miss.join(', ')}`);
+    }
+  }
+  await go(page, '/exercise/bench_press');
+  await page.getByTestId('exd-next').click();
+  await page.waitForFunction(() => document.querySelector('[data-testid=exercise-page]')?.getAttribute('data-id') === 'db_bench');
+  await shot(page, '27-exercise-en');
+  await go(page, '/settings');
+  await page.getByRole('tab', { name: 'العربية' }).click();
+  await go(page, '/exercise/squat');
+  await page.getByTestId('exd-demo').waitFor();
+  await shot(page, '28-exercise-ar');
+  if (bad.length) throw new Error(bad.slice(0, 6).join(' | ') + (bad.length > 6 ? ` … +${bad.length - 6}` : ''));
+  return `${ids.length} exercises × 2 languages`;
 });
 
 await check('LAYOUT', 'No horizontal overflow on any screen (phone width)', async () => {

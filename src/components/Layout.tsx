@@ -55,7 +55,8 @@ export function Layout({ children }: { children: ReactNode }) {
   const [more, setMore] = useState(false);
   const sync = useSyncStatus();
   const online = useOnline();
-  const current = ALL.filter((a) => (a.to === '/' ? loc.pathname === '/' : loc.pathname.startsWith(a.to))).pop();
+  const path = loc.pathname.startsWith('/exercise/') ? '/workouts' : loc.pathname;
+  const current = ALL.filter((a) => (a.to === '/' ? path === '/' : path.startsWith(a.to))).pop();
   const inMore = current && !BOTTOM.includes(current.to);
   const state = !online ? 'offline' : sync.state;
   const { toast } = useApp();

@@ -19,6 +19,7 @@ const Habits = lazy(() => import('./pages/Habits'));
 const Cardio = lazy(() => import('./pages/Cardio'));
 const Goals = lazy(() => import('./pages/Goals'));
 const Workouts = lazy(() => import('./pages/Workouts'));
+const ExerciseDetail = lazy(() => import('./pages/ExerciseDetail'));
 const Coach = lazy(() => import('./pages/Coach'));
 const AccountPages = lazy(() => import('./pages/Account').then((m) => ({ default: m.AccountRouter })));
 
@@ -57,6 +58,7 @@ function Routed() {
           <Route path="/cardio" element={<Cardio />} />
           <Route path="/goals" element={<Goals />} />
           <Route path="/workouts" element={<Workouts />} />
+          <Route path="/exercise/:id" element={<ExerciseDetail />} />
           <Route path="/coach" element={<Coach />} />
           <Route path="/admin" element={<AccountPages view="admin" />} />
           <Route path="/privacy" element={<AccountPages view="privacy" />} />

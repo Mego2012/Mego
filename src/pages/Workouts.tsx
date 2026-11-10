@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
 import { useBundle, useCardio, useTraining } from '../app/hooks';
 import { MinutesChart } from '../components/charts';
@@ -9,7 +9,7 @@ import { totalsFor } from '../lib/cardio';
 import { addDays, today, weekday } from '../lib/dates';
 import { fitnessOf } from '../lib/energy';
 import {
-  alternativesFor, EQUIPMENT, EXERCISES, findExercise, MUSCLES, saveCustomExercise, searchExercises, type Equipment, type Exercise, type Muscle
+  EQUIPMENT, EXERCISES, findExercise, MUSCLES, saveCustomExercise, searchExercises, type Equipment, type Exercise, type Muscle
 } from '../lib/exercises';
 import { kvSet, saveSettings } from '../lib/repo';
 import { progressEstimate, rollingWeightAverage, summarizeDay } from '../lib/reports';
@@ -456,9 +456,9 @@ function ExercisePicker({ list, onPick, onClose }: { list: Exercise[]; onPick: (
 
 function LibraryTab({ list, preferred }: { list: Exercise[]; preferred: string[] }) {
   const { t, lang } = useApp();
+  const nav = useNavigate();
   const [q, setQ] = useState('');
   const [m, setM] = useState<Muscle | ''>('');
-  const [open, setOpen] = useState<Exercise | null>(null);
   const [custom, setCustom] = useState(false);
   const res = searchExercises(list, q, m);
   return (
@@ -469,58 +469,13 @@ function LibraryTab({ list, preferred }: { list: Exercise[]; preferred: string[]
         <div className="row between"><span className="tiny muted" data-testid="ex-count">{res.length} / {list.length}</span><button className="btn sm" onClick={() => setCustom(true)} data-testid="custom-ex">+ {t('lib_custom')}</button></div>
       </Card>
       <ul className="list card">{res.map((e) => (
-        <li key={e.id} data-testid="ex-row"><button className="grow cardio-row-main" onClick={() => setOpen(e)}>
+        <li key={e.id} data-testid="ex-row"><button className="grow cardio-row-main" onClick={() => nav('/exercise/' + e.id)}>
           <span className="small bold">{exName(e, lang, e.id)} {preferred.includes(e.id) && <Icon name="star" filled />}</span>
           <span className="tiny muted">{t('mus_' + e.primary)}{e.secondary.length ? ` + ${e.secondary.map((s) => t('mus_' + s)).join('، ')}` : ''} · {t('cat_' + e.category)} · {e.equipment.map((x) => t('eq_' + x)).join('، ')}</span>
         </button></li>
       ))}</ul>
-      {open && <ExerciseDetail e={open} list={list} preferred={preferred} onClose={() => setOpen(null)} onOpen={setOpen} />}
       {custom && <CustomExerciseSheet onClose={() => setCustom(false)} />}
     </div>
-  );
-}
-
-function ExerciseDetail({ e, list, preferred, onClose, onOpen }: { e: Exercise; list: Exercise[]; preferred: string[]; onClose: () => void; onOpen: (e: Exercise) => void }) {
-  const { t, lang, settings } = useApp();
-  const fav = preferred.includes(e.id);
-  const alts = alternativesFor(e.id, list, fitnessOf(settings).equipment as Equipment[] | undefined);
-  return (
-    <Sheet title={exName(e, lang, e.id)} onClose={onClose}>
-      <div className="stack" data-testid="ex-detail">
-        <MuscleMap primary={e.primary} secondary={e.secondary} />
-        <div className="tiny muted">{lang === 'ar' ? e.nameEn : e.nameAr}</div>
-        <div className="row wrap" style={{ gap: 4 }}>
-          <span className="chip good">{t('mus_' + e.primary)}</span>{e.secondary.map((s) => <span key={s} className="chip">{t('mus_' + s)}</span>)}
-          <span className="chip">{t('cat_' + e.category)}</span>{e.equipment.map((x) => <span key={x} className="chip">{t('eq_' + x)}</span>)}
-        </div>
-        <div className="small" data-testid="ex-prescription">{t('lib_rx', { s: e.sets, min: e.reps[0], max: e.reps[1], rest: e.restSec })}</div>
-        <p className="small">{lang === 'ar' ? e.howAr : e.howEn}</p>
-        <button className={`chip clickable ${fav ? 'on' : ''}`} onClick={() => kvSet('preferredExercises', fav ? preferred.filter((x) => x !== e.id) : [...preferred, e.id])} data-testid="ex-fav"><Icon name="star" filled={fav} /> {t('lib_preferred')}</button>
-        <div className="small bold">{t('lib_alternatives')}</div>
-        <ul className="list" data-testid="ex-alternatives">{alts.map((a) => <li key={a.id}><button className="grow cardio-row-main" onClick={() => onOpen(a)}><span className="small">{exName(a, lang, a.id)}</span><span className="tiny muted">{a.equipment.map((x) => t('eq_' + x)).join('، ')}</span></button></li>)}
-          {!alts.length && <li className="empty">—</li>}</ul>
-        <div className="tiny muted">{t('lib_noPhotos')}</div>
-      </div>
-    </Sheet>
-  );
-}
-
-/** Simple front-view figure with the target muscles highlighted (drawn, no photos). */
-function MuscleMap({ primary, secondary }: { primary: Muscle; secondary: Muscle[] }) {
-  const fill = (m: Muscle) => (m === primary ? 'var(--primary)' : secondary.includes(m) ? 'color-mix(in srgb, var(--primary) 40%, transparent)' : 'var(--surface-3)');
-  return (
-    <svg viewBox="0 0 120 150" width="120" height="150" role="img" aria-label={primary} style={{ alignSelf: 'center' }}>
-      <circle cx="60" cy="14" r="10" fill="var(--surface-3)" />
-      <rect x="40" y="28" width="40" height="10" rx="4" fill={fill('shoulders')} />
-      <rect x="44" y="38" width="32" height="18" rx="4" fill={fill('chest')} />
-      <rect x="47" y="57" width="26" height="24" rx="4" fill={fill('abs')} />
-      <rect x="30" y="38" width="10" height="20" rx="4" fill={fill('biceps')} /><rect x="80" y="38" width="10" height="20" rx="4" fill={fill('triceps')} />
-      <rect x="28" y="60" width="9" height="20" rx="4" fill={fill('forearms')} /><rect x="83" y="60" width="9" height="20" rx="4" fill={fill('forearms')} />
-      <rect x="44" y="82" width="32" height="10" rx="4" fill={fill('glutes')} />
-      <rect x="45" y="93" width="13" height="28" rx="5" fill={fill('quads')} /><rect x="62" y="93" width="13" height="28" rx="5" fill={fill('hamstrings')} />
-      <rect x="46" y="124" width="11" height="20" rx="5" fill={fill('calves')} /><rect x="63" y="124" width="11" height="20" rx="5" fill={fill('calves')} />
-      <rect x="84" y="28" width="6" height="8" rx="2" fill={fill('back')} /><rect x="30" y="28" width="6" height="8" rx="2" fill={fill('back')} />
-    </svg>
   );
 }
 

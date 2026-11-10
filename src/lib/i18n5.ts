@@ -1,6 +1,13 @@
 /** Strings for workouts, training analytics and the rule-based coach (release 1.3). Parity test covers them. */
 export const en5: Record<string, string> = {
   nav_workouts: 'Workouts',
+  exd_notFound: 'Exercise not found.', exd_demo: 'Demonstration', exd_start: 'Starting position', exd_finish: 'Finishing position',
+  exd_figureNote: 'Original MEGO illustration: posed from standard technique (joint angles), the target muscles are highlighted; the loop shows the full movement.',
+  exd_noVisual: 'No verified illustration for this exercise yet (custom exercises have none).', exd_muscles: 'Muscles worked', exd_front: 'Front', exd_back: 'Back', exd_primary: 'Primary',
+  exd_rx: 'Sets, reps and rest', exd_setsReps: 'Sets × reps', exd_rest: 'Rest between sets', exd_fromProgram: 'From your active program', exd_suggested: 'Suggested starting point',
+  exd_setup: 'Starting position', exd_steps: 'Technique step by step', exd_breathing: 'Breathing', exd_range: 'Range of motion', exd_tempo: 'Speed and control',
+  exd_mistakes: 'Common mistakes', exd_safety: 'Safety tips', exd_disclaimer: 'General technique guidance, not medical advice. Stop if you feel pain and ask a qualified professional.',
+  exd_customNote: 'Custom exercise: only your own description is available.', exd_history: 'My previous performance', exd_noHistory: 'Not logged yet — your sets will appear here.', exd_backToLibrary: 'Back to the exercise library',
   AI_OVERLOADED: 'Google\'s AI model is overloaded right now (temporary). MEGO already retried; please try again in a few minutes.',
   AI_SERVER_ERROR: 'The AI service returned a server error (temporary). Please try again.',
   AI_CONFIG: 'The AI request was rejected because of a configuration problem on the backend — this is not your photo. The details below help fix it.',
@@ -105,6 +112,13 @@ export const en5: Record<string, string> = {
 
 export const ar5: Record<string, string> = {
   nav_workouts: 'التمارين',
+  exd_notFound: 'التمرين غير موجود.', exd_demo: 'العرض التوضيحي', exd_start: 'وضعية البداية', exd_finish: 'وضعية النهاية',
+  exd_figureNote: 'رسم أصلي من MEGO: مبني على الأداء الصحيح (زوايا المفاصل)، والعضلات المستهدفة مميّزة باللون؛ الحركة المتكررة تُظهر المدى الكامل.',
+  exd_noVisual: 'لا يوجد رسم موثّق لهذا التمرين بعد (التمارين المخصصة بلا رسوم).', exd_muscles: 'العضلات العاملة', exd_front: 'أمامي', exd_back: 'خلفي', exd_primary: 'الأساسية',
+  exd_rx: 'المجموعات والتكرارات والراحة', exd_setsReps: 'المجموعات × التكرارات', exd_rest: 'الراحة بين المجموعات', exd_fromProgram: 'من برنامجك النشط', exd_suggested: 'نقطة بداية مقترحة',
+  exd_setup: 'وضعية البداية', exd_steps: 'الأداء خطوة بخطوة', exd_breathing: 'التنفس', exd_range: 'مدى الحركة', exd_tempo: 'السرعة والتحكم',
+  exd_mistakes: 'أخطاء شائعة', exd_safety: 'نصائح الأمان', exd_disclaimer: 'إرشادات عامة للأداء وليست نصيحة طبية. توقف إذا شعرت بألم واستشر مختصاً مؤهلاً.',
+  exd_customNote: 'تمرين مخصص: يتوفر وصفك أنت فقط.', exd_history: 'أدائي السابق', exd_noHistory: 'لم يُسجَّل بعد — ستظهر مجموعاتك هنا.', exd_backToLibrary: 'العودة إلى مكتبة التمارين',
   AI_OVERLOADED: 'نموذج الذكاء الاصطناعي لدى Google عليه ضغط كبير الآن (مؤقت). أعاد MEGO المحاولة تلقائياً؛ حاول مجدداً بعد دقائق.',
   AI_SERVER_ERROR: 'أعادت خدمة الذكاء الاصطناعي خطأً من الخادم (مؤقت). حاول مجدداً.',
   AI_CONFIG: 'رُفض طلب التحليل بسبب مشكلة إعداد في الخادم — ليست مشكلة في صورتك. التفاصيل أدناه تساعد في إصلاحها.',

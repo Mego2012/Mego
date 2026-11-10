@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MEGO_Firebase_Setup_Guide_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Firebase Setup Guide</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-52</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Project owner, maintainers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Firebase_Integration, MEGO_Production_Deployment_Guide, MEGO_Apps_Script_Setup_Guide, MEGO_Access_Control_and_Permissions, MEGO_Authentication_and_Authorization_Architecture, MEGO_Production_Verification_Checklist, MEGO_Admin_User_Manual</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This guide explains how the public multi-user platform of MEGO (accounts, private cloud data, admin role) is set up on Firebase's free <b>Spark</b> plan (no billing account) with one command, <code>node scripts/laptop-setup.mjs --cloud [admin-email]</code>. It lists every step the script performs, the one-time actions only the owner can do, the resulting production values and how to re-run or verify the setup.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Before you start</li>
+<li>Running the command</li>
+<li>What the script does, step by step</li>
+<li>Security rules that are deployed</li>
+<li>Making the owner an administrator</li>
+<li>Re-running, resuming and troubleshooting</li>
+<li>Production values (non-secret)</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Before you start</h2>
+<ul>
+<li>A laptop with Git and Node.js, and the repository cloned on branch <code>claude/nutrition-tracking-app-989rku</code> (see MEGO_Developer_Setup_and_Local_Installation).</li>
+<li>Push rights to the GitHub repository (the script commits and pushes the public config).</li>
+<li>Normally the Apps Script backend is installed first (<code>node scripts/laptop-setup.mjs</code>): the <code>--cloud</code> phase runs after the backend's live tests, and it tells the backend about the Firebase project so signed-in users can use the AI scanner.</li>
+<li>No billing account is needed or created. Spark plan limits apply (exact quotas: see Google's Firebase pricing page — not reproduced here).</li>
+</ul>
+
+<h2>2. Running the command</h2>
+<pre>node scripts/laptop-setup.mjs --cloud                  # platform without an admin yet
+node scripts/laptop-setup.mjs --cloud &lt;your e-mail&gt;     # also grants the admin role (account must already exist)</pre>
+<p>Add <code>--auto</code> to avoid keyboard prompts (the script then polls every 10 seconds while it waits for you on a Google page).</p>
+
+<h2>3. What the script does, step by step</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>#</th><th>Step</th><th>Detail (scripts/laptop-setup.mjs, setupCloud)</th><th>Owner action</th></tr>
+<tr><td>1</td><td>firebase-tools</td><td>If <code>node_modules/firebase-tools</code> is missing, runs <code>npm ci</code></td><td>—</td></tr>
+<tr><td>2</td><td>Sign-in</td><td><code>firebase login</code> if no account is listed</td><td>Choose your Google account, click <b>Allow</b></td></tr>
+<tr><td>3</td><td>Project</td><td>Reuses a Firebase project named "MEGO Nutrition", or a Cloud project from an earlier attempt; otherwise creates <code>mego-&lt;6 hex&gt;</code> with display name "MEGO Nutrition"</td><td>First time only: accept the Firebase terms in the console (a legal agreement only the owner can accept). If no dialog: "Create a project" → "Add Firebase to a Google Cloud project" → "MEGO Nutrition" → Continue (Google Analytics off)</td></tr>
+<tr><td>4</td><td>Web app</td><td>Creates the web app "MEGO Web" and reads its SDK config</td><td>—</td></tr>
+<tr><td>5</td><td>Firestore</td><td>Enables the Cloud Firestore API (Service Usage API), waits 15 s, then creates the <code>(default)</code> database in the first available location: <code>me-central2</code> (Dammam) → <code>me-central1</code> (Doha) → <code>eur3</code> (Europe); retries up to 4 rounds, 30 s apart; waits until it answers. <b>The location is permanent.</b></td><td>—</td></tr>
+<tr><td>6</td><td>Rules</td><td><code>firebase deploy --only firestore:rules,firestore:indexes</code> (files from <code>firebase.json</code>)</td><td>—</td></tr>
+<tr><td>7</td><td>E-mail sign-in</td><td>Enables Email/Password and sets the authorised domains <code>localhost</code>, <code>&lt;project&gt;.firebaseapp.com</code>, <code>&lt;project&gt;.web.app</code>, <code>mego2012.github.io</code></td><td>Only if the API call fails: Authentication → Get started → Email/Password → Enable → Save</td></tr>
+<tr><td>8</td><td>Public config</td><td>Writes <code>public/firebase-config.json</code> (apiKey, authDomain, projectId, appId, aiBackendUrl — public identifiers)</td><td>—</td></tr>
+<tr><td>9</td><td>Backend link</td><td>Calls the backend action <code>setCloudConfig</code>: stores the public Firebase identifiers in Script Properties with an AI limit of 10 scans per user per day and 200 per day overall (the backend clamps these to 1–50 and 1–1500)</td><td>—</td></tr>
+<tr><td>10</td><td>Admin</td><td>If an e-mail is given: looks up the account and writes <code>admins/{uid}</code> with the owner's credentials</td><td>Register in the app first</td></tr>
+<tr><td>11</td><td>Publish</td><td>Commits the config as "MEGO setup" (GitHub noreply address), pushes, and checks the remote branch has the new commit</td><td>—</td></tr>
+<tr><td>12</td><td>Live verification</td><td>Waits (up to 10 minutes) until the live site serves the new config, installs Playwright if needed, runs <code>scripts/live-verify.mjs</code></td><td>—</td></tr>
+</table>
+<p>Progress (project id, web-app id, database location) is saved in <code>~/.mego-backend/state.json</code>, so a run that stops can be repeated and continues where it stopped.</p>
+
+<h2>4. Security rules that are deployed</h2>
+<p>From <code>firebase/firestore.rules</code> (indexes file is empty):</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Path</th><th>Who may do what</th></tr>
+<tr><td><code>users/{uid}/{table}/{key}</code></td><td>Only the owner, only while the profile status is active; admins have no access; an update may not move <code>updatedAt</code> back; only listed tables, record &lt; 300,000 characters</td></tr>
+<tr><td><code>profiles/{uid}</code></td><td>Owner reads/creates (status active, age confirmed, own e-mail) and updates name, country, lastActiveAt; admins read all and may change only <code>status</code> (active/suspended)</td></tr>
+<tr><td><code>admins/{uid}</code></td><td>Readable by that user only; no client writes (setup script / console only)</td></tr>
+<tr><td><code>foods/{id}</code></td><td>Active users read; admins write</td></tr>
+<tr><td><code>foodSubmissions/{id}</code></td><td>Users propose (pending) and read their own; admins review</td></tr>
+<tr><td><code>errorReports/{id}</code></td><td>Signed-in users create small reports; admins read/delete</td></tr>
+</table>
+<p>Rules are tested by <code>npm run test:rules</code> (14/14 on the emulators) and enforced live (live verifier: other users' data and admin actions return 403).</p>
+
+<h2>5. Making the owner an administrator</h2>
+<ol>
+<li>Open https://mego2012.github.io/Mego/ and register with your e-mail (3-step registration).</li>
+<li>On the laptop: <code>node scripts/laptop-setup.mjs --cloud &lt;that e-mail&gt;</code>.</li>
+<li>The script prints "administrator role for …" with ✅. If the account does not exist yet, it says so and nothing is written.</li>
+</ol>
+<p>Status on 10 Nov 2026: <b>not done — waiting for the owner</b>; no admin exists yet.</p>
+
+<h2>6. Re-running, resuming and troubleshooting</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Situation</th><th>What to do</th></tr>
+<tr><td>"Failed to add Firebase"</td><td>Accept the Firebase terms in the console page the script opens, then press Enter; the script reuses the same Cloud project</td></tr>
+<tr><td>Database cannot be created</td><td>The script shows Google's message; it waits while the Firestore API is switching on. Run again later</td></tr>
+<tr><td>Config not on the live site yet</td><td>GitHub Pages takes ~1–3 minutes; run <code>node scripts/laptop-setup.mjs --verify</code> later</td></tr>
+<tr><td>Push failed</td><td>The result line shows Git's message; fix access and run <code>--cloud</code> again</td></tr>
+<tr><td>Only the rules changed</td><td>Running <code>--cloud</code> again redeploys the rules (same <code>firebase deploy</code> command)</td></tr>
+</table>
+
+<h2>7. Production values (non-secret)</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Item</th><th>Value</th></tr>
+<tr><td>Plan</td><td>Spark (free, no billing)</td></tr>
+<tr><td>Project id</td><td><code>mego-473920</code></td></tr>
+<tr><td>Firestore</td><td><code>(default)</code>, <code>me-central2</code> (Dammam)</td></tr>
+<tr><td>Sign-in method</td><td>Email/Password</td></tr>
+<tr><td>Client config</td><td>served at <code>/Mego/firebase-config.json</code></td></tr>
+<tr><td>Firestore client</td><td>auto-detects networks that need long polling (<code>src/lib/firebase.ts</code>)</td></tr>
+</table>
+
+<h2>8. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Project, Firestore location, rules, Email/Password, public config</td><td>Verified live (owner's laptop run, 7 Nov 2026; live verifier 14/14)</td></tr>
+<tr><td>Rules behaviour</td><td>Tested on emulators (14/14) and live (403 checks)</td></tr>
+<tr><td>Admin role assignment</td><td>Not verified live — no admin yet</td></tr>
+<tr><td>Password-reset e-mail delivery</td><td>Not verified (request accepted, HTTP 200; inbox not checked)</td></tr>
+<tr><td>Spark quota figures</td><td>Not verified in this repository</td></tr>
+</table>
+
+<h2>9. Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

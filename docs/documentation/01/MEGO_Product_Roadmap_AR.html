@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Product_Roadmap_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — خارطة طريق المنتج (مقترح)</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-05</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع، أصحاب المصلحة، المطورون</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Product_Requirements_PRD، MEGO_Features_and_Capabilities، MEGO_Future_Development_Recommendations، MEGO_Known_Bugs_and_Limitations، MEGO_Release_Readiness_Checklist، MEGO_Android_Device_Testing</td></tr>
+</table>
+
+<p dir="rtl"><b>تنبيه مهم — خارطة الطريق هذه مجرد «مقترح».</b> كل بند فيها اقتراح مستخلص من البنود المفتوحة المسجلة في المستودع (<code dir="ltr">docs/*.md</code>) وفي الموجز التوثيقي، وليس التزامًا. <b>لا توجد أي مواعيد موعودة</b>؛ البنود مرتبة حسب الأولوية (الآن / التالي / لاحقًا)، والمالك وحده يقرر ما يُنفَّذ ومتى.</p>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تجمع هذه الوثيقة البنود المفتوحة المتبقية بحسب حالة MEGO في 10 نوفمبر 2026، وترتّبها ترتيبًا مقترحًا. ولكل بند تذكر مصدره في المستودع، وما يعتمد عليه، ومن يمكنه تنفيذه. أما أفكار التحسين التقني المفصلة فموجودة في MEGO_Future_Development_Recommendations.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">نقطة البداية (ما هو مباشر بالفعل)</li>
+<li dir="rtl">كيف اختيرت البنود ورُتّبت</li>
+<li dir="rtl">الآن — عوائق الإطلاق (إجراءات المالك)</li>
+<li dir="rtl">التالي — التحقق والجودة</li>
+<li dir="rtl">لاحقًا — تحسينات المنتج</li>
+<li dir="rtl">ما هو خارج النطاق حاليًا بشكل صريح</li>
+<li dir="rtl">نظرة على الاعتماديات</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. نقطة البداية (ما هو مباشر بالفعل)</h2>
+<ul dir="rtl">
+<li dir="rtl">التطبيق العام على GitHub Pages؛ حسابات Firebase (خطة Spark) وقاعدة Firestore في منطقة me-central2؛ مركز Google Sheets مع خادم Apps Script؛ ماسح الوجبات بالفئة المجانية من Gemini (إصدار الخادم SCRIPT_VERSION 7).</li>
+<li dir="rtl">الإصدار <code dir="ltr">1.3-training</code>: الكارديو، تعديل الطاقة الذكي، مستشار الأهداف، التمارين ومدرب التدريب القائم على القواعد، دليل التمارين (54 تمرينًا)، فحص البيانات، وربط قيم الوصفات بقاعدة الأطعمة.</li>
+<li dir="rtl">الاختبارات: الوحدة 195، المتصفح 57/57، اللمس والتمرير 103/103، سيناريو فقد التخزين، التحقق المباشر، وصفحات التمارين المباشرة 54/54.</li>
+</ul>
+
+<h2 dir="rtl">2. كيف اختيرت البنود ورُتّبت</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الفئة</th><th>المعنى</th></tr>
+<tr><td>الآن</td><td>يمنع الإطلاق العام أو يُضعفه، أو هو متابعة أمنية/خصوصية. في الغالب إجراءات لا يستطيعها إلا المالك.</td></tr>
+<tr><td>التالي</td><td>يسدّ فجوة تحقق أو قيدًا موثّقًا في ميزة موجودة.</td></tr>
+<tr><td>لاحقًا</td><td>يوسّع المنتج؛ ويحتاج قرارًا أو خدمة مجانية جديدة.</td></tr>
+</table>
+<p dir="rtl">لا تُدرج إلا البنود التي لها مصدر مكتوب في المستودع. لم تُذكر تقديرات للجهد لأنه لا توجد تقديرات مسجلة — غير مُتحقَّق منه.</p>
+
+<h2 dir="rtl">3. الآن — عوائق الإطلاق (إجراءات المالك)</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الرقم</th><th>البند المقترح</th><th>المصدر</th><th>المسؤول</th></tr>
+<tr><td>R-01</td><td>إنشاء أول مسؤول: التسجيل في التطبيق ثم تشغيل <code dir="ltr">node scripts/laptop-setup.mjs --cloud &lt;e-mail&gt;</code> مرة أخرى</td><td><code dir="ltr">_BRIEF.md</code> القسم 1 (حساب المسؤول بانتظار المالك)</td><td>المالك</td></tr>
+<tr><td>R-02</td><td>مراجعة قانونية لسياسة الخصوصية والشروط: حسم البنود 1–8 (هوية المشغّل، القانون الحاكم، حقوق أصحاب البيانات، حدود المسؤولية، الموافقة على بيانات الجسم، نقل البيانات عبر الحدود، مدة الاحتفاظ، شروط المزوّدين)، ثم إزالة كلمة «مسودة» من نصوص التطبيق</td><td><code dir="ltr">docs/LEGAL-REVIEW.md</code></td><td>المالك + مختص قانوني مؤهل</td></tr>
+<tr><td>R-03</td><td>تدوير مفتاح Gemini ورمز الاتصال بالخادم، لأن كليهما ظهر في محادثة أثناء الإعداد</td><td><code dir="ltr">_BRIEF.md</code> القسم 1 (ملاحظات تشغيلية)؛ <code dir="ltr">docs/HUB.md</code> (<code dir="ltr">rotateToken()</code>)</td><td>المالك</td></tr>
+<tr><td>R-04</td><td>إرسال طلب دعم GitHub المُعدّ لإزالة الالتزامات المخزنة a7b5bbb و3fb3c82 (ما زالت تكشف جدول الأطعمة الخاص)</td><td><code dir="ltr">docs/GITHUB-SUPPORT-REQUEST.md</code></td><td>المالك</td></tr>
+<tr><td>R-05</td><td>تنفيذ قائمة اختبار جهاز أندرويد الحقيقي (نحو 20 دقيقة) وتسجيل النتائج</td><td><code dir="ltr">docs/ANDROID-TEST.md</code></td><td>المالك</td></tr>
+</table>
+
+<h2 dir="rtl">4. التالي — التحقق والجودة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الرقم</th><th>البند المقترح</th><th>المصدر</th></tr>
+<tr><td>R-10</td><td>التأكد من وصول رسائل استعادة كلمة المرور فعليًا (قبول الطلب مُتحقَّق منه، أما الوصول فلا)</td><td><code dir="ltr">_BRIEF.md</code> القسم 1؛ <code dir="ltr">docs/ANDROID-TEST.md</code> البند C3</td></tr>
+<tr><td>R-11</td><td>اختبار مسح الباركود بالكاميرا على هاتف حقيقي</td><td><code dir="ltr">docs/FEATURES.md</code> (🔶)؛ <code dir="ltr">docs/RELEASE-STATUS.md</code></td></tr>
+<tr><td>R-12</td><td>التحقق من النسخ الاحتياطي إلى Google Drive على الإنتاج (مركز المالك)</td><td><code dir="ltr">docs/FEATURES.md</code> (النسخ إلى Google Drive 🔶)</td></tr>
+<tr><td>R-13</td><td>تحديث ملاحظات المستودع القديمة: <code dir="ltr">README.md</code> ما زال يقول «لا تمارين» و«60 وصفة مدمجة»؛ و<code dir="ltr">docs/ARCHITECTURE.md</code> يذكر حدًا إجماليًا للذكاء الاصطناعي 200 يوميًا بينما القيمة الافتراضية في الكود 40</td><td><code dir="ltr">README.md</code>، <code dir="ltr">docs/ARCHITECTURE.md</code> مقابل <code dir="ltr">apps-script/Code.gs</code></td></tr>
+<tr><td>R-14</td><td>مراجعة رسمية لإمكانية الوصول (أنماط التركيز وأحجام اللمس وتقليل الحركة موجودة، لكن لم يُجرَ تدقيق)</td><td>وثيقة المتطلبات NFR-06 (جزئي)</td></tr>
+<tr><td>R-15</td><td>تحديد ميزانية أداء وقياسها (التحميل عند الطلب وفصل الرسوم البيانية موجودان، ولم يُقس شيء)</td><td>وثيقة المتطلبات NFR-11</td></tr>
+<tr><td>R-16</td><td>اختبار متصفحات أخرى (Samsung Internet وFirefox وSafari/iOS)؛ حاليًا Chromium فقط</td><td>سكربتات e2e تستخدم Chromium فقط</td></tr>
+<tr><td>R-17</td><td>معالجة ملاحظات تدقيق الوصفات: «اللبنة» غير موجودة في خريطة مراجع USDA؛ ووصفات تحتوي مصل اللبن (whey) بانتظار مراجعة إدخال المالك (المالك لا يستخدم الواي، والعلامة للمعلومية فقط)</td><td><code dir="ltr">docs/RECIPE-AUDIT.md</code>؛ <code dir="ltr">_BRIEF.md</code> القسم 7</td></tr>
+</table>
+
+<h2 dir="rtl">5. لاحقًا — تحسينات المنتج</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الرقم</th><th>البند المقترح</th><th>المصدر / السبب</th><th>سؤال مفتوح</th></tr>
+<tr><td>R-20</td><td>تذكيرات تعمل والتطبيق مغلق تمامًا</td><td><code dir="ltr">docs/FEATURES.md</code>: «التنبيهات الموثوقة والتطبيق مغلق تحتاج خدمة إشعارات فورية»؛ <code dir="ltr">src/lib/reminders.ts</code></td><td>هل توجد خدمة إشعارات مجانية تتوافق مع مبدأ التكلفة الصفرية؟ غير مُتحقَّق منه</td></tr>
+<tr><td>R-21</td><td>صور إضافية للأطعمة التي ما زالت تظهر برسم بديل (مثل البيض المسلوق، بياض البيض، التوفو، اللبنة، الطحينة، الفراولة)</td><td><code dir="ltr">docs/PROGRESS-LOG.md</code> («لا توجد صورة مطابقة بصدق»)</td><td>يجب توفر صور دقيقة مرخّصة بحرية</td></tr>
+<tr><td>R-22</td><td>رسومات للتمارين المخصصة (التمارين المدمجة مغطاة بالكامل)</td><td><code dir="ltr">docs/EXERCISE-GUIDE-COVERAGE.md</code></td><td>طريقة التعامل مع حركات يعرّفها المستخدم</td></tr>
+<tr><td>R-23</td><td>حماية بيانات الضيف: تشجيع الضيوف على إنشاء حساب أو تنزيل نسخ احتياطية، بعد حادثة فقد التخزين في 10 نوفمبر</td><td><code dir="ltr">_BRIEF.md</code> القسم 7 (الدرس: بيانات الضيف على الجهاز فقط)</td><td>شكل التنبيه (الإعدادات أو الرئيسية)</td></tr>
+<tr><td>R-24</td><td>سرعة استجابة ماسح الوجبات وقت الذروة (الفئة المجانية بطيئة؛ نحو 64 ثانية في الاختبار المباشر)</td><td><code dir="ltr">_BRIEF.md</code> القسم 7</td><td>ضمن الفئة المجانية فقط — دون نموذج مدفوع</td></tr>
+<tr><td>R-25</td><td>مزامنة صور التقدم (حاليًا تُحفظ على الجهاز فقط عن قصد)</td><td><code dir="ltr">docs/FEATURES.md</code>؛ نموذج البيانات في README (جدول <code dir="ltr">photos</code> لا يُزامَن)</td><td>الخصوصية وحدود التخزين في خطة Spark</td></tr>
+</table>
+
+<h2 dir="rtl">6. ما هو خارج النطاق حاليًا بشكل صريح</h2>
+<ul dir="rtl">
+<li dir="rtl">الخدمات المدفوعة أو حسابات الفوترة أو نماذج الذكاء الاصطناعي المدفوعة (مبدأ التكلفة الصفرية).</li>
+<li dir="rtl">وصول المسؤولين إلى السجلات الخاصة بالمستخدمين.</li>
+<li dir="rtl">إنشاء مسؤولين من داخل التطبيق.</li>
+<li dir="rtl">التشخيص أو العلاج الطبي.</li>
+<li dir="rtl">استخدام Google Sheets كقاعدة بيانات متعددة المستخدمين (قُيّم ورُفض في <code dir="ltr">docs/ARCHITECTURE.md</code>).</li>
+</ul>
+<p dir="rtl">لا توجد اليوم حزم متاجر (Google Play / App Store)، ولا يوجد قرار مسجل بشأنها — غير مُتحقَّق منه كهدف.</p>
+
+<h2 dir="rtl">7. نظرة على الاعتماديات</h2>
+<pre dir="ltr">
+ R-01 admin account ----------&gt; admin dashboard usable in production
+ R-02 legal review -----------&gt; open public registration (docs/LEGAL-REVIEW.md)
+ R-03 key/token rotation -----&gt; R-05 device test of the AI scanner (B4)
+ R-05 Android checklist ------&gt; R-10, R-11 (same session on the phone)
+ R-13 docs refresh -----------&gt; consistent documentation set
+ R-20 push reminders ---------&gt; needs a free push service decision
+</pre>
+<ul dir="rtl">
+<li dir="rtl">R-01 (حساب المسؤول) ← تصبح لوحة المسؤول قابلة للاستخدام على الإنتاج.</li>
+<li dir="rtl">R-02 (المراجعة القانونية) ← فتح التسجيل العام.</li>
+<li dir="rtl">R-03 (تدوير المفتاح والرمز) ← قبل اختبار الماسح على الجهاز (البند B4).</li>
+<li dir="rtl">R-05 (قائمة أندرويد) ← تُنفَّذ معها R-10 وR-11 في الجلسة نفسها.</li>
+<li dir="rtl">R-13 (تحديث الوثائق) ← مجموعة وثائق متسقة.</li>
+<li dir="rtl">R-20 (التذكيرات الفورية) ← يحتاج قرارًا بشأن خدمة إشعارات مجانية.</li>
+</ul>
+
+<h2 dir="rtl">8. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>مصدر كل بند في خارطة الطريق</td><td>مُتحقَّق منه: الملف المذكور موجود ويذكر البند المفتوح (10 نوفمبر 2026)</td></tr>
+<tr><td>الأولويات والترتيب والتجميع</td><td>مقترح فقط — يتطلب موافقة المالك</td></tr>
+<tr><td>المواعيد والجهد وتكلفة البنود المستقبلية</td><td>غير مذكورة — غير مُتحقَّق منها</td></tr>
+<tr><td>توفر خدمة إشعارات مجانية (R-20)</td><td>غير مُتحقَّق منه</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول (مقترح)</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

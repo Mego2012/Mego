@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Unit_Testing_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Unit Testing</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-59</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Developers, testers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Testing_Strategy, MEGO_Integration_Testing, MEGO_Nutrition_Calculation_Accuracy_Tests, MEGO_Release_Readiness_Checklist, MEGO_Build_and_Release_Procedures</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes MEGO's unit test suite: the tool and configuration, every test file in <code>tests/</code> with its test count and what it covers, the fixtures it uses, how it runs in CI and how to add tests. It reflects a real run of <code>npx vitest run</code> on 10 November 2026: <b>14 test files, 199 tests, all passed</b>.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Tool and configuration</li>
+<li>Test files and coverage</li>
+<li>Fixtures and private data</li>
+<li>Test techniques used</li>
+<li>Running the suite and reading the output</li>
+<li>Writing a new unit test</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Tool and configuration</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Value (verified in the repository)</th></tr>
+<tr><td>Runner</td><td>Vitest 2.1.8 (<code>package.json</code> devDependency)</td></tr>
+<tr><td>Config</td><td><code>vite.config.ts</code> → <code>test.include: ['tests/**/*.test.ts']</code>, <code>setupFiles: ['tests/setup.ts']</code></td></tr>
+<tr><td>Setup</td><td><code>tests/setup.ts</code> imports <code>fake-indexeddb/auto</code>, so the real Dexie database code (<code>src/lib/db.ts</code>) runs in Node against an in-memory IndexedDB</td></tr>
+<tr><td>Commands</td><td><code>npm test</code> (= <code>vitest run</code>) or <code>npx vitest run</code></td></tr>
+<tr><td>Isolation</td><td>Most files call <code>useDatabase('&lt;unique name&gt;')</code> before each test, so every test starts with its own empty database</td></tr>
+<tr><td>Excluded</td><td><code>tests-rules/</code> (needs the Firebase emulators; separate config <code>vitest.rules.config.ts</code> — see MEGO_Integration_Testing)</td></tr>
+</table>
+
+<h2>2. Test files and coverage</h2>
+<p>Counts are taken from the 10 November 2026 run.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>File</th><th>Tests</th><th>Modules under test</th><th>What it covers</th></tr>
+<tr><td><code>tests/core.test.ts</code></td><td>21</td><td>nutrition, repo, reports, insights, sheetImport, backup</td><td>Sheet import &amp; audit (header below a title row, placeholder 0/0/0/0 rows kept but not loggable, idempotent re-import); acceptance TEST 1–11 in code (raw/cooked chicken, eggs, toast, kg/tbsp/tsp, raw vs cooked rice, double-tap duplicate prevention, recipe totals and per serving, editable targets 2000→2200 / 160→170, rest-day targets, logging on a past date, weekly/monthly complete/partial/empty days, snapshot of history after editing a food); saved meals, insights thresholds, body entries one per date, backup → restore</td></tr>
+<tr><td><code>tests/v2.test.ts</code></td><td>33</td><td>nutrition, repo, reports, sheetImport, sync, recipeEngine, goals, backup, barcode, Code.gs</td><td>All 160 foods imported unchanged; energy-check explanations; precision storage; raw vs cooked 200 g rice; cup/litre units; undo; recipe grams; import validation (blank cells, decimal comma); recipe library ≥ 50 computable recipes, suggestions, week plan, shopping list; goals never auto-overwrite targets; water/habits/fasting; validated backup restore; barcode check digits + Open Food Facts mapping (mocked network); the Hub backend (real Code.gs v3 on an emulated Hub: authorization, Hub ID pinning, <code>migrateHub</code>, push/pull/conflicts/soft delete, <code>installMego</code>, bootstrap; backend now reports <code>scriptVersion: 8</code>; <code>fillFoodNames</code> writes only empty English-name cells after a daily backup and is idempotent); stable F-ID switch-over without duplicates</td></tr>
+<tr><td><code>tests/fooddb.test.ts</code></td><td>13</td><td>refFoods, foodSearch, nutrition, repo, customFoods</td><td>USDA reference database integrity (12,879 foods, public-domain sources, no duplicate ids, valid numbers); exact USDA spot values; bilingual search (Egyptian «صدور فراخ», state words, singular/plural, typos, brands, nutrition filters); raw/cooked inferred from the USDA name; logging a reference food; creating a missing food from its label; JSON export/import without duplicates</td></tr>
+<tr><td><code>tests/intel.test.ts</code></td><td>10</td><td>foodIntel, intelCatalog, education</td><td>Catalog foods exist in USDA with USDA values; amino-acid scores reproduce known limiting amino acids; goal-dependent rankings; origin never changes a score; NRF9.3; fully measured foods rank before partial-data foods; missing amino-acid data never filled; education sources link to specific documents</td></tr>
+<tr><td><code>tests/coach.test.ts</code></td><td>7</td><td>coach, foodIntel</td><td>Protein-gap options fit remaining calories; vegetarian/vegan/allergy restrictions; per-goal suggestions; "complete my macros"; no analysis without logs (weekly review needs ≥ 3 complete days); weekly review findings; deterministic tip of the day</td></tr>
+<tr><td><code>tests/scanner.test.ts</code></td><td>30</td><td>mealScanner (client) + real <code>apps-script/Code.gs</code> on gas-mock with a scripted Gemini stand-in</td><td>Request shape (free Gemini model only, key in header, image first, JSON schema, no personal data, key never returned); paid/unknown model refused; <code>setAiKey</code>; free-quota messages and Pacific-midnight reset; meal scenarios (rice &amp; chicken, eggs, sandwich, salad, restaurant meal, homemade recipe, mixed meal, not food); error mapping; validation of malformed AI output; public-account AI proxy (per-user limit, invalid token, suspended account, region, global cap, usage statistics for admins only); <code>setCloudConfig</code>; backend v7 behaviour (500 retried, 503 moves to the next free model, AI_SERVER_ERROR/AI_TIMEOUT/AI_CONFIG, failures not counted against quota, quota/key errors not retried); client retries with backoff, single in-flight request, timeout, image validation</td></tr>
+<tr><td><code>tests/photos.test.ts</code></td><td>4</td><td>foodPhotos</td><td>Arabic/English photo matching, no photo for dishes or look-alike names, FDC id mapping first, every shipped photo has a file and full attribution</td></tr>
+<tr><td><code>tests/cardio-goals.test.ts</code></td><td>36</td><td>cardio, energy, goalAdvisor, goals, recipeEngine, recipeRefMap, localBackup</td><td>Cardio MET estimates (ACSM walking/running equations, cycling bands, Compendium intensities, manual kcal), validation, weight used per date; logging/editing/deleting own sessions; daily/weekly/monthly statistics; smart energy adjustment (planned cardio covered, net energy × goal share, 400 kcal cap, off mode, fat-loss ceiling); goal recommendations are suggestions only; recipe nutrition linked to USDA (labneh flagged missing, user's own food takes precedence); pre-update backup once per release and preservation of existing records</td></tr>
+<tr><td><code>tests/workouts.test.ts</code></td><td>33</td><td>exercises, workouts, trainingCoach, energy, goalAdvisor, dataCheck, backup</td><td>Exercise library (54 exercises, both names, muscles, alternatives); program generator keeps the owner's 6-day split; e1RM (Epley), trends, weekly sets per muscle; double-progression advice; sessions/recovery/coach answers with confidence; workouts never double-count calories or change the saved target; backup restorability; read-only Data check (per-scoop food detection)</td></tr>
+<tr><td><code>tests/exercise-guide.test.ts</code></td><td>4</td><td>exercises, exerciseVisuals, technique</td><td>All 54 exercises have an illustration and full technique entry; illustrations have real movement and finite coordinates; technique text complete in English and Arabic; no unsupported medical claims</td></tr>
+<tr><td><code>tests/cloud-recovery.test.ts</code></td><td>3</td><td>cloudSync, repo, dataCheck</td><td>Untouched default settings never outrank cloud settings after the local database was lost; user-changed settings are never treated as defaults; duplicate diary items/own foods are reported, never removed (10 Nov 2026 incident)</td></tr>
+<tr><td><code>tests/library-foods.test.ts</code></td><td>3</td><td>libraryFoods, foodNames</td><td>"Complete my food database": every recipe-library ingredient is either addable from hand-checked USDA values or reported missing (labneh), never estimated; applying adds ingredients and ready meals only, keeps existing foods untouched and is idempotent; Arabic/English names fill only empty names in both directions and list what is left</td></tr>
+<tr><td><code>tests/i18n-keys.test.ts</code></td><td>1</td><td>i18n + all source files</td><td>Every translation key used in the code exists in Arabic and English</td></tr>
+<tr><td><code>tests/i18n-parity.test.ts</code></td><td>1</td><td>i18n</td><td>Every Arabic string has an English one and vice versa</td></tr>
+<tr style="background:#e8f3ef"><td><b>Total</b></td><td><b>199</b></td><td colspan="2">14 files</td></tr>
+</table>
+
+<h2>3. Fixtures and private data</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>File</th><th>Use</th><th>In Git?</th></tr>
+<tr><td><code>tests/fixtures/food-sheet-sample.csv</code></td><td>Small sample of the owner's sheet layout (title row, header row) with the values used by the acceptance tests</td><td>Yes</td></tr>
+<tr><td><code>tests/fixtures/foods-synthetic.csv</code></td><td>Same names/categories/states as the real 160-food table but made-up values</td><td>Yes</td></tr>
+<tr><td><code>tests/private/foods-160.csv</code></td><td>The owner's real 160-food table</td><td><b>No</b> (git-ignored)</td></tr>
+<tr><td><code>public/fooddb/usda.json</code></td><td>The shipped USDA reference database, read directly by the tests</td><td>Yes</td></tr>
+</table>
+<p><code>tests/v2.test.ts</code> defines <code>itReal = it.skipIf(!REAL)</code>: <b>11 tests</b> that assert values of the real table run only when <code>tests/private/foods-160.csv</code> exists. On the developer machine used on 10 November they ran (199/199, nothing skipped); in GitHub Actions they are skipped.</p>
+
+<h2>4. Test techniques used</h2>
+<ul>
+<li><b>Real modules, in-memory database:</b> repository functions (<code>addFoodEntry</code>, <code>saveSettings</code>…) write to Dexie on fake-indexeddb exactly as in the browser.</li>
+<li><b>Real backend in an emulator:</b> <code>e2e/gas-mock.mjs</code> loads <code>apps-script/Code.gs</code> and emulates SpreadsheetApp, DriveApp, PropertiesService, LockService and UrlFetchApp.</li>
+<li><b>Scripted external services:</b> Gemini responses and errors (500, 503, 504, 400, 429) are scripted; Open Food Facts is mocked; no test calls an external service.</li>
+<li><b>Exact numbers:</b> e.g. <code>roundMacros(e.macros)</code> must equal <code>{ kcal: 120, protein: 23, carbs: 0, fat: 2.6 }</code>.</li>
+<li><b>Negative tests:</b> what must never happen (auto-applying recommendations, filling missing data, paid AI models, removing duplicates automatically).</li>
+</ul>
+
+<h2>5. Running the suite and reading the output</h2>
+<pre>
+npm test                     # whole suite
+npx vitest run tests/core.test.ts          # one file
+npx vitest run -t "TEST 1"                 # tests whose name matches
+</pre>
+<p>Expected summary: <code>Test Files 14 passed (14)</code> and <code>Tests 199 passed (199)</code>. The scanner tests deliberately print lines such as <code>Gemini gemini-3.8-flash → 503 …</code> on stderr — these are the scripted error scenarios, not failures. The full run took about 7 seconds.</p>
+
+<h2>6. Writing a new unit test</h2>
+<ol>
+<li>Put the file in <code>tests/</code> with the suffix <code>.test.ts</code>.</li>
+<li>Call <code>useDatabase('a-unique-name')</code> in <code>beforeEach</code> when the test touches the database.</li>
+<li>Use fixtures from <code>tests/fixtures/</code>; never commit personal data. Guard tests that need the private table with <code>it.skipIf</code>.</li>
+<li>Assert exact values and add at least one "must not happen" assertion.</li>
+<li>Run <code>npm test</code> and <code>npx tsc -b</code> before committing; CI blocks deployment if a test fails.</li>
+</ol>
+
+<h2>7. Verification status</h2>
+<ul>
+<li><b>Verified (executed for this document):</b> <code>npx vitest run</code> on 10 Nov 2026 → 14 files, 199 tests passed; file-by-file counts above are from that run.</li>
+<li><b>Verified in code:</b> configuration, fixtures, skip logic, CI step (<code>.github/workflows/deploy.yml</code> runs <code>npm test</code> before the build).</li>
+<li><b>Limits:</b> unit tests do not exercise a real browser, real Firebase, real Google services or a physical phone; see MEGO_Integration_Testing and MEGO_Acceptance_Testing. Code-coverage percentages are not measured (no coverage tool configured) — Not verified.</li>
+</ul>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

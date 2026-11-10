@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MEGO_Apps_Script_Setup_Guide_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Apps Script Setup Guide</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-53</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Project owner (non-technical, Windows laptop), maintainers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Backend_Architecture, MEGO_Google_Sheets_Integration_and_Sync, MEGO_API_Documentation, MEGO_Gemini_API_Setup_Guide, MEGO_Firebase_Setup_Guide, MEGO_Update_and_Rollback_Procedures, MEGO_Developer_Setup_and_Local_Installation</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This guide explains how the owner's Google Apps Script backend is installed and updated. The backend (<code>apps-script/Code.gs</code>, SCRIPT_VERSION 8) connects the app to the Google Sheet "MEGO Nutrition Hub", and it is the only component that talks to the Gemini API. The automated way is <code>scripts/laptop-setup.mjs</code>; the guide gives click-by-click Windows PowerShell steps for a non-technical owner, the Google screens to approve, what the script checks, and how to update the backend with <code>--update-backend</code> and complete the Hub food list with <code>--hub-complete-foods</code>.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>What gets installed</li>
+<li>Windows: preparing the laptop (once)</li>
+<li>Windows: running the setup</li>
+<li>The Google screens you approve</li>
+<li>What the script does and checks</li>
+<li>Updating the backend (--update-backend)</li>
+<li>Other options and maintenance</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. What gets installed</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Item</th><th>Value (apps-script/appsscript.json, Code.gs)</th></tr>
+<tr><td>Project</td><td>Standalone Apps Script project "MEGO Nutrition Hub Backend" in the owner's Drive</td></tr>
+<tr><td>Web app</td><td>Execute as: the deploying user (owner); access: anyone, every request must carry the secret app token</td></tr>
+<tr><td>Runtime / time zone</td><td>V8, Asia/Riyadh</td></tr>
+<tr><td>Permissions (OAuth scopes)</td><td>Google Sheets, Google Drive, external requests (for Gemini and Firebase checks); advanced Drive service v3</td></tr>
+<tr><td>Hub</td><td>The original Excel file stays untouched; a native Google Sheet copy "MEGO Nutrition Hub" becomes the working Hub only after verification</td></tr>
+<tr><td>Actions (doPost)</td><td><code>bootstrap</code>, <code>ping</code>, <code>foods</code>, <code>push</code>, <code>pull</code>, <code>saveFoods</code>, <code>fillFoodNames</code> (new in v8), <code>backup</code>, <code>meta</code>, <code>analyzeMeal</code>, <code>aiDiag</code>, <code>setAiKey</code>, <code>setCloudConfig</code>; for signed-in Firebase users: <code>analyzeMeal</code>, <code>aiStats</code>, <code>aiDiag</code></td></tr>
+<tr><td>Secrets</td><td>Kept in Script Properties (APP_TOKEN, GEMINI_API_KEY …) and in <code>~/.mego-backend/</code> on the laptop — never in the repository</td></tr>
+</table>
+
+<h2>2. Windows: preparing the laptop (once)</h2>
+<ol>
+<li>Press the <b>Start</b> button, type <b>PowerShell</b>, open <b>Windows PowerShell</b>.</li>
+<li>Install Git and Node.js (type each line, press Enter, accept any prompt):
+<pre>winget install --id Git.Git -e
+winget install --id OpenJS.NodeJS.LTS -e</pre></li>
+<li><b>Close PowerShell and open it again</b> (so the new programs are found). Check: <code>git --version</code> and <code>node -v</code> must each print a version.</li>
+<li>If PowerShell says "running scripts is disabled on this system", run once:
+<pre>Set-ExecutionPolicy -Scope CurrentUser RemoteSigned</pre></li>
+<li>Download the project into your user folder:
+<pre>cd $HOME
+git clone -b claude/nutrition-tracking-app-989rku https://github.com/Mego2012/Mego.git
+cd Mego</pre></li>
+</ol>
+<p>Important: while the script runs, <b>do not click inside the PowerShell window</b>. With QuickEdit mode a click pauses the program and it looks frozen; press <b>Enter</b> or <b>Esc</b> to continue.</p>
+
+<h2>3. Windows: running the setup</h2>
+<pre>cd $HOME\Mego
+node scripts/laptop-setup.mjs</pre>
+<p>The script prints each step with ▶ and each check with ✅ or ❌. When it needs you, it shows "👉" with an instruction and waits for <b>Enter</b>. Keep your Google account open in the browser. Safe to run again: an existing project, deployment and token are reused.</p>
+
+<h2>4. The Google screens you approve</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>When</th><th>What you see</th><th>What you click</th></tr>
+<tr><td>First step</td><td>Browser sign-in for Google's official Apps Script tool (clasp 3.4.1)</td><td>Choose your Google account → <b>Allow</b></td></tr>
+<tr><td>Creating the project (first time)</td><td>Page script.google.com/home/usersettings</td><td>Turn <b>Google Apps Script API</b> to <b>On</b>, go back to PowerShell, press Enter (if it already shows On, wait 5 minutes)</td></tr>
+<tr><td>One-time install</td><td>The Apps Script editor opens</td><td>Choose the function <b>authorize</b> at the top → <b>▶ Run</b> → Review permissions → your account → <b>Advanced</b> → <b>Go to MEGO Nutrition Hub Backend</b> → <b>Allow</b>; back in PowerShell press Enter</td></tr>
+<tr><td>AI scanner (optional)</td><td>Google AI Studio key page</td><td>See MEGO_Gemini_API_Setup_Guide (never "Set up billing")</td></tr>
+</table>
+<p>The warning on the permission screen is expected: the script is private to your account and is not published.</p>
+
+<h2>5. What the script does and checks</h2>
+<ol>
+<li><b>Upload:</b> copies <code>Code.gs</code> and <code>appsscript.json</code> to the private project. On the first install it writes into your private copy only the SHA-256 hash of a random one-time secret (BOOTSTRAP_HASH); the secret never leaves the laptop.</li>
+<li><b>Deploy:</b> creates the web app deployment (later runs update the same deployment id).</li>
+<li><b>One-time install (<code>bootstrap</code>):</b> runs <code>installMego()</code> — Drive backup, Excel → native Google Sheet conversion, verification of all foods, migration to structured tabs. It then disables itself (BOOTSTRAP_DONE) and returns the app token, which is stored only in <code>~/.mego-backend/state.json</code>.</li>
+<li><b>Live tests (10):</b> token accepted; Hub identity is the original Excel file; Hub is native and writable; installMego verification; wrong token refused; Food_Database has every food with readable values; write phone → Hub (test record); read Hub → phone; an older copy never overwrites a newer one; test record soft-deleted into Deleted_Records.</li>
+<li><b>Gemini (optional):</b> stores a free key and runs one real photo analysis.</li>
+<li><b>Connect the app:</b> prints a QR code and a link that connects the app on the phone. <b>Keep it private</b> — it contains the token. Reprint with <code>node scripts/laptop-setup.mjs --test</code>.</li>
+<li><b>Report:</b> written to <code>~/.mego-backend/report-&lt;time&gt;.md</code>.</li>
+</ol>
+<p>Live result of the owner's run (7 Nov 2026): all checks ✅; Hub "MEGO Nutrition Hub" with 160 foods and 0 numeric problems; backup "BACKUP MEGO Nutrition Hub — before migrateHub — 2026-11-07 1425".</p>
+
+<h2>6. Updating the backend (--update-backend)</h2>
+<p>When a new <code>Code.gs</code> is released (for example SCRIPT_VERSION 7 with the improved AI error handling, or SCRIPT_VERSION 8 with <code>fillFoodNames</code>), run in PowerShell:</p>
+<pre>cd $HOME\Mego
+git pull
+node scripts/laptop-setup.mjs --update-backend</pre>
+<p>What happens: the latest <code>Code.gs</code> is uploaded and deployed to the <b>same deployment</b> (same web-app URL, same token, Hub data untouched), then the <b>AI diagnostic</b> (<code>aiDiag</code>) sends a tiny text-only request to every free model and prints for each one ✅/❌, the HTTP code and Google's message, plus the backend version and configured model. The live tests are not run in this mode; run <code>node scripts/laptop-setup.mjs --test</code> afterwards if you want them.</p>
+
+<h2>7. Other options and maintenance</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Command / function</th><th>Use</th></tr>
+<tr><td><code>--hub-complete-foods</code></td><td>Implies <code>--update-backend</code> (uploads and deploys the latest Code.gs to the same deployment), then needs backend version 8 or newer and the structured Food_Database. It ADDS only: every recipe-library ingredient missing from the Hub (hand-checked USDA values from <code>public/fooddb/library-recipes.json</code>; an ingredient without a verified reference is listed and never estimated), every library meal as a ready food computed from the Hub's own values (per 100 g of raw ingredients, 1 serving as the portion; a meal is skipped if an ingredient has no usable values), and fills only EMPTY English names (<code>public/fooddb/food-names.json</code>). Existing rows and values are never changed; a daily Drive backup of the Hub is taken first; running it again adds nothing. The AI diagnostic is not run in this mode</td></tr>
+<tr><td><code>--test</code></td><td>Only the live tests against the existing backend (+ Gemini step, + connect link)</td></tr>
+<tr><td><code>--auto</code></td><td>No keyboard prompts; waits by polling every 10 s</td></tr>
+<tr><td><code>--photo meal.jpg</code></td><td>Use your own photo for the AI test</td></tr>
+<tr><td><code>rotateToken()</code> (in the editor)</td><td>Creates a new app token; the app must be connected again. Recommended because the connection link was shown in a chat during setup</td></tr>
+<tr><td><code>cleanupAiCounters()</code></td><td>Removes AI usage counters older than 8 days (optional time trigger)</td></tr>
+<tr><td>Manual alternative</td><td>Paste Code.gs and appsscript.json in the editor, Deploy → Manage deployments → Edit → New version (docs/SETUP.md, docs/PHONE-SETUP.md)</td></tr>
+</table>
+<p>Network errors when calling the backend are retried 4 times (3, 6, 9, 12 s) and then Google's real error is shown.</p>
+
+<h2>8. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Full setup and live tests</td><td>Verified live on the owner's Windows laptop (7 Nov 2026); script tested automatically by <code>npm run e2e:laptop</code> (10/10, emulated Google)</td></tr>
+<tr><td><code>--update-backend</code> deploy of SCRIPT_VERSION 7/8</td><td>Command verified in code. Which SCRIPT_VERSION is currently deployed in production, and the diagnostic output of an owner run, are not recorded in the repository — Not verified</td></tr>
+<tr><td>Windows steps 2.1–2.4 (winget, PATH, execution policy, QuickEdit)</td><td>From the owner's real run; not re-tested — Not verified</td></tr>
+<tr><td><code>--hub-complete-foods</code></td><td>Tested against the real Code.gs with emulated Google (<code>node e2e/hub-complete-test.mjs</code>, 9/9). A run against the owner's real Hub is not recorded — Not verified</td></tr>
+<tr><td><code>rotateToken()</code> in production</td><td>Not performed (recommended)</td></tr>
+</table>
+
+<h2>9. Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Platforms_and_System_Requirements_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — المنصات ومتطلبات النظام</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-06</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع، المستخدمون، الدعم، المطورون، المختبرون</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Features_and_Capabilities، MEGO_Technical_Architecture، MEGO_Developer_Setup_and_Local_Installation، MEGO_Production_Deployment_Guide، MEGO_Android_Device_Testing، MEGO_Known_Bugs_and_Limitations</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">توضح هذه الوثيقة المنصات التي يعمل عليها MEGO، وما يحتاجه جهاز المستخدم ومتصفحه، والخدمات المستضافة التي يعتمد عليها المنتج وحدود فئاتها المجانية، وما يحتاجه جهاز المالك أو المطوّر لإعداد MEGO وبنائه واختباره. وتفصل بوضوح بين ما تم اختباره وما يُتوقع فقط أن يعمل.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">ملخص المنصة</li>
+<li dir="rtl">متطلبات جهاز المستخدم والمتصفح</li>
+<li dir="rtl">ميزات المتصفح المستخدمة والبدائل</li>
+<li dir="rtl">التخزين والعمل دون اتصال والشبكة</li>
+<li dir="rtl">الخدمات المستضافة وحدود الفئات المجانية</li>
+<li dir="rtl">متطلبات جهاز المالك والمطوّر</li>
+<li dir="rtl">الإعدادات التي تم اختبارها</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. ملخص المنصة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الجانب</th><th>الحقيقة</th><th>المصدر</th></tr>
+<tr><td>نوع التطبيق</td><td>تطبيق ويب تقدّمي (PWA): موقع يمكن تثبيته على الشاشة الرئيسية ويعمل دون اتصال</td><td><code dir="ltr">vite.config.ts</code> (vite-plugin-pwa)</td></tr>
+<tr><td>الرابط العام</td><td><span dir="ltr">https://mego2012.github.io/Mego/</span> (HTTPS عبر GitHub Pages)</td><td><code dir="ltr">.github/workflows/deploy.yml</code></td></tr>
+<tr><td>حزم المتاجر</td><td>لا توجد — لا تطبيق على Google Play أو App Store</td><td>محتوى المستودع</td></tr>
+<tr><td>الهدف الأساسي</td><td>هواتف أندرويد عبر Chrome (ويذكر <code dir="ltr">docs/SETUP.md</code> متصفح Samsung Internet)؛ ويمكن استخدامه أيضًا من متصفح الحاسوب مع قائمة جانبية</td><td><code dir="ltr">docs/SETUP.md</code>، <code dir="ltr">Layout.tsx</code></td></tr>
+<tr><td>ملف البيان (Manifest)</td><td>الاسم «MEGO — Nutrition»، الاسم المختصر «MEGO»، عرض مستقل (standalone)، اتجاه عمودي، أيقونات 192 و512 بكسل (إحداها maskable)</td><td><code dir="ltr">vite.config.ts</code></td></tr>
+<tr><td>اللغات</td><td>العربية (من اليمين لليسار) والإنجليزية؛ مظهر فاتح وداكن وحسب النظام</td><td><code dir="ltr">src/lib/i18n*.ts</code>، <code dir="ltr">types.ts</code></td></tr>
+<tr><td>التقنيات</td><td>React 18.3، وTypeScript 5.6 (الهدف ES2020)، وVite 5.4، وDexie 4 ‏(IndexedDB)، وFirebase JS SDK 13.1، وRecharts، وSheetJS ‏(xlsx)، وPapaParse</td><td><code dir="ltr">package.json</code>، <code dir="ltr">tsconfig.json</code></td></tr>
+</table>
+
+<h2 dir="rtl">2. متطلبات جهاز المستخدم والمتصفح</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المتطلب</th><th>لأجل</th><th>ملاحظات</th></tr>
+<tr><td>متصفح حديث يدعم وحدات ES وIndexedDB وعامل الخدمة (Service Worker)</td><td>تشغيل التطبيق أصلًا</td><td>لم تُحدَّد أو تُقَس أقل إصدارات المتصفحات المدعومة — <b>غير مُتحقَّق منه</b>. تم الاختبار على Chromium فقط.</td></tr>
+<tr><td>اتصال HTTPS (يوفره GitHub Pages)</td><td>التثبيت كتطبيق وعمل عامل الخدمة</td><td>متوفر دائمًا على الرابط العام</td></tr>
+<tr><td>مساحة تخزين متاحة</td><td>واجهة التطبيق دون اتصال، قاعدة الأطعمة، صور الأطعمة، بيانات المستخدم</td><td>ملف USDA نحو 1.97 ميغابايت (<code dir="ltr">usda.json</code>، يُخزَّن مسبقًا)؛ و<code dir="ltr">usda-extra.json</code> نحو 1.28 ميغابايت (يُخزَّن عند الاستخدام)؛ ومجلد صور الأطعمة نحو 1.4 ميغابايت (تُخزَّن عند العرض). الإجمالي الفعلي على الجهاز: غير مُتحقَّق منه.</td></tr>
+<tr><td>كاميرا (اختيارية)</td><td>صور ماسح الوجبات، مسح الباركود، صور التقدم</td><td>يمكن اختيار الصور من المعرض وكتابة الباركود يدويًا</td></tr>
+<tr><td>اتصال بالإنترنت (ولو متقطعًا)</td><td>تسجيل الدخول، المزامنة السحابية، ماسح الوجبات، البحث بالباركود، أول عرض للصور والخطوط</td><td>تسجيل الطعام يعمل دون اتصال</td></tr>
+<tr><td>عمر 18 سنة فأكثر (للحسابات المسجلة)</td><td>التسجيل</td><td>خانة تأكيد في الخطوة 1 وعمر ≥ 18 في الخطوة 2</td></tr>
+<tr><td>منطقة مدعومة لماسح الوجبات</td><td>شروط الفئة المجانية من Gemini</td><td>حسابات الاتحاد الأوروبي والمنطقة الاقتصادية الأوروبية والمملكة المتحدة وسويسرا مرفوضة في وسيط الذكاء الاصطناعي (<code dir="ltr">AI_RESTRICTED_COUNTRIES</code> في <code dir="ltr">src/lib/firebase.ts</code>)</td></tr>
+</table>
+<h3 dir="rtl">2.1 التثبيت على أندرويد</h3>
+<ol dir="rtl">
+<li dir="rtl">افتح <span dir="ltr">https://mego2012.github.io/Mego/</span> في Chrome.</li>
+<li dir="rtl">القائمة ⋮ ← <b>إضافة إلى الشاشة الرئيسية / تثبيت التطبيق</b> (في Samsung Internet: القائمة ← إضافة الصفحة إلى ← الشاشة الرئيسية).</li>
+<li dir="rtl">شغّل MEGO من الأيقونة؛ سيفتح بملء الشاشة دون شريط المتصفح.</li>
+<li dir="rtl">في الإعدادات ← البيانات والنسخ الاحتياطي تظهر حالة «تم منح التخزين الدائم». يطلب التطبيق التخزين الدائم عند البدء (<code dir="ltr">requestPersistentStorage</code> في <code dir="ltr">src/lib/db.ts</code>)، لكن القرار للمتصفح.</li>
+</ol>
+
+<h2 dir="rtl">3. ميزات المتصفح المستخدمة والبدائل</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ميزة المتصفح</th><th>الاستخدام</th><th>عند عدم توفرها</th></tr>
+<tr><td>IndexedDB</td><td>قاعدة البيانات المحلية (Dexie)</td><td>لا يمكن حفظ البيانات — متطلب إلزامي</td></tr>
+<tr><td>عامل الخدمة وذاكرة التخزين المؤقت</td><td>العمل دون اتصال والتحديث التلقائي (<code dir="ltr">registerType: 'autoUpdate'</code>)</td><td>يعمل التطبيق متصلًا فقط</td></tr>
+<tr><td>BarcodeDetector مع getUserMedia</td><td>مسح الباركود بالكاميرا (EAN-13 وEAN-8 وUPC-A وUPC-E)</td><td>إدخال الباركود يدويًا (يتحقق الكود من <code dir="ltr">'BarcodeDetector' in window</code>)</td></tr>
+<tr><td>حقل ملف مع <code dir="ltr">capture="environment"</code></td><td>التقاط صور الوجبات والتقدم</td><td>الرفع من المعرض</td></tr>
+<tr><td>واجهة الإشعارات (Notification API)</td><td>التذكيرات (الماء، الوجبات، الوزن)</td><td>تنبيه داخل التطبيق؛ والتذكيرات تعمل فقط أثناء فتح التطبيق أو بقائه في الخلفية — لا توجد خدمة إشعارات فورية (Push)</td></tr>
+<tr><td>StorageManager.persist()</td><td>طلب عدم حذف البيانات من المتصفح</td><td>قد يحذف المتصفح البيانات عند امتلاء التخزين</td></tr>
+<tr><td>واجهة الحافظة (Clipboard)</td><td>نسخ كود الخادم من الإعدادات (للمالك)</td><td>النسخ اليدوي</td></tr>
+<tr><td>نافذة الطباعة</td><td>حفظ التقارير بصيغة PDF</td><td>التصدير بصيغة CSV أو Excel</td></tr>
+</table>
+
+<h2 dir="rtl">4. التخزين والعمل دون اتصال والشبكة</h2>
+<pre dir="ltr">
+ Device (browser)                                   Internet (when available)
+ +-------------------------------+                 +-----------------------------+
+ | IndexedDB                     |  sign-in, sync  | Firebase Auth + Firestore   |
+ |  guest: mego-nutrition        | &lt;-------------&gt; | (Spark, me-central2)        |
+ |  account: mego-u-&lt;uid&gt;       |                 +-----------------------------+
+ | Cache Storage (service worker)|  owner Hub sync | Apps Script -&gt; Google Sheet  |
+ |  app shell, usda.json,        | &lt;-------------&gt; | Apps Script -&gt; Gemini (AI)  |
+ |  photos, fonts (on first use) |  barcode lookup | Open Food Facts             |
+ | localStorage (small markers)  | --------------&gt; | Google Fonts                |
+ +-------------------------------+                 +-----------------------------+
+</pre>
+<ul dir="rtl">
+<li dir="rtl"><b>يعمل دون اتصال:</b> اليوميات، الأطعمة (بما فيها قاعدة USDA)، الوصفات، المخطط، التقارير، التقدم، العادات، الكارديو والتمارين، النسخ الاحتياطي إلى ملف.</li>
+<li dir="rtl"><b>يحتاج اتصالًا:</b> التسجيل وتسجيل الدخول، المزامنة السحابية (تُحفظ التغييرات في طابور وتُرفع لاحقًا)، مزامنة مركز المالك، ماسح الوجبات، البحث في Open Food Facts، أول عرض لصورة طعام أو خط.</li>
+<li dir="rtl"><b>خطر فقد البيانات:</b> بيانات الضيف موجودة في المتصفح فقط. في 10 نوفمبر 2026 فقد هاتف أندرويد قاعدة IndexedDB الخاصة به؛ واستُعيدت بيانات الحسابات المسجلة بإعادة تسجيل الدخول (الإصلاح في <code dir="ltr">src/lib/cloudSync.ts</code>)، أما بيانات الضيف فلا تُستعاد بهذه الطريقة. يُنصح الضيوف بتنزيل ملفات نسخ احتياطي بانتظام.</li>
+</ul>
+
+<h2 dir="rtl">5. الخدمات المستضافة وحدود الفئات المجانية</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الخدمة</th><th>الدور</th><th>حد الفئة المجانية (من <code dir="ltr">docs/ARCHITECTURE.md</code> والكود)</th></tr>
+<tr><td>GitHub Pages</td><td>استضافة التطبيق الثابت</td><td>مستودع عام؛ ملفات ثابتة</td></tr>
+<tr><td>المصادقة (Firebase Authentication) – خطة Spark</td><td>الحسابات (البريد وكلمة المرور)</td><td>3,000 مستخدم نشط يوميًا؛ 150 رسالة استعادة كلمة مرور يوميًا؛ 100 تسجيل في الساعة لكل عنوان IP</td></tr>
+<tr><td>قاعدة البيانات السحابية (Cloud Firestore) – Spark، منطقة me-central2</td><td>بيانات المستخدمين الخاصة والأطعمة المشتركة</td><td>1 غيغابايت تخزين؛ 50,000 قراءة و20,000 كتابة و20,000 حذف يوميًا</td></tr>
+<tr><td>Google Apps Script وGoogle Sheets</td><td>خادم مركز المالك ووسيط الذكاء الاصطناعي</td><td>حصص Google Apps Script (حساب المالك)</td></tr>
+<tr><td>الفئة المجانية من Gemini API</td><td>ماسح الوجبات</td><td>حصة Google المجانية؛ وحدود MEGO: 40 عملية مسح يوميًا إجمالًا (<code dir="ltr">AI_DAILY_LIMIT</code>) و10 لكل مستخدم يوميًا (<code dir="ltr">AI_USER_DAILY_LIMIT</code>)</td></tr>
+<tr><td>Open Food Facts</td><td>المنتجات المعلّبة بالباركود أو النص</td><td>واجهة عامة مجانية وبيانات مجتمعية</td></tr>
+</table>
+<p dir="rtl">عند بلوغ أي حد مجاني تتوقف الخدمة (لا يمكنها الفوترة) ويعرض التطبيق رسالة واضحة. لا يَعِد MEGO باستخدام غير محدود. ملاحظة: تذكر <code dir="ltr">docs/ARCHITECTURE.md</code> حدًا إجماليًا قدره 200 عملية يوميًا، بينما القيمة الافتراضية في الكود الحالي 40.</p>
+
+<h2 dir="rtl">6. متطلبات جهاز المالك والمطوّر</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>المتطلب</th><th>المصدر</th></tr>
+<tr><td>نظام التشغيل</td><td>Windows أو macOS أو Linux (سكربت الإعداد يحتوي مسارات خاصة لـ <code dir="ltr">win32</code> و<code dir="ltr">darwin</code>)</td><td><code dir="ltr">scripts/laptop-setup.mjs</code></td></tr>
+<tr><td>Node.js</td><td>الإصدار 18 أو أحدث لسكربت الإعداد (حسب <code dir="ltr">docs/PHONE-SETUP.md</code>)؛ وخط النشر الآلي يستخدم Node 22</td><td><code dir="ltr">docs/PHONE-SETUP.md</code>، <code dir="ltr">deploy.yml</code></td></tr>
+<tr><td>Git</td><td>لاستنساخ الفرع <code dir="ltr">claude/nutrition-tracking-app-989rku</code></td><td><code dir="ltr">docs/PRODUCTION-STATUS.md</code></td></tr>
+<tr><td>حساب Google</td><td>Apps Script وSheets ومفتاح Gemini ومشروع Firebase</td><td>—</td></tr>
+<tr><td>حزم npm</td><td>الأمر <code dir="ltr">npm ci</code> يثبّت كل شيء بما فيه firebase-tools 15.34.1 (المحاكيات) وvitest</td><td><code dir="ltr">package.json</code></td></tr>
+<tr><td>أتمتة المتصفح</td><td>Playwright مع Chromium لتشغيل <code dir="ltr">npm run e2e</code> واختبارات اللمس</td><td><code dir="ltr">e2e/*.mjs</code></td></tr>
+<tr><td>بيئة Java لمحاكيات Firebase</td><td>غير موثّقة في المستودع — <b>غير مُتحقَّق منه</b></td><td>—</td></tr>
+</table>
+<p dir="rtl">الأوامر الشائعة: <code dir="ltr">npm run dev</code> (خادم محلي على المنفذ 5173)، <code dir="ltr">npm test</code>، <code dir="ltr">npm run build</code>، <code dir="ltr">npm run e2e</code>، <code dir="ltr">npm run test:rules</code>، <code dir="ltr">node scripts/laptop-setup.mjs</code> (مع <code dir="ltr">--cloud</code> أو <code dir="ltr">--verify</code> أو <code dir="ltr">--update-backend</code>).</p>
+
+<h2 dir="rtl">7. الإعدادات التي تم اختبارها</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإعداد</th><th>مجموعة الاختبارات</th></tr>
+<tr><td>Chromium بجهاز Playwright «Galaxy S9+»، لغة ar-SA، المنطقة الزمنية Asia/Riyadh</td><td>اختبارات المتصفح (<code dir="ltr">e2e/run-e2e.mjs</code>) — 57/57</td></tr>
+<tr><td>Chromium بمقاسات شاشات سامسونج مع اللمس، عربي وإنجليزي، ومعرّف متصفح Chrome على أندرويد</td><td>اللمس والتمرير (<code dir="ltr">e2e/scroll-test.mjs</code>) — 103/103</td></tr>
+<tr><td>Chromium بجهاز Playwright «Pixel 7»</td><td>تعدد المستخدمين على المحاكيات (<code dir="ltr">e2e/multiuser-test.mjs</code>)، وسيناريو فقد التخزين (<code dir="ltr">e2e/storage-loss.mjs</code>)</td></tr>
+<tr><td>حاسوب المالك بنظام Windows</td><td>تشغيل الإعداد الحقيقي في 7 نوفمبر 2026 (المركز، Apps Script، Gemini، Firebase)</td></tr>
+<tr><td>الموقع المباشر</td><td>التحقق على الإنتاج <code dir="ltr">scripts/live-verify.mjs</code>؛ وصفحات التمارين 54/54</td></tr>
+</table>
+<p dir="rtl">لم يُختبر: هاتف أندرويد فعلي، iPhone/Safari، Firefox، Samsung Internet، الأجهزة اللوحية.</p>
+
+<h2 dir="rtl">8. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>ملف البيان، الاعتماديات، تخزين عامل الخدمة، فحوص ميزات المتصفح</td><td>مُتحقَّق منه في الكود</td></tr>
+<tr><td>الاستضافة العامة عبر HTTPS، وFirebase على الإنتاج</td><td>مُتحقَّق منه مباشرة</td></tr>
+<tr><td>سلوك التطبيق على الهاتف</td><td>مختبر على أجهزة محاكاة فقط (Chromium)</td></tr>
+<tr><td>هاتف أندرويد فعلي، iOS/Safari، Firefox، Samsung Internet، الأجهزة اللوحية</td><td>غير مُتحقَّق منه</td></tr>
+<tr><td>أقل إصدارات المتصفحات، إجمالي التخزين على الجهاز، الحاجة إلى Java</td><td>غير مُتحقَّق منه</td></tr>
+<tr><td>حدود الفئات المجانية</td><td>مأخوذة من <code dir="ltr">docs/ARCHITECTURE.md</code> والكود؛ وقد يغيّرها المزوّدون — غير مُتحقَّق منها مقابل صفحات المزوّدين الحالية</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Product_Roadmap_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Product Roadmap (Proposal)</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-05</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Project owner, stakeholders, developers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Product_Requirements_PRD, MEGO_Features_and_Capabilities, MEGO_Future_Development_Recommendations, MEGO_Known_Bugs_and_Limitations, MEGO_Release_Readiness_Checklist, MEGO_Android_Device_Testing</td></tr>
+</table>
+
+<p><b>IMPORTANT — this roadmap is a PROPOSAL.</b> Every item below is a suggestion derived from open items recorded in the repository (docs/*.md) and in the documentation brief. None of it is a commitment. <b>No dates are promised</b>; items are grouped by priority (Now / Next / Later), and the owner decides what is done and when.</p>
+
+<h2>Purpose and scope</h2>
+<p>This document collects the open items that remain after the 10 November 2026 state of MEGO and arranges them into a proposed order. For each item it names the source in the repository, the dependency and who can act on it. Technical improvement ideas with more detail are in MEGO_Future_Development_Recommendations.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Starting point (what is already live)</li>
+<li>How items were selected and prioritised</li>
+<li>Now — launch blockers (owner actions)</li>
+<li>Next — verification and quality</li>
+<li>Later — product enhancements</li>
+<li>Explicitly out of scope today</li>
+<li>Dependencies overview</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Starting point (what is already live)</h2>
+<ul>
+<li>Public app on GitHub Pages; Firebase (Spark) accounts and Firestore in me-central2; Google Sheets Hub with Apps Script backend; Gemini free-tier meal scanner (backend SCRIPT_VERSION 7).</li>
+<li>Release <code>1.3-training</code>: cardio, smart energy adjustment, goals advisor, workouts and the rule-based training coach, exercise guide (54 exercises), data check, recipe nutrition linked to the food database.</li>
+<li>Tests: unit 195, browser e2e 57/57, touch/scroll 103/103, storage-loss scenario, live verification, live exercise pages 54/54.</li>
+</ul>
+
+<h2>2. How items were selected and prioritised</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Band</th><th>Meaning</th></tr>
+<tr><td>Now</td><td>Blocks or weakens a public launch, or is a security/privacy follow-up. Mostly owner-only actions.</td></tr>
+<tr><td>Next</td><td>Closes a verification gap or a documented limitation of an existing feature.</td></tr>
+<tr><td>Later</td><td>Extends the product; needs a decision or a new free service.</td></tr>
+</table>
+<p>Only items with a written source in the repository are listed. Effort estimates are not given because none are recorded — Not verified.</p>
+
+<h2>3. Now — launch blockers (owner actions)</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Proposed item</th><th>Source</th><th>Who</th></tr>
+<tr><td>R-01</td><td>Create the first administrator: register in the app, then run <code>node scripts/laptop-setup.mjs --cloud &lt;e-mail&gt;</code> again</td><td>_BRIEF.md §1 (Admin account: waiting for owner)</td><td>Owner</td></tr>
+<tr><td>R-02</td><td>Legal review of the privacy policy and terms: decide items 1–8 (operator identity, governing law, data-subject rights, liability, consent for body data, cross-border transfer, retention, provider terms); then remove "Draft" from the app texts</td><td>docs/LEGAL-REVIEW.md</td><td>Owner + qualified lawyer</td></tr>
+<tr><td>R-03</td><td>Rotate the Gemini key and the backend connection token, because both were shown in a chat during setup</td><td>_BRIEF.md §1 (operational notes); docs/HUB.md (<code>rotateToken()</code>)</td><td>Owner</td></tr>
+<tr><td>R-04</td><td>Send the prepared GitHub Support request to remove cached commits a7b5bbb and 3fb3c82 (they still expose the private food table)</td><td>docs/GITHUB-SUPPORT-REQUEST.md</td><td>Owner</td></tr>
+<tr><td>R-05</td><td>Run the real Android device checklist (≈ 20 minutes) and record results</td><td>docs/ANDROID-TEST.md</td><td>Owner</td></tr>
+</table>
+
+<h2>4. Next — verification and quality</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Proposed item</th><th>Source</th></tr>
+<tr><td>R-10</td><td>Confirm password-reset e-mails actually arrive (request is verified; delivery is not)</td><td>_BRIEF.md §1; docs/ANDROID-TEST.md C3</td></tr>
+<tr><td>R-11</td><td>Test camera barcode scanning on a real phone</td><td>docs/FEATURES.md (🔶); docs/RELEASE-STATUS.md</td></tr>
+<tr><td>R-12</td><td>Verify backup to Google Drive in production (owner Hub)</td><td>docs/FEATURES.md (Backup to Google Drive 🔶)</td></tr>
+<tr><td>R-13</td><td>Bring older repository notes up to date: README.md still says "No workouts" and "60 built-in recipes"; docs/ARCHITECTURE.md gives a global AI limit of 200/day while the code default is 40</td><td>README.md, docs/ARCHITECTURE.md vs <code>apps-script/Code.gs</code></td></tr>
+<tr><td>R-14</td><td>Formal accessibility review (focus, tap sizes and reduced motion exist; no audit done)</td><td>PRD NFR-06 (Partially)</td></tr>
+<tr><td>R-15</td><td>Define and measure a performance budget (lazy loading and chart chunk exist; nothing measured)</td><td>PRD NFR-11</td></tr>
+<tr><td>R-16</td><td>Test other browsers (Samsung Internet, Firefox, Safari/iOS); only Chromium is tested today</td><td>e2e scripts use Chromium only</td></tr>
+<tr><td>R-17</td><td>Resolve recipe audit flags: "labneh" missing from the USDA reference map; whey-containing recipes pending review of the owner's whey entry (the owner does not use whey; the flag is informational)</td><td>docs/RECIPE-AUDIT.md; _BRIEF.md §7</td></tr>
+</table>
+
+<h2>5. Later — product enhancements</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Proposed item</th><th>Source / reason</th><th>Open question</th></tr>
+<tr><td>R-20</td><td>Reminders that work when the app is fully closed</td><td>docs/FEATURES.md: "reliable alerts when fully closed need a push service"; <code>src/lib/reminders.ts</code></td><td>Is there a free push service that fits the zero-cost rule? Not verified</td></tr>
+<tr><td>R-21</td><td>More food photos for foods that still show a placeholder (e.g. boiled egg, egg white, tofu, labneh, tahini, strawberries)</td><td>docs/PROGRESS-LOG.md ("no honest match")</td><td>Freely licensed, accurate photos must exist</td></tr>
+<tr><td>R-22</td><td>Illustrations for custom exercises (built-in exercises are fully covered)</td><td>docs/EXERCISE-GUIDE-COVERAGE.md</td><td>Approach for user-defined movements</td></tr>
+<tr><td>R-23</td><td>Guest data protection: encourage guests to create an account or download backups, following the 10 Nov storage-loss incident</td><td>_BRIEF.md §7 (lesson: guest data lives only on the device)</td><td>Form of the prompt (Settings, Dashboard)</td></tr>
+<tr><td>R-24</td><td>AI scanner responsiveness at peak times (free tier is slow; ≈ 64 s in the live test)</td><td>_BRIEF.md §7</td><td>Only within the free tier — no paid model</td></tr>
+<tr><td>R-25</td><td>Progress photos sync (today stored on the device only, by design)</td><td>docs/FEATURES.md; README data model (<code>photos</code> never synced)</td><td>Privacy and storage limits on Spark</td></tr>
+</table>
+
+<h2>6. Explicitly out of scope today</h2>
+<ul>
+<li>Paid services, billing accounts or paid AI models (zero-cost principle).</li>
+<li>Administrator access to users' private records.</li>
+<li>Creating administrators from inside the app.</li>
+<li>Medical diagnosis or treatment.</li>
+<li>Google Sheets as the multi-user database (evaluated and rejected in docs/ARCHITECTURE.md).</li>
+</ul>
+<p>Store packages (Google Play / App Store) do not exist today; no decision on them is recorded — Not verified as a goal.</p>
+
+<h2>7. Dependencies overview</h2>
+<pre>
+ R-01 admin account ----------&gt; admin dashboard usable in production
+ R-02 legal review -----------&gt; open public registration (docs/LEGAL-REVIEW.md)
+ R-03 key/token rotation -----&gt; R-05 device test of the AI scanner (B4)
+ R-05 Android checklist ------&gt; R-10, R-11 (same session on the phone)
+ R-13 docs refresh -----------&gt; consistent documentation set
+ R-20 push reminders ---------&gt; needs a free push service decision
+</pre>
+
+<h2>8. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Each roadmap item's source</td><td>Verified: the cited file exists and states the open item (10 Nov 2026)</td></tr>
+<tr><td>Priorities, order and groupings</td><td>Proposal only — requires owner approval</td></tr>
+<tr><td>Dates, effort, cost of future items</td><td>Not given — Not verified</td></tr>
+<tr><td>Availability of a free push service (R-20)</td><td>Not verified</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release (proposal)</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

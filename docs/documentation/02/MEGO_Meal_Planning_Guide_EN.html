@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Meal_Planning_Guide_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Meal Planning Guide</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-13</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>End users</td></tr>
+<tr><td>Related documents</td><td>MEGO_Food_Tracking_Guide, MEGO_Recipes_and_Custom_Foods_Guide, MEGO_Profile_and_Goals_Guide, MEGO_Food_Search_and_Database_Guide, MEGO_User_Manual</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This guide explains how to plan meals ahead in MEGO: the weekly <b>Meal Planner</b> (<code>#/planner</code>), reusable <b>day plans</b>, <b>saved meals</b> (meal templates), the automatic <b>week plan suggestion</b> built from the recipe library, adding a library recipe to the plan, the <b>shopping list</b>, and turning a plan into diary entries. Recipe creation and the recipe library itself are described in MEGO_Recipes_and_Custom_Foods_Guide.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Concepts</li>
+<li>The weekly planner screen</li>
+<li>Planning a day by hand</li>
+<li>Reusable day plans</li>
+<li>Saved meals (templates)</li>
+<li>Suggested week plan from the recipe library</li>
+<li>Adding a library recipe to the plan</li>
+<li>Shopping list</li>
+<li>From plan to diary</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Concepts</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Object</th><th>What it is</th><th>Stored in</th></tr>
+<tr><td>Planned day</td><td>The list of planned items (foods or recipes, per meal) for one date</td><td><code>plannedDays</code> (one record per date)</td></tr>
+<tr><td>Day plan</td><td>A named, reusable list of items for a whole day, marked Any day / Training day / Rest day</td><td><code>plans</code></td></tr>
+<tr><td>Saved meal</td><td>A named list of items for one meal (template), e.g. "My breakfast"</td><td><code>templates</code></td></tr>
+<tr><td>Library recipe</td><td>One of the built-in recipes (101 in the library), with nutrition linked to the food database</td><td>app code; copied into "My recipes" when used</td></tr>
+</table>
+<p>Plans never change the diary by themselves. Only <b>Log planned meals</b> (or logging a saved meal) creates diary entries. All of these records are part of backups and, for signed-in accounts, are synced to the cloud.</p>
+
+<h2>2. The weekly planner screen</h2>
+<p>Open Menu → <b>Meal Planner</b>.</p>
+<ul>
+<li>The header shows the week (e.g. "8 Nov – 14 Nov 2026") with arrows for previous and next week. The week starts on the day set in Settings.</li>
+<li>Action buttons: <b>Suggest a week plan</b>, <b>Shopping list</b>, <b>Copy last week's plan</b>.</li>
+<li><b>Weekly plan</b>: one card per day with the weekday, day type (Training day / Rest day), "Planned: kcal · P" (or "No plan") and, once you have logged food that day, "Actual: kcal" plus the difference actual − planned. Two thin bars compare planned and actual calories with that day's target. The planned item names are listed below.</li>
+<li>Per-day buttons: <b>Edit</b>, <b>Copy plan to…</b>, <b>Log planned meals</b>, <b>Clear</b>.</li>
+<li>At the bottom: the card <b>Reusable day plans</b>.</li>
+</ul>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/planner-en-light.png" width="300" alt="Meal planner"></p>
+
+<h2>3. Planning a day by hand</h2>
+<ol>
+<li>Tap <b>Edit</b> on a day. The editor "Plan for &lt;date&gt;" opens with one section per meal (Breakfast, Lunch, Dinner, Snacks).</li>
+<li>In a meal section tap <b>+ Add</b>, choose a food or recipe, quantity and unit.</li>
+<li>Change quantities directly in the list or remove an item with the bin icon.</li>
+<li>Save. The day card shows the planned totals.</li>
+</ol>
+<p>Other per-day actions:</p>
+<ul>
+<li><b>Copy plan to…</b> — choose a target date; the target day's plan is <b>replaced</b> by a copy.</li>
+<li><b>Clear</b> — removes the plan of that day (diary entries are not touched).</li>
+<li><b>Copy last week's plan</b> — for each day of the shown week that had a plan exactly 7 days earlier, copies that plan (replacing the current plan of that day). The toast says "Copied n day(s)".</li>
+</ul>
+
+<h2>4. Reusable day plans</h2>
+<ol>
+<li>In the card <b>Reusable day plans</b> tap <b>+ New plan</b>.</li>
+<li>Enter a name, choose the <b>Day type</b> (Any day, Training day, Rest day) and add items per meal. Save.</li>
+<li>To use it, tap <b>Apply to days</b>. A list of the current week's days appears; days whose weekday matches the plan's day type (according to your training weekdays) are pre-selected. Adjust the ticks and tap <b>Apply (n)</b>.</li>
+</ol>
+<p>Applying a plan replaces the planned items of the selected days and links them to the plan (the day card shows "From plan: &lt;name&gt;"). Plans can be edited or deleted later; deleting a plan does not remove days already planned with it.</p>
+
+<h2>5. Saved meals (templates)</h2>
+<p>Saved meals are managed on <b>Recipes → Saved meals</b> and can be created in two ways:</p>
+<ul>
+<li>In the Diary, under a meal with entries: <b>Save as saved meal</b> → enter a name (the meal's current items are stored).</li>
+<li>On the Saved meals tab: <b>+ New saved meal</b> → name and items.</li>
+</ul>
+<p>Each saved meal card shows its items and calories, with <b>Edit</b> and <b>Log (Today)</b>. In the Diary's "Add food" sheet the tab <b>Saved meals</b> logs all items into the chosen meal at once; items whose food or recipe was deleted are skipped. Every log can be undone.</p>
+
+<h2>6. Suggested week plan from the recipe library</h2>
+<p><b>Suggest a week plan</b> builds a proposal for the <b>remaining days of the shown week (today and later)</b> from the recipe library:</p>
+<ul>
+<li>Only library recipes whose ingredients are all found in your food database are used (missing ingredients are never invented).</li>
+<li>For each day it picks one breakfast, lunch, dinner and snack, and a serving multiplier (lunch and dinner 0.75 – 2 servings, snack 1 or 1.5), so the day total is close to that day's targets: calories should not go over, protein should not fall short, carbohydrates and fat close to target.</li>
+<li>It avoids using the same lunch and dinner on one day and prefers recipes used less often in the week.</li>
+</ul>
+<p>The preview <b>Suggested plan</b> lists for every day each meal, the multiplier and its kcal, the "Day total" (kcal and protein) and the macro line compared with your training-day target. Tap <b>↻ Replace</b> on any meal to swap it for another unused library recipe with a similar calorie amount.</p>
+<p>Tap <b>Use this plan</b>. If some days already have a plan you are asked: "Some days already have a plan — they will be replaced. Continue?". Applying saves each used library recipe into <b>My recipes</b> (as an editable copy, once) and writes the planned days.</p>
+<pre>
+Recipe library ──(only complete recipes)──► generator ──► preview (Replace per meal)
+                                                              │ Use this plan
+                                                              ▼
+                                   My recipes (editable copies) + planned days
+                                                              │ Log planned meals
+                                                              ▼
+                                                           Diary
+</pre>
+
+<h2>7. Adding a library recipe to the plan</h2>
+<ol>
+<li>Open <b>Recipes → Recipe library</b> (or the "What can I cook?" tab) and open a recipe.</li>
+<li>If the recipe's nutrition is complete, the buttons <b>Add to diary</b>, <b>Add to plan</b> and <b>Save to my recipes (editable)</b> are shown.</li>
+<li><b>Add to plan</b> → choose date, meal and servings (the macros are previewed) → Confirm.</li>
+</ol>
+<p>The recipe is added to that day's existing plan (not replacing it), as an editable copy in My recipes.</p>
+
+<h2>8. Shopping list</h2>
+<p><b>Shopping list</b> adds up all ingredients of the planned days of the shown week:</p>
+<ul>
+<li>Recipes are expanded into their ingredients, scaled by planned servings ÷ recipe servings; single foods are converted to grams.</li>
+<li>The same food is summed; weights over 1,000 g are shown in kg. Items are sorted by category and name and show their raw / cooked state.</li>
+<li>Note in the app: "From planned meals this week. Raw/cooked as in your database (buy raw items by the listed weight)."</li>
+<li>Tick items while shopping; ticks are saved per week (key <code>shopping:&lt;week start&gt;</code>) and therefore survive closing the app.</li>
+</ul>
+
+<h2>9. From plan to diary</h2>
+<p>On a day card tap <b>Log planned meals</b>. Every planned item is written to that date's diary in its meal ("Added: n"). Items whose food or recipe no longer exists are skipped. After logging, the day card shows the actual calories and the difference to the plan, which you can also see later in the Diary and reports.</p>
+
+<h2>10. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Planner, day plans, templates, copy rules</td><td>Verified in code: src/pages/Planner.tsx, src/pages/Recipes.tsx, src/lib/repo.ts</td></tr>
+<tr><td>Week-plan generator, replace, shopping list</td><td>Verified in code: src/lib/recipeEngine.ts (generatePlan, replacePick, shoppingList); generatePlan and shoppingList covered by unit tests (tests/v2.test.ts); Replace is not unit-tested</td></tr>
+<tr><td>Planner UI flows</td><td>Covered by browser e2e on emulated devices (57/57); not tested on a real Android phone</td></tr>
+<tr><td>Nutritional quality of generated plans for an individual</td><td>Not verified — plans are suggestions based on your targets and the library</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

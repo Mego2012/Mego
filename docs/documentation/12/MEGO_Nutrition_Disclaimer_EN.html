@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MEGO_Nutrition_Disclaimer_EN</title></head>
+<body style="font-family:Arial">
+<p style="background:#fff3cd;border:2px solid #b8860b;padding:10px"><b>DRAFT — requires review by a qualified legal professional before publication</b></p>
+<h1>MEGO — Nutrition Disclaimer</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-75</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires legal review</td></tr>
+<tr><td>Audience</td><td>Project owner, legal counsel; after approval: all MEGO users</td></tr>
+<tr><td>Related documents</td><td>MEGO_Medical_Disclaimer, MEGO_Terms_of_Service_Draft, MEGO_Privacy_Policy_Draft, MEGO_Acceptable_Use_Policy, MEGO_Calorie_and_Macronutrient_Calculation_Methodology, MEGO_Daily_Calorie_Target_Calculation, MEGO_Food_Database_Documentation, MEGO_Food_Rankings_and_Coach_Methodology</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This draft explains the limits of the nutrition information shown in MEGO: food values, calculated targets, AI photo estimates, cardio estimates, food rankings, coach messages and educational articles. It expands the in-app texts <code>tos_4</code> ("Food values come from USDA FoodData Central, Open Food Facts or user entries and may contain errors. Estimates are labelled."), <code>tos_8</code>, <code>pp_8</code> and <code>learn_disclaimer</code> (src/lib/i18n2.ts, i18n3.ts). Every factual statement describes what the app does in the repository as of 10 November 2026. Text in [square brackets] must be completed by the owner and legal counsel. This draft is not legal advice. Health-related limits are covered in MEGO_Medical_Disclaimer.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>General statement</li>
+<li>Food values and their sources</li>
+<li>Calculated targets are estimates</li>
+<li>AI photo scanner estimates</li>
+<li>Cardio, training and energy adjustment estimates</li>
+<li>Food rankings, coach and education</li>
+<li>Your responsibility</li>
+<li>Liability</li>
+<li>Verification status</li>
+<li>Decisions required from the owner and legal counsel</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. General statement</h2>
+<p>1.1 MEGO provides <b>general nutrition information</b> and tools to record what you eat. It is not a medical device and not a substitute for advice from a doctor, registered dietitian or other qualified professional (in-app text <code>pp_8</code>).</p>
+<p>1.2 All numbers in MEGO — calories, protein, carbohydrates, fat, fiber, targets, expected weight change, burned calories — are <b>estimates</b>. Real values depend on the specific product, preparation, portion and your body.</p>
+
+<h2>2. Food values and their sources</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Source</th><th>What it provides</th><th>Limits</th></tr>
+<tr><td>USDA FoodData Central (SR Legacy + FNDDS), 12,879 foods built in</td><td>Reference values per 100 g</td><td>Typical/average values for US foods; local products and recipes may differ</td></tr>
+<tr><td>Open Food Facts (barcode and optional text search)</td><td>Values of packaged products contributed by a public community</td><td>Not verified by MEGO; labelled as external; may be incomplete or wrong</td></tr>
+<tr><td>Your own foods and entries</td><td>Values you type or import</td><td>Accuracy depends on you; foods marked estimated/unverified are labelled "Estimate"</td></tr>
+<tr><td>Shared foods approved by administrators</td><td>Foods published to all signed-in users</td><td>Administrators are asked to check them against the label or a reliable source; no guarantee of correctness</td></tr>
+</table>
+<p>2.1 Missing values are shown as missing, not as zero: unknown fiber, sugar or sodium is not counted as 0, and foods with incomplete source data are ranked after fully measured foods ("Missing values are never estimated").</p>
+<p>2.2 Raw, cooked and ready-to-eat records are kept separate and are never converted into each other. Choosing the wrong state (e.g. raw rice for cooked rice) gives very different values.</p>
+<p>2.3 Volume units (ml, cup, tbsp, tsp) use the food's density when available; otherwise 1 ml is treated as 1 g, and the app shows this.</p>
+<p>2.4 Recipe nutrition is computed from linked database foods. Ingredients that cannot be linked are listed as missing or "not counted"; their values are never invented, so such recipe totals are incomplete.</p>
+<p>2.5 The Data check flags foods whose values look like per-serving instead of per-100 g values (e.g. protein powder); this flag is informational only and changes nothing.</p>
+
+<h2>3. Calculated targets are estimates</h2>
+<p>3.1 Suggested targets use standard population formulas (src/lib/goals.ts):</p>
+<pre>
+BMR  = Mifflin–St Jeor (weight, height, age, sex)
+TDEE = BMR × activity factor (1.2 – 1.9)
+kcal = max(BMR, round(TDEE × (1 + goal adjustment) / 10) × 10)
+protein = weight × g/kg for the goal (1.4 – 2.2)
+fat  = max(0.8 g/kg, 25 % of kcal ÷ 9);  carbs = remainder ÷ 4
+expected weekly change ≈ (kcal − TDEE) × 7 ÷ 7700  (rough estimate)
+</pre>
+<p>3.2 Such formulas can differ substantially from an individual's real needs. The suggested calorie target never goes below the calculated BMR and is <b>never applied without your confirmation</b>. Targets you enter yourself (for example a "custom" goal) are used as entered; no lower limit for manually entered targets was found in the code.</p>
+<p>3.3 Weight-trend messages (e.g. "Faster than 1% of body weight per week") and Goals-advisor suggestions are based only on the data you logged and are never applied automatically.</p>
+
+<h2>4. AI photo scanner estimates</h2>
+<p>4.1 The scanner identifies foods and <b>estimates weights from a photo</b> ("Weights from a photo are estimates. Correct them if you weighed the food."). Items not found in your database show "AI estimate" values marked ⚠.</p>
+<p>4.2 For matched items MEGO computes nutrition from its own database, not from the AI. Nothing is saved until you review and confirm it, and you remain responsible for what you log (<code>tos_8</code>).</p>
+<p>4.3 Hidden ingredients (oil, sauces, fillings) are hard to judge from a photo; such items are flagged as uncertain and must be checked by you.</p>
+
+<h2>5. Cardio, training and energy adjustment estimates</h2>
+<p>5.1 Calories burned are estimated as MET × body weight × time and "can differ from your real expenditure by 20–30 %" (in-app text). They are labelled as estimates.</p>
+<p>5.2 Logging cardio within your plan never raises your calorie target. Only cardio beyond the plan can add calories back, partially (50 % for fat loss, 75 % for maintenance, 100 % for gain), capped at 400 kcal per day, and for fat loss the adjusted target stays at least 10 % below the day's estimated expenditure.</p>
+<p>5.3 Estimated one-repetition maximum (Epley) is "a comparison tool between sessions, not a max to test". The training coach is local rule-based logic, not an AI service, and never changes your program or targets.</p>
+
+<h2>6. Food rankings, coach and education</h2>
+<p>6.1 Food rankings use published scoring methods (amino-acid score against the FAO/WHO 2007 reference and NRF9.3 nutrient density) with goal-dependent weights. The amino-acid score is not corrected for digestibility because those data are not published for most foods. Rankings are a comparison aid, not a dietary prescription.</p>
+<p>6.2 Coach messages and recipe suggestions are rule-based and use only your logged data and targets.</p>
+<p>6.3 Educational articles cite their sources and are labelled "Educational information, not medical advice. For medical conditions, consult a qualified professional." (<code>learn_disclaimer</code>).</p>
+
+<h2>7. Your responsibility</h2>
+<p>You are responsible for the accuracy of the data you enter (<code>tos_2</code>) and for checking values against product labels where possible. Consult a qualified professional before making significant dietary changes, especially with a medical condition, pregnancy or an eating disorder (<code>tos_5</code>; see MEGO_Medical_Disclaimer).</p>
+
+<h2>8. Liability</h2>
+<p><b>[Limitation of liability — wording to be provided by legal review.]</b></p>
+<p>[Applicable law and jurisdiction — to be decided by the owner after legal review.]</p>
+<p>Operator: [Operator name, country and contact email — to be completed by the owner before launch.]</p>
+
+<h2>9. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Statement</th><th>Status</th></tr>
+<tr><td>Formulas, BMR floor, confirmation before applying targets</td><td>Verified in code (src/lib/goals.ts, goalAdvisor.ts); covered by unit tests</td></tr>
+<tr><td>Cardio estimate and energy adjustment rules</td><td>Verified in code (src/lib/cardio.ts, energy.ts; docs/CARDIO-METHODOLOGY.md)</td></tr>
+<tr><td>AI values computed from the database; nothing saved before confirmation</td><td>Verified in code (src/lib/mealScanner.ts, src/components/MealScanner.tsx); one live analysis on 10 Nov 2026</td></tr>
+<tr><td>No lower limit for manually entered targets</td><td>Based on a code search; not confirmed by a dedicated test</td></tr>
+<tr><td>Accuracy of USDA / Open Food Facts values</td><td>Not verified by MEGO — third-party data</td></tr>
+<tr><td>Legal sufficiency of this disclaimer</td><td>Not verified — requires legal review</td></tr>
+</table>
+
+<h2>10. Decisions required from the owner and legal counsel</h2>
+<ol>
+<li>Operator identity and contact.</li>
+<li>Liability and warranty-disclaimer wording; governing law.</li>
+<li>Where and how this disclaimer is shown in the app (currently only short texts in Terms, Privacy and Learn) and whether users must acknowledge it.</li>
+<li>Whether a minimum calorie warning should be required for manually entered targets.</li>
+<li>Whether Open Food Facts (ODbL) attribution requires additional notices.</li>
+</ol>
+
+<h2>11. Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

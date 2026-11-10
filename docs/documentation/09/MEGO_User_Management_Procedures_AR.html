@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_User_Management_Procedures_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — إجراءات إدارة المستخدمين (User Management Procedures)</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-68</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع، والمسؤولون مستقبلًا، وفريق الدعم</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Admin_User_Manual، MEGO_Access_Control_and_Permissions، MEGO_Authentication_and_Session_Management، MEGO_Data_Retention_and_Deletion، MEGO_Support_and_Incident_Management، MEGO_Firebase_Setup_Guide</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تحدد هذه الوثيقة الإجراءات التفصيلية لإدارة حسابات مستخدمي MEGO طوال دورة حياتها: إنشاء أول مسؤول، ومراجعة الحسابات، وإيقافها وإعادة تفعيلها، ومعالجة مشكلات كلمة المرور، وتنفيذ حذف الحساب. وتوضح ما يقوم به المستخدم بنفسه، وما ينفذه المسؤول من لوحة الإدارة داخل التطبيق (<code dir="ltr">#/admin</code>)، وما لا ينفذه إلا مالك المشروع من وحدة تحكم Firebase (Firebase console). كل السلوك الموصوف مأخوذ من <code dir="ltr">src/pages/Account.tsx</code> و<code dir="ltr">src/lib/firebase.ts</code> و<code dir="ltr">src/lib/account.ts</code> و<code dir="ltr">firebase/firestore.rules</code> و<code dir="ltr">apps-script/Code.gs</code> و<code dir="ltr">scripts/laptop-setup.mjs</code>.</p>
+<p dir="rtl"><b>ملاحظة الحالة (10 نوفمبر 2026):</b> <b>لا يوجد أي حساب مسؤول حتى الآن.</b> على المالك أولًا أن يسجّل حسابًا عاديًا في التطبيق المنشور ثم يشغّل <code dir="ltr">node scripts/laptop-setup.mjs --cloud &lt;e-mail&gt;</code> (القسم 2). وإلى أن يتم ذلك لا يمكن تنفيذ إجراءات المسؤول في الأقسام 4–6 على بيئة الإنتاج.</p>
+<p dir="rtl">مستخدمو وضع الضيف (دون تسجيل دخول) خارج نطاق إدارة المستخدمين؛ فبياناتهم موجودة فقط في قاعدة المتصفح <code dir="ltr">mego-nutrition</code> على أجهزتهم، ولا يراها المسؤولون ولا تصل إلى السحابة.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">أين تُحفظ بيانات الحساب</li>
+<li dir="rtl">متطلب مسبق: إنشاء أول مسؤول</li>
+<li dir="rtl">دورة حياة الحساب</li>
+<li dir="rtl">إجراء: مراجعة الحسابات</li>
+<li dir="rtl">إجراء: إيقاف حساب</li>
+<li dir="rtl">إجراء: إعادة تفعيل حساب</li>
+<li dir="rtl">إجراء: مشكلات كلمة المرور</li>
+<li dir="rtl">إجراء: حذف الحساب</li>
+<li dir="rtl">إجراءات خاصة بالمالك في وحدة تحكم Firebase</li>
+<li dir="rtl">طلبات لا يمكن تلبيتها</li>
+<li dir="rtl">حفظ السجلات</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. أين تُحفظ بيانات الحساب</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>العنصر</th><th>الموقع</th><th>من يقرؤه أو يغيّره</th></tr>
+<tr><td>بيانات الدخول (البريد وكلمة المرور)</td><td>خدمة المصادقة (Firebase Authentication)، المشروع <code dir="ltr">mego-473920</code></td><td>المستخدم (الدخول، الاستعادة، حذف دخوله)؛ والمالك من وحدة التحكم</td></tr>
+<tr><td>بطاقة الحساب</td><td>المستند <code dir="ltr">profiles/{uid}</code> في Firestore بالحقول <code dir="ltr">displayName, email, status, country, ageConfirmed, createdAt, lastActiveAt</code></td><td>المستخدم يقرأ بطاقته ويغيّر <code dir="ltr">displayName</code> و<code dir="ltr">country</code> و<code dir="ltr">lastActiveAt</code>؛ المسؤول يقرأ كل البطاقات ولا يغيّر <b>إلا</b> <code dir="ltr">status</code> (إلى <code dir="ltr">active</code> أو <code dir="ltr">suspended</code>)</td></tr>
+<tr><td>السجلات الخاصة</td><td><code dir="ltr">users/{uid}/{table}/{key}</code> (الجداول: entries وbody وdays وrecipes وtemplates وplans وplannedDays وfasts وkv وsettings وfoodChanges وfoods)</td><td>صاحب المعرّف فقط، وما دام حسابه نشطًا. لا وصول للمسؤولين <b>إطلاقًا</b></td></tr>
+<tr><td>صلاحية المسؤول</td><td><code dir="ltr">admins/{uid}</code> (الحقل <code dir="ltr">since</code>)</td><td>يقرؤه صاحبه فقط؛ لا يكتبه أي عميل في التطبيق (<code dir="ltr">allow write: if false</code>)، بل سكربت الإعداد أو وحدة التحكم ببيانات اعتماد المالك</td></tr>
+<tr><td>النسخة على الجهاز</td><td>قاعدة IndexedDB باسم <code dir="ltr">mego-u-&lt;uid&gt;</code> في متصفح المستخدم</td><td>جهاز المستخدم فقط</td></tr>
+<tr><td>الأطعمة المقترحة</td><td><code dir="ltr">foodSubmissions</code> (مع <code dir="ltr">ownerUid</code>)</td><td>صاحب الاقتراح والمسؤولون</td></tr>
+<tr><td>تقارير الأخطاء</td><td><code dir="ltr">errorReports</code> (<code dir="ltr">at, kind, message, app</code> — بلا معرّف مستخدم)</td><td>ينشئها أي مستخدم مسجَّل؛ يقرؤها ويحذفها المسؤولون فقط</td></tr>
+</table>
+
+<h2 dir="rtl">2. متطلب مسبق: إنشاء أول مسؤول</h2>
+<p dir="rtl">لا يمكن طلب صلاحية المسؤول أو منحها من داخل التطبيق. الإجراء (للمالك فقط):</p>
+<ol dir="rtl">
+<li dir="rtl">افتح التطبيق المنشور <code dir="ltr">https://mego2012.github.io/Mego/</code> وسجّل حسابًا عاديًا (التسجيل بثلاث خطوات) بالبريد الذي سيصبح مسؤولًا.</li>
+<li dir="rtl">على حاسوب المالك، داخل مجلد المستودع، شغّل <code dir="ltr">node scripts/laptop-setup.mjs --cloud &lt;e-mail&gt;</code>.</li>
+<li dir="rtl">يبحث السكربت عن البريد في خدمة المصادقة؛ فإن لم يجده طبع رسالة تفيد بأن البريد بلا حساب بعد ("has no account yet") ولم يكتب شيئًا.</li>
+<li dir="rtl">إن وجده كتب المستند <code dir="ltr">admins/{uid}</code> ببيانات اعتماد Google الخاصة بالمالك، وأظهر النتيجة ✅ أو ❌.</li>
+<li dir="rtl">سجّل الخروج ثم الدخول (أو أعد تحميل الصفحة)، فيظهر زر <b>الإدارة</b> في بطاقة الحساب داخل الإعدادات.</li>
+</ol>
+<p dir="rtl">أما <b>سحب</b> صلاحية المسؤول فلا يوجد له خيار في السكربت ولا زر في التطبيق؛ يحذف المالك المستند <code dir="ltr">admins/{uid}</code> من وحدة التحكم (Firestore ← Data). هذا الإجراء <i>غير مُتحقَّق منه</i> في الإنتاج.</p>
+
+<h2 dir="rtl">3. دورة حياة الحساب</h2>
+<pre dir="ltr">
+ [Guest]──register (3 steps)──►[ACTIVE]──admin: Suspend──►[SUSPENDED]
+                                  ▲                           │
+                                  └────admin: Reactivate──────┘
+ [ACTIVE]──user: Delete account (password)──►[DELETED]
+ [SUSPENDED]──cannot delete from the app (see 8.3)
+</pre>
+<p dir="rtl">عند التسجيل ينشئ التطبيق بيانات الدخول والبطاقة بحالة <code dir="ltr">status: "active"</code>؛ ولا تقبل القواعد بطاقة جديدة إلا إذا كانت حالتها <code dir="ltr">active</code> و<code dir="ltr">ageConfirmed</code> تساوي <code dir="ltr">true</code> وبريدها مطابق لبريد الحساب المسجَّل. المسؤولون لا ينشئون حسابات أبدًا.</p>
+
+<h2 dir="rtl">4. إجراء: مراجعة الحسابات</h2>
+<ol dir="rtl">
+<li dir="rtl">ادخل بحساب المسؤول ← الإعدادات ← بطاقة الحساب ← <b>الإدارة</b> (أو افتح <code dir="ltr">#/admin</code>).</li>
+<li dir="rtl">اقرأ بطاقات المؤشرات: عدد المسجلين (كل البطاقات)، والنشطون خلال 7 أيام (<code dir="ltr">lastActiveAt</code> ≥ الآن − 7 أيام)، والموقوفون، والأطعمة المقترحة بانتظار المراجعة. ويعرض الشريط النسبة <code dir="ltr">round(active7d ÷ total × 100) %</code>.</li>
+<li dir="rtl">راجع بطاقة <b>الحسابات</b>: أحدث 100 بطاقة (مرتبة تنازليًا حسب <code dir="ltr">createdAt</code>) تعرض الاسم والبريد والدولة وتاريخ التسجيل وآخر نشاط وشارة الحالة.</li>
+</ol>
+<p dir="rtl">القيود: لا بحث ولا تصفية ولا تقسيم صفحات. الحسابات الأقدم من أحدث 100 لا تظهر في اللوحة، ولا يمكن الوصول إليها إلا من وحدة التحكم.</p>
+
+<h2 dir="rtl">5. إجراء: إيقاف حساب</h2>
+<h3 dir="rtl">5.1 متى يُوقف الحساب</h3>
+<p dir="rtl">الإيقاف هو أداة التنفيذ الوحيدة المتاحة داخل التطبيق. لا توجد بعد سياسة معتمدة تحدد أسباب الإيقاف؛ والمرجع المقصود بعد اعتماده هو مسودة سياسة الاستخدام المقبول (MEGO_Acceptable_Use_Policy). وحتى ذلك الحين يقرر المالك كل حالة على حدة ويسجّل قراره (القسم 11).</p>
+<h3 dir="rtl">5.2 الخطوات</h3>
+<ol dir="rtl">
+<li dir="rtl">في بطاقة الحسابات ابحث عن الصف واضغط <b>إيقاف</b> (الزر مخفي في صف المسؤول نفسه).</li>
+<li dir="rtl">يكتب التطبيق <code dir="ltr">status: "suspended"</code> في <code dir="ltr">profiles/{uid}</code>، ثم تُعاد تحميل القائمة والمؤشرات وتظهر رسالة «تم الحفظ».</li>
+<li dir="rtl">سجّل الإجراء (التاريخ، المعرّف uid، السبب) في سجل المالك.</li>
+</ol>
+<h3 dir="rtl">5.3 الأثر</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المجال</th><th>أثر الإيقاف</th></tr>
+<tr><td>البيانات السحابية الخاصة</td><td>تبقى كما هي، لكن الخادم يرفض كل قراءة وكتابة تحت <code dir="ltr">users/{uid}</code> (الدالة <code dir="ltr">isActive()</code> تصبح false)</td></tr>
+<tr><td>شاشة التطبيق</td><td>عند التشغيل التالي تظهر شاشة «الحساب موقوف — أوقف المسؤول هذا الحساب. بياناتك محفوظة ولم يُحذف شيء.» مع زر تسجيل الخروج فقط، ولا تبدأ المزامنة السحابية</td></tr>
+<tr><td>الأطعمة المشتركة والاقتراحات</td><td>مرفوضة (القواعد تشترط حسابًا نشطًا)</td></tr>
+<tr><td>ماسح الوجبات بالذكاء الاصطناعي</td><td>يقرأ وسيط Apps Script البطاقة بتوكن المستخدم نفسه ويرد بـ <code dir="ltr">unauthorized</code> إذا لم تكن الحالة <code dir="ltr">active</code></td></tr>
+<tr><td>تسجيل الدخول في Firebase</td><td><b>لا</b> يُعطَّل؛ يستطيع المستخدم الدخول لكنه لا يرى إلا شاشة الإيقاف</td></tr>
+<tr><td>بطاقة الحساب</td><td>لا يستطيع المستخدم تغيير الاسم أو الدولة أثناء الإيقاف (تعديل المالك يشترط الحالة <code dir="ltr">active</code>)</td></tr>
+</table>
+
+<h2 dir="rtl">6. إجراء: إعادة تفعيل حساب</h2>
+<ol dir="rtl">
+<li dir="rtl">في بطاقة الحسابات ابحث عن الصف الذي يحمل شارة «موقوف» واضغط <b>إعادة تفعيل</b>.</li>
+<li dir="rtl">تعود <code dir="ltr">status</code> إلى <code dir="ltr">active</code>، ويستعيد المستخدم الوصول عند تشغيل التطبيق التالي (إعادة تحميل أو دخول من جديد)؛ لم تُمس بياناته الخاصة.</li>
+<li dir="rtl">سجّل الإجراء في سجل المالك.</li>
+</ol>
+
+<h2 dir="rtl">7. إجراء: مشكلات كلمة المرور</h2>
+<p dir="rtl">استعادة كلمة المرور <b>ذاتية فقط</b>: يختار المستخدم خيار الاستعادة في شاشة الدخول ويكتب بريده، فيستدعي التطبيق <code dir="ltr">sendPasswordResetEmail</code> من Firebase التي ترسل رسالة الاستعادة. لا يستطيع المسؤولون رؤية كلمات المرور أو تعيينها أو إعادة ضبطها.</p>
+<ul dir="rtl">
+<li dir="rtl">إن لم تصل الرسالة: اطلب من المستخدم مراجعة مجلد البريد غير المرغوب وصحة كتابة العنوان، ثم المحاولة لاحقًا. خطة Spark المجانية تحدّ رسائل الاستعادة (150 رسالة يوميًا وفق <code dir="ltr">docs/ARCHITECTURE.md</code>).</li>
+<li dir="rtl">الحالة الفعلية: قبلت Firebase طلب الاستعادة (HTTP 200) في التحقق الحي؛ أما <b>وصول الرسالة إلى صندوق البريد فغير مُتحقَّق منه</b>.</li>
+</ul>
+
+<h2 dir="rtl">8. إجراء: حذف الحساب</h2>
+<h3 dir="rtl">8.1 الحذف الذاتي (الحالة المعتادة)</h3>
+<ol dir="rtl">
+<li dir="rtl">يصدّر المستخدم بياناته أولًا إن أراد الاحتفاظ بها (الإعدادات ← النسخ الاحتياطي والتصدير؛ انظر MEGO_Backup_and_Export_Guide).</li>
+<li dir="rtl">الإعدادات ← بطاقة الحساب ← <b>حذف الحساب</b>. ونص التحذير: «سيُحذف حسابك وبياناتك السحابية ونسختها على هذا الجهاز نهائيًا».</li>
+<li dir="rtl">يكتب المستخدم كلمة المرور ويؤكد <b>حذف نهائي</b>.</li>
+</ol>
+<p dir="rtl">ما يفعله التطبيق بعدها بالترتيب (الدالة <code dir="ltr">deleteMyAccount</code>):</p>
+<ol dir="rtl">
+<li dir="rtl">يعيد التحقق بكلمة المرور (تشترط Google دخولًا حديثًا)، ولا يُحذف شيء إن كانت خاطئة.</li>
+<li dir="rtl">يحذف كل المستندات في كل الجداول المتزامنة تحت <code dir="ltr">users/{uid}</code>.</li>
+<li dir="rtl">يحذف <code dir="ltr">profiles/{uid}</code>.</li>
+<li dir="rtl">يحذف بيانات الدخول من Firebase.</li>
+<li dir="rtl">يحذف القاعدة المحلية <code dir="ltr">mego-u-&lt;uid&gt;</code> على هذا الجهاز ويعود إلى شاشة البداية.</li>
+</ol>
+<h3 dir="rtl">8.2 ما لا يُحذف</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>العنصر</th><th>سبب بقائه</th><th>الإجراء إن طُلبت إزالته</th></tr>
+<tr><td>بيانات الضيف على الجهاز (<code dir="ltr">mego-nutrition</code>)</td><td>تُترك عمدًا دون مساس</td><td>يمسحها المستخدم من جهازه (بيانات الموقع في المتصفح)</td></tr>
+<tr><td>النسخ على أجهزة أخرى (<code dir="ltr">mego-u-&lt;uid&gt;</code>)</td><td>الحذف يمسح الجهاز الذي نُفذ عليه فقط</td><td>يمسح المستخدم بيانات المتصفح على الأجهزة الأخرى</td></tr>
+<tr><td>الأطعمة المقترحة في <code dir="ltr">foodSubmissions</code> (تحمل <code dir="ltr">ownerUid</code>)</td><td>ليست ضمن <code dir="ltr">deleteMyAccount</code></td><td>يحذفها المالك أو المسؤول (القواعد تسمح للمسؤول بالحذف؛ لا يوجد زر في اللوحة — عبر وحدة التحكم)</td></tr>
+<tr><td>الاقتراحات المعتمدة المنشورة في <code dir="ltr">foods/U-…</code></td><td>أصبحت بيانات مرجعية مشتركة (بلا حقل مالك)</td><td>يقرر المالك؛ الحذف من وحدة التحكم. الأجهزة التي استلمت الطعام تحتفظ بنسختها المحلية</td></tr>
+<tr><td>تقارير الأخطاء</td><td>لا تحمل معرّف المستخدم، فلا يمكن ربطها بالحساب</td><td>لا حاجة لإجراء</td></tr>
+<tr><td>الملفات التي صدّرها المستخدم</td><td>خارج MEGO</td><td>مسؤولية المستخدم</td></tr>
+</table>
+<h3 dir="rtl">8.3 المستخدمون الموقوفون</h3>
+<p dir="rtl">لا يستطيع المستخدم الموقوف إكمال الحذف من التطبيق: شاشة الإيقاف لا تعرض إلا تسجيل الخروج، والخادم يرفض قراءة <code dir="ltr">users/{uid}</code> التي يحتاجها الحذف. الإجراء: أعد تفعيل الحساب (القسم 6) ودع المستخدم يحذفه، أو — إن تعذّر دخوله أو رفض — يحذف المالك البيانات من وحدة التحكم (القسم 9). مسار وحدة التحكم <i>غير مُتحقَّق منه</i>.</p>
+<h3 dir="rtl">8.4 طلب حذف من مستخدم لا يستطيع الدخول</h3>
+<p dir="rtl">لا يوجد نموذج طلب داخل التطبيق ولا عنوان تواصل منشور حتى الآن (سياسة الخصوصية تحتوي عنصرًا نائبًا لاسم المشغّل ودولته وبريد التواصل يُستكمل قبل الإطلاق). وإلى أن يتوفر عنوان تواصل لا يمكن استقبال هذه الطلبات عبر المنتج. وقبل تنفيذ أي طلب يصل من خارج التطبيق يجب أن يتأكد المالك أنه صادر عن صاحب بريد الحساب؛ وطريقة التحقق لم تُحدَّد بعد (<i>غير مُتحقَّق منه</i>).</p>
+
+<h2 dir="rtl">9. إجراءات خاصة بالمالك في وحدة تحكم Firebase</h2>
+<p dir="rtl">هذه الإجراءات خارج التطبيق و<b>لا تغطيها الاختبارات</b>؛ استخدمها بحذر وسجّل كل واحد منها.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإجراء</th><th>المكان</th><th>ملاحظات</th></tr>
+<tr><td>منح صلاحية المسؤول</td><td>يُفضَّل <code dir="ltr">laptop-setup.mjs --cloud &lt;e-mail&gt;</code></td><td>مختبر على المحاكيات وفي اختبارات سكربت الإعداد فقط</td></tr>
+<tr><td>سحب صلاحية المسؤول</td><td>Firestore ← <code dir="ltr">admins/{uid}</code> ← حذف</td><td>غير مُتحقَّق منه</td></tr>
+<tr><td>تعطيل تسجيل دخول</td><td>Authentication ← المستخدم ← Disable</td><td>وسيط الذكاء الاصطناعي يرفض المستخدمين المعطّلين (<code dir="ltr">verifyFirebaseUser_</code> تفحص <code dir="ltr">disabled</code>)؛ أثره على بقية التطبيق غير مُتحقَّق منه</td></tr>
+<tr><td>حذف بيانات مستخدم من السحابة</td><td>Firestore ← المجموعات الفرعية في <code dir="ltr">users/{uid}</code> و<code dir="ltr">profiles/{uid}</code>؛ Authentication ← حذف المستخدم</td><td>لا رجعة فيه؛ صدّر أولًا عند الحاجة. غير مُتحقَّق منه</td></tr>
+</table>
+<p dir="rtl">وصول المالك عبر وحدة التحكم لا تقيّده قواعد الأمان، ولا يجوز استخدامه إلا للأغراض الواردة في هذه الوثيقة (انظر MEGO_Access_Control_and_Permissions).</p>
+
+<h2 dir="rtl">10. طلبات لا يمكن تلبيتها</h2>
+<ul dir="rtl">
+<li dir="rtl">«أرني يوميات مستخدم أو وزنه أو صوره» — لا وصول للمسؤولين (القواعد)، وصور التقدّم لا تُرفع أصلًا.</li>
+<li dir="rtl">«غيّر اسم مستخدم أو بريده أو دولته» — المسؤول يغيّر <code dir="ltr">status</code> فقط؛ والمستخدم يغيّر الاسم والدولة من بطاقة حسابه. تغيير بريد الدخول غير متاح في التطبيق.</li>
+<li dir="rtl">«أعد ضبط كلمة مروري نيابة عني» — الاستعادة ذاتية فقط (القسم 7).</li>
+<li dir="rtl">«استرجع بيانات وضع الضيف» — بيانات الضيف موجودة على الجهاز فقط؛ وإن مُسح تخزين المتصفح فلا يمكن استرجاعها من السحابة (قد تفيد النسخ الاحتياطية المحلية على الجهاز نفسه).</li>
+</ul>
+
+<h2 dir="rtl">11. حفظ السجلات</h2>
+<p dir="rtl">لا يحتفظ التطبيق بسجل تدقيق لإجراءات المسؤول (البطاقة تحفظ الحالة الحالية فقط). الممارسة الموصى بها للمالك: سجل خاص يحتوي التاريخ، والمعرّف uid (لا البريد)، ونوع الإجراء (إيقاف / إعادة تفعيل / منح أو سحب صلاحية / حذف من وحدة التحكم)، والسبب، ومن اتخذ القرار. ولا تُحفظ فيه محتويات اليوميات أو أي سجلات شخصية أخرى.</p>
+
+<h2 dir="rtl">12. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>العنصر</th><th>الحالة</th></tr>
+<tr><td>التسجيل والدخول والخروج وحذف الحساب (حسابا الاختبار) وقبول طلب استعادة كلمة المرور</td><td>مُتحقَّق منه حيًّا (<code dir="ltr">scripts/live-verify.mjs</code> على الإنتاج، 7 نوفمبر 2026)</td></tr>
+<tr><td>الحساب العادي لا يستطيع سرد البطاقات أو ترقية نفسه أو إيقاف غيره (403)</td><td>مُتحقَّق منه حيًّا</td></tr>
+<tr><td>إيقاف المسؤول وإعادة التفعيل، وتغيير الحالة فقط، وشاشة الإيقاف</td><td>مختبر على محاكيات Firebase (اختبارات القواعد واختبارات تعدد المستخدمين)</td></tr>
+<tr><td>مسؤول حقيقي على الإنتاج</td><td>لم يتم — لا يوجد حساب مسؤول بعد</td></tr>
+<tr><td>وصول رسالة الاستعادة؛ وكل إجراءات وحدة التحكم (القسم 9)؛ ومعالجة طلبات الحذف من خارج التطبيق</td><td>غير مُتحقَّق منه</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

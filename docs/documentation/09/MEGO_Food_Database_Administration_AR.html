@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Food_Database_Administration_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — إدارة قاعدة بيانات الأطعمة (Food Database Administration)</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-69</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع والمسؤولون مستقبلًا</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Admin_User_Manual، MEGO_Food_Database_Documentation، MEGO_Food_Database_Import_and_Update_Procedures، MEGO_Food_Data_Validation_and_Quality_Control، MEGO_Missing_and_Duplicate_Foods_Management، MEGO_Google_Sheets_Integration_and_Sync</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تشرح هذه الوثيقة كيف تُدار بيانات الأطعمة التي يقدّمها MEGO <b>لجميع</b> المستخدمين: جدول Google الخاص بالمالك (الـ Hub) وتبويبه <code dir="ltr">Food_Database</code>، ومجموعة Firestore المشتركة <code dir="ltr">/foods</code> التي يستلمها كل مستخدم مسجَّل، ومراجعة الأطعمة التي يقترحها المستخدمون، وقاعدة USDA المرجعية المضمّنة في التطبيق؛ مع الإجراءات والمتطلبات المسبقة والقيود المعروفة لكل منها. الأطعمة الشخصية التي ينشئها المستخدم لنفسه لا تُدار مركزيًا وهي خارج النطاق. المصادر: <code dir="ltr">apps-script/Code.gs</code> و<code dir="ltr">src/lib/sync.ts</code> و<code dir="ltr">src/lib/sheetImport.ts</code> و<code dir="ltr">src/lib/cloudSync.ts</code> و<code dir="ltr">src/lib/firebase.ts</code> و<code dir="ltr">src/pages/Account.tsx</code> و<code dir="ltr">src/pages/Settings.tsx</code> و<code dir="ltr">scripts/build-food-db.mjs</code> و<code dir="ltr">firebase/firestore.rules</code>.</p>
+<p dir="rtl"><b>ملاحظة الحالة:</b> لا يوجد حساب مسؤول حتى 10 نوفمبر 2026، لذلك <b>لم</b> يُنفَّذ النشر في <code dir="ltr">/foods</code> ولا مراجعة الاقتراحات على بيئة الإنتاج.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">طبقات بيانات الأطعمة</li>
+<li dir="rtl">تبويب Food_Database في الـ Hub (جدول المالك)</li>
+<li dir="rtl">إجراء: تعديل الأطعمة في الـ Hub</li>
+<li dir="rtl">إجراء: مقارنة الـ Hub بجهاز</li>
+<li dir="rtl">إجراء: نشر الأطعمة المحققة في القاعدة المشتركة /foods</li>
+<li dir="rtl">إجراء: مراجعة اقتراحات المستخدمين</li>
+<li dir="rtl">إزالة طعام مشترك أو تصحيحه</li>
+<li dir="rtl">قاعدة USDA المرجعية المضمّنة</li>
+<li dir="rtl">قائمة فحص الجودة قبل النشر</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. طبقات بيانات الأطعمة</h2>
+<pre dir="ltr">
+ USDA FoodData Central ──build-food-db.mjs──► public/fooddb/usda.json + usda-extra.json
+                                              (shipped with every app release, read-only)
+
+ Owner's Hub (Google Sheet) "Food_Database"  ──Apps Script action "foods"──► owner/guest device
+        F0001, F0002 …  (160 foods)                                         (local foods, source "sheet")
+                                                                                  │ admin presses
+                                                                                  ▼ "Publish verified foods"
+ User suggestion ──foodSubmissions (pending)──admin Approve──►  Firestore /foods/{id}
+                                                                      │ live listener
+                                                                      ▼
+                                              every signed-in, active user's device (source "sheet")
+</pre>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الطبقة</th><th>المكان</th><th>من يغيّرها</th><th>من يراها</th></tr>
+<tr><td>مرجع USDA (12,879 طعامًا من SR Legacy وFNDDS)</td><td><code dir="ltr">public/fooddb/usda.json</code> و<code dir="ltr">usda-extra.json</code></td><td>المطوّر، بإعادة البناء وإصدار نسخة جديدة</td><td>الجميع، بمن فيهم الضيوف</td></tr>
+<tr><td>Food_Database في الـ Hub (160 طعامًا)</td><td>جدول Google الخاص بالمالك «MEGO Nutrition Hub»</td><td>المالك، داخل الجدول</td><td>الأجهزة المتصلة بالـ Hub برمز اتصال المالك</td></tr>
+<tr><td>الأطعمة المحققة المشتركة</td><td>مجموعة Firestore <code dir="ltr">/foods</code></td><td>المسؤولون فقط (القاعدة <code dir="ltr">allow write: if isAdmin()</code>)</td><td>كل مستخدم مسجَّل حسابه نشط</td></tr>
+<tr><td>اقتراحات المستخدمين</td><td><code dir="ltr">/foodSubmissions</code></td><td>ينشئها المستخدمون ويراجعها المسؤولون</td><td>صاحب الاقتراح والمسؤولون</td></tr>
+</table>
+
+<h2 dir="rtl">2. تبويب Food_Database في الـ Hub (جدول المالك)</h2>
+<p dir="rtl">حُوِّل الـ Hub مرة واحدة من ملف Excel الأصلي إلى جدول Google أصلي، ولا يُعدَّل ملف Excel الأصلي ولا التبويب الأصلي «قاعدة بيانات الأطعمة» أبدًا. نسخت الدالة <code dir="ltr">migrateHub()</code> التبويب الأصلي إلى <code dir="ltr">Food_Database</code> بمعرّفات ثابتة <code dir="ltr">F0001…</code>، وأظهر الفحص الحي في 7 نوفمبر 2026 وجود 160 طعامًا دون أي قيمة غير مقروءة.</p>
+<h3 dir="rtl">2.1 الأعمدة</h3>
+<p dir="rtl"><code dir="ltr">food_id, name_ar, name_en, category, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, sodium_mg_100g, piece_g, state, state_label, prep, source, verification, barcode, notes, active</code> يليها عمودان تقنيان <code dir="ltr">updated_at</code> و<code dir="ltr">json</code>.</p>
+<h3 dir="rtl">2.2 القواعد المطبقة عند قراءة الجهاز للتبويب</h3>
+<ul dir="rtl">
+<li dir="rtl">الأعمدة الإلزامية: <code dir="ltr">food_id, name_ar, kcal_100g, protein_100g, carbs_100g, fat_100g</code>؛ وإن غاب أحدها يتوقف الاستيراد بالخطأ "missingColumns".</li>
+<li dir="rtl">تُتجاهل الصفوف التي بلا <code dir="ltr">food_id</code> أو التي قيمة <code dir="ltr">active</code> فيها <code dir="ltr">no</code>.</li>
+<li dir="rtl">إذا غابت قيمة السعرات أو البروتين أو الكربوهيدرات أو الدهون أو كانت سالبة يُعلَّم الطعام <b>ناقصًا</b> (يُستورد مع علامة)؛ وتُبلَّغ القيم الصفرية كلها بـ "zeroValues".</li>
+<li dir="rtl">القيم لكل 100 غ من الطعام بالحالة المذكورة (نيء / مطبوخ / أخرى).</li>
+</ul>
+<h3 dir="rtl">2.3 الملكية والأمان</h3>
+<ul dir="rtl">
+<li dir="rtl">تبويب <code dir="ltr">Food_Database</code> مملوك <b>للجدول</b>: يدير المالك القيم فيه، والأجهزة تسحبها.</li>
+<li dir="rtl">تعديلات أطعمة الـ Hub داخل التطبيق لا تُكتب في الجدول <b>إلا</b> إذا فُعّل على ذلك الجهاز خيار «كتابة تعديلات الأطعمة في جوجل شيت» (<code dir="ltr">saveFoods</code>). يرفض الخادم أي دفعة تتجاوز 200 طعام، وأي طعام بلا اسم، وأي قيمة سعرات أو بروتين أو كربوهيدرات أو دهون خارج المدى 0–1000، ويأخذ نسخة احتياطية كاملة من الـ Hub في Drive مرة يوميًا قبل أول كتابة.</li>
+<li dir="rtl">كل كتابة تُفحص بختمها الزمني: النسخة الأقدم لا تستبدل صفًا أحدث (تعارض). والصفوف المحذوفة تُنسخ أولًا إلى <code dir="ltr">Deleted_Records</code>.</li>
+</ul>
+
+<h2 dir="rtl">3. إجراء: تعديل الأطعمة في الـ Hub</h2>
+<ol dir="rtl">
+<li dir="rtl">افتح الـ Hub في Google Sheets ← تبويب <code dir="ltr">Food_Database</code>. لا تعدّل التبويب العربي الأصلي ولا العمودين <code dir="ltr">json</code> و<code dir="ltr">updated_at</code>.</li>
+<li dir="rtl"><b>تصحيح قيمة:</b> عدّل الخلايا المقروءة في الصف (مثل <code dir="ltr">kcal_100g</code>) دون تغيير <code dir="ltr">food_id</code>.</li>
+<li dir="rtl"><b>إضافة طعام:</b> أضف صفًا بمعرّف <code dir="ltr">food_id</code> جديد فريد بالنمط نفسه (أول <code dir="ltr">F####</code> متاح)، مع الاسم العربي والحالة والقيم الأربع الأساسية لكل 100 غ، واكتب المصدر في <code dir="ltr">notes</code> أو <code dir="ltr">verification</code>.</li>
+<li dir="rtl"><b>إيقاف طعام:</b> اجعل <code dir="ltr">active</code> تساوي <code dir="ltr">no</code>. (الأجهزة التي تملك الطعام تحتفظ بنسختها المحلية، لأن الاستيراد لا يحذف السجلات المحلية أبدًا.)</li>
+<li dir="rtl">على جهاز المالك: الإعدادات ← بطاقة «MEGO Nutrition Hub — المزامنة والنسخ الاحتياطي» ← <b>استيراد الأطعمة من الشيت</b>، وستظهر أعداد الأطعمة المضافة والمحدَّثة وغير المتغيرة.</li>
+<li dir="rtl">إن كان التغيير يجب أن يصل إلى المستخدمين المسجَّلين فتابع بالقسم 5.</li>
+</ol>
+<p dir="rtl">ملاحظة: خطوات التعديل اليدوي للصفوف مستنتجة من شيفرة الاستيراد، ولم يغطّها اختبار آلي (<i>غير مُتحقَّق منه</i>).</p>
+
+<h3 dir="rtl">3.1 إكمال الـ Hub دفعة واحدة: <code dir="ltr">--hub-complete-foods</code> (الخادم v8)</h3>
+<p dir="rtl">منذ 10 نوفمبر 2026 يستطيع المالك إضافة الأطعمة التي تحتاجها مكتبة الوصفات إلى الـ Hub بأمر واحد: <code dir="ltr">node scripts/laptop-setup.mjs --hub-complete-foods</code>. يرفع الأمر أولًا الخادم الحالي ويعيد نشره (الرابط نفسه)، ثم:</p>
+<ol dir="rtl">
+<li dir="rtl">يتحقق من أن إصدار الخادم 8 أو أحدث وأن الـ Hub يستخدم التبويب المنظم <code dir="ltr">Food_Database</code>؛ وإلا يتوقف دون كتابة شيء.</li>
+<li dir="rtl"><b>المكوّنات:</b> لكل مكوّن من مكوّنات مكتبة الوصفات الـ 69 (<code dir="ltr">public/fooddb/library-recipes.json</code>) لا يوجد اسمه العربي بعد كصف نشط في الـ Hub، يضيف صفًا بالمعرّف <code dir="ltr">LIB-ING-&lt;hash&gt;</code> والفئة «مكوّنات الوصفات» والمصدر <code dir="ltr">usda</code> وقيم USDA FoodData Central المراجَعة يدويًا. والمكوّن الذي لا مرجع موثّق له (حاليًا اللبنة) <b>لا يُقدَّر أبدًا</b> ويظهر في تحذير.</li>
+<li dir="rtl"><b>الوجبات الجاهزة:</b> لكل وصفة من وصفات المكتبة الـ 101 غير الموجودة في الـ Hub، يضيف صفًا بالمعرّف <code dir="ltr">LIB-&lt;recipe id&gt;</code> والفئة «وجبات (مكتبة الوصفات)» وحالة مطبوخ، محسوبًا من قيم الـ Hub نفسه لكل 100 غ من المكوّنات (وقيم USDA فقط حيث لم يكن في الـ Hub شيء): القيم لكل 100 غ من المكوّنات النيئة، ووزن الحبة = حصة واحدة = إجمالي الغرامات ÷ عدد الحصص. وتُتخطى الوجبة إذا كان لأي مكوّن فيها قيم غير صالحة، وتُدرج في قائمة.</li>
+<li dir="rtl">تُرسل الصفوف عبر <code dir="ltr">saveFoods</code> على دفعات من 100 (مع نسخة احتياطية يومية للـ Hub في Drive قبل أول كتابة في اليوم).</li>
+<li dir="rtl"><b>الأسماء الإنجليزية:</b> يكتب الإجراء الجديد <code dir="ltr">fillFoodNames</code> قيمة <code dir="ltr">name_en</code> فقط حيث تكون الخلية فارغة، من القاموس المترجم يدويًا <code dir="ltr">public/fooddb/food-names.json</code> (160 اسمًا) إضافة إلى أسماء الوصفات؛ وتبقى كل الخلايا الأخرى وكل الأسماء الموجودة كما هي. وتظهر النتيجة "English names filled: N".</li>
+</ol>
+<p dir="rtl">لا تتغير الصفوف والقيم الموجودة أبدًا، والتشغيل الثاني لا يضيف شيئًا (اختبار 9/9 في <code dir="ltr">e2e/hub-complete-test.mjs</code> على <code dir="ltr">Code.gs</code> الحقيقي مع خادم Google محاكى). أما التشغيل الحي على Hub المالك فـ<i>غير مُتحقَّق منه</i>. وبعد التشغيل استورد الأطعمة على جهاز المالك (الخطوة 5 أعلاه).</p>
+<p dir="rtl">ويقدّم التطبيق الإكمال نفسه لقائمة أطعمة المستخدم الخاصة (صفحة الأطعمة: «إكمال قاعدة أطعمتي» مع معاينة ونسخة محلية أولًا وإضافة فقط، و«الأسماء بالعربي والإنجليزي» التي تملأ الأسماء الفارغة فقط)؛ وهذه أطعمة شخصية لا مشتركة.</p>
+
+<h2 dir="rtl">4. إجراء: مقارنة الـ Hub بجهاز</h2>
+<p dir="rtl">عند ربط جهاز بالـ Hub (الإعدادات ← بطاقة مزامنة الـ Hub ← حفظ + اختبار الاتصال) يجري التطبيق أولًا مقارنة <b>للقراءة فقط</b> (<code dir="ltr">checkHubFoods</code>) بين أطعمة الـ Hub وأطعمة الجدول على الجهاز، بالمطابقة على الاسم العربي + الحالة:</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>النتيجة</th><th>المعنى</th><th>الإجراء</th></tr>
+<tr><td>متطابق</td><td>السعرات والبروتين والكربوهيدرات والدهون ووزن الحبة متساوية</td><td>لا شيء</td></tr>
+<tr><td>مختلف</td><td>قيمة واحدة على الأقل مختلفة؛ تُعرض أول 10 حالات بصيغة المحلي ← الـ Hub</td><td>يتوقف المسار. قرّر أيهما الصحيح؛ ولاعتماد قيم الـ Hub اضغط «استخدم قيم الـ Hub (بعد نسخة احتياطية؛ سجلات اليوميات السابقة تحتفظ بقيمها)» — تُحفظ نسخة محلية "pre-import" أولًا</td></tr>
+<tr><td>في الـ Hub فقط</td><td>طعام لم يصل إلى الجهاز بعد</td><td>يُستورد عند القبول</td></tr>
+<tr><td>على الهاتف فقط</td><td>طعام على الجهاز غير موجود في الـ Hub</td><td>يبقى؛ تحقّق من السبب (أُعيدت تسميته أو حُذف من الـ Hub؟)</td></tr>
+</table>
+
+<h2 dir="rtl">5. إجراء: نشر الأطعمة المحققة في القاعدة المشتركة /foods</h2>
+<h3 dir="rtl">5.1 ماذا يفعل الزر</h3>
+<p dir="rtl">الإدارة ← بطاقة <b>قاعدة الأطعمة المشتركة</b> ← <b>نشر الأطعمة المحققة</b>. يأخذ التطبيق الأطعمة الموجودة <b>في القاعدة المحلية للجهاز الذي يعمل عليه</b> والتي مصدرها <code dir="ltr">source = "sheet"</code> وغير مؤرشفة وغير ناقصة، ويكتب كل واحد منها في <code dir="ltr">foods/{id}</code> بالحقول <code dir="ltr">row, sheetKey, nameAr, nameEn, category, per100, pieceGrams, state, stateLabel, prep, notes</code>. المعرّف هو مفتاح الـ Hub إذا كان بصيغة <code dir="ltr">F</code> + أرقام، وإلا فمعرّف الطعام المحلي. وتؤكد رسالة «تم نشر N طعام» العدد. أطعمة USDA مضمّنة ولا تُنشر.</p>
+<h3 dir="rtl">5.2 المتطلبات المسبقة</h3>
+<ol dir="rtl">
+<li dir="rtl">أن يكون الشخص داخلًا بحساب مسؤول (وإلا يرفض الخادم كل كتابة).</li>
+<li dir="rtl">أن تحتوي قاعدة <b>الحساب</b> على الجهاز أطعمةَ الـ Hub. على الجهاز المسجَّل لا تبدأ مزامنة الـ Hub تلقائيًا (تعمل مزامنة Firestore فقط)، لكن بطاقة المزامنة تبقى في الإعدادات؛ فيجب على المسؤول ربطها برمز اتصال المالك والضغط على <b>استيراد الأطعمة من الشيت</b> أولًا. هذا التسلسل على جهاز مسؤول مسجَّل <i>غير مُتحقَّق منه</i>.</li>
+<li dir="rtl">نفّذ قائمة فحص الجودة (القسم 9) ومقارنة الـ Hub (القسم 4) قبل ذلك.</li>
+</ol>
+<h3 dir="rtl">5.3 الخطوات</h3>
+<ol dir="rtl">
+<li dir="rtl">ادخل كمسؤول على الجهاز الذي يحمل أطعمة الـ Hub الحالية.</li>
+<li dir="rtl">الإعدادات ← بطاقة مزامنة الـ Hub ← استيراد الأطعمة من الشيت، وتأكد من الأعداد.</li>
+<li dir="rtl">الإعدادات ← بطاقة الحساب ← الإدارة ← نشر الأطعمة المحققة.</li>
+<li dir="rtl">سجّل العدد N من رسالة «تم نشر N طعام» في سجل المالك.</li>
+<li dir="rtl">تحقّق من حساب اختبار ثانٍ غير مسؤول أن الطعام المعدّل يظهر بقيمه الجديدة.</li>
+</ol>
+<h3 dir="rtl">5.4 ما يحدث على أجهزة المستخدمين</h3>
+<p dir="rtl">يحتفظ كل جهاز مسجَّل بمستمع حي على <code dir="ltr">/foods</code>؛ وعند تغيّر المجموعة تُدمج جميع المستندات في قائمة الأطعمة المحلية بمصدر "sheet" (بالمطابقة على المفتاح، والقيم المتغيرة تحدّث النسخة المحلية). الدمج لا يحذف أي طعام محلي أبدًا.</p>
+<h3 dir="rtl">5.5 التكلفة</h3>
+<p dir="rtl">كل عملية نشر تكتب مستندًا لكل طعام (≈ 160 عملية كتابة للـ Hub الحالي)، ويعيد كل جهاز مسجَّل قراءة المجموعة؛ وهذا يُحتسب ضمن الحدود اليومية المجانية لـ Firestore في خطة Spark (انظر MEGO_Monitoring_and_Maintenance). لا تنشر إلا بعد تغييرات فعلية.</p>
+<h3 dir="rtl">5.6 تنبيه: إعادة نشر الاقتراحات المعتمدة</h3>
+<p dir="rtl">الجهاز الذي استلم اقتراحًا معتمدًا (<code dir="ltr">foods/U-…</code>) يحفظه محليًا كطعام "sheet" بالمفتاح <code dir="ltr">U-…</code>. ولأن النشر لا يستخدم مفتاح الـ Hub إلا إذا كان بصيغة <code dir="ltr">F####</code>، فإن الضغط على «نشر» من هذا الجهاز يكتب الطعام مرة ثانية بمعرّفه <b>المحلي</b> فينشأ مستند مشترك مكرر. هذا مستنتج من الشيفرة (<code dir="ltr">publishSharedFoods</code>) ولم يُلاحظ على الإنتاج. وينطبق الأمر نفسه على أطعمة الـ Hub التي لا يكون معرّفها بصيغة <code dir="ltr">F####</code>، مثل صفوف <code dir="ltr">LIB-ING-…</code> و<code dir="ltr">LIB-…</code> التي يضيفها <code dir="ltr">--hub-complete-foods</code> (3.1): فهي تُنشر بالمعرّف المحلي لكل جهاز، ونشرها من جهازين مختلفين ينشئ نسختين مشتركتين. وإلى أن يُصلح، انشر من جهاز واحد فقط يكون مصدر أطعمته "sheet" هو الـ Hub، أو احذف المكرر بعد ذلك من وحدة تحكم Firebase.</p>
+
+<h2 dir="rtl">6. إجراء: مراجعة اقتراحات المستخدمين</h2>
+<ol dir="rtl">
+<li dir="rtl">يضغط المستخدم المسجَّل «اقتراح للقاعدة المشتركة» في محرر أحد أطعمته، فيُنشأ مستند في <code dir="ltr">foodSubmissions</code> بحالة <code dir="ltr">status: "pending"</code>. لا يُنشر شيء تلقائيًا.</li>
+<li dir="rtl">الإدارة ← <b>أطعمة مقترحة للمراجعة</b>: تعرض حتى 100 اقتراح معلّق (الاسم، الحالة، السعرات، P وC وF لكل 100 غ، مرجع المصدر، الملاحظات).</li>
+<li dir="rtl">قارن القيم بالملصق أو بمصدر موثوق آخر (القسم 9).</li>
+<li dir="rtl"><b>اعتماد</b> ← يُنسخ إلى <code dir="ltr">foods/U-&lt;submissionId&gt;</code> مع الملاحظة "user submission reviewed by admin" وتصبح حالة الاقتراح <code dir="ltr">approved</code>. <b>رفض</b> ← يُعلَّم <code dir="ltr">rejected</code> فقط.</li>
+</ol>
+<p dir="rtl">لا يمكن تعديل القيم داخل اللوحة، ولا يُبلَّغ صاحب الاقتراح داخل التطبيق.</p>
+
+<h2 dir="rtl">7. إزالة طعام مشترك أو تصحيحه</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>التصحيح:</b> صحّح القيمة في الـ Hub ثم أعد النشر (القسم 5)؛ فيُستبدل المستند ذو المعرّف <code dir="ltr">F####</code> نفسه وتحدّث الأجهزة نسختها.</li>
+<li dir="rtl"><b>الإزالة:</b> لا يوجد زر لإلغاء النشر. يستطيع المالك حذف المستند من وحدة التحكم، لكن الأجهزة التي استلمته <b>تحتفظ</b> بنسختها المحلية لأن المستمع يدمج ولا يحذف. ولإبطال طعام خاطئ على كل الأجهزة انشر القيم المصححة بدل الحذف.</li>
+<li dir="rtl">الاقتراح المعتمد ذو القيم الخاطئة لا يُصحَّح إلا من وحدة التحكم (<code dir="ltr">foods/U-…</code>)؛ <i>غير مُتحقَّق منه</i>.</li>
+</ul>
+
+<h2 dir="rtl">8. قاعدة USDA المرجعية المضمّنة</h2>
+<p dir="rtl">تُبنى بالأمر <code dir="ltr">node scripts/build-food-db.mjs &lt;directory with the unzipped USDA CSV folders&gt;</code> من USDA FoodData Central (ملك عام): SR Legacy (2018-04) وFNDDS (2024-10-31). تُنسخ القيم كما هي لكل 100 غ من الجزء الصالح للأكل، وتُستبعد الأطعمة التي لا قيمة طاقة منشورة لها، ويحتفظ كل صف بمعرّف FDC، وتُعلَّم فروق Atwater دون تعديلها. الناتج: <code dir="ltr">public/fooddb/usda.json</code> و<code dir="ltr">public/fooddb/usda-extra.json</code>. لا يصل الملف المعاد بناؤه إلى المستخدمين إلا عبر إصدار عادي (إيداع ← اختبارات GitHub Actions ← نشر؛ انظر MEGO_Build_and_Release_Procedures). ولا يستطيع المسؤولون تغيير قيم USDA من التطبيق.</p>
+
+<h2 dir="rtl">9. قائمة فحص الجودة قبل النشر</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الفحص</th><th>الطريقة</th></tr>
+<tr><td>تطابق الطاقة مع المغذيات الكبرى</td><td>معادلة Atwater: <code dir="ltr">4×protein + 4×carbs + 9×fat</code> ≈ السعرات. يحسب التطبيق الانحراف <code dir="ltr">(kcal − calc) ÷ kcal</code> (الدالة <code dir="ltr">atwaterDeviation</code> في <code dir="ltr">src/lib/nutrition.ts</code>). مثال: بروتين 31 وكربوهيدرات 0 ودهون 3.6 ← 156.4 سعرة؛ فإذا كانت القيمة المذكورة 165 فالانحراف ≈ 5 %. الانحرافات الكبيرة تستلزم مراجعة المصدر</td></tr>
+<tr><td>لكل 100 غ لا لكل حصة</td><td>الإعدادات ← فحص البيانات يسرد الأطعمة التي تبدو قيمها لكل حصة</td></tr>
+<tr><td>الحالة الصحيحة</td><td>قيم النيء والمطبوخ تختلف كثيرًا (مثل الأرز الجاف والمطبوخ)؛ يجب أن تطابق الحالةُ القيم</td></tr>
+<tr><td>عدم التكرار</td><td>الاسم العربي + الحالة يجب أن يتكررا مرة واحدة فقط (فحص البيانات يسرد التكرارات المحتملة)</td></tr>
+<tr><td>تسجيل المصدر</td><td>يذكر <code dir="ltr">notes</code> أو <code dir="ltr">verification</code> الملصق أو المرجع</td></tr>
+<tr><td>الاكتمال</td><td>القيم الأساسية الأربع موجودة (الأطعمة الناقصة لا تُنشر)</td></tr>
+</table>
+
+<h2 dir="rtl">10. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>العنصر</th><th>الحالة</th></tr>
+<tr><td>الـ Hub أصلي وقابل للكتابة، وFood_Database فيه 160 طعامًا و0 غير مقروء، والكتابة والقراءة والتعارض والحذف المرن</td><td>مُتحقَّق منه حيًّا (اختبارات laptop-setup الحية، 7 نوفمبر 2026)</td></tr>
+<tr><td>الكتابة في <code dir="ltr">/foods</code> للمسؤول فقط، وقواعد الاقتراحات</td><td>مختبر على محاكيات Firebase</td></tr>
+<tr><td>النشر والمراجعة بواسطة مسؤول حقيقي على الإنتاج</td><td>لم يتم — لا يوجد حساب مسؤول بعد</td></tr>
+<tr><td>استيراد أطعمة الـ Hub على جهاز مسؤول مسجَّل؛ والصفوف المعدّلة يدويًا؛ وحذف الأطعمة المشتركة من وحدة التحكم</td><td>غير مُتحقَّق منه</td></tr>
+<tr><td>التكرار عند إعادة نشر الاقتراحات المعتمدة (5.6)</td><td>مستنتج من قراءة الشيفرة؛ لم يُلاحظ حيًّا</td></tr>
+<tr><td>إكمال الـ Hub (<code dir="ltr">--hub-complete-foods</code> و<code dir="ltr">fillFoodNames</code>)</td><td>مختبر 9/9 على خادم محاكى؛ التشغيل الحي غير مُتحقَّق منه</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

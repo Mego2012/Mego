@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MEGO_Production_Deployment_Guide_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Production Deployment Guide</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-51</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Project owner, maintainers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Developer_Setup_and_Local_Installation, MEGO_Firebase_Setup_Guide, MEGO_Apps_Script_Setup_Guide, MEGO_Gemini_API_Setup_Guide, MEGO_Build_and_Release_Procedures, MEGO_Update_and_Rollback_Procedures, MEGO_Production_Verification_Checklist, MEGO_Technical_Architecture</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This guide describes how the MEGO production system is deployed: the static Progressive Web App (PWA) on GitHub Pages, the public Firebase configuration that switches on accounts, the owner's Google Apps Script backend (Hub sync and AI meal scanner) and the order in which these pieces are put live. Detailed set-up of each cloud service is in the dedicated guides; this document is the overview and the GitHub Pages procedure.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Production components</li>
+<li>GitHub Pages workflow (deploy.yml)</li>
+<li>One-time GitHub settings</li>
+<li>Deploying a change</li>
+<li>Public Firebase configuration</li>
+<li>Backend and AI deployment (Apps Script)</li>
+<li>Recommended deployment order</li>
+<li>After deployment</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Production components</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Component</th><th>Where it runs</th><th>How it is deployed</th><th>Status (10 Nov 2026)</th></tr>
+<tr><td>PWA (Vite + React build)</td><td>GitHub Pages, https://mego2012.github.io/Mego/</td><td>Automatically by <code>.github/workflows/deploy.yml</code></td><td>LIVE</td></tr>
+<tr><td>Accounts and cloud data</td><td>Firebase Spark plan (no billing), project <code>mego-473920</code>, Firestore <code>(default)</code> in <code>me-central2</code></td><td><code>node scripts/laptop-setup.mjs --cloud</code></td><td>LIVE</td></tr>
+<tr><td>Public client config</td><td><code>public/firebase-config.json</code> → served as <code>/Mego/firebase-config.json</code></td><td>Written and pushed by the <code>--cloud</code> phase, then published by the workflow</td><td>LIVE</td></tr>
+<tr><td>Owner Hub backend + AI proxy</td><td>Google Apps Script web app in the owner's Drive (Execute as owner; access anyone + secret token)</td><td><code>node scripts/laptop-setup.mjs</code> / <code>--update-backend</code></td><td>LIVE (repository code is SCRIPT_VERSION 8; deployed version not verified)</td></tr>
+<tr><td>Gemini meal scanner</td><td>Called only by the Apps Script backend; key in Script Properties</td><td>Key stored by laptop-setup or from the app's Settings</td><td>LIVE (free tier)</td></tr>
+</table>
+<pre>
+ Phone / browser ──HTTPS──► GitHub Pages (static PWA, /Mego/)
+        │                          └─ firebase-config.json (public identifiers only)
+        ├──► Firebase Auth + Firestore (security rules enforce access)
+        └──► Apps Script web app ──► Google Sheet "MEGO Nutrition Hub"
+                                   └─► Gemini API (free tier)
+</pre>
+
+<h2>2. GitHub Pages workflow (deploy.yml)</h2>
+<p>Workflow name: <b>"Test &amp; deploy to GitHub Pages"</b>.</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Setting</th><th>Value in the file</th></tr>
+<tr><td>Triggers</td><td><code>push</code> to <code>main</code> or <code>claude/nutrition-tracking-app-989rku</code>; manual <code>workflow_dispatch</code></td></tr>
+<tr><td>Permissions</td><td><code>contents: read</code>, <code>pages: write</code>, <code>id-token: write</code></td></tr>
+<tr><td>Concurrency</td><td>group <code>pages</code>, <code>cancel-in-progress: true</code> (a newer push cancels an older run)</td></tr>
+<tr><td>Job <b>build</b> (ubuntu-latest)</td><td>checkout@v4 → setup-node@v4 (Node 22, npm cache) → <code>npm ci</code> → <code>npm test</code> → <code>npm run build</code> with <code>BASE_PATH=/&lt;repository name&gt;/</code> → upload-pages-artifact@v3 (<code>dist</code>)</td></tr>
+<tr><td>Job <b>deploy</b></td><td>needs build; environment <code>github-pages</code>; deploy-pages@v4</td></tr>
+</table>
+<p>Important consequences:</p>
+<ul>
+<li>A failing unit test stops the deployment: nothing is published unless <code>npm test</code> and the build succeed.</li>
+<li>The browser, touch, rules and multi-user suites are <b>not</b> run in CI; they must be run before pushing (see MEGO_Build_and_Release_Procedures).</li>
+<li><code>BASE_PATH</code> comes from the repository name, so the app is built for <code>/Mego/</code>. <code>vite.config.ts</code> uses it as <code>base</code>, PWA <code>start_url</code> and <code>scope</code>.</li>
+</ul>
+
+<h2>3. One-time GitHub settings</h2>
+<ol>
+<li>GitHub → repository <b>Settings → Pages → Source: GitHub Actions</b> (docs/SETUP.md).</li>
+<li>Run the workflow once (Actions → "Test &amp; deploy to GitHub Pages" → Run workflow).</li>
+<li>The deploy step shows the page URL. Production: https://mego2012.github.io/Mego/.</li>
+</ol>
+<p>docs/SETUP.md notes that GitHub Pages on a private repository requires a paid GitHub plan; any static host can serve <code>dist/</code> instead (with <code>BASE_PATH=/</code>). Only GitHub Pages is used and verified for MEGO.</p>
+
+<h2>4. Deploying a change</h2>
+<ol>
+<li>Run the local checks (at least <code>npm test</code>, <code>npm run build</code>, <code>npm run e2e</code>, <code>npm run e2e:scroll</code>).</li>
+<li>Commit and push to <code>claude/nutrition-tracking-app-989rku</code>.</li>
+<li>Watch the run in the Actions tab; both jobs must be green.</li>
+<li>Installed apps update themselves: the PWA is built with <code>registerType: 'autoUpdate'</code>, so the new service worker takes over on a later launch.</li>
+<li>Run the production checks in MEGO_Production_Verification_Checklist.</li>
+</ol>
+<p>When the release identifier <code>APP_RELEASE</code> (<code>src/lib/localBackup.ts</code>, currently <code>'1.3-training'</code>) changes, every device that has data takes one <b>pre-update backup</b> inside its local database the first time the new version opens (<code>src/main.tsx</code>).</p>
+
+<h2>5. Public Firebase configuration</h2>
+<p>The app fetches <code>./firebase-config.json</code> at start-up (<code>src/lib/firebase.ts</code>). If it is missing, the deployment is guest-only. The file contains public identifiers only: <code>apiKey</code>, <code>authDomain</code>, <code>projectId</code>, <code>appId</code> and <code>aiBackendUrl</code>. Access is enforced by <code>firebase/firestore.rules</code>, not by keeping these values secret. The file is generated by <code>laptop-setup --cloud</code>, committed with the neutral identity "MEGO setup", pushed, and the script checks that GitHub received the commit; GitHub Pages then redeploys (about 1–3 minutes, as the script waits for it).</p>
+
+<h2>6. Backend and AI deployment (Apps Script)</h2>
+<p>The backend is not built by the workflow. It is deployed from the owner's laptop with the official Apps Script CLI (clasp 3.4.1, run through npx):</p>
+<pre>node scripts/laptop-setup.mjs                    # first install or full update + live tests
+git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend   # upload the latest Code.gs to the SAME deployment + AI diagnostic
+node scripts/laptop-setup.mjs --hub-complete-foods            # update the backend, then add missing library foods to the Hub (adds only)</pre>
+<p>Re-deploys reuse the stored deployment id, so the web-app URL and the app token stay the same. See MEGO_Apps_Script_Setup_Guide and MEGO_Gemini_API_Setup_Guide.</p>
+
+<h2>7. Recommended deployment order (fresh environment)</h2>
+<ol>
+<li>GitHub Pages: enable Pages, push → static app live in guest mode.</li>
+<li>Apps Script backend + Hub: <code>node scripts/laptop-setup.mjs</code>.</li>
+<li>Gemini key (optional, free tier): during step 2, or <code>--test --ai-key-from-clipboard</code>.</li>
+<li>Firebase: <code>node scripts/laptop-setup.mjs --cloud</code> → config published → live verification runs automatically.</li>
+<li>Admin: the owner registers in the app, then runs <code>--cloud &lt;e-mail&gt;</code> again (still pending as of 10 Nov 2026).</li>
+</ol>
+
+<h2>8. After deployment</h2>
+<ul>
+<li>Run the production checklist (live verifier, live browser suites, AI diagnostic).</li>
+<li>Keep <code>~/.mego-backend/</code> private; it contains the backend URL and token.</li>
+<li>Recommended (status facts): rotate the Gemini key and the backend connection link, because both were shown in a chat during setup.</li>
+</ul>
+
+<h2>9. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Workflow content and behaviour described in section 2</td><td>Verified in <code>.github/workflows/deploy.yml</code>; deploy runs green (status facts)</td></tr>
+<tr><td>Live app, Firebase, Hub backend, Gemini</td><td>Verified live (7 Nov 2026; AI scanner re-verified through the live UI on 10 Nov 2026)</td></tr>
+<tr><td>Automatic update of an installed app on a real Android phone</td><td>Not verified (only emulated devices)</td></tr>
+<tr><td>Hosting on other static hosts / private repository</td><td>Not verified</td></tr>
+<tr><td>Admin account</td><td>Not done — waiting for the owner</td></tr>
+</table>
+
+<h2>10. Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

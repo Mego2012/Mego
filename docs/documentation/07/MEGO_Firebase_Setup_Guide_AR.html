@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="utf-8"><title>MEGO_Firebase_Setup_Guide_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — دليل إعداد Firebase</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-52</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع وفريق الصيانة</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Firebase_Integration، MEGO_Production_Deployment_Guide، MEGO_Apps_Script_Setup_Guide، MEGO_Access_Control_and_Permissions، MEGO_Authentication_and_Authorization_Architecture، MEGO_Production_Verification_Checklist، MEGO_Admin_User_Manual</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">يشرح هذا الدليل كيف تُعَدّ المنصة العامة متعددة المستخدمين في MEGO (الحسابات، والبيانات السحابية الخاصة، ودور المسؤول) على خطة <b>Spark</b> المجانية من Firebase (دون حساب فوترة) بأمر واحد: <code dir="ltr">node scripts/laptop-setup.mjs --cloud [admin-email]</code>. ويعرض كل خطوة ينفّذها السكربت، والإجراءات التي لا يستطيع القيام بها إلا المالك، وقيم الإنتاج الناتجة، وكيفية إعادة التشغيل أو التحقق.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">قبل البدء</li>
+<li dir="rtl">تشغيل الأمر</li>
+<li dir="rtl">ما يفعله السكربت خطوة بخطوة</li>
+<li dir="rtl">قواعد الأمان المنشورة</li>
+<li dir="rtl">منح المالك صلاحية المسؤول</li>
+<li dir="rtl">إعادة التشغيل والاستئناف وحل المشكلات</li>
+<li dir="rtl">قيم الإنتاج (غير السرية)</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. قبل البدء</h2>
+<ul dir="rtl">
+<li dir="rtl">لابتوب عليه Git وNode.js، والمستودع منسوخ على الفرع <code dir="ltr">claude/nutrition-tracking-app-989rku</code> (انظر MEGO_Developer_Setup_and_Local_Installation).</li>
+<li dir="rtl">صلاحية الدفع (Push) إلى مستودع GitHub، لأن السكربت يحفظ ملف الإعداد العام ويرفعه.</li>
+<li dir="rtl">عادةً يُثبَّت خادم Apps Script أولًا (<code dir="ltr">node scripts/laptop-setup.mjs</code>): فمرحلة <code dir="ltr">--cloud</code> تعمل بعد الاختبارات الحية للخادم، وتعرّف الخادم بمشروع Firebase حتى يستطيع المستخدمون المسجلون استخدام الماسح الذكي.</li>
+<li dir="rtl">لا حاجة لحساب فوترة ولا يُنشأ أي حساب فوترة. تنطبق حدود خطة Spark (الحصص الدقيقة في صفحة أسعار Firebase لدى Google — لم تُنقل هنا).</li>
+</ul>
+
+<h2 dir="rtl">2. تشغيل الأمر</h2>
+<pre dir="ltr">node scripts/laptop-setup.mjs --cloud                  # platform without an admin yet
+node scripts/laptop-setup.mjs --cloud &lt;your e-mail&gt;     # also grants the admin role (account must already exist)</pre>
+<p dir="rtl">أضف <code dir="ltr">--auto</code> لتجنب أسئلة لوحة المفاتيح (حينها يعيد السكربت الفحص كل 10 ثوانٍ أثناء انتظارك على صفحة Google).</p>
+
+<h2 dir="rtl">3. ما يفعله السكربت خطوة بخطوة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>#</th><th>الخطوة</th><th>التفاصيل (scripts/laptop-setup.mjs، الدالة setupCloud)</th><th>إجراء المالك</th></tr>
+<tr><td>1</td><td>firebase-tools</td><td>إذا لم يوجد <code dir="ltr">node_modules/firebase-tools</code> يشغّل <code dir="ltr">npm ci</code></td><td>—</td></tr>
+<tr><td>2</td><td>تسجيل الدخول</td><td><code dir="ltr">firebase login</code> إذا لم يكن هناك حساب مسجل</td><td>اختر حسابك في Google واضغط <b>Allow</b></td></tr>
+<tr><td>3</td><td>المشروع</td><td>يعيد استخدام مشروع Firebase باسم «MEGO Nutrition» أو مشروع Cloud من محاولة سابقة؛ وإلا ينشئ <code dir="ltr">mego-&lt;6 hex&gt;</code> باسم العرض «MEGO Nutrition»</td><td>أول مرة فقط: اقبل شروط Firebase في وحدة التحكم (اتفاق قانوني لا يقبله إلا المالك). إذا لم يظهر حوار: «Create a project» ← «Add Firebase to a Google Cloud project» ← «MEGO Nutrition» ← Continue (مع إيقاف Google Analytics)</td></tr>
+<tr><td>4</td><td>تطبيق الويب</td><td>ينشئ تطبيق الويب «MEGO Web» ويقرأ إعداد SDK الخاص به</td><td>—</td></tr>
+<tr><td>5</td><td>Firestore</td><td>يفعّل واجهة Cloud Firestore API (عبر Service Usage API)، وينتظر 15 ثانية، ثم ينشئ قاعدة البيانات <code dir="ltr">(default)</code> في أول موقع متاح: <code dir="ltr">me-central2</code> (الدمام) ← <code dir="ltr">me-central1</code> (الدوحة) ← <code dir="ltr">eur3</code> (أوروبا)؛ ويكرر حتى 4 جولات بفاصل 30 ثانية، وينتظر حتى تستجيب القاعدة. <b>الموقع دائم ولا يمكن تغييره.</b></td><td>—</td></tr>
+<tr><td>6</td><td>القواعد</td><td><code dir="ltr">firebase deploy --only firestore:rules,firestore:indexes</code> (الملفات المحددة في <code dir="ltr">firebase.json</code>)</td><td>—</td></tr>
+<tr><td>7</td><td>الدخول بالبريد</td><td>يفعّل Email/Password ويضبط النطاقات المصرّح بها: <code dir="ltr">localhost</code>، <code dir="ltr">&lt;project&gt;.firebaseapp.com</code>، <code dir="ltr">&lt;project&gt;.web.app</code>، <code dir="ltr">mego2012.github.io</code></td><td>فقط إذا فشل الاستدعاء: Authentication ← Get started ← Email/Password ← Enable ← Save</td></tr>
+<tr><td>8</td><td>الإعداد العام</td><td>يكتب <code dir="ltr">public/firebase-config.json</code> (apiKey وauthDomain وprojectId وappId وaiBackendUrl — معرّفات عامة)</td><td>—</td></tr>
+<tr><td>9</td><td>ربط الخادم</td><td>يستدعي إجراء الخادم <code dir="ltr">setCloudConfig</code>: يحفظ معرّفات Firebase العامة في خصائص السكربت مع حد للذكاء الاصطناعي قدره 10 عمليات مسح لكل مستخدم يوميًا و200 يوميًا إجمالًا (يحصر الخادم القيمتين ضمن 1–50 و1–1500)</td><td>—</td></tr>
+<tr><td>10</td><td>المسؤول</td><td>إذا أُعطي بريد: يبحث عن الحساب ويكتب <code dir="ltr">admins/{uid}</code> بصلاحيات المالك</td><td>سجّل في التطبيق أولًا</td></tr>
+<tr><td>11</td><td>النشر</td><td>يحفظ الإعداد بهوية «MEGO setup» (عنوان GitHub من نوع noreply) ويرفعه، ثم يتحقق أن الفرع البعيد يحتوي الإيداع الجديد</td><td>—</td></tr>
+<tr><td>12</td><td>التحقق الحي</td><td>ينتظر (حتى 10 دقائق) إلى أن يقدّم الموقع الحي الإعداد الجديد، ويثبّت Playwright عند الحاجة، ثم يشغّل <code dir="ltr">scripts/live-verify.mjs</code></td><td>—</td></tr>
+</table>
+<p dir="rtl">يُحفظ التقدم (معرّف المشروع، ومعرّف تطبيق الويب، وموقع قاعدة البيانات) في <code dir="ltr">~/.mego-backend/state.json</code>، لذا يمكن إعادة تشغيل أي محاولة متوقفة فتكمل من حيث توقفت.</p>
+
+<h2 dir="rtl">4. قواعد الأمان المنشورة</h2>
+<p dir="rtl">من الملف <code dir="ltr">firebase/firestore.rules</code> (ملف الفهارس فارغ):</p>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>المسار</th><th>من يحق له ماذا</th></tr>
+<tr><td><code dir="ltr">users/{uid}/{table}/{key}</code></td><td>المالك فقط وطالما حالة ملفه نشطة؛ المسؤولون لا يصلون إليها؛ لا يجوز أن يعيد التحديث قيمة <code dir="ltr">updatedAt</code> إلى الوراء؛ جداول محددة فقط وحجم السجل أقل من 300,000 حرف</td></tr>
+<tr><td><code dir="ltr">profiles/{uid}</code></td><td>المالك يقرأ وينشئ (حالة نشطة، تأكيد العمر، بريده نفسه) ويعدّل الاسم والدولة وlastActiveAt؛ المسؤولون يقرؤون الجميع ولا يغيّرون إلا <code dir="ltr">status</code> (نشط/موقوف)</td></tr>
+<tr><td><code dir="ltr">admins/{uid}</code></td><td>يقرؤه صاحبه فقط؛ لا كتابة من العميل (سكربت الإعداد أو وحدة التحكم فقط)</td></tr>
+<tr><td><code dir="ltr">foods/{id}</code></td><td>المستخدمون النشطون يقرؤون؛ المسؤولون يكتبون</td></tr>
+<tr><td><code dir="ltr">foodSubmissions/{id}</code></td><td>المستخدمون يقترحون (بحالة pending) ويقرؤون اقتراحاتهم؛ المسؤولون يراجعون</td></tr>
+<tr><td><code dir="ltr">errorReports/{id}</code></td><td>المستخدمون المسجلون ينشئون تقارير قصيرة؛ المسؤولون يقرؤون ويحذفون</td></tr>
+</table>
+<p dir="rtl">تُختبر القواعد بالأمر <code dir="ltr">npm run test:rules</code> (14/14 على المحاكيات) وتُطبَّق حيًّا (أداة التحقق الحي: بيانات المستخدمين الآخرين وإجراءات المسؤول تعيد 403).</p>
+
+<h2 dir="rtl">5. منح المالك صلاحية المسؤول</h2>
+<ol dir="rtl">
+<li dir="rtl">افتح <span dir="ltr">https://mego2012.github.io/Mego/</span> وسجّل ببريدك (تسجيل من 3 خطوات).</li>
+<li dir="rtl">على اللابتوب: <code dir="ltr">node scripts/laptop-setup.mjs --cloud &lt;that e-mail&gt;</code>.</li>
+<li dir="rtl">يطبع السكربت «administrator role for …» مع ✅. وإذا لم يوجد الحساب بعد يخبرك بذلك ولا يكتب شيئًا.</li>
+</ol>
+<p dir="rtl">الحالة في 10 نوفمبر 2026: <b>لم يُنفَّذ — بانتظار المالك</b>؛ لا يوجد مسؤول حتى الآن.</p>
+
+<h2 dir="rtl">6. إعادة التشغيل والاستئناف وحل المشكلات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الحالة</th><th>ما العمل</th></tr>
+<tr><td>«Failed to add Firebase»</td><td>اقبل شروط Firebase في صفحة وحدة التحكم التي يفتحها السكربت ثم اضغط Enter؛ يعيد السكربت استخدام مشروع Cloud نفسه</td></tr>
+<tr><td>تعذّر إنشاء قاعدة البيانات</td><td>يعرض السكربت رسالة Google، وينتظر أثناء تفعيل واجهة Firestore API. أعد التشغيل لاحقًا</td></tr>
+<tr><td>الإعداد لم يظهر على الموقع الحي بعد</td><td>يحتاج GitHub Pages نحو 1–3 دقائق؛ شغّل لاحقًا <code dir="ltr">node scripts/laptop-setup.mjs --verify</code></td></tr>
+<tr><td>فشل الدفع إلى GitHub</td><td>يعرض سطر النتيجة رسالة Git؛ أصلح الصلاحية وأعد تشغيل <code dir="ltr">--cloud</code></td></tr>
+<tr><td>تغيّرت القواعد فقط</td><td>إعادة تشغيل <code dir="ltr">--cloud</code> تعيد نشر القواعد (بأمر <code dir="ltr">firebase deploy</code> نفسه)</td></tr>
+</table>
+
+<h2 dir="rtl">7. قيم الإنتاج (غير السرية)</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>البند</th><th>القيمة</th></tr>
+<tr><td>الخطة</td><td>Spark (مجانية، دون فوترة)</td></tr>
+<tr><td>معرّف المشروع</td><td><code dir="ltr">mego-473920</code></td></tr>
+<tr><td>Firestore</td><td><code dir="ltr">(default)</code>، <code dir="ltr">me-central2</code> (الدمام)</td></tr>
+<tr><td>طريقة الدخول</td><td>Email/Password</td></tr>
+<tr><td>إعداد العميل</td><td>يُقدَّم على <code dir="ltr">/Mego/firebase-config.json</code></td></tr>
+<tr><td>عميل Firestore</td><td>يكتشف تلقائيًا الشبكات التي تحتاج الاستطلاع الطويل (Long polling) ‏(<code dir="ltr">src/lib/firebase.ts</code>)</td></tr>
+</table>
+
+<h2 dir="rtl">8. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>المشروع وموقع Firestore والقواعد وEmail/Password والإعداد العام</td><td>مُتحقَّق منها حيًّا (تشغيل المالك على اللابتوب في 7 نوفمبر 2026؛ أداة التحقق الحي 14/14)</td></tr>
+<tr><td>سلوك القواعد</td><td>مُختبر على المحاكيات (14/14) وحيًّا (فحوص 403)</td></tr>
+<tr><td>منح دور المسؤول</td><td>غير مُتحقَّق منه حيًّا — لا يوجد مسؤول بعد</td></tr>
+<tr><td>وصول رسالة إعادة تعيين كلمة المرور</td><td>غير مُتحقَّق منه (قُبل الطلب HTTP 200؛ لم يُفحص صندوق البريد)</td></tr>
+<tr><td>أرقام حصص خطة Spark</td><td>غير مُتحقَّق منها في هذا المستودع</td></tr>
+</table>
+
+<h2 dir="rtl">9. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body>
+</html>

@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Security_Architecture_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Security Architecture</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-43</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Project owner, developers, security reviewers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Authentication_and_Authorization_Architecture, MEGO_Access_Control_and_Permissions, MEGO_User_Data_Protection, MEGO_Authentication_and_Session_Management, MEGO_Data_Backup_and_Recovery, MEGO_Security_Audit_and_Known_Risks, MEGO_Technical_Architecture, MEGO_Gemini_AI_Integration</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document gives the complete security picture of MEGO: the components and trust boundaries, the security controls at each layer, where secrets live, how data moves between components, and which threats each control addresses. Detailed rules, data-protection measures and open risks are in the related documents listed above.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Components and trust boundaries</li>
+<li>Security layers and controls</li>
+<li>Secrets inventory</li>
+<li>Data flows</li>
+<li>Threats and mitigations</li>
+<li>Availability and free-tier limits</li>
+<li>Build and deployment security</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Components and trust boundaries</h2>
+<pre>
+ ┌──────────────────────── untrusted ────────────────────────┐
+ │  Browser / installed PWA (React, IndexedDB, localStorage) │
+ └─────────────┬──────────────────┬──────────────────┬───────┘
+          HTTPS│             HTTPS│             HTTPS│
+ ┌─────────────▼─────┐ ┌──────────▼─────────┐ ┌──────▼──────────────────┐
+ │ GitHub Pages      │ │ Firebase (Google)  │ │ Apps Script web app      │
+ │ static files only │ │ Auth + Firestore   │ │ (owner's Google account) │
+ │ no secrets        │ │ rules on server    │ │ token / ID-token checks  │
+ └───────────────────┘ └────────────────────┘ └──────┬──────────┬────────┘
+                                                     │          │
+                                     Google Sheets Hub│          │Gemini API (free tier)
+                                     + Drive backups  │          │key in Script Properties
+</pre>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Component</th><th>Trust level</th><th>Holds</th></tr>
+<tr><td>PWA in the browser</td><td>Untrusted (can be modified by its user)</td><td>The user's own data (IndexedDB), session, for owner devices the Hub token</td></tr>
+<tr><td>GitHub Pages (https://mego2012.github.io/Mego/)</td><td>Trusted to serve the built files</td><td>Public code, public food reference data, public Firebase config — no secrets</td></tr>
+<tr><td>Firebase Authentication + Cloud Firestore (project <code>mego-473920</code>, region <code>me-central2</code>)</td><td>Trusted enforcement point</td><td>Accounts, profiles, private records, shared foods</td></tr>
+<tr><td>Apps Script web app</td><td>Trusted enforcement point (runs as the owner)</td><td>APP_TOKEN, Gemini key, AI usage counters, access to the Hub and Drive</td></tr>
+<tr><td>Google Sheets Hub «MEGO Nutrition Hub»</td><td>Owner's private file</td><td>Owner's food database and (owner devices) synced diary</td></tr>
+</table>
+
+<h2>2. Security layers and controls</h2>
+<h3>2.1 Transport</h3>
+<ul>
+<li>All endpoints are HTTPS: GitHub Pages, Firebase, Apps Script (<code>script.google.com</code>), Gemini, Open Food Facts, Google Fonts. The connection-code parser accepts only <code>https://script.google.com/…</code> URLs (<code>parseConnectionCode</code> in <code>src/lib/sync.ts</code>).</li>
+</ul>
+<h3>2.2 Identity</h3>
+<ul>
+<li>Firebase Email/Password; passwords are processed only by Firebase and never stored by MEGO. App-side password rule: ≥ 8 characters with a letter and a digit.</li>
+<li>Password reset shows the same message whether or not an address exists.</li>
+<li>Deletion requires re-entering the password (re-authentication).</li>
+</ul>
+<h3>2.3 Authorization (server side)</h3>
+<ul>
+<li>Firestore rules: owner-only access to <code>users/{uid}/**</code> while the profile is active; record shape and size validated; older copies cannot overwrite newer ones; admins see account cards and counts only; nobody can create an admin from the app. Details: MEGO_Access_Control_and_Permissions.</li>
+<li>Apps Script: every Hub action requires APP_TOKEN; AI actions for public accounts require a Google-verified Firebase ID token and an active profile read with that same token.</li>
+</ul>
+<h3>2.4 Input validation</h3>
+<ul>
+<li>Firestore: only the fields <code>data</code> (string &lt; 300,000 characters), <code>updatedAt</code> (integer) and optional <code>deleted</code> (boolean); only 12 known table names.</li>
+<li>Apps Script <code>validChange_</code>: known tables, key ≤ 200 characters, payload ≤ 45,000 characters, ≤ 500 changes per request, diary dates <code>YYYY-MM-DD</code> with numeric kcal, weight 20–400 kg.</li>
+<li>AI: image must be base64 of JPEG/PNG/WebP within a size limit; user note cut to 300 characters; food list capped.</li>
+<li>Backup restore: file format and every record's key and nutrition values are checked before anything is written; restore merges (newer wins) and never deletes.</li>
+</ul>
+<h3>2.5 Client-side data isolation</h3>
+<ul>
+<li>Each account has its own IndexedDB database (<code>mego-u-&lt;uid&gt;</code>); guest data stays in <code>mego-nutrition</code>. Switching accounts reloads the app before anything renders.</li>
+<li>Local data is not encrypted by the app; it is protected only by the device and browser.</li>
+</ul>
+<h3>2.6 Privacy-by-design controls</h3>
+<ul>
+<li>Meal photos are re-encoded through a canvas before upload, which removes EXIF metadata (location, device, time); photos are not stored by MEGO.</li>
+<li>Progress photos stay on the device only (not synced, not in backup files).</li>
+<li>Error reports contain an error kind and message only (≤ 500 characters), no diary content.</li>
+<li>No analytics and no advertising code.</li>
+</ul>
+<h3>2.7 Abuse limits</h3>
+<ul>
+<li>AI scanner: per-user daily limit (Script Property <code>AI_USER_DAILY_LIMIT</code>, default 10) and global daily limit (<code>AI_DAILY_LIMIT</code>, default 40 in code; the setup script sets 200); failed analyses do not consume the allowance.</li>
+<li>Accounts in countries where the Gemini free-tier terms do not allow the service (EU/EEA, UK, Switzerland list in <code>AI_RESTRICTED</code>) are refused the scanner.</li>
+<li>Firebase Authentication applies its own throttling (<code>too-many-requests</code>).</li>
+</ul>
+
+<h2>3. Secrets inventory</h2>
+<p>Values are never written in documents, code or the repository. Names only:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Secret</th><th>Stored in</th><th>Exposed to the device?</th><th>Rotation</th></tr>
+<tr><td><code>APP_TOKEN</code> (Hub token, 256 bits)</td><td>Apps Script Script Properties; owner devices' settings record; laptop folder <code>~/.mego-backend/</code></td><td>Yes, only on the owner's devices</td><td><code>rotateToken()</code> in Apps Script, then reconnect devices</td></tr>
+<tr><td><code>GEMINI_API_KEY</code></td><td>Script Properties only</td><td>No</td><td>Create new key in Google AI Studio → <code>setAiKey</code> / <code>--ai-key-from-clipboard</code> → delete old key</td></tr>
+<tr><td>Bootstrap secret</td><td>Laptop only; its SHA-256 in the owner's private copy of the script</td><td>No</td><td>One-time; disabled after use</td></tr>
+<tr><td>User passwords</td><td>Firebase Authentication</td><td>Typed by the user only</td><td>"Forgot password?"</td></tr>
+<tr><td>Owner Google credentials</td><td>Google; used by the setup script</td><td>No</td><td>Google account settings</td></tr>
+</table>
+<p>Not secrets: the Firebase web config (apiKey, projectId, authDomain) and the stored <code>FIREBASE_API_KEY</code> / <code>FIREBASE_PROJECT_ID</code> Script Properties, which are public identifiers. Backups and exports strip the device's sync settings so the Hub token is never exported.</p>
+
+<h2>4. Data flows</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Flow</th><th>Data</th><th>Protection</th></tr>
+<tr><td>Device ↔ Firestore (signed-in)</td><td>Own records as <code>{data, updatedAt, deleted?}</code></td><td>HTTPS, ID token, rules</td></tr>
+<tr><td>Firestore → device</td><td>Shared verified foods (<code>/foods</code>)</td><td>Readable only by active users; written only by admins</td></tr>
+<tr><td>Device → Apps Script → Gemini</td><td>Resized photo without metadata, food names, optional note (≤ 300 chars)</td><td>HTTPS, ID token or APP_TOKEN, limits; nothing stored</td></tr>
+<tr><td>Owner device ↔ Apps Script ↔ Hub</td><td>Owner's diary/foods</td><td>HTTPS, APP_TOKEN, validation, timestamp conflict check, soft deletes</td></tr>
+<tr><td>Device → Open Food Facts</td><td>Barcode number or typed search words</td><td>HTTPS; no account data</td></tr>
+<tr><td>Device → Firestore <code>errorReports</code></td><td>Error kind and message</td><td>Create-only for signed-in users, readable only by admins</td></tr>
+</table>
+
+<h2>5. Threats and mitigations</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Threat</th><th>Mitigation</th><th>Residual risk</th></tr>
+<tr><td>User A reads/writes user B's data</td><td>Rules compare path uid with <code>request.auth.uid</code></td><td>Low — verified live (403)</td></tr>
+<tr><td>Privilege escalation to admin</td><td><code>admins/</code> is write-denied for everyone; profile status can be changed only by admins</td><td>Low — verified live</td></tr>
+<tr><td>Admin snooping on private data</td><td>No rule grants admins access to <code>users/**</code></td><td>Low; admins do see names, e-mails, country, activity dates</td></tr>
+<tr><td>Stale offline device overwrites newer data</td><td>Rule: <code>updatedAt</code> must not decrease; Hub: older upserts rejected as conflicts</td><td>Low</td></tr>
+<tr><td>Unauthorised Hub access via public web-app URL</td><td>256-bit APP_TOKEN required</td><td>Medium until the token shown in a chat is rotated</td></tr>
+<tr><td>Gemini key theft / quota abuse</td><td>Key server-side only; ID-token check; per-user and global limits</td><td>Medium until the key shown in a chat is rotated</td></tr>
+<tr><td>Loss of device data</td><td>Cloud sync, local and file backups (MEGO_Data_Backup_and_Recovery)</td><td>Guest data with no backup can be lost</td></tr>
+<tr><td>Physical access to an unlocked device</td><td>None in the app (no app lock, no local encryption)</td><td>Medium — see audit document</td></tr>
+<tr><td>Cross-site scripting</td><td>React escapes rendered text; no Content-Security-Policy is defined</td><td>Low/medium — see audit document</td></tr>
+</table>
+
+<h2>6. Availability and free-tier limits</h2>
+<p>All services run on free tiers without billing (Firebase Spark, Apps Script, Gemini free tier, GitHub Pages). When a quota is reached the service stops until the quota resets; it cannot generate charges. Limits recorded in <code>docs/ARCHITECTURE.md</code> (subject to change by Google): Firebase Authentication 3,000 daily active users, 150 password-reset e-mails/day, 100 sign-ups/hour per IP; Firestore 1 GiB stored, 50,000 reads, 20,000 writes and 20,000 deletes per day. Gemini free tier may return overload (503) or quota (429) errors; the backend switches between free models and the client retries temporary errors. Data on the device remains usable offline.</p>
+
+<h2>7. Build and deployment security</h2>
+<ul>
+<li>GitHub Actions workflow <code>.github/workflows/deploy.yml</code>: <code>npm ci</code> (lock-file install), <code>npm test</code> must pass before <code>npm run build</code>; workflow permissions are limited to <code>contents: read</code>, <code>pages: write</code>, <code>id-token: write</code>.</li>
+<li>Firestore rules are deployed from <code>firebase/firestore.rules</code> by <code>scripts/laptop-setup.mjs</code> (<code>firebase deploy --only firestore:rules,firestore:indexes</code>).</li>
+<li>Apps Script updates: <code>node scripts/laptop-setup.mjs --update-backend</code> uploads <code>Code.gs</code> to the same deployment.</li>
+<li>The repository ignores <code>tests/private/</code>; a secret scan on 7 Nov 2026 found no real key or token in the repository. Two old commits still expose a private CSV (see MEGO_Security_Audit_and_Known_Risks).</li>
+</ul>
+
+<h2>8. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Isolation, anonymous refusal, no self-promotion, deletion</td><td>Verified live (<code>scripts/live-verify.mjs</code>, 14/14)</td></tr>
+<tr><td>Rules suite</td><td>14 tests on emulators</td></tr>
+<tr><td>Hub token checks, older copy never overwrites newer, soft delete</td><td>Verified live (laptop-setup live tests)</td></tr>
+<tr><td>Gemini via live UI with a disposable account</td><td>Verified live 10 Nov 2026 (≈ 64 s, 4 items)</td></tr>
+<tr><td>Firebase project settings (password policy, e-mail enumeration protection, authorised domains)</td><td>Not verified</td></tr>
+<tr><td>Penetration test by a third party</td><td>Not performed</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

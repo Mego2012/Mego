@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Testing_Strategy_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — استراتيجية الاختبار</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-58</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>المطورون، المختبِرون، مالك المشروع</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Unit_Testing، MEGO_Integration_Testing، MEGO_Acceptance_Testing، MEGO_Nutrition_Calculation_Accuracy_Tests، MEGO_Multi_User_Testing، MEGO_Android_Device_Testing، MEGO_Known_Bugs_and_Limitations، MEGO_Release_Readiness_Checklist، MEGO_Production_Verification_Checklist</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تصف هذه الوثيقة طريقة اختبار MEGO: طبقات هرم الاختبار (Test Pyramid)، وكل مجموعة اختبارات آلية في المستودع، وما تعمل عليه كل مجموعة (الكود الحقيقي، أو المحاكيات الرسمية، أو بدائل مبرمجة، أو خدمات الإنتاج الحية)، وأيّ التشغيلات نُفّذت على الموقع الحي. تغطي المستودع <code dir="ltr">Mego2012/Mego</code> على الفرع <code dir="ltr">claude/nutrition-tracking-app-989rku</code> حتى 10 نوفمبر 2026. هذه الوثيقة هي النسخة العربية من <code dir="ltr">MEGO_Testing_Strategy_EN</code> مع تحديث أعداد الاختبارات إلى أحدث تشغيل.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">مبادئ الاختبار</li>
+<li dir="rtl">هرم الاختبار</li>
+<li dir="rtl">فهرس مجموعات الاختبار</li>
+<li dir="rtl">ما هو حقيقي وما هو محاكى</li>
+<li dir="rtl">التشغيل على الموقع الحي</li>
+<li dir="rtl">متى تُشغَّل كل مجموعة</li>
+<li dir="rtl">طريقة تشغيل المجموعات</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. مبادئ الاختبار</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>الكود الحقيقي أولًا.</b> تستورد الاختبارات وحدات التطبيق الحقيقية (<code dir="ltr">src/lib/*</code>)، وبالنسبة للخادم الخلفي تُشغِّل الملف الحقيقي <code dir="ltr">apps-script/Code.gs</code> داخل محاكاة في الذاكرة لبيئة Google Apps Script ‏(<code dir="ltr">e2e/gas-mock.mjs</code>).</li>
+<li dir="rtl"><b>قيم متوقعة دقيقة.</b> تتحقق اختبارات التغذية من أرقام محددة (مثل: 100 غ صدر دجاج نيء = 120 سعرة)، لا من نتائج «قريبة تقريبًا».</li>
+<li dir="rtl"><b>لا بيانات مختلَقة.</b> تتأكد الاختبارات أن القيم الناقصة لا تُملأ أبدًا (الأطعمة غير المكتملة لا يمكن تسجيلها، وبيانات الأحماض الأمينية الناقصة تبقى ناقصة، والمكوّن المفقود في الوصفة مثل اللبنة يظهر «مفقودًا»).</li>
+<li dir="rtl"><b>أمان الخادم يُختبَر على الخادم.</b> تُختبَر قواعد أمان Firestore ‏(Security Rules) بمحاكيات Firebase الرسمية من Google، وعلى الإنتاج بواسطة <code dir="ltr">scripts/live-verify.mjs</code> باستخدام رموز (Tokens) حسابات الاختبار نفسها فقط.</li>
+<li dir="rtl"><b>توصيف صادق.</b> كل نتيجة توصف بأنها: مُتحقَّق منها مباشرة، أو مختبَرة على المحاكيات فقط، أو غير مُتحقَّق منها.</li>
+<li dir="rtl"><b>البيانات الخاصة تبقى خاصة.</b> جدول الأطعمة الحقيقي للمالك (160 طعامًا، <code dir="ltr">tests/private/foods-160.csv</code>) مستثنى من Git؛ وفي غيابه تُستخدَم بيانات تجريبية بالأسماء نفسها وقيم مصطنعة، وتُتخطّى الاختبارات الأحد عشر المعتمدة على القيم الحقيقية.</li>
+</ul>
+
+<h2 dir="rtl">2. هرم الاختبار</h2>
+<pre dir="ltr">
+                 ┌──────────────────────────────┐
+                 │ Live verification (prod)  14 │  scripts/live-verify.mjs
+                 ├──────────────────────────────┤
+                 │ Manual device test   (todo)  │  docs/ANDROID-TEST.md
+              ┌──┴──────────────────────────────┴──┐
+              │ Browser acceptance (Playwright)    │
+              │  guest e2e 57 · touch/scroll 103   │
+              │  multi-user 8 · storage-loss (emu) │
+           ┌──┴────────────────────────────────────┴──┐
+           │ Integration                              │
+           │  Firestore rules + cloud 14 (emulators)  │
+           │  laptop-setup 10 · hub-complete 9        │
+           │  v1→v2 migration                         │
+           │  real Code.gs on gas-mock (in unit suite)│
+        ┌──┴──────────────────────────────────────────┴──┐
+        │ Unit (vitest)                 199 in 14 files  │
+        │  nutrition engine, cardio/energy, goals,       │
+        │  workouts, recipes, search, coach, scanner,    │
+        │  cloud recovery, photos, exercise guide, i18n  │
+        └────────────────────────────────────────────────┘
+</pre>
+<p dir="rtl">من الأسفل إلى الأعلى: اختبارات الوحدة (Unit) هي الأكثر عددًا والأسرع، ثم اختبارات التكامل (Integration) على المحاكيات، ثم اختبارات القبول في المتصفح، ثم التحقق المباشر على الإنتاج، أما الاختبار اليدوي على هاتف أندرويد حقيقي فما زال مطلوبًا.</p>
+
+<h2 dir="rtl">3. فهرس مجموعات الاختبار</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المجموعة</th><th>الموقع / الأمر</th><th>العدد</th><th>تعمل على</th><th>تغطي</th></tr>
+<tr><td>الوحدة (Unit)</td><td><code dir="ltr">tests/*.test.ts</code> · <code dir="ltr">npm test</code></td><td>199 (14 ملفًا)</td><td>Node مع fake-indexeddb؛ Code.gs الحقيقي على gas-mock؛ بديل مبرمج لـ Gemini</td><td>محرك التغذية والوحدات، الوصفات وربطها بقاعدة USDA، إكمال قاعدة الأطعمة من مكتبة الوصفات والأسماء العربية/الإنجليزية، الأهداف، التقارير، الكارديو وتعديل الطاقة، مستشار الأهداف، التمارين ومدرب التدريب، دليل التمارين (54 تمرينًا)، النسخ الاحتياطي، الاستيراد، قاعدة USDA، البحث، المدرب الغذائي، الترتيب، الصور، ماسح الوجبات، خادم Hub، استعادة الحساب السحابي، الترجمة</td></tr>
+<tr><td>قواعد Firestore + المزامنة السحابية</td><td><code dir="ltr">tests-rules/*.test.ts</code> · <code dir="ltr">npm run test:rules</code></td><td>14</td><td>محاكيات Firebase Auth وFirestore الرسمية مع الملف الحقيقي <code dir="ltr">firebase/firestore.rules</code></td><td>عزل كل مستخدم، حدود المشرف، الإيقاف، قاعدة «النسخة الأقدم لا تكتب فوق الأحدث»، الأطعمة المشتركة، التسجيل، تقارير الأخطاء، مزامنة حقيقية بحزمة SDK تشمل جهازًا ثانيًا</td></tr>
+<tr><td>قبول المتصفح (وضع الضيف)</td><td><code dir="ltr">e2e/run-e2e.mjs</code> · <code dir="ltr">npm run e2e</code></td><td>57</td><td>Chromium يحاكي Samsung Galaxy S9+ بلغة عربية؛ الخادم = Code.gs الحقيقي على gas-mock؛ Open Food Facts وGemini محاكيان</td><td>السيناريوهات الأصلية الخمسة عشر إضافة إلى فحوص الميزات (الكارديو، الأهداف، التمارين، دليل التمارين لـ 54 تمرينًا، فحص البيانات…)</td></tr>
+<tr><td>التمرير باللمس</td><td><code dir="ltr">e2e/scroll-test.mjs</code> · <code dir="ltr">npm run e2e:scroll</code></td><td>103</td><td>Chromium بأحداث لمس خام عبر CDP، ثلاثة مقاسات Samsung × عربي/إنجليزي</td><td>كل شاشة تُمرَّر حتى نهايتها؛ النوافذ المنبثقة لا تترك الصفحة مقفلة</td></tr>
+<tr><td>تعدد المستخدمين</td><td><code dir="ltr">e2e/multiuser-test.mjs</code> · <code dir="ltr">npm run e2e:multi</code></td><td>8</td><td>عدة سياقات متصفح Pixel 7 مقابل محاكيات Firebase؛ Code.gs الحقيقي وسيطًا للذكاء الاصطناعي</td><td>التسجيل، العزل، الجهاز الثاني المباشر، حد الذكاء الاصطناعي لكل مستخدم، إعادة تعيين كلمة المرور، اقتراح الأطعمة، المشرف، الحذف</td></tr>
+<tr><td>فقدان التخزين المحلي</td><td><code dir="ltr">e2e/storage-loss.mjs</code> (داخل <code dir="ltr">firebase emulators:exec</code>)</td><td>سيناريو واحد</td><td>متصفح Pixel 7 مقابل محاكيات Firebase</td><td>إعادة إنتاج حادثة 10 نوفمبر: حذف IndexedDB مع بقاء localStorage، ثم تسجيل الدخول واستعادة البيانات من السحابة</td></tr>
+<tr><td>إعداد الحاسوب المحمول</td><td><code dir="ltr">e2e/laptop-setup-test.mjs</code> · <code dir="ltr">npm run e2e:laptop</code></td><td>10</td><td>السكربت الحقيقي <code dir="ltr">scripts/laptop-setup.mjs</code> مقابل Code.gs الحقيقي عبر HTTP محلي (Google محاكاة)</td><td>تحويل Excel إلى Hub أصلي، الفحوص المباشرة، مسار تحليل الصور، ملف الحالة، رابط الاتصال</td></tr>
+<tr><td>إكمال أطعمة Hub</td><td><code dir="ltr">node e2e/hub-complete-test.mjs</code></td><td>9</td><td>الأمر <code dir="ltr">laptop-setup.mjs --hub-complete-foods</code> مقابل Code.gs الحقيقي (Google محاكاة)</td><td>إضافة مكونات الوصفات الناقصة والوجبات الجاهزة إلى Food_Database، ملء الأسماء الإنجليزية الفارغة فقط، عدم تغيير أي خلية موجودة، نسخة احتياطية يومية قبل الكتابة، التشغيل الثاني لا يضيف شيئًا</td></tr>
+<tr><td>الترقية (v1 → v2)</td><td><code dir="ltr">node e2e/migration-test.mjs &lt;dir&gt;</code></td><td>سيناريو واحد (تقرير JSON)</td><td>بنائين محليين على الأصل (Origin) نفسه</td><td>بقاء البيانات بعد الترقية وإنشاء لقطة قبل الترحيل</td></tr>
+<tr><td>التحقق المباشر</td><td><code dir="ltr">node scripts/live-verify.mjs</code></td><td>14 (آخر تشغيل مسجَّل)</td><td><b>الإنتاج</b>: الموقع الحي + مشروع Firebase الحقيقي</td><td>التسجيل، العزل (403)، تسجيل الطعام، مزامنة الجهاز الثاني، التقارير، فرض صلاحيات المشرف، طلب استعادة كلمة المرور، الخروج/الدخول، الحذف</td></tr>
+</table>
+<p dir="rtl">ملاحظة: أُضيفت إلى <code dir="ltr">scripts/live-verify.mjs</code> لاحقًا فحوص لتغذية الوصفات والكارديو والتمارين (أصبح يحتوي 17 فحصًا في الكود)؛ لا توجد نتيجة مسجَّلة في المستودع لتشغيل هذه النسخة كاملةً على الإنتاج — «غير مُتحقَّق منه».</p>
+
+<h2 dir="rtl">4. ما هو حقيقي وما هو محاكى</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المكوّن</th><th>في الاختبارات الآلية</th><th>مُتحقَّق منه مباشرة؟</th></tr>
+<tr><td>كود التطبيق (React وDexie ومحرك التغذية)</td><td>حقيقي</td><td>نعم (تشغيلات على الموقع الحي)</td></tr>
+<tr><td>قواعد أمان Firestore</td><td>القواعد الحقيقية على المحاكيات الرسمية</td><td>نعم — live-verify ‏14/14</td></tr>
+<tr><td>Firebase Auth</td><td>المحاكي الرسمي</td><td>نعم — التسجيل، الدخول، طلب إعادة التعيين، الحذف</td></tr>
+<tr><td>خادم Apps Script ‏(<code dir="ltr">Code.gs</code>)</td><td>الكود الحقيقي داخل <code dir="ltr">gas-mock.mjs</code> (محاكاة SpreadsheetApp وDriveApp وPropertiesService وLockService…)</td><td>نعم — الفحوص المباشرة في إعداد الحاسوب المحمول للمالك</td></tr>
+<tr><td>Google Sheets Hub</td><td>جدول بيانات محاكى (أصلي أو بصيغة .xlsx)</td><td>نعم — حُوِّل مباشرة، 160 طعامًا، 0 مشكلات رقمية</td></tr>
+<tr><td>واجهة Gemini البرمجية</td><td>بديل مبرمج يستخدم صيغ الطلب والاستجابة والأخطاء الخاصة بـ Gemini</td><td>نعم — في 10 نوفمبر حُلِّلت صورة وجبة حقيقية عبر واجهة التطبيق الحي (حساب مؤقت) خلال ≈ 64 ثانية وتعرّف على 4 عناصر؛ الطبقة المجانية تبقى بطيئة في أوقات الذروة</td></tr>
+<tr><td>Open Food Facts</td><td>شبكة محاكاة (Mocked)</td><td>غير مُتحقَّق منه باختبار آلي مباشر</td></tr>
+<tr><td>هاتف أندرويد فعلي</td><td>مقاسات محاكاة وأحداث لمس فقط</td><td><b>لا</b> — قائمة الفحص لم تُنفَّذ بعد (يستخدم المالك التطبيق يوميًا على هاتف أندرويد، لكن ذلك ليس اختبارًا موثقًا)</td></tr>
+</table>
+
+<h2 dir="rtl">5. التشغيل على الموقع الحي</h2>
+<ul dir="rtl">
+<li dir="rtl">يمكن توجيه مجموعة قبول المتصفح إلى أي نشر: <code dir="ltr">E2E_BASE=https://mego2012.github.io/Mego/ npm run e2e</code> ← آخر نتيجة مسجَّلة على الرابط الحي <b>44/44</b> (7 نوفمبر، قبل إضافة فحوص الإصدارين 1.2 و1.3). وفي 10 نوفمبر فُحصت صفحات التمارين الـ 54 على الموقع الحي: <b>54/54</b>.</li>
+<li dir="rtl">تقبل مجموعة اللمس رابطًا أساسيًا: <code dir="ltr">node e2e/scroll-test.mjs https://mego2012.github.io/Mego/</code> ← <b>103/103</b> على الرابط الحي.</li>
+<li dir="rtl"><code dir="ltr">scripts/live-verify.mjs</code> ← <b>14/14</b> على الإنتاج (حسابان مؤقتان على نطاق <code dir="ltr">example.com</code> يُحذفان في النهاية). يكتب تقريرًا بصيغة Markdown في <code dir="ltr">~/.mego-backend/</code>.</li>
+<li dir="rtl">تعمل مجموعات وضع الضيف دون إعدادات Firebase الإنتاجية (التطبيق الإنتاجي يعرض شاشة الترحيب بالحساب عند تهيئة Firebase).</li>
+</ul>
+
+<h2 dir="rtl">6. متى تُشغَّل كل مجموعة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>اللحظة</th><th>المجموعات</th></tr>
+<tr><td>كل دفع (Push) إلى <code dir="ltr">main</code> أو <code dir="ltr">claude/nutrition-tracking-app-989rku</code> ‏(GitHub Actions ‏<code dir="ltr">.github/workflows/deploy.yml</code>)</td><td><code dir="ltr">npm test</code> ثم <code dir="ltr">npm run build</code>؛ لا يتم النشر إلا إذا نجح الاثنان. في CI يغيب ملف الأطعمة الخاص، فتُتخطّى الاختبارات الأحد عشر المعتمدة على قيمه.</td></tr>
+<tr><td>قبل الإصدار (جهاز المطوّر)</td><td><code dir="ltr">npx tsc -b</code>، <code dir="ltr">npm test</code>، <code dir="ltr">npm run build</code>، <code dir="ltr">npm run e2e</code>، <code dir="ltr">npm run e2e:scroll</code>، <code dir="ltr">npm run test:rules</code>، <code dir="ltr">npm run e2e:multi</code>، <code dir="ltr">npm run e2e:laptop</code>، <code dir="ltr">node e2e/hub-complete-test.mjs</code>، وسيناريو <code dir="ltr">e2e/storage-loss.mjs</code> عند تغيير المزامنة السحابية</td></tr>
+<tr><td>بعد النشر</td><td>تشغيل مجموعتي e2e واللمس على الموقع الحي، و<code dir="ltr">node scripts/live-verify.mjs</code> (أو <code dir="ltr">laptop-setup.mjs --verify</code>)</td></tr>
+<tr><td>على هاتف حقيقي (يدويًا)</td><td>قائمة الفحص في <code dir="ltr">docs/ANDROID-TEST.md</code> — انظر MEGO_Android_Device_Testing</td></tr>
+</table>
+
+<h2 dir="rtl">7. طريقة تشغيل المجموعات</h2>
+<pre dir="ltr">
+npx tsc -b                      # TypeScript: 0 errors expected
+npm test                        # unit, 199 (14 files)
+npm run build
+npm run e2e                     # 57 browser checks (starts vite preview)
+npm run e2e:scroll              # 103 touch checks
+npm run test:rules              # 14, needs firebase-tools (emulators)
+npm run e2e:multi               # 8, needs firebase-tools (emulators)
+npm run e2e:laptop              # 10
+node e2e/hub-complete-test.mjs  # 9
+firebase emulators:exec --project demo-mego --only firestore,auth "node e2e/storage-loss.mjs"
+node e2e/migration-test.mjs &lt;dir&gt;   # dist-v1 + dist-v2 builds in &lt;dir&gt;
+node scripts/live-verify.mjs    # production
+</pre>
+<p dir="rtl">تستخدم مجموعات المتصفح Playwright وChromium المثبَّتين مسبقًا.</p>
+
+<h2 dir="rtl">8. حالة التحقق</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>مُتحقَّق منه مباشرة:</b> اللمس 103/103 وe2e ‏44/44 (7 نوفمبر) على https://mego2012.github.io/Mego/؛ صفحات التمارين 54/54 على الموقع الحي (10 نوفمبر)؛ التحقق المباشر 14/14 على مشروع Firebase ‏<code dir="ltr">mego-473920</code>؛ تحليل صورة وجبة حقيقية عبر Gemini (10 نوفمبر)؛ فحوص إعداد الحاسوب المحمول المباشرة لدى المالك.</li>
+<li dir="rtl"><b>مختبَر على المحاكيات فقط:</b> الوحدة 199/199 (نُفِّذت فعليًا عند كتابة هذه الوثيقة: 14 ملفًا ناجحًا)، القواعد + السحابة 14/14، تعدد المستخدمين 8/8، إعداد الحاسوب المحمول 10/10، إكمال أطعمة Hub ‏9/9، سيناريو فقدان التخزين، e2e ‏57/57 على البناء المحلي.</li>
+<li dir="rtl"><b>غير مُتحقَّق منه:</b> قائمة فحص الجهاز الفعلي، الكاميرا والباركود الحقيقيان، تثبيت التطبيق كـ PWA موثقًا على جهاز، وصول بريد إعادة تعيين كلمة المرور إلى صندوق بريد حقيقي، Open Food Facts مقابل الخدمة الحية في اختبار آلي، تشغيل النسخة ذات الـ 17 فحصًا من live-verify على الإنتاج.</li>
+</ul>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول (النسخة العربية، بأعداد الاختبارات المحدَّثة)</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

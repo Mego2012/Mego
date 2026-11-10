@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Google_Sheets_Integration_and_Sync_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — التكامل والمزامنة مع جداول Google</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-35</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>المطورون، فريق الصيانة، مالك المشروع</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Backend_Architecture، MEGO_API_Documentation، MEGO_Apps_Script_Setup_Guide، MEGO_Firebase_Integration، MEGO_Data_Backup_and_Recovery، MEGO_Error_Handling_and_Logging، MEGO_Configuration_and_Environment</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تشرح هذه الوثيقة كيف يزامن تطبيق MEGO جهاز الضيف/المالك مع <b>MEGO Nutrition Hub</b>، وهو جدول Google ‏(Google Sheet) يخدمه تطبيق ويب خاص مبني على Google Apps Script. وتغطي العميل <code dir="ltr">src/lib/sync.ts</code> (مع شاشة الإعدادات التي تشغّله) والخادم <code dir="ltr">apps-script/Code.gs</code>. الحسابات العامة المسجلة لا تستخدم هذا المسار، بل تتزامن عبر Firestore ‏(MEGO_Firebase_Integration). صيغ الطلبات والردود مفصّلة في MEGO_API_Documentation.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">نظرة عامة</li>
+<li dir="rtl">الـ Hub والتحقق من هويته</li>
+<li dir="rtl">ربط جهاز</li>
+<li dir="rtl">ربط البيانات: جداول التطبيق وتبويبات الـ Hub</li>
+<li dir="rtl">الرفع (الهاتف ← الـ Hub)</li>
+<li dir="rtl">الاستقبال (الـ Hub ← الهاتف)</li>
+<li dir="rtl">الأطعمة: الاستيراد والمقارنة والكتابة العكسية</li>
+<li dir="rtl">الجدولة والحالة وإعادة المحاولة</li>
+<li dir="rtl">النسخ الاحتياطية المرتبطة بالمزامنة</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. نظرة عامة</h2>
+<pre dir="ltr">
+ Phone (guest / owner device)                     Google (owner's account)
+ ┌──────────────────────────────┐   POST text/plain  ┌─────────────────────────────┐
+ │ repo.ts  → Dexie outbox       │ ── JSON {action,──▶│ Apps Script web app (Code.gs)│
+ │ sync.ts  pushNow / pullAll    │     token, …}      │  doPost → push_/pull_/…     │
+ │ Settings: connection code     │ ◀── {ok, …} ───────│  LockService (25 s)         │
+ └──────────────────────────────┘                    │  ▼                          │
+                                                     │ MEGO Nutrition Hub (Sheet)  │
+                                                     │  structured tabs + json col │
+                                                     └─────────────────────────────┘
+</pre>
+<p dir="rtl">المبادئ (من ترويسة Code.gs ومن sync.ts): مصدر حقيقة واحد هو الـ Hub فقط؛ كل كتابة تُفحص بطابعها الزمني فلا تطغى نسخة أقدم على أحدث أبدًا؛ الحذف «ناعم» (يُنسخ السجل أولًا إلى <code dir="ltr">Deleted_Records</code>)؛ ولا يُعدَّل ملف Excel الأصلي ولا تبويب الأطعمة الأصلي أبدًا.</p>
+
+<h2 dir="rtl">2. الـ Hub والتحقق من هويته</h2>
+<ul dir="rtl">
+<li dir="rtl">بدأ الـ Hub كملف Excel. تحوّله الدالة <code dir="ltr">installMego()</code> مرة واحدة إلى جدول Google أصلي في المجلد نفسه (بمعرّف ملف جديد)، ويبقى ملف Excel دون تغيير كنسخة احتياطية. وضع الخادم إما <code dir="ltr">native</code> (اتجاهان) أو <code dir="ltr">xlsx</code> (قراءة فقط؛ وتفشل الكتابة بالخطأ <code dir="ltr">HUB_IS_XLSX</code>).</li>
+<li dir="rtl">الثابت <code dir="ltr">HUB_ID</code> في العميل (sync.ts) والثابت <code dir="ltr">SOURCE_ID</code> في الخادم (Code.gs) يحملان معرّف الملف الأصلي نفسه. لا تُنسخ معرّفات الملفات هنا.</li>
+<li dir="rtl"><code dir="ltr">checkHub()</code> عند كل اتصال: يجب أن يساوي <code dir="ltr">sourceId</code> الذي يبلّغ عنه الخادم قيمة <code dir="ltr">HUB_ID</code>، وإلا يظهر الخطأ <code dir="ltr">WRONG_SPREADSHEET</code>. ويُثبَّت المعرّف الأصلي للجدول المحوَّل على الهاتف (<code dir="ltr">settings.sync.hubNativeId</code>) عند أول اتصال ناجح؛ وظهور معرّف مختلف لاحقًا يعطي <code dir="ltr">HUB_CHANGED</code>، ولا تقبله شاشة الإعدادات إلا بعد نافذة تأكيد.</li>
+<li dir="rtl">تُجري <code dir="ltr">assertHub()</code> هذا الفحص مرة في كل جلسة قبل أي تبادل للبيانات.</li>
+</ul>
+
+<h2 dir="rtl">3. ربط جهاز</h2>
+<h3 dir="rtl">3.1 رمز الاتصال</h3>
+<p dir="rtl">يطبع الإعداد رمزًا من سطر واحد بالصيغة <code dir="ltr">MEGO1|&lt;web app URL&gt;|&lt;token&gt;</code>. تقبله <code dir="ltr">parseConnectionCode()</code> فقط إذا بدأ الرابط بـ <code dir="ltr">https://script.google.com/</code> وكان الرمز السري من 32 إلى 128 حرفًا/رقمًا. ويمكن لإعداد الحاسوب أيضًا عرض رمز QR أو رابط يفتح <code dir="ltr">#/settings?connect=…</code>؛ فتتصل شاشة الإعدادات مرة واحدة وتحذف المعامل من شريط العنوان. الرمز يحتوي على سرّ ولا يجوز مشاركته أبدًا.</p>
+<h3 dir="rtl">3.2 خطوات الربط (الإعدادات ← المزامنة)</h3>
+<ol dir="rtl">
+<li dir="rtl">حفظ الرابط والرمز وخياري المزامنة التلقائية والكتابة العكسية في <code dir="ltr">settings.sync</code> (محلي للجهاز ولا يُرفع أبدًا).</li>
+<li dir="rtl"><code dir="ltr">testConnection()</code> ← الإجراء <code dir="ltr">ping</code>؛ فحص هوية الـ Hub وتثبيتها؛ ويعرض التطبيق اسم الجدول وتبويب الأطعمة وقابلية الكتابة وحالة الماسح الذكي.</li>
+<li dir="rtl">إذا كان الـ Hub للقراءة فقط تتوقف العملية هنا.</li>
+<li dir="rtl"><code dir="ltr">checkHubFoods()</code> تقارن أطعمة الـ Hub بالأطعمة المشتركة على الهاتف (قراءة فقط). عند وجود أي قيم مختلفة تتوقف العملية وتُعرض الفروق — لا يُستبدل شيء بصمت.</li>
+<li dir="rtl">وإلا: نسخة احتياطية محلية <code dir="ltr">pre-import</code>، ثم <code dir="ltr">pullFoodsFromSheet()</code> ثم <code dir="ltr">queueFullUpload()</code> ثم <code dir="ltr">pushNow()</code>.</li>
+</ol>
+
+<h2 dir="rtl">4. ربط البيانات: جداول التطبيق وتبويبات الـ Hub</h2>
+<p dir="rtl">لكل تبويب منظَّم أعمدة مقروءة يليها العمودان <code dir="ltr">updated_at</code> و<code dir="ltr">json</code> (السجل كاملًا، لضمان الذهاب والإياب دون فقد).</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>جدول التطبيق (Dexie)</th><th>تبويب الـ Hub</th><th>عمود المفتاح</th><th>المالك</th></tr>
+<tr><td>foods</td><td>Food_Database</td><td>food_id</td><td>الجدول (sheet)</td></tr>
+<tr><td>entries</td><td>Food_Log</td><td>record_id</td><td>التطبيق</td></tr>
+<tr><td>body</td><td>Body_Measurements</td><td>record_id</td><td>التطبيق</td></tr>
+<tr><td>days</td><td>Daily_Log</td><td>date</td><td>التطبيق</td></tr>
+<tr><td>recipes</td><td>Recipes</td><td>recipe_id</td><td>التطبيق</td></tr>
+<tr><td>templates</td><td>Saved_Meals</td><td>template_id</td><td>التطبيق</td></tr>
+<tr><td>plans</td><td>Meal_Plan_Templates</td><td>plan_id</td><td>التطبيق</td></tr>
+<tr><td>plannedDays</td><td>Meal_Plans</td><td>date</td><td>التطبيق</td></tr>
+<tr><td>fasts</td><td>Fasting_Log</td><td>record_id</td><td>التطبيق</td></tr>
+<tr><td>kv</td><td>App_KeyValue</td><td>key</td><td>التطبيق</td></tr>
+<tr><td>settings</td><td>Settings_App</td><td>key</td><td>الطرفان (الأحدث يفوز)</td></tr>
+<tr><td>foodChanges</td><td>Food_Change_Log</td><td>change_id</td><td>التطبيق</td></tr>
+</table>
+<p dir="rtl">تبويبات مشتقة يعيد الخادم بناءها بعد الرفع: <code dir="ltr">Weight_Log</code> و<code dir="ltr">Water_Log</code> و<code dir="ltr">Habits_Log</code> (بعد تغييرات body/days)، و<code dir="ltr">Recipe_Ingredients</code> (بعد الوصفات)، و<code dir="ltr">Shopping_List</code> (بعد مفاتيح kv من نوع <code dir="ltr">shopping:&lt;week&gt;</code>). وتبويبات أخرى: <code dir="ltr">Food_Aliases</code> و<code dir="ltr">Sync_Metadata</code> و<code dir="ltr">Deleted_Records</code> و<code dir="ltr">Backup_Log</code> و<code dir="ltr">Migration_Report</code> و<code dir="ltr">Hub_Dashboard</code> (معادلات ورسوم). البيانات الجديدة مثل الكارديو والتمارين والمراجعات الأسبوعية تُحفظ في جدول <code dir="ltr">kv</code> فتصل إلى <code dir="ltr">App_KeyValue</code> (عمود المفتاح + json).</p>
+
+<h2 dir="rtl">5. الرفع (الهاتف ← الـ Hub)</h2>
+<h3 dir="rtl">5.1 في العميل (pushNow)</h3>
+<ol dir="rtl">
+<li dir="rtl">التخطي بالحالة <code dir="ltr">disabled</code> إذا كان الرابط أو الرمز فارغًا؛ وبالحالة <code dir="ltr">offline</code> إذا كان المتصفح دون اتصال.</li>
+<li dir="rtl">فحص هوية الـ Hub ‏(<code dir="ltr">assertHub</code>).</li>
+<li dir="rtl">حلقة: قراءة حتى 300 عنصر من صندوق الصادر (بترتيب المعرّف) ودمجها إلى آخر تغيير لكل جدول+مفتاح.</li>
+<li dir="rtl">تُستبعد الأطعمة المشتركة (<code dir="ltr">source: 'sheet'</code>) من الدفعة لأن قيمها ملك للـ Hub. وإذا فُعّلت الكتابة العكسية (<code dir="ltr">writeFoodsToSheet</code>) تُرسل الأطعمة المشتركة المعدّلة منفصلة بالإجراء <code dir="ltr">saveFoods</code>.</li>
+<li dir="rtl">إرسال الإجراء <code dir="ltr">push</code> مع <code dir="ltr">changes</code> و<code dir="ltr">clientSchema</code> (إصدار مخطط Dexie ‏2). عند النجاح تُحذف الدفعة من الصادر ويُحفظ <code dir="ltr">dataVersion</code> في <code dir="ltr">sync.serverVersion</code>.</li>
+<li dir="rtl">إذا أعاد الرد قائمة <code dir="ltr">conflicts</code> (الـ Hub يملك نسخًا أحدث) يزداد عداد التعارضات وتعيد <code dir="ltr">pullAll()</code> تلك السجلات بدلًا من استبدالها.</li>
+<li dir="rtl">عند النجاح: يُضبط <code dir="ltr">sync.lastPushAt</code> ويُمسح <code dir="ltr">sync.lastError</code> وتصبح الحالة <code dir="ltr">idle</code>.</li>
+</ol>
+<h3 dir="rtl">5.2 في الخادم (push_)</h3>
+<ul dir="rtl">
+<li dir="rtl">يعمل داخل قفل السكربت (<code dir="ltr">waitLock(25000)</code>) وفي الوضع الأصلي فقط.</li>
+<li dir="rtl">الحدود: 500 تغيير كحد أقصى لكل طلب (<code dir="ltr">MAX_CHANGES</code>)؛ المفتاح حتى 200 حرف؛ وJSON الحمولة حتى 45,000 حرف. يُرفض الطلب كله إذا كان أي تغيير غير صالح (<code dir="ltr">"&lt;n&gt; invalid change(s) rejected"</code>).</li>
+<li dir="rtl">التحقق: الجدول معروف؛ العملية <code dir="ltr">upsert</code> أو <code dir="ltr">delete</code>؛ في <code dir="ltr">entries</code> يجب أن يكون التاريخ بصيغة <code dir="ltr">YYYY-MM-DD</code> و<code dir="ltr">macros.kcal</code> رقمًا؛ وفي <code dir="ltr">body</code> يجب أن يكون الوزن، إن وُجد، رقمًا بين 20 و400.</li>
+<li dir="rtl">قاعدة التعارض: إذا كان <code dir="ltr">updated_at</code> المخزّن أكبر من <code dir="ltr">updatedAt</code> (أو <code dir="ltr">at</code>) الوارد، يُتخطى التغيير ويُذكر في <code dir="ltr">conflicts</code>.</li>
+<li dir="rtl">الحذف: يُنسخ JSON الصف إلى <code dir="ltr">Deleted_Records</code> (الجدول، المفتاح، وقت الحذف، json، recovered = "no") ثم يُزال الصف.</li>
+<li dir="rtl">البيانات الوصفية: عند تطبيق أي تغيير يزداد <code dir="ltr">dataVersion</code> ويُكتب <code dir="ltr">lastWriteAt</code> و<code dir="ltr">appSchemaVersion</code>؛ ويُكتب <code dir="ltr">lastSyncAt</code> و<code dir="ltr">lastConflicts</code> في كل رفع.</li>
+</ul>
+
+<h2 dir="rtl">6. الاستقبال (الـ Hub ← الهاتف)</h2>
+<ul dir="rtl">
+<li dir="rtl"><code dir="ltr">pullAll()</code> (زر «استعادة من الشيت»، بعد نسخة احتياطية محلية <code dir="ltr">pre-pull</code>) تستدعي الإجراء <code dir="ltr">pull</code> الذي يعيد عمود json لكل تبويب منظَّم (وفي وضع xlsx نتيجة فارغة موسومة <code dir="ltr">readOnly</code>).</li>
+<li dir="rtl">تُتخطى الأطعمة هنا (تأتي عبر استيراد الأطعمة بمعرّفات ثابتة).</li>
+<li dir="rtl">قاعدة الدمج: يُكتب الصف محليًا فقط إذا لم يوجد سجل محلي أو كان <code dir="ltr">updatedAt</code>/<code dir="ltr">at</code> البعيد أحدث. وفي الإعدادات تفوز النسخة البعيدة إن كانت أحدث فقط، مع الاحتفاظ دائمًا بكتلة <code dir="ltr">sync</code> المحلية.</li>
+<li dir="rtl">لا يحذف الاستقبال أي شيء محلي. ويُحدَّث <code dir="ltr">sync.lastPullAt</code>. يدعم الخادم أيضًا المعامل <code dir="ltr">since</code> (استقبال تزايدي) لكن العميل لا يرسله.</li>
+</ul>
+
+<h2 dir="rtl">7. الأطعمة: الاستيراد والمقارنة والكتابة العكسية</h2>
+<ul dir="rtl">
+<li dir="rtl"><code dir="ltr">pullFoodsFromSheet()</code>: يعيد الإجراء <code dir="ltr">foods</code> صفوف <code dir="ltr">Food_Database</code> (منظَّمة) أو، إن لم يوجد، صفوف تبويب الأطعمة العربي الأصلي؛ وتُحلَّل بـ <code dir="ltr">parseStructuredFoods</code> أو <code dir="ltr">parseFoodRows</code> وتُدمج بـ <code dir="ltr">importParsedFoods(…, 'sheet')</code> (لا تحذف أي سجل محلي).</li>
+<li dir="rtl"><code dir="ltr">checkHubFoods()</code>: مقارنة للقراءة فقط بالاسم العربي + الحالة ← متطابقة، مختلفة (السعرات والبروتين والكربوهيدرات والدهون ووزن الحبة)، في الـ Hub فقط، على الهاتف فقط.</li>
+<li dir="rtl"><code dir="ltr">saveFoods</code> (في الخادم): حتى 200 طعام؛ لكل طعام اسم وقيم kcal/protein/carbs/fat رقمية من 0 إلى 1000؛ وتُؤخذ نسخة Drive كاملة من الـ Hub مرة يوميًا قبل أول كتابة عكسية؛ وتُكتب القيم في <code dir="ltr">Food_Database</code> فقط، لا في التبويب الأصلي.</li>
+<li dir="rtl"><code dir="ltr">fillFoodNames</code> (في الخادم، منذ <code dir="ltr">SCRIPT_VERSION</code> ‏8): يستقبل خريطة اسم عربي ← اسم إنجليزي ولا يكتب إلا خلايا <code dir="ltr">name_en</code> <b>الفارغة</b> في <code dir="ltr">Food_Database</code> (الأسماء غير الفارغة وبقية الخلايا لا تتغير)، بعد النسخة الاحتياطية اليومية في Drive. يستدعيه أمر الحاسوب لا التطبيق.</li>
+<li dir="rtl"><code dir="ltr">node scripts/laptop-setup.mjs --hub-complete-foods</code>: يحدّث الخادم، ثم <b>يضيف</b> إلى Food_Database في الـ Hub كل مكوّن ناقص من مكتبة الوصفات (بقيم USDA) وكل وجبة من المكتبة كطعام جاهز (بالمعرّف <code dir="ltr">LIB-&lt;recipe id&gt;</code>، وقيم محسوبة من قيم الـ Hub نفسه لكل 100 غ من المكونات النيئة، ووزن الحصة الواحدة كوزن الحبة) عبر <code dir="ltr">saveFoods</code> على دفعات من 100، ثم يملأ الأسماء الإنجليزية الفارغة عبر <code dir="ltr">fillFoodNames</code>. لا تتغير الصفوف والقيم الموجودة أبدًا؛ والمكونات التي ليس لها قيم موثقة تُسرد ولا تُقدَّر أبدًا، وتُتخطى الوجبات التي تحتوي على مثلها.</li>
+</ul>
+
+<h2 dir="rtl">8. الجدولة والحالة وإعادة المحاولة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المحفّز (startAutoSync)</th><th>التأخير</th></tr>
+<tr><td>بدء التطبيق</td><td>1 ث</td></tr>
+<tr><td>تغيير محلي (onLocalChange)</td><td>2.5 ث (مع تجميع)</td></tr>
+<tr><td>عودة الاتصال / ظهور التطبيق مجددًا</td><td>0.5 ث</td></tr>
+<tr><td>دوري</td><td>كل 60 ث</td></tr>
+</table>
+<p dir="rtl">لا يحدث الرفع إلا إذا كان <code dir="ltr">settings.sync.autoSync</code> مفعّلًا (مفعّل افتراضيًا)؛ وإلا يُحدَّث عدد التغييرات المعلقة فقط. تعرض شارة المزامنة في الرأس الحالات <code dir="ltr">disabled</code> و<code dir="ltr">offline</code> و<code dir="ltr">idle</code> و<code dir="ltr">syncing</code> و<code dir="ltr">error</code>، مع عدد التغييرات المعلقة، وبعد الخطأ «إعادة المحاولة خلال N ث». والضغط عليها يرفع فورًا (أو يفتح الإعدادات إذا كانت المزامنة معطلة).</p>
+<p dir="rtl"><b>التراجع بعد الإخفاق:</b> <code dir="ltr">backoffMs(n) = min(300000, 5000 × 2^(n−1))</code> ← ‏5 ث، 10 ث، 20 ث… حتى 5 دقائق كحد أقصى. الأخطاء المطابقة لـ <code dir="ltr">unauthorized</code> أو <code dir="ltr">WRONG_SPREADSHEET</code> أو <code dir="ltr">HUB_IS_XLSX</code> دائمة ولا يُعاد تجربتها تلقائيًا. ويُحفظ آخر خطأ في <code dir="ltr">sync.lastError</code>.</p>
+
+<h2 dir="rtl">9. النسخ الاحتياطية المرتبطة بالمزامنة</h2>
+<ul dir="rtl">
+<li dir="rtl">نسخ محلية قبل الخطوات الحساسة: <code dir="ltr">pre-import</code> (خطوات الربط) و<code dir="ltr">pre-pull</code> (الاستعادة من الشيت).</li>
+<li dir="rtl">في الخادم: تأخذ <code dir="ltr">migrateHub()</code> نسخة Drive أولًا («BACKUP MEGO Nutrition Hub — before migrateHub — …»)؛ ونسخة يومية قبل أول كتابة عكسية للأطعمة؛ والإجراء <code dir="ltr">backup</code> يحفظ لقطة JSON من التطبيق في مجلد Drive ‏«MEGO Nutrition Backups» ويسجلها في <code dir="ltr">Backup_Log</code>.</li>
+</ul>
+<p dir="rtl">الإجراءات الكاملة في MEGO_Data_Backup_and_Recovery.</p>
+
+<h2 dir="rtl">10. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>العبارات البرمجية</td><td>مُتحقَّق منها في <code dir="ltr">src/lib/sync.ts, src/pages/Settings.tsx, src/components/Layout.tsx, apps-script/Code.gs</code></td></tr>
+<tr><td>الخادم الحي (7 نوفمبر 2026)</td><td>مُتحقَّق منه مباشرة باختبارات إعداد الحاسوب: قبول الرمز الصحيح، ورفض الرمز الخاطئ، وهوية الـ Hub، والوضع الأصلي القابل للكتابة، و160 طعامًا في Food_Database دون قيم غير مقروءة، والكتابة من الهاتف إلى الـ Hub، والقراءة من الـ Hub إلى الهاتف، وعدم طغيان النسخة الأقدم على الأحدث، والحذف الناعم إلى Deleted_Records</td></tr>
+<tr><td>منطق الخادم (الرفع/الاستقبال، التعارضات، الحذف الناعم، الترحيل، installMego، bootstrap)</td><td>مختبر باختبارات وحدة على محاكي لـ Apps Script ‏(<code dir="ltr">tests/v2.test.ts</code>، <code dir="ltr">e2e/gas-mock.mjs</code>)</td></tr>
+<tr><td>إكمال أطعمة الـ Hub ‏(<code dir="ltr">--hub-complete-foods</code>، <code dir="ltr">fillFoodNames</code>)</td><td>مختبر على خادم وهمي يشغّل Code.gs الحقيقي (<code dir="ltr">e2e/hub-complete-test.mjs</code>، ‏9/9 حسب سجل الإيداع)؛ وتشغيله على الـ Hub الحي غير مُتحقَّق منه</td></tr>
+<tr><td>السلوك طويل الأمد مع أحجام بيانات كبيرة (حصص Apps Script)</td><td>غير مُتحقَّق منه</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

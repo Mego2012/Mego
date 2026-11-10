@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_API_Documentation_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — API Documentation (Apps Script Web App)</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-37</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Developers, maintainers, security reviewers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Backend_Architecture, MEGO_Google_Sheets_Integration_and_Sync, MEGO_Gemini_AI_Integration, MEGO_Firebase_Integration, MEGO_Error_Handling_and_Logging, MEGO_Apps_Script_Setup_Guide, MEGO_Security_Architecture</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This is the reference for the HTTP interface of the MEGO backend: the Google Apps Script web app in <code>apps-script/Code.gs</code> (<code>SCRIPT_VERSION = 8</code>). It lists every <code>doPost</code> action with its request and response fields exactly as implemented. The Firestore data interface used by signed-in accounts is not an HTTP API of MEGO; it is documented in MEGO_Firebase_Integration. <b>No real deployment URL, token, key or connection code appears in this document</b>; placeholders such as <code>&lt;WEB_APP_URL&gt;</code> and <code>&lt;APP_TOKEN&gt;</code> are used instead.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Transport and envelope</li>
+<li>Authentication and dispatch order</li>
+<li>Action summary</li>
+<li>Owner actions (app token)</li>
+<li>AI actions</li>
+<li>Public-account actions (Firebase ID token)</li>
+<li>Setup action (bootstrap)</li>
+<li>GET endpoint and editor-only functions</li>
+<li>Error reference</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Transport and envelope</h2>
+<ul>
+<li><b>Method:</b> <code>POST &lt;WEB_APP_URL&gt;</code> (deployment: execute as the owner, access "anyone"; see appsscript.json <code>executeAs: USER_DEPLOYING</code>, <code>access: ANYONE_ANONYMOUS</code>).</li>
+<li><b>Headers:</b> <code>Content-Type: text/plain;charset=utf-8</code> — a "simple" request, so the browser sends no CORS preflight. The client follows redirects (<code>redirect: 'follow'</code>).</li>
+<li><b>Body:</b> a JSON object with <code>action</code> plus action fields. Owner calls add <code>token</code>; public calls add <code>idToken</code>.</li>
+<li><b>Response:</b> JSON. Success: <code>{ "ok": true, … }</code>. Failure: <code>{ "ok": false, "error": "&lt;code or message&gt;", … }</code>. Any uncaught exception is returned as <code>{ ok: false, error: &lt;exception message&gt; }</code>.</li>
+<li>Client wrapper (<code>callScript</code> in src/lib/sync.ts): non-2xx HTTP → error <code>"HTTP &lt;status&gt;"</code>; <code>ok: false</code> → error with the <code>error</code> text and the full JSON attached as <code>data</code>.</li>
+</ul>
+<pre>
+POST &lt;WEB_APP_URL&gt;
+Content-Type: text/plain;charset=utf-8
+
+{"action":"ping","token":"&lt;APP_TOKEN&gt;"}
+</pre>
+
+<h2>2. Authentication and dispatch order</h2>
+<p><code>doPost</code> evaluates the request in this exact order:</p>
+<ol>
+<li><code>action == "bootstrap"</code> → <code>bootstrap_</code> (one-time secret, section 7).</li>
+<li><code>idToken</code> present and action is <code>analyzeMeal</code>, <code>aiStats</code> or <code>aiDiag</code> → public path (section 6).</li>
+<li>Otherwise the <code>token</code> must be a string equal to the <code>APP_TOKEN</code> Script Property; else <code>{ ok: false, error: "unauthorized" }</code>.</li>
+<li>Outside the script lock: <code>analyzeMeal</code>, <code>aiDiag</code>, <code>setAiKey</code>, <code>setCloudConfig</code>.</li>
+<li>Inside the script lock (<code>LockService.getScriptLock().waitLock(25000)</code>): <code>ping</code>, <code>foods</code>, <code>push</code>, <code>pull</code>, <code>saveFoods</code>, <code>fillFoodNames</code>, <code>backup</code>, <code>meta</code>; any other value → <code>{ ok: false, error: "unknown action" }</code>.</li>
+</ol>
+
+<h2>3. Action summary</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Action</th><th>Auth</th><th>Lock</th><th>Purpose</th><th>Client caller</th></tr>
+<tr><td>ping</td><td>app token</td><td>yes</td><td>Hub identity, mode, AI status</td><td>sync.ts testConnection / assertHub</td></tr>
+<tr><td>foods</td><td>app token</td><td>yes</td><td>Read the food table</td><td>pullFoodsFromSheet, checkHubFoods</td></tr>
+<tr><td>push</td><td>app token</td><td>yes</td><td>Apply record changes</td><td>pushNow</td></tr>
+<tr><td>pull</td><td>app token</td><td>yes</td><td>Read all records</td><td>pullAll</td></tr>
+<tr><td>saveFoods</td><td>app token</td><td>yes</td><td>Food write-back to Food_Database</td><td>pushNow (when write-back enabled)</td></tr>
+<tr><td>fillFoodNames</td><td>app token</td><td>yes</td><td>Fill empty English food names in Food_Database (since version 8)</td><td>scripts/laptop-setup.mjs (--hub-complete-foods)</td></tr>
+<tr><td>backup</td><td>app token</td><td>yes</td><td>Save an app snapshot to Drive</td><td>backup.ts backupToDrive</td></tr>
+<tr><td>meta</td><td>app token</td><td>yes</td><td>Read Sync_Metadata</td><td>— (no caller in src/)</td></tr>
+<tr><td>analyzeMeal</td><td>app token or idToken</td><td>no</td><td>AI meal photo analysis</td><td>mealScanner.ts requestAnalysis</td></tr>
+<tr><td>aiDiag</td><td>app token or idToken</td><td>no</td><td>Per-model text-only check</td><td>scripts/laptop-setup.mjs (--update-backend)</td></tr>
+<tr><td>setAiKey</td><td>app token</td><td>no</td><td>Store / remove the Gemini key</td><td>sync.ts setAiKey (Settings)</td></tr>
+<tr><td>setCloudConfig</td><td>app token</td><td>no</td><td>Store Firebase identifiers and AI limits</td><td>scripts/laptop-setup.mjs (--cloud)</td></tr>
+<tr><td>aiStats</td><td>idToken (admin)</td><td>no</td><td>7-day AI usage counts</td><td>Not verified (no caller found in src/)</td></tr>
+<tr><td>bootstrap</td><td>one-time secret</td><td>own lock</td><td>Automated installMego()</td><td>scripts/laptop-setup.mjs</td></tr>
+</table>
+
+<h2>4. Owner actions (app token)</h2>
+<h3>4.1 ping</h3>
+<p><b>Request:</b> <code>{ action: "ping", token }</code></p>
+<p><b>Response:</b> <code>ok</code>, <code>spreadsheet</code> (Hub file name), <code>spreadsheetId</code> (current Hub ID), <code>sourceId</code> (original Excel ID), <code>verified</code> (stored verification result or null), <code>mode</code> ("native" | "xlsx"), <code>writable</code> (mode is native), <code>scriptVersion</code>, <code>aiScanner</code> (a Gemini key is stored), <code>aiModel</code>, <code>foodSheet</code> ("Food_Database" or the original food tab name), <code>meta</code> (Sync_Metadata in native mode, else {}).</p>
+<h3>4.2 foods</h3>
+<p><b>Request:</b> <code>{ action: "foods", token }</code></p>
+<p><b>Response (native, Food_Database has rows):</b> <code>{ ok, sheet: "Food_Database", structured: true, rows }</code> — rows include the header row, cut to the 20 readable columns.<br>
+<b>Native without Food_Database:</b> <code>{ ok, sheet: &lt;original tab&gt;, structured: false, rows }</code>.<br>
+<b>xlsx mode:</b> <code>{ ok, sheet, structured: false, readOnly: true, rows }</code> (read via a temporary converted copy that is trashed afterwards).<br>
+<b>Error:</b> <code>"food sheet not found"</code>.</p>
+<h3>4.3 push</h3>
+<p><b>Request:</b> <code>{ action: "push", token, changes: Change[], clientSchema }</code></p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Change field</th><th>Rule</th></tr>
+<tr><td><code>table</code></td><td>one of foods, entries, body, days, recipes, templates, plans, plannedDays, fasts, kv, settings, foodChanges</td></tr>
+<tr><td><code>key</code></td><td>non-empty string, at most 200 characters</td></tr>
+<tr><td><code>op</code></td><td>"upsert" or "delete"</td></tr>
+<tr><td><code>payload</code></td><td>upsert only: a non-array object, JSON ≤ 45,000 characters; entries need <code>date</code> = YYYY-MM-DD and numeric <code>macros.kcal</code>; body <code>weight</code>, if set, a number 20–400</td></tr>
+<tr><td><code>at</code></td><td>timestamp (ms); used when the payload has no <code>updatedAt</code>/<code>at</code></td></tr>
+</table>
+<p><b>Response:</b> <code>{ ok: true, applied, conflicts: [{ table, key }], dataVersion }</code>.<br>
+<b>Errors:</b> <code>"invalid changes"</code> (not an array), <code>"too many changes in one request"</code> (&gt; 500), <code>"&lt;n&gt; invalid change(s) rejected"</code>, <code>"HUB_IS_XLSX: …"</code> (Hub not converted).</p>
+<h3>4.4 pull</h3>
+<p><b>Request:</b> <code>{ action: "pull", token, since? }</code> — <code>since</code> (ms) returns only rows with <code>updated_at</code> greater than it (the app does not send it).</p>
+<p><b>Response:</b> <code>{ ok: true, tables: { &lt;table&gt;: [record, …] }, meta }</code>, records parsed from the json column. In xlsx mode: <code>{ ok: true, tables: {}, meta: {}, readOnly: true }</code>.</p>
+<h3>4.5 saveFoods</h3>
+<p><b>Request:</b> <code>{ action: "saveFoods", token, foods: [ … ] }</code>, at most 200. Each item as produced by <code>foodToSheetRow()</code>: <code>foodId, updatedAt, sheetKey, sheetRow, name, category, kcal, protein, carbs, fat, piece, state, prep, notes, archived</code> (optional <code>record</code> is used as the payload if present). <code>name</code> must be a non-empty string; kcal/protein/carbs/fat numbers 0–1000.</p>
+<p><b>Response:</b> <code>{ ok: true, updated, conflicts }</code>. <b>Errors:</b> <code>"invalid foods"</code>, <code>"food without name"</code>, <code>"invalid value for &lt;name&gt;"</code>. Side effect: one Drive backup of the Hub per day before the first write-back.</p>
+<h3>4.5a fillFoodNames (since SCRIPT_VERSION 8)</h3>
+<p><b>Request:</b> <code>{ action: "fillFoodNames", token, names }</code>, where <code>names</code> is an object mapping Arabic name → English name (<code>{ "&lt;ar&gt;": "&lt;en&gt;" }</code>).</p>
+<p>Only rows of <code>Food_Database</code> whose <code>name_ar</code> is non-empty, whose <code>name_en</code> is <b>empty</b>, and whose Arabic name has a non-empty English string of at most 120 characters in the map are changed; only the <code>name_en</code> cell is written. Every other cell and every non-empty name stays exactly as it is. If at least one cell will be written, the daily Drive backup of the Hub (shared with saveFoods, once per day) is made first.</p>
+<p><b>Response:</b> <code>{ ok: true, filled }</code> (number of cells written). <b>Errors:</b> <code>"invalid names"</code> (not an object, or an array), <code>"Food_Database needs the native Google Sheet"</code> (xlsx mode), <code>"Food_Database not found"</code>, <code>"name columns not found"</code>.</p>
+<h3>4.6 backup</h3>
+<p><b>Request:</b> <code>{ action: "backup", token, snapshot }</code>, where <code>snapshot.format</code> must be <code>"mego-nutrition-backup"</code>.</p>
+<p><b>Response:</b> <code>{ ok: true, file, url }</code> — file name <code>mego-backup-YYYY-MM-DD_HHmmss.json</code> in the Drive folder "MEGO Nutrition Backups", <code>url</code> = that Drive file's link. <b>Error:</b> <code>"invalid backup"</code>.</p>
+<h3>4.7 meta</h3>
+<p><b>Request:</b> <code>{ action: "meta", token }</code>. <b>Response:</b> <code>{ ok: true, meta }</code> — key/value pairs of Sync_Metadata (e.g. schemaVersion, hubName, migratedAt, dataVersion, lastWriteAt, appSchemaVersion, lastSyncAt, lastConflicts).</p>
+<h3>4.8 setAiKey</h3>
+<p><b>Request:</b> <code>{ action: "setAiKey", token, key }</code> or <code>{ action: "setAiKey", token, remove: true }</code>.</p>
+<p>The key must match <code>^[A-Za-z0-9_.\-]{20,200}$</code> (classic and newer Google key formats); it is then checked with a Google model-metadata request before being stored as <code>GEMINI_API_KEY</code>.</p>
+<p><b>Response:</b> <code>{ ok: true, aiScanner: true, aiModel }</code>; remove → <code>{ ok: true, aiScanner: false }</code>. <b>Errors:</b> <code>AI_KEY_INVALID</code>, <code>AI_NETWORK</code>, or a mapped Google error (section 9).</p>
+<h3>4.9 setCloudConfig</h3>
+<p><b>Request:</b> <code>{ action: "setCloudConfig", token, apiKey, projectId, userLimit?, globalLimit? }</code>. apiKey must match <code>^[A-Za-z0-9_\-]{20,100}$</code>, projectId <code>^[a-z0-9\-]{4,40}$</code>. Stores <code>FIREBASE_API_KEY</code>, <code>FIREBASE_PROJECT_ID</code>; <code>userLimit</code> clamped to 1–50 → <code>AI_USER_DAILY_LIMIT</code>; <code>globalLimit</code> clamped to 1–1500 → <code>AI_DAILY_LIMIT</code>.</p>
+<p><b>Response:</b> <code>{ ok: true }</code>. <b>Error:</b> <code>"invalid config"</code>.</p>
+
+<h2>5. AI actions</h2>
+<h3>5.1 analyzeMeal</h3>
+<p><b>Request:</b> <code>{ action: "analyzeMeal", token | idToken, image, mediaType, foods, lang, note }</code></p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Rule</th></tr>
+<tr><td><code>image</code></td><td>base64 (characters A–Z a–z 0–9 + / =), at most 2,800,000 characters</td></tr>
+<tr><td><code>mediaType</code></td><td>image/png or image/webp; anything else is treated as image/jpeg (the app sends JPEG)</td></tr>
+<tr><td><code>foods</code></td><td>array, first 800 used; each <code>{ k, ar, en, s, c }</code> = key, Arabic name, English name, state, category (each cut to 120 chars)</td></tr>
+<tr><td><code>lang</code></td><td>"en" → English, otherwise Arabic</td></tr>
+<tr><td><code>note</code></td><td>optional, single line, max 300 characters</td></tr>
+</table>
+<p><b>Response:</b> <code>{ ok: true, model, result, tried }</code>. <code>result</code> follows the JSON schema <code>AI_SCHEMA</code>: <code>is_food</code>, <code>meal_name_ar</code>, <code>meal_name_en</code>, <code>notes</code>, <code>items[]</code> with <code>name_ar, name_en, food_key, grams, grams_low, grams_high, state</code> (raw/cooked/other), <code>cooking_method</code>, <code>kind</code> (food/oil_or_fat/sauce_or_dressing/drink), <code>confidence</code> (0–1), <code>reason</code>, <code>est_per100 { kcal, protein, carbs, fat }</code>. <code>tried</code> lists failed model attempts (e.g. "model:503").</p>
+<p><b>Errors:</b> <code>AI_NOT_CONFIGURED</code>, <code>AI_BAD_IMAGE</code>, <code>AI_DAILY_LIMIT</code> (global cap <code>AI_DAILY_LIMIT</code>, default 40), <code>AI_REFUSED</code>, <code>AI_BAD_OUTPUT</code>, <code>AI_TRUNCATED</code>, and mapped Google errors (section 9) with <code>google: { http, status, message }</code> and <code>tried</code>. The global daily counter increases only on success. Model chain and retries: MEGO_Gemini_AI_Integration.</p>
+<h3>5.2 aiDiag</h3>
+<p><b>Request:</b> <code>{ action: "aiDiag", token | idToken }</code>. Sends "Reply with the single word OK." to every free model (no image).</p>
+<p><b>Response:</b> <code>{ ok: true, scriptVersion, configuredModel, models: [{ model, http, error, google, ms }] }</code>. <b>Error:</b> <code>AI_NOT_CONFIGURED</code>.</p>
+
+<h2>6. Public-account actions (Firebase ID token)</h2>
+<p>Used by signed-in accounts (URL from <code>aiBackendUrl</code> in firebase-config.json). Common steps: the ID token is verified with Google Identity Toolkit (<code>accounts:lookup</code>) using the stored <code>FIREBASE_API_KEY</code>; Firestore documents are read <b>with the user's own token</b>, so the security rules apply.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Action</th><th>Extra checks</th><th>Response</th></tr>
+<tr><td>analyzeMeal</td><td>profile must exist with status "active" (else <code>unauthorized</code>); country in the restricted list → <code>AI_REGION_RESTRICTED</code>; per-user daily counter <code>AI_U_&lt;date&gt;_&lt;uid&gt;</code> under a lock, limit <code>AI_USER_DAILY_LIMIT</code> (default 10) → <code>{ ok: false, error: "AI_USER_LIMIT", limit }</code>; a failed analysis is refunded</td><td>as in 5.1</td></tr>
+<tr><td>aiStats</td><td><code>admins/{uid}</code> must be readable with the user's token (else <code>unauthorized</code>)</td><td><code>{ ok, model, configured, globalLimit, userLimit, days: [{ date, scans, users }] }</code> for the last 7 days — counts only</td></tr>
+<tr><td>aiDiag</td><td>own profile must be readable</td><td>as in 5.2</td></tr>
+</table>
+<p>Errors specific to this path: <code>CLOUD_NOT_CONFIGURED</code> (no FIREBASE_API_KEY stored), <code>unauthorized</code> (invalid/disabled token, missing or inactive profile).</p>
+
+<h2>7. Setup action (bootstrap)</h2>
+<p><b>Request:</b> <code>{ action: "bootstrap", secret }</code>. Enabled only when the private copy of the script contains a non-empty <code>BOOTSTRAP_HASH</code> (empty in the public repository) and <code>BOOTSTRAP_DONE</code> is not set. The SHA-256 of <code>secret</code> must equal the hash. Runs <code>installMego()</code> once, then sets <code>BOOTSTRAP_DONE</code>.</p>
+<p><b>Response:</b> <code>{ ok: true, token, nativeId, sourceId, verified, log }</code> — <code>token</code> is the secret app token and must be handled as a secret. <b>Errors:</b> <code>unauthorized</code>, or the installMego exception message (e.g. <code>VERIFY_FAILED: …</code>).</p>
+
+<h2>8. GET endpoint and editor-only functions</h2>
+<p><code>GET &lt;WEB_APP_URL&gt;</code> → <code>{ ok: true, app: "mego-nutrition", version: 8 }</code> (no authentication, no data).</p>
+<p>Functions run from the Apps Script editor or by triggers (not reachable over HTTP): <code>setup()</code>, <code>rotateToken()</code>, <code>installMego()</code>, <code>migrateHub()</code>, <code>convertHubToGoogleSheets()</code>, <code>authorize()</code>, <code>cleanupAiCounters()</code> (deletes AI counters older than 8 days; optional time trigger).</p>
+
+<h2>9. Error reference</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>error</th><th>Meaning</th></tr>
+<tr><td>unauthorized</td><td>wrong/missing token, invalid ID token, inactive profile, bootstrap refused</td></tr>
+<tr><td>unknown action</td><td>action not implemented (the app shows AI_OLD_BACKEND for the scanner)</td></tr>
+<tr><td>HUB_IS_XLSX: …</td><td>write attempted while the Hub is still Excel</td></tr>
+<tr><td>AI_OVERLOADED / AI_SERVER_ERROR / AI_TIMEOUT / AI_NETWORK</td><td>Google 503 / other 5xx / 504 / network failure — temporary</td></tr>
+<tr><td>AI_QUOTA_MINUTE (+ <code>retryAfter</code> s, default 60) / AI_QUOTA_DAY</td><td>Google 429 per-minute / per-day</td></tr>
+<tr><td>AI_KEY_INVALID</td><td>401/403 or key rejected</td></tr>
+<tr><td>AI_REGION</td><td>Gemini not available in the location</td></tr>
+<tr><td>AI_MODEL_UNAVAILABLE</td><td>404</td></tr>
+<tr><td>AI_BAD_IMAGE / AI_CONFIG</td><td>400 about the image / other 400</td></tr>
+<tr><td>AI_HTTP_&lt;code&gt;</td><td>any other HTTP status</td></tr>
+<tr><td>AI_NOT_CONFIGURED, AI_DAILY_LIMIT, AI_USER_LIMIT, AI_REGION_RESTRICTED, AI_REFUSED, AI_BAD_OUTPUT, AI_TRUNCATED, CLOUD_NOT_CONFIGURED</td><td>see sections 5–6</td></tr>
+</table>
+<p>The <code>google</code> object never contains the key. How the app presents these codes: MEGO_Error_Handling_and_Logging.</p>
+
+<h2>10. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Action list, fields, limits and error strings</td><td>Verified by reading <code>apps-script/Code.gs</code> (doPost and handlers), <code>apps-script/appsscript.json</code>, <code>src/lib/sync.ts</code>, <code>src/lib/mealScanner.ts</code></td></tr>
+<tr><td>ping, push, pull, foods, token refusal on the live backend</td><td>Verified live (laptop-setup tests, 7 Nov 2026)</td></tr>
+<tr><td>analyzeMeal on the live backend</td><td>Verified live (10 Nov 2026: one real photo, ≈ 64 s, 4 items)</td></tr>
+<tr><td>Server handlers</td><td>Unit-tested with an Apps Script mock (<code>tests/v2.test.ts</code>, <code>tests/scanner.test.ts</code>)</td></tr>
+<tr><td>aiStats, meta and backup on the live backend</td><td>Not verified</td></tr>
+<tr><td>fillFoodNames (version 8)</td><td>Tested against the Apps Script mock (<code>tests/v2.test.ts</code>, <code>e2e/hub-complete-test.mjs</code>); a run against the live Hub is not verified</td></tr>
+<tr><td>Current live values of AI_DAILY_LIMIT / AI_USER_DAILY_LIMIT</td><td>Not verified (the laptop setup sends userLimit 10 and globalLimit 200; code defaults are 10 and 40)</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Firebase_Integration_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Firebase Integration</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-34</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Developers, maintainers, security reviewers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Technical_Architecture, MEGO_Backend_Architecture, MEGO_Firebase_Setup_Guide, MEGO_Authentication_and_Authorization_Architecture, MEGO_Authentication_and_Session_Management, MEGO_Access_Control_and_Permissions, MEGO_State_Management, MEGO_Error_Handling_and_Logging, MEGO_Data_Backup_and_Recovery</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes how MEGO uses Firebase (Firebase Authentication and Cloud Firestore on the free Spark plan) for public, multi-user accounts. It covers the client modules <code>src/lib/firebase.ts</code>, <code>src/lib/account.ts</code> and <code>src/lib/cloudSync.ts</code>, the server-side security rules in <code>firebase/firestore.rules</code>, and the recovery fix for the 10 Nov 2026 storage-loss incident (the <code>mego.cloud2.</code> markers). Setup steps are in MEGO_Firebase_Setup_Guide; the Google Sheets Hub sync used by guest/owner devices is described in MEGO_Google_Sheets_Integration_and_Sync.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Overview and operating modes</li>
+<li>Configuration loading and initialisation (firebase.ts)</li>
+<li>Account functions (firebase.ts)</li>
+<li>Session and per-account local database (account.ts)</li>
+<li>Cloud sync (cloudSync.ts)</li>
+<li>Recovery fix: cloud2 markers and storage loss</li>
+<li>Firestore data model</li>
+<li>Security rules (firestore.rules)</li>
+<li>Admin functions and shared foods</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Overview and operating modes</h2>
+<p>Firebase is optional at runtime. At boot, <code>bootAccount()</code> fetches <code>firebase-config.json</code> from the app's base path. If the file is absent or lacks <code>apiKey</code>/<code>projectId</code>, the app runs in <b>guest mode</b> (this device only) exactly as before accounts existed. If it is present, the app has three modes (<code>AccountState.mode</code>):</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Mode</th><th>When</th><th>Local database</th><th>Sync</th></tr>
+<tr><td><code>welcome</code></td><td>cloud configured, no active account, guest not chosen</td><td>none rendered (welcome / sign-in screens)</td><td>—</td></tr>
+<tr><td><code>guest</code></td><td>no cloud config, or user chose "continue as guest" (<code>mego.guest</code>)</td><td><code>mego-nutrition</code></td><td>optional Google Sheets Hub (<code>startAutoSync</code>)</td></tr>
+<tr><td><code>account</code></td><td><code>mego.activeUid</code> is set in localStorage</td><td><code>mego-u-&lt;uid&gt;</code></td><td>Firestore (<code>startCloudSync</code>)</td></tr>
+</table>
+<p>Production facts (from the project brief, verified 7 Nov 2026): Firebase project id <code>mego-473920</code>, Firestore <code>(default)</code> database in <code>me-central2</code>, Email/Password sign-in enabled, rules from <code>firebase/firestore.rules</code> deployed, public configuration served at <code>/firebase-config.json</code>. The SDK is the <code>firebase</code> npm package, version 13.1.0 (package.json).</p>
+<pre>
+ Browser (PWA)                                   Google (Firebase, Spark plan)
+ ┌───────────────────────────┐                   ┌────────────────────────────┐
+ │ account.ts  bootAccount() │──fetch config────▶│ GitHub Pages: firebase-    │
+ │                           │                   │ config.json (public ids)   │
+ │ firebase.ts  Auth + FS    │──sign-in─────────▶│ Firebase Authentication    │
+ │ cloudSync.ts push/listen  │──setDoc/onSnapshot▶ Cloud Firestore + rules    │
+ │ Dexie: mego-u-&lt;uid&gt;       │                   │ users/{uid}/{table}/{key}  │
+ └───────────────────────────┘                   └────────────────────────────┘
+</pre>
+
+<h2>2. Configuration loading and initialisation (firebase.ts)</h2>
+<h3>2.1 CloudConfig</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Required</th><th>Meaning</th></tr>
+<tr><td><code>apiKey</code></td><td>yes</td><td>Firebase web API key (a public identifier, not a secret; access is enforced by the rules). Its value is never reproduced in documentation.</td></tr>
+<tr><td><code>authDomain</code></td><td>yes (used)</td><td>Auth domain of the project</td></tr>
+<tr><td><code>projectId</code></td><td>yes</td><td>Firebase project id</td></tr>
+<tr><td><code>appId</code></td><td>optional</td><td>Firebase web app id</td></tr>
+<tr><td><code>aiBackendUrl</code></td><td>optional</td><td>Apps Script web app that proxies the Gemini free tier for signed-in users</td></tr>
+<tr><td><code>emulator</code></td><td>optional</td><td><code>{ authUrl, firestoreHost, firestorePort }</code> — tests and local development only</td></tr>
+</table>
+<p><code>loadCloudConfig()</code> reads <code>BASE_URL + 'firebase-config.json'</code> with <code>cache: 'no-cache'</code>, once per session; any error returns <code>null</code> (guest mode).</p>
+<h3>2.2 initCloud()</h3>
+<ul>
+<li>Initialises the Firebase app with apiKey, authDomain, projectId and appId.</li>
+<li>Production Firestore is created with <code>initializeFirestore(..., { experimentalAutoDetectLongPolling: true, experimentalLongPollingOptions: { timeoutSeconds: 10 } })</code>, because some networks buffer Firestore's streaming channel; auto-detection switches those clients to long polling.</li>
+<li>With an <code>emulator</code> block, the app connects to the Auth and Firestore emulators (ports in <code>firebase.json</code>: auth 9099, firestore 8080).</li>
+<li><code>cloud()</code> throws <code>CLOUD_NOT_CONFIGURED</code> when called before initialisation.</li>
+</ul>
+
+<h2>3. Account functions (firebase.ts)</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Function</th><th>Behaviour</th></tr>
+<tr><td><code>register(email, password, displayName, country, ageConfirmed)</code></td><td>Throws <code>AGE_REQUIRED</code> if age not confirmed. Creates the Auth user, sets the display name (trimmed, max 40 chars), writes <code>profiles/{uid}</code> with <code>status: 'active'</code>, <code>country</code> (2 letters, upper case), <code>ageConfirmed: true</code>, <code>createdAt</code>, <code>lastActiveAt</code>. Sends a verification e-mail (failure ignored).</td></tr>
+<tr><td><code>login</code> / <code>logout</code></td><td>Email/password sign-in; sign-out.</td></tr>
+<tr><td><code>resetPassword(email)</code></td><td>Firebase password-reset e-mail.</td></tr>
+<tr><td><code>getProfile</code>, <code>touchProfile</code>, <code>updateMyProfile</code></td><td>Read own profile; update <code>lastActiveAt</code> (errors ignored when offline or suspended); change <code>displayName</code>/<code>country</code>.</td></tr>
+<tr><td><code>isAdmin(uid)</code></td><td>True when <code>admins/{uid}</code> exists (readable only by that user).</td></tr>
+<tr><td><code>deleteAccountAuth(password)</code></td><td>Re-authenticates with the password (Google requires a recent sign-in), then deletes the Auth user.</td></tr>
+<tr><td><code>reportError(kind, message)</code></td><td>Writes a small error report; see MEGO_Error_Handling_and_Logging.</td></tr>
+</table>
+<p><code>AI_RESTRICTED_COUNTRIES</code> lists 32 country codes (EU/EEA, Switzerland, United Kingdom) where the AI scanner is not offered to public accounts; the same list exists in the backend (<code>AI_RESTRICTED</code> in Code.gs).</p>
+
+<h2>4. Session and per-account local database (account.ts)</h2>
+<h3>4.1 Boot sequence</h3>
+<ol>
+<li><code>loadCloudConfig()</code>; no config → guest mode.</li>
+<li><code>initCloud(cfg)</code>.</li>
+<li>If <code>mego.activeUid</code> is set: check with <code>Dexie.exists('mego-u-&lt;uid&gt;')</code> whether the local database still exists. If it is missing, <code>resetCloudMarkers(uid)</code> is called so the cloud listener downloads everything again (section 6).</li>
+<li><code>useDatabase('mego-u-&lt;uid&gt;')</code> and open it; copy guest data once if <code>mego.importGuestFor</code> equals this uid; apply the pending registration answers (<code>mego.pendingSetup.&lt;uid&gt;</code>) once.</li>
+<li>Otherwise mode is <code>guest</code> (if <code>mego.guest</code>) or <code>welcome</code>.</li>
+</ol>
+<h3>4.2 watchSession()</h3>
+<p>In account mode, <code>onAuthStateChanged</code> confirms the Firebase session. If the user is signed out or the uid differs, <code>mego.activeUid</code> is removed and the page reloads. Otherwise the profile and admin flag are loaded, <code>suspended</code> is set when <code>status === 'suspended'</code>, <code>lastActiveAt</code> is touched, and cloud sync is started once (never for a suspended account).</p>
+<h3>4.3 Switching accounts</h3>
+<ul>
+<li><code>enterAccount(uid, importGuest)</code> sets <code>mego.activeUid</code>, clears <code>mego.guest</code>, optionally sets <code>mego.importGuestFor</code>, and reloads the page so the right database is selected before anything renders.</li>
+<li><code>copyGuestData()</code> copies every sync table from <code>mego-nutrition</code> into the account database (the guest database is left untouched; the account's device-local <code>sync</code> setting is kept), queues every copied record in the outbox for upload, and copies progress photos (local only).</li>
+<li><code>chooseGuest()</code>, <code>leaveAccount()</code> also reload.</li>
+</ul>
+
+<h2>5. Cloud sync (cloudSync.ts)</h2>
+<h3>5.1 Push</h3>
+<ul>
+<li>Uses the same Dexie <code>outbox</code> as the Sheets sync. Queued changes are coalesced (latest change per table+key).</li>
+<li>Each record is written with <code>setDoc</code> to <code>users/{uid}/{table}/{key}</code> as <code>{ data: JSON string, updatedAt, deleted? }</code>. A delete is <code>{ data: '{}', updatedAt, deleted: true }</code> (a tombstone, not a document deletion). For <code>settings</code>, the device-local <code>sync</code> block is removed before upload.</li>
+<li>Shared verified foods (<code>source: 'sheet'</code>) are never pushed; personal foods are.</li>
+<li>A <code>permission-denied</code> answer is counted as a conflict (the server already has a newer copy, or the account is suspended); the record is removed from the outbox and the newer copy arrives through the listener. Any other error stops the run, sets status <code>error</code> and calls <code>reportError('sync', …)</code>.</li>
+<li>Scheduling: 1.5 s after a local change, 300 ms after the browser goes online, 500 ms after start. When the browser reports offline, the status becomes <code>offline</code> and nothing is sent.</li>
+</ul>
+<h3>5.2 Pull (live listeners)</h3>
+<ul>
+<li>One <code>onSnapshot</code> listener per sync table: <code>where('updatedAt', '&gt;', from)</code>, where <code>from</code> comes from <code>startFrom()</code> (section 6).</li>
+<li><code>applyRemote()</code> keeps the newer copy: if the local record's <code>updatedAt</code> (or <code>at</code>) is newer, the remote copy is ignored (the local one will be pushed). Tombstones delete the local record.</li>
+<li>Each applied record advances the "last seen" marker for that table (<code>setLast</code>, only upwards).</li>
+<li>A record that cannot be applied is reported with <code>reportError('sync-apply', '&lt;table&gt;/&lt;id&gt;: …')</code> and does not stop the rest of the download.</li>
+<li>An additional listener on <code>/foods</code> imports the shared verified food database into the local food list as source <code>sheet</code>; when offline the local copy keeps working.</li>
+</ul>
+
+<h2>6. Recovery fix: cloud2 markers and storage loss</h2>
+<p><b>Incident (10 Nov 2026):</b> on an Android phone, the browser lost the IndexedDB data (records and the Firebase session) while localStorage survived. The app showed the welcome screen; after signing in again the account stayed empty, because the listener started from "last seen" markers still present in localStorage, and a freshly created default settings record outranked the saved settings. It had happened once before. The fix is live; it was reproduced and verified on emulators (<code>e2e/storage-loss.mjs</code>), and the owner confirmed the data came back.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Fix</th><th>Where</th><th>Effect</th></tr>
+<tr><td>Markers renamed to <code>mego.cloud2.&lt;uid&gt;.&lt;table&gt;</code></td><td>cloudSync.ts (<code>MARK</code>)</td><td>Markers of the first version are ignored once, so every device re-downloads its account in full one time; newer local copies are kept.</td></tr>
+<tr><td>Missing local database resets markers</td><td>account.ts → <code>resetCloudMarkers(uid)</code></td><td>If <code>mego-u-&lt;uid&gt;</code> no longer exists, all markers of that account are removed (non-destructive).</td></tr>
+<tr><td>Empty table downloads in full</td><td>cloudSync.ts <code>startFrom()</code></td><td>If a local table has 0 records, the listener starts from 0 regardless of the marker.</td></tr>
+<tr><td>Settings always re-read</td><td><code>startFrom()</code></td><td><code>settings</code> (one document) always starts from 0.</td></tr>
+<tr><td>Untouched defaults never outrank cloud copies</td><td>repo.ts <code>getSettings()</code> creates defaults with <code>updatedAt: 0</code>; cloudSync.ts <code>isPristineDefault()</code></td><td>A local settings record equal to the defaults (ignoring id, timestamps and sync) is always replaced by the account's settings.</td></tr>
+<tr><td>One bad record never stops the download</td><td>listener try/catch</td><td>Error reported as <code>sync-apply</code>; others continue.</td></tr>
+<tr><td>Same-date weigh-ins keep the newer one</td><td><code>applyRemote()</code> for <code>body</code></td><td>The local unique index allows one measurement per date; if another id exists for the same date, the newer one is shown on the device; the other stays untouched in the cloud.</td></tr>
+</table>
+<p><b>Lesson for users:</b> signed-in accounts are recoverable by signing in again; guest data lives only on the device.</p>
+
+<h2>7. Firestore data model</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Path</th><th>Content</th><th>Written by</th></tr>
+<tr><td><code>users/{uid}/{table}/{key}</code></td><td><code>{ data: string (&lt; 300,000 chars), updatedAt: int, deleted?: bool }</code>; tables: entries, body, days, recipes, templates, plans, plannedDays, fasts, kv, settings, foodChanges, foods</td><td>the owner</td></tr>
+<tr><td><code>profiles/{uid}</code></td><td>displayName, email, status, country, ageConfirmed, createdAt, lastActiveAt</td><td>owner (create/limited update); admins (status only)</td></tr>
+<tr><td><code>admins/{uid}</code></td><td>existence = admin</td><td>Firebase console / setup script only</td></tr>
+<tr><td><code>foods/{id}</code></td><td>shared verified food database</td><td>admins</td></tr>
+<tr><td><code>foodSubmissions/{id}</code></td><td>ownerUid, status (pending/approved/rejected), at, food</td><td>users create; admins review</td></tr>
+<tr><td><code>errorReports/{id}</code></td><td>at, kind, message, app</td><td>signed-in users create; admins read</td></tr>
+</table>
+<p><code>firebase/firestore.indexes.json</code> defines no composite indexes.</p>
+
+<h2>8. Security rules (firestore.rules)</h2>
+<p>Helper functions: <code>signedIn()</code>, <code>isAdmin()</code> (an <code>admins/{uid}</code> document exists), <code>isActive()</code> (own profile exists and <code>status == 'active'</code>), <code>isOwner(uid)</code>.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Path</th><th>Read</th><th>Write</th></tr>
+<tr><td>users/{uid}/{table}/{key}</td><td>owner and active</td><td>create: owner, active, valid record; update: same and <code>updatedAt</code> must not go back; delete: owner and active. <b>Admins have no access.</b> Valid record: keys only data/updatedAt/deleted, updatedAt is int, data is a string under 300,000 chars, deleted is bool if present, table in the allowed list.</td></tr>
+<tr><td>profiles/{uid}</td><td>owner or admin</td><td>create: owner, fixed key set, status 'active', ageConfirmed true, email equals the token's e-mail; update: owner while active (only displayName, country, lastActiveAt) or admin (only status, to 'active'/'suspended'); delete: owner</td></tr>
+<tr><td>admins/{uid}</td><td>that user only</td><td>never (false)</td></tr>
+<tr><td>foods/{id}</td><td>any active user</td><td>admins</td></tr>
+<tr><td>foodSubmissions/{id}</td><td>admins, or active owner</td><td>create: active owner with status 'pending'; update: admins; delete: admins or active owner while pending</td></tr>
+<tr><td>errorReports/{id}</td><td>admins (read and delete)</td><td>create: signed-in, keys only at/kind/message/app, message a string under 500 chars</td></tr>
+</table>
+<p>Because rules are enforced by Google's servers, a suspended account loses read and write access to its private records immediately, even if the client keeps running.</p>
+
+<h2>9. Admin functions and shared foods</h2>
+<ul>
+<li><code>adminStats()</code>: aggregate counts via <code>getCountFromServer</code> — total profiles, active in the last 7 days, suspended, pending food submissions.</li>
+<li><code>adminListProfiles(max = 100)</code>, <code>adminSetStatus(uid, status)</code>, <code>adminListErrors(max = 50)</code> (newest first).</li>
+<li><code>submitFood()</code>: a user proposes one of their foods (never published automatically). <code>adminReview()</code>: approve copies the food into <code>foods/U-&lt;submission id&gt;</code> with a note "user submission reviewed by admin"; both approve and reject set the submission status.</li>
+<li><code>publishSharedFoods(foods)</code> (cloudSync.ts, admin screen): writes verified foods to <code>/foods</code>, using the sheet key (<code>F0001</code>-style) when present; refused by the server for non-admins.</li>
+</ul>
+<p>Admins never see private diary, weight or settings records (rules, section 8). Administration procedures are in MEGO_Admin_User_Manual.</p>
+
+<h2>10. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Code statements in this document</td><td>Verified in <code>src/lib/firebase.ts</code>, <code>account.ts</code>, <code>cloudSync.ts</code>, <code>repo.ts</code>, <code>firebase/firestore.rules</code>, <code>firebase.json</code></td></tr>
+<tr><td>Production Firebase (registration, own profile 200 / other 403, owner-only records, second-device live sync, admin restrictions, password reset accepted, account deletion)</td><td>Verified live on 7 Nov 2026 (<code>scripts/live-verify.mjs</code>, 14/14)</td></tr>
+<tr><td>Rules and cloud behaviour</td><td>Tested on emulators (<code>tests-rules/rules.test.ts</code>, <code>tests-rules/cloud.test.ts</code>); multi-user e2e (<code>e2e/multiuser-test.mjs</code>) on emulators</td></tr>
+<tr><td>Storage-loss recovery</td><td>Reproduced and verified on emulators (<code>e2e/storage-loss.mjs</code>); unit tests in <code>tests/cloud-recovery.test.ts</code>; owner confirmed data recovery on the real phone</td></tr>
+<tr><td>Admin account in production</td><td>Not verified — no admin existed as of 7 Nov 2026 (owner must register and run the setup script with <code>--cloud</code>)</td></tr>
+<tr><td>Delivery of verification / password-reset e-mails to an inbox</td><td>Not verified (request accepted with HTTP 200 only)</td></tr>
+<tr><td>Behaviour on a real Android device beyond the incident</td><td>Not verified — only emulated devices were tested</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

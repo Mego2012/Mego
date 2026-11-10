@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_User_Data_Protection_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — حماية بيانات المستخدمين</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-44</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب مراجعة قانونية</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع، المطوّرون، المراجع القانوني، الدعم</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Privacy_Policy_Draft، MEGO_Security_Architecture، MEGO_Access_Control_and_Permissions، MEGO_Data_Retention_and_Deletion، MEGO_Data_Backup_and_Recovery، MEGO_Gemini_AI_Integration، MEGO_Security_Audit_and_Known_Risks</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تسرد هذه الوثيقة البيانات الشخصية التي يتعامل معها MEGO، ومكان حفظ كل فئة منها، ومن يستطيع الوصول إليها، والتدابير التقنية التي تحميها — كما هي منفّذة في الشيفرة تمامًا. وهي تدعم مسودة سياسة الخصوصية (MEGO_Privacy_Policy_Draft في المجلد 12)، وهي السياسة الوحيدة الموجّهة للمستخدم. أما التصنيفات القانونية (مثل اعتبار قياسات الجسم بيانات صحية وفق القانون المطبّق) فهي بنود مفتوحة لمختص قانوني مؤهل ولا تُحسم هنا (انظر <code dir="ltr">docs/LEGAL-REVIEW.md</code>).</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">جرد البيانات</li>
+<li dir="rtl">أماكن التخزين حسب الوضع</li>
+<li dir="rtl">من يصل إلى ماذا</li>
+<li dir="rtl">تدابير الحماية</li>
+<li dir="rtl">ماسح الوجبات بالذكاء الاصطناعي والأطراف الثالثة</li>
+<li dir="rtl">أدوات المستخدم (التصدير، التصحيح، الحذف)</li>
+<li dir="rtl">الثغرات والتوصيات</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. جرد البيانات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الفئة</th><th>أمثلة</th><th>المصدر</th><th>هل تُزامَن سحابيًا (وضع الحساب)؟</th></tr>
+<tr><td>بيانات الحساب</td><td>البريد، الاسم المعروض (≤ 40 حرفًا)، رمز الدولة، تأكيد 18+، طابعا الإنشاء وآخر نشاط، حالة الحساب</td><td>التسجيل</td><td>نعم — <code dir="ltr">profiles/{uid}</code> ومصادقة Firebase</td></tr>
+<tr><td>كلمة المرور</td><td>—</td><td>المستخدم</td><td>تحتفظ بها مصادقة Firebase وحدها؛ ولا يخزّنها MEGO أبدًا</td></tr>
+<tr><td>الملف الجسدي والأهداف</td><td>الجنس، العمر، الطول، الوزن، الوزن المستهدف، النشاط، نوع الهدف، أهداف السعرات والمغذيات الكبرى</td><td>خطوتا التسجيل 2–3، الإعدادات</td><td>نعم — سجل <code dir="ltr">settings</code></td></tr>
+<tr><td>اليوميات</td><td>إدخالات الطعام، الوجبات، الكميات، المغذيات، حالة اليوم، الماء، العادات</td><td>المستخدم</td><td>نعم — <code dir="ltr">entries</code> و<code dir="ltr">days</code></td></tr>
+<tr><td>قياسات الجسم</td><td>الوزن، الخصر، الصدر، الورك، الذراع، الفخذ، الرقبة، نسبة الدهون، ملاحظات</td><td>المستخدم</td><td>نعم — <code dir="ltr">body</code></td></tr>
+<tr><td>الخطط والمحتوى الشخصي</td><td>أطعمة مخصصة، وصفات، وجبات محفوظة، خطط وجبات، جلسات صيام، كارديو، تمارين، متابعات، تفضيلات</td><td>المستخدم</td><td>نعم — <code dir="ltr">foods</code>، <code dir="ltr">recipes</code>، <code dir="ltr">templates</code>، <code dir="ltr">plans</code>، <code dir="ltr">plannedDays</code>، <code dir="ltr">fasts</code>، <code dir="ltr">kv</code>، <code dir="ltr">foodChanges</code></td></tr>
+<tr><td>صور التقدّم</td><td>صور يضيفها المستخدم في صفحة التقدّم</td><td>المستخدم</td><td><b>لا</b> — على الجهاز فقط (جدول <code dir="ltr">photos</code> ليس من جداول المزامنة)</td></tr>
+<tr><td>صور الوجبات للذكاء الاصطناعي</td><td>صورة واحدة لكل عملية مسح</td><td>كاميرا المستخدم أو معرضه</td><td>تُرسل إلى وسيط الذكاء الاصطناعي لتحليل واحد؛ ولا يحفظها MEGO</td></tr>
+<tr><td>مقترحات الأطعمة</td><td>طعام مخصص يقترحه المستخدم لقاعدة البيانات المشتركة</td><td>المستخدم</td><td><code dir="ltr">foodSubmissions</code> مع uid المستخدم</td></tr>
+<tr><td>تقارير الأخطاء</td><td>نوع الخطأ ورسالته</td><td>التطبيق تلقائيًا</td><td><code dir="ltr">errorReports</code> (بلا حقل uid وبلا محتوى يوميات)</td></tr>
+<tr><td>عدّادات استخدام الذكاء الاصطناعي</td><td>عدد عمليات المسح اليومية لكل uid</td><td>وسيط الذكاء الاصطناعي</td><td>خصائص السكربت في Apps Script ‏(<code dir="ltr">AI_U_&lt;date&gt;_&lt;uid&gt;</code>)</td></tr>
+</table>
+<p dir="rtl">لا تجمع الشيفرة أي معرّفات إعلانية أو أحداث تحليلات أو بيانات موقع.</p>
+
+<h2 dir="rtl">2. أماكن التخزين حسب الوضع</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الوضع</th><th>على الجهاز</th><th>خارج الجهاز</th></tr>
+<tr><td>ضيف</td><td>IndexedDB ‏<code dir="ltr">mego-nutrition</code></td><td>لا شيء، إلا إذا ربط المالك ملف Google Sheets مركزيًا (في Google Drive الخاص بالمالك)</td></tr>
+<tr><td>حساب مسجّل</td><td>IndexedDB ‏<code dir="ltr">mego-u-&lt;uid&gt;</code> (واحدة لكل حساب) والنسخ الاحتياطية المحلية بداخلها</td><td>Cloud Firestore، قاعدة <code dir="ltr">(default)</code> في <code dir="ltr">me-central2</code> (الدمام)؛ ومصادقة Firebase</td></tr>
+<tr><td>المالك مع الـ Hub</td><td>IndexedDB</td><td>ملف Google Sheets الخاص بالمالك «MEGO Nutrition Hub» ومجلد Drive ‏"MEGO Nutrition Backups"</td></tr>
+</table>
+<p dir="rtl">في Firestore يُخزَّن كل سجل بالشكل <code dir="ltr">users/{uid}/{table}/{key}</code> = <code dir="ltr">{ data: JSON string, updatedAt, deleted? }</code>. وتُحذف إعدادات المزامنة الخاصة بالجهاز (عنوان الـ Hub ورمزه) قبل الرفع.</p>
+
+<h2 dir="rtl">3. من يصل إلى ماذا</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البيانات</th><th>المستخدم</th><th>المستخدمون الآخرون</th><th>المشرفون</th><th>مالك المشروع (خارج التطبيق)</th></tr>
+<tr><td>السجلات الخاصة <code dir="ltr">users/{uid}/**</code></td><td>قراءة/كتابة ما دام نشطًا</td><td>لا</td><td><b>لا</b></td><td>وصول عبر وحدة تحكم Firebase بصفته مالك المشروع (Google Cloud IAM) — لا تقيّده القواعد</td></tr>
+<tr><td>بطاقة الحساب</td><td>قراءة؛ تغيير الاسم والدولة</td><td>لا</td><td>قراءة الجميع؛ تغيير الحالة فقط</td><td>وحدة التحكم</td></tr>
+<tr><td>مقترحات الأطعمة</td><td>مقترحاته فقط</td><td>لا</td><td>قراءة/مراجعة</td><td>وحدة التحكم</td></tr>
+<tr><td>تقارير الأخطاء</td><td>إنشاء فقط</td><td>لا</td><td>قراءة/حذف</td><td>وحدة التحكم</td></tr>
+<tr><td>البيانات المحلية على الجهاز</td><td>نعم</td><td>ليس عبر التطبيق (قاعدة منفصلة لكل حساب)؛ لكن أي شخص يصل إلى الجهاز غير المقفل أو تخزين المتصفح قد يقرؤها</td><td>لا</td><td>لا</td></tr>
+</table>
+<p dir="rtl">تعرض لوحة المشرف هذا الحد صراحةً (مفتاح النص <code dir="ltr">admin_privacy</code>) وتقوم على أعداد إجمالية وقائمة الملفات الشخصية فقط.</p>
+
+<h2 dir="rtl">4. تدابير الحماية</h2>
+<h3 dir="rtl">4.1 أثناء النقل</h3>
+<p dir="rtl">تستخدم كل حركة الشبكة HTTPS ‏(Firebase، ‏Apps Script، ‏Gemini عبر Apps Script، ‏Open Food Facts، ‏GitHub Pages، ‏Google Fonts).</p>
+<h3 dir="rtl">4.2 أثناء التخزين في السحابة</h3>
+<p dir="rtl">Firestore ومصادقة Firebase خدمتان تديرهما Google، والتشفير أثناء التخزين توفره Google (بيان عام من Google؛ غير مُتحقَّق منه بشكل مستقل لهذا المشروع). ويُفرض الوصول عبر <code dir="ltr">firebase/firestore.rules</code>: للمالك فقط، وللحسابات النشطة فقط، مع فحص شكل السجل وحد حجم 300,000 حرف لكل سجل.</p>
+<h3 dir="rtl">4.3 على الجهاز</h3>
+<ul dir="rtl">
+<li dir="rtl">قاعدة IndexedDB منفصلة لكل حساب؛ وتبديل الحساب يعيد تحميل التطبيق.</li>
+<li dir="rtl">يطلب التطبيق تخزينًا دائمًا من المتصفح (<code dir="ltr">navigator.storage.persist()</code>) لتقليل احتمال الحذف التلقائي؛ وتعرض الإعدادات هل مُنح أم لا.</li>
+<li dir="rtl">لا يشفّر التطبيق البيانات، وتبقى على الجهاز بعد تسجيل الخروج (انظر القسم 7).</li>
+</ul>
+<h3 dir="rtl">4.4 تقليل البيانات</h3>
+<ul dir="rtl">
+<li dir="rtl">لا يقبل مستند الملف الشخصي إلا سبعة حقول (<code dir="ltr">displayName, email, status, country, ageConfirmed, createdAt, lastActiveAt</code>)، ويجب أن يطابق البريدُ بريدَ رمز الدخول.</li>
+<li dir="rtl">تقارير الأخطاء: النوع (≤ 40 حرفًا) والرسالة (يكتب التطبيق ≤ 400 حرف وحد القاعدة 500) دون محتوى اليوميات.</li>
+<li dir="rtl">لا تحتوي ملفات التصدير والنسخ الاحتياطية رمز الـ Hub أبدًا.</li>
+</ul>
+<h3 dir="rtl">4.5 العمر</h3>
+<p dir="rtl">يتطلب التسجيل تأكيد بلوغ 18 عامًا (خانة اختيار، و<code dir="ltr">AGE_REQUIRED</code>) ويُحفظ بوصفه <code dir="ltr">ageConfirmed: true</code>، وتشترط الخطوة الثانية عمرًا ≥ 18. والعمر يصرّح به المستخدم ولا يُتحقق منه.</p>
+
+<h2 dir="rtl">5. ماسح الوجبات بالذكاء الاصطناعي والأطراف الثالثة</h2>
+<ul dir="rtl">
+<li dir="rtl">قبل الرفع تُصغَّر الصورة ويُعاد ترميزها بصيغة JPEG عبر canvas، فتسقط كل بيانات EXIF الوصفية (موقع GPS والجهاز والوقت) (<code dir="ltr">src/lib/mealScanner.ts</code>).</li>
+<li dir="rtl">يحمل الطلب الصورة وقائمة بأسماء الأطعمة من قاعدة المستخدم وملاحظة اختيارية (≤ 300 حرف)، ويذهب إلى Apps Script الخاص بالمالك الذي يستدعي الفئة المجانية من Gemini API. لا يحفظ MEGO شيئًا عن الوجبة؛ ويُحتفظ فقط بعدّاد يومي لكل uid.</li>
+<li dir="rtl">ينص نص سياسة الخصوصية في التطبيق (<code dir="ltr">pp_4</code>) على أن Google قد تستخدم المحتوى في الفئة المجانية لتحسين منتجاتها وقد يطّلع عليه مراجعون بشريون، ويطلب من المستخدمين عدم تصوير الأشخاص أو المستندات.</li>
+<li dir="rtl">لا تُحفظ النتائج تلقائيًا أبدًا؛ يراجعها المستخدم أولًا.</li>
+<li dir="rtl">تُرفض خدمة الماسح للحسابات المسجّلة في الاتحاد الأوروبي/المنطقة الاقتصادية الأوروبية أو المملكة المتحدة أو سويسرا (والدولة يصرّح بها المستخدم عند التسجيل).</li>
+</ul>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الطرف الثالث</th><th>ما يتلقاه</th></tr>
+<tr><td>Google Firebase</td><td>الحساب والسجلات المتزامنة (وضع الحساب)</td></tr>
+<tr><td>Google Apps Script وGemini API</td><td>صورة الوجبة وأسماء الأطعمة (الماسح فقط)؛ وبيانات الـ Hub الخاصة بالمالك</td></tr>
+<tr><td>GitHub Pages</td><td>طلبات الويب المعتادة لتحميل التطبيق</td></tr>
+<tr><td>Google Fonts</td><td>طلبات الخطوط</td></tr>
+<tr><td>Open Food Facts</td><td>رقم الباركود أو كلمات البحث المكتوبة فقط</td></tr>
+</table>
+
+<h2 dir="rtl">6. أدوات المستخدم</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحق / الحاجة</th><th>الطريقة في التطبيق</th></tr>
+<tr><td>الاطلاع / النقل</td><td>الإعدادات ← البيانات والنسخ الاحتياطي ← «تنزيل ملف نسخة احتياطية» (JSON لكل الجداول المتزامنة)، و«تصدير كل اليوميات (CSV)»؛ وتصدير التقارير بصيغتي CSV/XLSX؛ وبطاقة الحساب ← «تصدير بياناتي» (ملف JSON نفسه)</td></tr>
+<tr><td>التصحيح</td><td>تعديل أي إدخال أو طعام أو قياس أو إعداد؛ وبطاقة الحساب ← الاسم المعروض</td></tr>
+<tr><td>الحذف</td><td>بطاقة الحساب ← «حذف الحساب» (يتطلب كلمة المرور) — يزيل السجلات السحابية والملف الشخصي وتسجيل الدخول ونسخة الجهاز (MEGO_Data_Retention_and_Deletion)</td></tr>
+<tr><td>الامتناع عن الذكاء الاصطناعي</td><td>بعدم استخدام الماسح؛ ولا يُرسل شيء دون ذلك</td></tr>
+</table>
+
+<h2 dir="rtl">7. الثغرات والتوصيات</h2>
+<ul dir="rtl">
+<li dir="rtl">تبقى البيانات المحلية على الجهاز بعد تسجيل الخروج ولا تُشفَّر؛ وعلى الأجهزة المشتركة يُنصح بـ«حذف الحساب» أو مسح بيانات الموقع. لا يوجد خيار «إزالة نسخة هذا الجهاز عند الخروج».</li>
+<li dir="rtl">لا يحذف حذف الحساب مستندات <code dir="ltr">foodSubmissions</code> الخاصة بالمستخدم، أما تقارير الأخطاء فلا يمكن ربطها بمستخدم (لا uid) ولا تُحذف.</li>
+<li dir="rtl">سياسة الخصوصية والشروط مسودات؛ وهوية المشغّل والأساس القانوني ومدة الاحتفاظ بالحسابات غير النشطة وصياغة النقل عبر الحدود بنود مفتوحة (<code dir="ltr">docs/LEGAL-REVIEW.md</code>).</li>
+<li dir="rtl">يجب تدوير مفتاح Gemini ورمز الخلفية اللذين ظهرا في محادثة (MEGO_Security_Audit_and_Known_Risks).</li>
+</ul>
+
+<h2 dir="rtl">8. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>العزل بين الحسابات، وحذف حسابات الاختبار</td><td>مُتحقَّق منه مباشرة (<code dir="ltr">scripts/live-verify.mjs</code>، ‏14/14)</td></tr>
+<tr><td>عدم قدرة المشرفين على قراءة السجلات الخاصة</td><td>مختبر على المحاكيات (مجموعة القواعد)</td></tr>
+<tr><td>إزالة EXIF بإعادة الترميز عبر canvas</td><td>مراجعة الشيفرة؛ غير مُتحقَّق منه على كاميرا Android حقيقية</td></tr>
+<tr><td>تشفير Google أثناء التخزين، واستخدام Gemini للبيانات</td><td>بيانات من المزوّد — غير مُتحقَّق منها من قبل المشروع</td></tr>
+<tr><td>التصنيف القانوني للبيانات</td><td>لم يُحسم — يتطلب مراجعة قانونية</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

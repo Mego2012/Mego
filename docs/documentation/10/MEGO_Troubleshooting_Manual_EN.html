@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Troubleshooting_Manual_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Troubleshooting Manual</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-20</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>End users, project owner, support</td></tr>
+<tr><td>Related documents</td><td>MEGO_FAQ, MEGO_Data_Backup_and_Recovery, MEGO_Gemini_AI_Integration, MEGO_Support_and_Incident_Management, MEGO_Known_Bugs_and_Limitations, MEGO_Registration_and_Login_Guide, MEGO_Backup_and_Export_Guide, MEGO_Apps_Script_Setup_Guide</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This manual lists the problems that can occur when using MEGO (the nutrition-tracking web app at https://mego2012.github.io/Mego/), explains their real causes as implemented in the code, and gives step-by-step fixes. It covers signing in, missing data after a browser storage loss (including the incident of 10 November 2026), cloud sync, the AI meal scanner (including the "AI is busy" message), barcode lookup, the Data check and owner backend errors. It does not cover development or deployment problems (see MEGO_Developer_Setup_and_Local_Installation and MEGO_Production_Deployment_Guide).</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>First checks for any problem</li>
+<li>Sign-in and account problems</li>
+<li>Data missing after signing in again (storage loss) — incident of 10 Nov 2026</li>
+<li>Cloud sync problems</li>
+<li>AI meal scanner: "AI is busy" and other messages</li>
+<li>Barcode scanning and Open Food Facts</li>
+<li>Duplicates and suspicious values (Data check)</li>
+<li>Owner backend (Apps Script / Google Sheets Hub) errors</li>
+<li>When to escalate and what to report</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. First checks for any problem</h2>
+<ol>
+<li><b>Connection.</b> When the phone is offline the app shows "You are offline. Everything you log is saved and will sync when you reconnect." Logging still works; sync, sign-in, barcode lookup and the AI scanner need the internet.</li>
+<li><b>Reload the app</b> (close it completely and open it again).</li>
+<li><b>Are you signed in or a guest?</b> Open the Account screen. A guest sees "You are using MEGO without an account: data stays on this device only." This matters for recovery (section 3).</li>
+<li><b>Before trying anything risky, export your data</b> (Account → "Export my data", or Settings → "Download backup file").</li>
+</ol>
+
+<h2>2. Sign-in and account problems</h2>
+<p>The app translates Firebase Authentication error codes into these messages (src/lib/i18n2.ts, <code>authErr_*</code>):</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Message</th><th>Cause</th><th>What to do</th></tr>
+<tr><td>Email or password is incorrect.</td><td>Wrong e-mail or password (the app intentionally does not say which)</td><td>Check spelling; use "Forgot password?" to receive a reset link.</td></tr>
+<tr><td>An account with this email already exists. Sign in instead.</td><td>Registering an e-mail that is already registered</td><td>Use Sign in, or reset the password.</td></tr>
+<tr><td>Choose a stronger password…</td><td>Password rule: at least 8 characters with a letter and a number</td><td>Choose a password that meets the rule.</td></tr>
+<tr><td>Too many attempts. Please wait a few minutes and try again.</td><td>Firebase temporarily blocks repeated failed attempts</td><td>Wait a few minutes; do not keep retrying.</td></tr>
+<tr><td>No connection. Check your internet and try again.</td><td>Network error</td><td>Reconnect and retry.</td></tr>
+<tr><td>You must be 18 or older to create an account.</td><td>"I am 18 or older" not ticked</td><td>Registration is for adults only.</td></tr>
+<tr><td>Please sign in again and retry.</td><td>A sensitive action (e.g. account deletion) needs a recent sign-in</td><td>Sign out, sign in, repeat the action.</td></tr>
+<tr><td>Account suspended</td><td>An administrator suspended the account. "Your data is kept and nothing has been deleted."</td><td>Only sign-out is offered on this screen; contact the operator. An administrator can reactivate the account.</td></tr>
+</table>
+<p><b>Password-reset e-mail not received:</b> the app always answers "If an account exists for this email, a reset link has been sent. Check your inbox and spam folder." Check the spam folder and the spelling of the address. Delivery of the e-mail to the inbox was not verified in production (the reset request itself was accepted, HTTP 200).</p>
+
+<h2>3. Data missing after signing in again (storage loss) — incident of 10 Nov 2026</h2>
+<h3>3.1 Symptoms</h3>
+<ul>
+<li>The app suddenly opens on the welcome screen although you were signed in.</li>
+<li>After signing in again the diary, foods and targets look empty, or the default calorie target is shown instead of yours.</li>
+</ul>
+<h3>3.2 What happened</h3>
+<p>On 10 November 2026 an Android phone lost its browser database (IndexedDB: all local records and the Firebase session) while the browser's small key-value storage (localStorage) survived. It had happened once before on the same kind of device. The cloud copy of the account was intact, but the old app version did not download it again because:</p>
+<ol>
+<li>The cloud listener started from "last seen" markers kept in localStorage. These markers survived, so the app asked only for records newer than the marker — the older records were never requested again.</li>
+<li>A fresh default settings record created on the empty device was treated as newer than the saved settings in the cloud, so the default targets won.</li>
+</ol>
+<pre>
+ Phone storage                       Cloud (Firestore)
+ ┌───────────────────────────┐       ┌──────────────────────┐
+ │ IndexedDB  ── LOST ──     │       │ all records: intact  │
+ │ localStorage: markers OK  │──────▶│ "send only newer     │
+ └───────────────────────────┘       │  than marker" → none │
+                                     └──────────────────────┘
+</pre>
+<h3>3.3 The fix (live since 10 Nov 2026)</h3>
+<p>Changed in src/lib/cloudSync.ts, src/lib/account.ts and src/lib/repo.ts:</p>
+<ul>
+<li>Markers were renamed (<code>mego.cloud2.</code>), so every device re-downloads its account in full once.</li>
+<li>If the local database of the account does not exist at sign-in, all markers of that account are reset.</li>
+<li>An empty local table always downloads in full, whatever the marker says.</li>
+<li>Settings (one document) are always re-read from the cloud.</li>
+<li>Untouched default settings (<code>updatedAt</code> 0, identical to the defaults) never outrank the cloud copy.</li>
+<li>One unreadable record no longer stops the download of the others.</li>
+<li>When two weigh-ins exist for the same date (e.g. entered again after a loss), the newer one is shown on the device; the other stays in the cloud.</li>
+</ul>
+<p>Nothing local is overwritten by the download: a newer local copy is kept and pushed to the cloud.</p>
+<h3>3.4 How to recover</h3>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Your situation</th><th>Recovery</th></tr>
+<tr><td>Signed-in account</td><td>1. Make sure you are online. 2. Sign in again with the same e-mail and password. 3. Keep the app open for a short while; the records download automatically. 4. Open the Diary on a day you know had entries, and Settings → targets, to confirm. 5. If you re-entered data while it was missing, run Settings → Data check to find possible duplicates and delete the extra copies yourself.</td></tr>
+<tr><td>Guest (no account)</td><td>Guest data lives only on the device. If the browser storage is lost, it can only be restored from a backup file you downloaded earlier (Settings → "Restore from backup file"). The automatic on-phone backups are stored in the same browser database and are lost with it.</td></tr>
+<tr><td>Owner device connected to the Google Sheets Hub</td><td>Reconnect the backend in Settings and use "Restore from sheet".</td></tr>
+</table>
+<p><b>Prevention:</b> use an account if your data matters; download a backup file regularly; do not clear site data for the app. The app also asks the browser for persistent storage at start (<code>navigator.storage.persist()</code>); whether the browser grants it is up to the browser.</p>
+
+<h2>4. Cloud sync problems</h2>
+<ul>
+<li><b>"Offline — changes are saved on this device"</b>: changes wait in a local outbox and are sent when the connection returns.</li>
+<li><b>A change seems to be ignored:</b> the server refuses an update that is older than the copy already in the cloud. The newer copy then arrives on this device through the live listener. This is counted as a conflict, not an error.</li>
+<li><b>Nothing syncs and the account is suspended:</b> server rules allow reading and writing only while the account is active.</li>
+<li><b>A record changed on another device does not appear:</b> reopen the app while online; the listener downloads only changes newer than the last one seen, plus full downloads for empty tables (section 3.3).</li>
+</ul>
+
+<h2>5. AI meal scanner: "AI is busy" and other messages</h2>
+<h3>5.1 Why "AI is busy" appeared</h3>
+<p>The scanner sends a reduced photo through the Apps Script backend to Google's Gemini API <b>free tier</b>. The root cause of the old generic message "The AI service is busy right now" was a <b>Google 503 "overloaded"</b> answer from the primary model, which the old backend reported as "busy" without retrying. It was not caused by the phone, the photo or the key.</p>
+<h3>5.2 What the current version does (backend SCRIPT_VERSION 7)</h3>
+<ul>
+<li>Google errors are mapped to precise codes and shown with Google's own status text ("Service response").</li>
+<li>Free model chain: <code>gemini-3.8-flash</code> → <code>gemini-3.6-flash</code> → <code>gemini-3.5-flash-lite</code>. Only free-tier models; never a paid model.</li>
+<li>503 overloaded: moves at once to the next free model. 500 server error / 504 timeout: retried on the same model after 2 s and 4 s.</li>
+<li>On the phone, temporary errors are retried automatically after 3 s and 8 s ("Retrying automatically (n/max)…"); the photo is kept so a manual Retry does not require choosing it again; only one request for the same photo runs at a time.</li>
+<li>A failed analysis does not count against the user's daily scans.</li>
+</ul>
+<h3>5.3 Message table</h3>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Code / message</th><th>Cause</th><th>Fix</th></tr>
+<tr><td>AI_OVERLOADED — "Google's AI model is overloaded right now (temporary)"</td><td>Google 503 on all free models</td><td>Wait a few minutes and press Retry. Peak hours are slower.</td></tr>
+<tr><td>AI_SERVER_ERROR / AI_TIMEOUT</td><td>Google 500 / 504, or the analysis took too long</td><td>Retry; check the connection.</td></tr>
+<tr><td>AI_BUSY — "The AI service is busy right now"</td><td>Message of an older backend version</td><td>Owner: update the backend (section 8).</td></tr>
+<tr><td>AI_QUOTA_MINUTE</td><td>Free per-minute limit</td><td>Wait the number of seconds shown.</td></tr>
+<tr><td>AI_QUOTA_DAY</td><td>Free daily quota of the key used up</td><td>Try after the reset time shown (midnight Pacific time, shown in your local time). Nothing is charged.</td></tr>
+<tr><td>AI_USER_LIMIT</td><td>Your daily scans for a signed-in account are used (default 10 per user per day)</td><td>Try tomorrow, or log manually.</td></tr>
+<tr><td>AI_DAILY_LIMIT</td><td>The backend's own global daily cap (default 40)</td><td>Try tomorrow; the owner can change the cap.</td></tr>
+<tr><td>AI_REGION_RESTRICTED</td><td>Account country in the EU, EEA, UK or Switzerland</td><td>The scanner is not offered there; log manually.</td></tr>
+<tr><td>AI_KEY_INVALID / AI_NOT_CONFIGURED</td><td>Gemini key rejected by Google or not set</td><td>Owner: create a new free key in Google AI Studio and set it in Settings → AI meal scanner.</td></tr>
+<tr><td>AI_MODEL_UNAVAILABLE / AI_CONFIG</td><td>Model not available for the key, or a request/configuration problem on the backend — not your photo</td><td>Owner: run the diagnostic (section 8).</td></tr>
+<tr><td>AI_UNSUPPORTED_FORMAT / AI_IMAGE_TOO_LARGE / AI_BAD_IMAGE</td><td>Photo cannot be decoded on this phone, is over 30 MB, or could not be read</td><td>Use JPEG, PNG or WebP, or take the photo with the camera button.</td></tr>
+<tr><td>AI_OFFLINE / AI_NETWORK</td><td>No internet, or the backend could not be reached</td><td>Reconnect; your photo is kept.</td></tr>
+<tr><td>AI_REFUSED / AI_TRUNCATED / AI_BAD_OUTPUT</td><td>The model refused, stopped early or returned unreadable output</td><td>Try again or use another photo.</td></tr>
+<tr><td>AI_UNAUTHORIZED / AI_OLD_BACKEND</td><td>Token rejected or backend too old</td><td>Owner: check the token or update the backend.</td></tr>
+</table>
+<p><b>Expected speed:</b> one live analysis on 10 Nov 2026 took about 64 s (4 items recognised). The free tier can be slow at peak times. Nothing is saved until you review the items and press Confirm.</p>
+
+<h2>6. Barcode scanning and Open Food Facts</h2>
+<ul>
+<li><b>No camera button / camera does not scan:</b> camera scanning uses the browser's BarcodeDetector API (available in Chrome on Android). Otherwise type the barcode number manually.</li>
+<li><b>"No product found for this barcode. Add it manually."</b> Open Food Facts has no entry; create a custom food.</li>
+<li><b>"Lookup failed (offline?). Add it manually."</b> No connection or Open Food Facts not reachable.</li>
+</ul>
+
+<h2>7. Duplicates and suspicious values (Data check)</h2>
+<p>Settings → <b>Data check</b> → "Run check" is read-only ("nothing is changed"). It shows record counts compared with the latest pre-update backup, foods whose per-100 g values look like per-scoop values (e.g. a protein powder with fewer than 250 kcal per 100 g), and possible duplicate diary items and foods (for example entered again after a data loss). Delete extra copies yourself in the Diary.</p>
+
+<h2>8. Owner backend (Apps Script / Google Sheets Hub) errors</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Message</th><th>Fix</th></tr>
+<tr><td><code>unauthorized</code></td><td>The token is wrong: run <code>installMego</code> again and copy the new connection line.</td></tr>
+<tr><td><code>WRONG_SPREADSHEET</code></td><td>The script is not the MEGO script: paste Code.gs from the copy button in the app.</td></tr>
+<tr><td><code>VERIFY_FAILED</code></td><td>The conversion did not pass verification; nothing was switched and the original file is untouched. Send the log text to support.</td></tr>
+<tr><td>"Your backend is an older version" / AI_BUSY</td><td>Update the backend from the laptop: <code>git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend</code> (uploads the latest Code.gs to the same deployment and runs the AI diagnostic), or paste the new Code.gs and deploy a New version manually.</td></tr>
+<tr><td><code>installMego</code> function not visible</td><td>Save the script first, then reload the page.</td></tr>
+</table>
+<p>The diagnostic action <code>aiDiag</code> sends a tiny text-only request to every free model and shows Google's exact answer per model.</p>
+
+<h2>9. When to escalate and what to report</h2>
+<p>Escalate to the project owner when data stays missing after section 3.4, when an error persists for more than a day, or when you suspect someone else accessed your account. Report: the date and time, the screen, the exact message (and "Service response" for the scanner), whether you are signed in or a guest, and the phone/browser. Never send passwords, keys, tokens or connection codes. Error reports collected by the app contain the error message only, without diary content. See MEGO_Support_and_Incident_Management.</p>
+
+<h2>10. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Storage-loss fix</td><td>Reproduced and verified on emulators (e2e/storage-loss.mjs); live in production; the owner confirmed the data came back</td></tr>
+<tr><td>AI error mapping, model chain and retries</td><td>Verified in apps-script/Code.gs (SCRIPT_VERSION 7) and src/lib/mealScanner.ts; covered by unit tests</td></tr>
+<tr><td>Real photo analysis via the live app</td><td>Verified live on 10 Nov 2026 (≈ 64 s, 4 items)</td></tr>
+<tr><td>Each individual AI error code occurring live</td><td>Not verified (only overload/busy were observed live)</td></tr>
+<tr><td>Password-reset e-mail arriving in the inbox</td><td>Not verified</td></tr>
+<tr><td>Barcode camera on a real Android phone</td><td>Not verified (real-device test not done)</td></tr>
+<tr><td>Whether browsers grant persistent storage</td><td>Not verified — browser dependent</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

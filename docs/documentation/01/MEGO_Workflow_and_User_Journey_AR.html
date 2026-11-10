@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Workflow_and_User_Journey_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — سير العمل ورحلة المستخدم</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-07</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع، المصممون، المختبرون، الدعم، أعضاء الفريق الجدد</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Features_and_Capabilities، MEGO_Getting_Started، MEGO_Registration_and_Login_Guide، MEGO_Food_Tracking_Guide، MEGO_Reports_Guide، MEGO_Admin_User_Manual، MEGO_Data_Backup_and_Recovery</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تصف هذه الوثيقة كيف يتنقّل الناس داخل MEGO: من التشغيل الأول، مرورًا بالروتين اليومي والأسبوعي وأيام التدريب، وصولًا إلى الاستخدام على أكثر من جهاز والاستعادة والإدارة. لكل رحلة نذكر الشاشات المعنية، وما يفعله التطبيق في الخلفية، والقواعد التي تحمي بيانات المستخدم. الوصف مبني على الكود الحالي، أما الخطوات التفصيلية زرًّا بزر فموجودة في أدلة المستخدم (المجلد 02).</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">الأطراف وأوضاع التشغيل</li>
+<li dir="rtl">التشغيل الأول واختيار الوضع</li>
+<li dir="rtl">التسجيل وتسجيل الدخول</li>
+<li dir="rtl">الروتين الغذائي اليومي</li>
+<li dir="rtl">التسجيل بماسح الوجبات الذكي</li>
+<li dir="rtl">يوم التدريب: التمرين والكارديو والطاقة</li>
+<li dir="rtl">دورة المراجعة الأسبوعية والشهرية</li>
+<li dir="rtl">الوصفات وتخطيط الوجبات</li>
+<li dir="rtl">الاستخدام على عدة أجهزة والاستعادة</li>
+<li dir="rtl">سير عمل المالك والمسؤول</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. الأطراف وأوضاع التشغيل</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الطرف</th><th>الوضع</th><th>مكان البيانات</th></tr>
+<tr><td>الضيف</td><td>guest</td><td>في هذا المتصفح فقط (IndexedDB باسم <code dir="ltr">mego-nutrition</code>)</td></tr>
+<tr><td>المستخدم المسجّل</td><td>account</td><td>على الجهاز (<code dir="ltr">mego-u-&lt;uid&gt;</code>) وفي Cloud Firestore مع مزامنة مباشرة</td></tr>
+<tr><td>مالك المشروع</td><td>ضيف على جهاز المالك مع مزامنة المركز</td><td>الجهاز + جدول Google «MEGO Nutrition Hub» عبر Apps Script</td></tr>
+<tr><td>المسؤول</td><td>حساب له سجل <code dir="ltr">admins/{uid}</code></td><td>يرى الأعداد وبطاقات الحسابات فقط، ولا يرى السجلات الخاصة أبدًا</td></tr>
+</table>
+<p dir="rtl">يُحدَّد الوضع عند بدء التشغيل بواسطة <code dir="ltr">bootAccount()</code> في <code dir="ltr">src/lib/account.ts</code>.</p>
+
+<h2 dir="rtl">2. التشغيل الأول واختيار الوضع</h2>
+<pre dir="ltr">
+ Open app
+    |
+    v
+ Cloud config available? --no--&gt; GUEST mode (local only)
+    | yes
+    v
+ Signed-in account remembered? --yes--&gt; ACCOUNT mode (local DB + live sync)
+    | no
+    v
+ Guest chosen before? --yes--&gt; GUEST mode
+    | no
+    v
+ WELCOME screen: [Create account] [Sign in] [Continue without an account (this device only)]
+</pre>
+<p dir="rtl">بالعربية: إذا لم تتوفر إعدادات السحابة يعمل التطبيق كضيف محليًا؛ وإذا كان هناك حساب مسجَّل الدخول سابقًا يفتح وضع الحساب مع المزامنة؛ وإذا اختار المستخدم وضع الضيف من قبل يعود إليه؛ وإلا تظهر شاشة الترحيب بثلاثة خيارات: «إنشاء حساب» و«تسجيل الدخول» و«المتابعة بدون حساب (على هذا الجهاز فقط)».</p>
+<p dir="rtl">تعرض شاشة الترحيب أهم المزايا (أطعمة USDA، مؤشر سعرات معاير، ماسح الصور مع التأكيد، يوميات خاصة) وروابط سياسة الخصوصية والشروط (مسودات).</p>
+<p dir="rtl"><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/welcome-ar-light.png" width="300" alt="شاشة الترحيب"> <img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/register-ar-light.png" width="300" alt="التسجيل"></p>
+
+<h2 dir="rtl">3. التسجيل وتسجيل الدخول</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الخطوة</th><th>ما يفعله المستخدم</th><th>ما يفعله التطبيق</th></tr>
+<tr><td>1. الحساب</td><td>الاسم، البريد الإلكتروني، كلمة المرور، الدولة، «عمري 18 سنة أو أكثر»، الموافقة على سياسة الخصوصية والشروط</td><td>يتحقق من قاعدة كلمة المرور (8 أحرف على الأقل تتضمن حرفًا ورقمًا)، ويعرض ملاحظة منطقة الذكاء الاصطناعي عند الحاجة</td></tr>
+<tr><td>2. عنك</td><td>الجنس، العمر، الطول، الوزن الحالي والمستهدف، النشاط، الهدف</td><td>يشترط عمرًا ≥ 18 وطولًا &gt; 100 سم ووزنًا &gt; 30 كغ</td></tr>
+<tr><td>3. أهدافك اليومية</td><td>يراجع أو يعدّل السعرات والبروتين والكربوهيدرات والدهون</td><td>يحسبها مسبقًا بمعادلة Mifflin–St Jeor × النشاط والهدف، ويمكن تغييرها لاحقًا من الإعدادات</td></tr>
+<tr><td>الإنهاء</td><td>«أنشئ حسابي»</td><td>ينشئ حساب Firebase والملف الشخصي، ويفتح قاعدة البيانات المحلية الخاصة بالحساب</td></tr>
+</table>
+<ul dir="rtl">
+<li dir="rtl"><b>تسجيل الدخول:</b> البريد وكلمة المرور، مع خانة اختيارية لنسخ سجلات اليوميات الموجودة على الجهاز إلى الحساب.</li>
+<li dir="rtl"><b>نسيت كلمة المرور:</b> يرسل Firebase رسالة استعادة (تم التحقق من قبول الطلب مباشرة، ولم يُتحقَّق من وصول الرسالة إلى البريد).</li>
+<li dir="rtl"><b>الحساب الموقوف:</b> تظهر للمستخدم شاشة الإيقاف، وتبقى بياناته محفوظة.</li>
+</ul>
+
+<h2 dir="rtl">4. الروتين الغذائي اليومي</h2>
+<pre dir="ltr">
+ Dashboard --&gt; Diary --&gt; [+ Add] --&gt; Search / Recent / Frequent / Favorites / History / Meals / Recipes
+                                         |
+                                         v
+                              Choose food --&gt; quantity + unit (grams shown) --&gt; Log
+                                         |
+                                         v
+                    Entry saved with a snapshot of the food values; Undo offered
+                                         |
+                                         v
+                Dashboard ring and macro bars update; change queued for sync
+</pre>
+<p dir="rtl">بالعربية: من اليوميات ← «إضافة» ← البحث أو الأخيرة أو الأكثر استخدامًا أو المفضلة أو السجل أو الوجبات أو الوصفات ← اختيار الطعام ← الكمية والوحدة (مع عرض الغرامات) ← تسجيل. يُحفظ الإدخال مع لقطة من قيم الطعام ويُعرض زر التراجع، ثم تتحدث حلقة السعرات وتدخل التغييرات طابور المزامنة.</p>
+<ol dir="rtl">
+<li dir="rtl"><b>الصباح:</b> افتح الرئيسية — الهدف − الطعام = المتبقي، أشرطة المغذيات، الماء، بطاقة تمرين اليوم.</li>
+<li dir="rtl"><b>تسجيل الوجبات:</b> في اليوميات اختر الوجبة (إفطار، غداء، عشاء، وجبات خفيفة) وأضف الأطعمة بالبحث أو الباركود أو الصورة أو وجبة محفوظة أو وصفة. انسخ الأمس أو وجبة عند تكرار الأكل نفسه (يسأل التطبيق قبل الإضافة إلى يوم فيه إدخالات).</li>
+<li dir="rtl"><b>الماء:</b> أزرار سريعة في الرئيسية واليوميات وصفحة الماء والعادات.</li>
+<li dir="rtl"><b>إغلاق اليوم:</b> «تحديد اليوم كمكتمل». الأيام الماضية التي فيها إدخالات تُعدّ مكتملة تلقائيًا عند بلوغ ≥ 60 % من هدف السعرات (قابلة للتعديل). اليوم الخالي من الإدخالات لا يُحسب صفرًا أبدًا.</li>
+</ol>
+<p dir="rtl"><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/diary-ar-light.png" width="300" alt="اليوميات"> <img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/add-food-ar-light.png" width="300" alt="إضافة طعام"></p>
+
+<h2 dir="rtl">5. التسجيل بماسح الوجبات الذكي</h2>
+<ol dir="rtl">
+<li dir="rtl">اضغط «التقط صورة» أو «رفع من المعرض».</li>
+<li dir="rtl">يفحص الهاتف الصورة ويضغطها ثم يرسلها إلى خادم Apps Script الخاص بالمالك، الذي يطلب من Gemini (الفئة المجانية) التعرّف على المكونات.</li>
+<li dir="rtl">تعرض شاشة المراجعة كل عنصر بالغرامات (مع المدى) والحالة وطريقة الطهي والطعام المطابق من القاعدة ومؤشر الثقة. يجب تأكيد مراجعة العناصر غير المؤكدة، ويمكن التعديل أو تبديل الطعام المطابق أو إضافة عناصر وحذفها.</li>
+<li dir="rtl">يحسب التطبيق القيم الغذائية من قاعدة البيانات. العناصر غير الموجودة في القاعدة توسم بأنها تقديرات ذكاء اصطناعي ولا تُسجَّل إلا باختيار صريح.</li>
+<li dir="rtl">زر <b>التأكيد</b> هو ما يحفظ الإدخالات، ولا يُحفظ شيء قبله. إذا كانت خدمة Google مشغولة يعيد التطبيق المحاولة بعد 3 ثوانٍ و8 ثوانٍ ويحتفظ بالصورة لإعادة المحاولة يدويًا.</li>
+</ol>
+
+<h2 dir="rtl">6. يوم التدريب: التمرين والكارديو والطاقة</h2>
+<pre dir="ltr">
+ Dashboard (today's workout card) --&gt; Workouts &gt; Today --&gt; log sets (weight, reps, RIR) --&gt; rest timer
+        |                                                     |
+        |                                     strength analytics &amp; progression advice
+        v
+ Cardio --&gt; log session (or use saved routine: treadmill 10 min, 3.5 km/h, 13 %)
+        |
+        v
+ Dashboard energy card: Base target, Cardio (estimate), Extra allowed, Adjusted target, Remaining
+</pre>
+<p dir="rtl">بالعربية: من بطاقة تمرين اليوم في الرئيسية ← التمارين ← اليوم ← تسجيل المجموعات (الوزن، التكرارات، RIR) مع مؤقت الراحة وتحليلات القوة ونصائح التقدم؛ ثم الكارديو ← تسجيل الجلسة أو استخدام الروتين المحفوظ (سير 10 دقائق، 3.5 كم/س، ميل 13 %)؛ وتعرض بطاقة الطاقة في الرئيسية: الهدف الأساسي، الكارديو (تقدير)، الإضافة المسموحة، الهدف المعدّل، المتبقي.</p>
+<ul dir="rtl">
+<li dir="rtl">الكارديو المخطط (افتراضيًا 6 × 10 دقائق أسبوعيًا) يُعدّ محسوبًا ضمن الهدف؛ ولا يُضاف إلا جزء من صافي الطاقة الزائدة (50 % / 75 % / 100 % حسب الهدف، بحد أقصى 400 سعرة). المستهدفات المحفوظة لا تتغير أبدًا.</li>
+<li dir="rtl">مدرب التدريب منطق محلي قائم على قواعد — وليس خدمة ذكاء اصطناعي. هو يقترح، والمستخدم يقرر.</li>
+<li dir="rtl">صفحات التمارين (<code dir="ltr">#/exercise/:id</code>) تعرض الرسم المتحرك وطريقة الأداء ومخطط العضلات.</li>
+</ul>
+
+<h2 dir="rtl">7. دورة المراجعة الأسبوعية والشهرية</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>متى</th><th>الإجراء</th><th>الشاشة</th></tr>
+<tr><td>بانتظام (مثلًا صباحًا)</td><td>تسجيل الوزن والخصر (سجل واحد لكل تاريخ)</td><td>التقدم</td></tr>
+<tr><td>أسبوعيًا</td><td>المراجعة الأسبوعية (القوة، الجوع، الاستشفاء، الجلسات)</td><td>الأهداف</td></tr>
+<tr><td>أسبوعيًا</td><td>قراءة التوصيات والموافقة على اقتراح أو تجاهله (لا تُطبَّق تلقائيًا أبدًا)</td><td>الأهداف</td></tr>
+<tr><td>أسبوعيًا / شهريًا</td><td>التقرير الأسبوعي أو الشهري: سجل الأيام، المتوسطات على الأيام المكتملة، الالتزام، الوزن، بطاقة التمارين؛ تصدير CSV / Excel / PDF</td><td>التقارير</td></tr>
+<tr><td>في أي وقت</td><td>تبويبات المدرب للأسبوع والشهر، ترتيب الأطعمة، التثقيف</td><td>المدرب</td></tr>
+</table>
+<p dir="rtl"><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/week-ar-light.png" width="300" alt="التقرير الأسبوعي"> <img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/progress-ar-light.png" width="300" alt="التقدم"></p>
+
+<h2 dir="rtl">8. الوصفات وتخطيط الوجبات</h2>
+<ol dir="rtl">
+<li dir="rtl">وصفاتي ← المكتبة (101 وصفة) أو الاقتراحات (ما يناسب المتبقي من اليوم) أو «ماذا أطبخ اليوم؟».</li>
+<li dir="rtl">افتح وصفة ← أضفها إلى اليوميات أو إلى الخطة أو احفظها كوصفة قابلة للتعديل.</li>
+<li dir="rtl">المخطط ← اقتراح خطة أسبوع أو بناؤها يدويًا ← قائمة التسوق ← تسجيل الخطة ← مقارنة المخطط بالفعلي.</li>
+</ol>
+
+<h2 dir="rtl">9. الاستخدام على عدة أجهزة والاستعادة</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>جهاز ثانٍ:</b> سجّل الدخول بالحساب نفسه؛ تُنزَّل البيانات وتبقى متزامنة مباشرة، والنسخة الأقدم لا تستبدل الأحدث أبدًا.</li>
+<li dir="rtl"><b>دون اتصال:</b> يستمر التسجيل، وتُرفع التغييرات عند عودة الاتصال.</li>
+<li dir="rtl"><b>فقد تخزين المتصفح (حادثة 10 نوفمبر 2026):</b> فقد هاتف أندرويد قاعدة IndexedDB الخاصة به. بعد الإصلاح، أصبح غياب القاعدة المحلية يعيد ضبط علامات المزامنة، والجداول الفارغة تُنزَّل كاملة، والإعدادات تُقرأ دائمًا من جديد. يسجّل المستخدم دخوله مرة أخرى فتعود بياناته. أما بيانات الضيف فلا تُستعاد بهذه الطريقة — لذا على الضيوف تنزيل ملفات النسخ الاحتياطي.</li>
+<li dir="rtl"><b>النسخ الاحتياطي:</b> لقطات تلقائية على الجهاز (آخر 10)، ولقطة قبل التحديث مرة لكل إصدار، وملف نسخة يدوي واستعادة بالدمج فقط من الإعدادات؛ و«فحص البيانات» في الإعدادات يقارن أعداد السجلات بالنسخة السابقة للتحديث (للقراءة فقط).</li>
+<li dir="rtl"><b>المغادرة:</b> صدّر بياناتك، ثم احذف الحساب بعد تأكيد كلمة المرور.</li>
+</ul>
+
+<h2 dir="rtl">10. سير عمل المالك والمسؤول</h2>
+<h3 dir="rtl">10.1 المالك</h3>
+<ol dir="rtl">
+<li dir="rtl">على الحاسوب: <code dir="ltr">node scripts/laptop-setup.mjs</code> (المركز وApps Script ومفتاح Gemini الاختياري)، ومع <code dir="ltr">--cloud</code> لإعداد Firebase.</li>
+<li dir="rtl">اربط جهاز المالك بالمركز من الإعدادات؛ تُستورد الأطعمة من الجدول، وتُزامَن التغييرات كل دقيقة مع إعادة محاولة تلقائية.</li>
+<li dir="rtl">تحديث الخادم: <code dir="ltr">git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend</code>.</li>
+</ol>
+<h3 dir="rtl">10.2 المسؤول</h3>
+<ol dir="rtl">
+<li dir="rtl">يسجّل المالك حسابًا في التطبيق، ثم يشغّل <code dir="ltr">node scripts/laptop-setup.mjs --cloud &lt;e-mail&gt;</code> مرة أخرى لكتابة <code dir="ltr">admins/{uid}</code>. <b>لم يتم ذلك بعد — لا يوجد مسؤول حاليًا.</b></li>
+<li dir="rtl">لوحة المسؤول (<code dir="ltr">#/admin</code>): أعداد المستخدمين، قائمة الحسابات، الإيقاف وإعادة التفعيل، مراجعة الأطعمة المقترحة، تقارير الأخطاء.</li>
+</ol>
+
+<h2 dir="rtl">11. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الرحلة</th><th>الحالة</th></tr>
+<tr><td>التسجيل، الدخول والخروج، طلب استعادة كلمة المرور، تسجيل الطعام، مزامنة جهاز ثانٍ، التقارير الأسبوعية والشهرية، حذف الحساب</td><td>مُتحقَّق منها مباشرة (<code dir="ltr">scripts/live-verify.mjs</code>)</td></tr>
+<tr><td>رحلة ماسح الوجبات</td><td>مُتحقَّق منها مباشرة في 10 نوفمبر 2026 عبر واجهة التطبيق (حساب مؤقت)</td></tr>
+<tr><td>الاستعادة بعد فقد التخزين</td><td>أُعيد إنتاجها وتم التحقق منها على المحاكيات (<code dir="ltr">e2e/storage-loss.mjs</code>)، وأكد المالك عودة البيانات</td></tr>
+<tr><td>رحلات الضيف، المخطط، الوصفات، التمارين، الكارديو، الأهداف</td><td>أجهزة محاكاة (اختبارات المتصفح 57/57) واختبارات الوحدة</td></tr>
+<tr><td>رحلة المسؤول</td><td>على المحاكيات فقط — لا يوجد حساب مسؤول على الإنتاج</td></tr>
+<tr><td>الرحلة كاملة على هاتف أندرويد فعلي؛ وصول رسالة استعادة كلمة المرور</td><td>غير مُتحقَّق منه</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

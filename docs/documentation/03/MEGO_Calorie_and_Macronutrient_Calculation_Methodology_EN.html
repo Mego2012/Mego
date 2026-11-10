@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Calorie_and_Macronutrient_Calculation_Methodology_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Calorie and Macronutrient Calculation Methodology</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-24</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Product owner, developers, nutrition reviewers, testers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Daily_Calorie_Target_Calculation, MEGO_Nutritional_Values_and_Units_Reference, MEGO_Portion_and_Measurement_Conversion_Rules, MEGO_Food_Data_Validation_and_Quality_Control, MEGO_Nutrition_Calculation_Accuracy_Tests</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document explains exactly how MEGO turns a logged quantity of food into calories (kcal), protein, carbohydrates and fat, how daily totals are added up, how the energy plausibility (Atwater) check works, and how the protein, carbohydrate and fat <b>targets</b> are derived from a calorie target. It also covers the merged topic "Protein, Carbohydrates and Fat Calculation". Every formula is taken from the source code (<code>src/lib/nutrition.ts</code>, <code>src/lib/goals.ts</code>, <code>src/lib/targets.ts</code>, <code>src/lib/recipeEngine.ts</code>) and every worked example was computed by running that code on 10 Nov 2026.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Calculation principles</li>
+<li>From quantity to grams</li>
+<li>From grams to nutrients</li>
+<li>Precision and rounding</li>
+<li>Daily totals and optional nutrients</li>
+<li>Energy plausibility check (Atwater)</li>
+<li>Protein, carbohydrate and fat targets</li>
+<li>Recipes</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Calculation principles</h2>
+<ul>
+<li><b>Per 100 g basis.</b> Every food stores its nutrients per 100 g of the food in the stated state (raw, cooked or other). Foods that only have per-serving values (e.g. a recipe or meal entered per portion) use a per-serving basis instead.</li>
+<li><b>No raw↔cooked conversion.</b> <code>toGrams()</code> converts only with the values stored on the food (piece weight, density, serving sizes). It never converts raw weight into cooked weight or the reverse; the user must pick the record that matches what was weighed.</li>
+<li><b>Snapshots.</b> When a food is logged, a copy of its basis (per-100 g values, piece weight, density, servings) is stored with the diary entry (<code>basisFromFood</code>). Later edits of the food therefore never change past diary days.</li>
+<li><b>Energy is taken from the food record</b>, not recomputed from macros. The 4/4/9 calculation is used only as a check (section 6) and for target arithmetic (section 7).</li>
+</ul>
+
+<h2>2. From quantity to grams</h2>
+<p><code>toGrams(basis, quantity, unit)</code> rejects any quantity that is not a finite number greater than zero (error <code>invalidQuantity</code>). Density defaults to 1 g/ml when the food has no <code>gramsPerMl</code>.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Unit</th><th>Grams</th><th>Error when not possible</th></tr>
+<tr><td>g / kg</td><td>quantity / quantity × 1000</td><td>—</td></tr>
+<tr><td>ml / l</td><td>quantity × density / quantity × 1000 × density</td><td>—</td></tr>
+<tr><td>cup / tbsp / tsp</td><td>quantity × 240 / 15 / 5 ml × density</td><td>—</td></tr>
+<tr><td>piece / slice</td><td>quantity × pieceGrams</td><td><code>needsPieceWeight</code></td></tr>
+<tr><td>serving</td><td>quantity × grams of the chosen serving (first serving if none chosen)</td><td><code>needsServing</code></td></tr>
+</table>
+<p>Units offered for a food (<code>availableUnits</code>): g, kg, ml, l, cup, tbsp, tsp always; piece and slice only if a piece weight exists; serving only if servings exist; a per-serving-only basis offers only "serving". Full details: MEGO_Portion_and_Measurement_Conversion_Rules.</p>
+
+<h2>3. From grams to nutrients</h2>
+<pre>
+nutrient(entry) = nutrient per 100 g × grams ÷ 100        (kcal, protein, carbs, fat and every optional nutrient)
+per-serving basis: nutrient(entry) = nutrient per serving × quantity   (grams stored as 0)
+</pre>
+<h3>3.1 Worked example — chicken breast</h3>
+<p>USDA FDC 171477 "Chicken, broilers or fryers, breast, meat only, cooked, roasted": 165 kcal, 31.02 g protein, 0 g carbs, 3.57 g fat per 100 g. Logging 150 g:</p>
+<pre>
+kcal    = 165   × 150/100 = 247.5
+protein = 31.02 × 1.5     = 46.53 g
+carbs   = 0
+fat     = 3.57  × 1.5     = 5.355 → stored 5.36 g
+Displayed: 248 kcal · P 46.5 g · C 0 g · F 5.4 g
+</pre>
+<h3>3.2 Worked example — 1 cup of cooked lentils</h3>
+<p>USDA FDC 172421 "Lentils, mature seeds, cooked, boiled, without salt": 116 kcal, 9.02 g protein, 20.13 g carbs, 0.38 g fat, 7.9 g fibre per 100 g. The app's generic "cup" is 240 ml; this food has no density, so 1 g/ml is used → 240 g.</p>
+<pre>
+kcal = 116 × 2.4 = 278.4   protein = 21.65 g   carbs = 48.31 g   fat = 0.91 g   fibre = 18.96 g
+</pre>
+<p>Note: the USDA portion list for this food states "1 cup = 198 g". When the user picks that USDA serving instead of the generic cup unit, the result is 198 g (229.7 kcal). This is why the app shows "1 cup = 240 g"-style labels (<code>gramsPerUnit</code>) next to the unit, so the user sees which weight is used.</p>
+
+<h2>4. Precision and rounding</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Stage</th><th>Rule (function)</th></tr>
+<tr><td>Grams of an entry</td><td>rounded to 0.1 g</td></tr>
+<tr><td>Stored nutrients of an entry</td><td>rounded to 0.01 (<code>preciseMacros</code>) so that sums of many small entries do not drift</td></tr>
+<tr><td>Display</td><td>whole kcal, 0.1 g for macros and optional nutrients (<code>roundMacros</code>)</td></tr>
+<tr><td>Rounding method</td><td><code>Math.round((n + Number.EPSILON) × 10^d) ÷ 10^d</code> (half rounds up)</td></tr>
+</table>
+
+<h2>5. Daily totals and optional nutrients</h2>
+<p>Day totals are the sum of the stored entry values (<code>sumMacros</code>). Optional nutrients (the four keys of <code>OPTIONAL_NUTRIENTS</code>: fibre, sugar, sodium and saturated fat) are added only when at least one of the two operands reports them; a food that does not report fibre is <b>not</b> counted as 0 g fibre. The coach therefore reports fibre only when every entry of the day has a fibre value (see MEGO_Food_Rankings_and_Coach_Methodology).</p>
+<p><b>Example:</b> 150 g of a personal food entered with kcal and macros only (no fibre value), e.g. 247.5 kcal and 46.53 g protein, + 1 cup lentils (278.4 kcal, 21.65 g protein, 18.96 g fibre) → total 525.9 kcal (displayed 526), protein 68.18 g, fibre 18.96 g with fibre coverage 1 of 2 entries. (USDA foods such as roasted chicken breast do report fibre, as 0 g, so they count as "known".)</p>
+
+<h2>6. Energy plausibility check (Atwater)</h2>
+<pre>
+calc  = 4 × protein + 4 × carbs + 9 × fat
+diff  = kcal − calc            pct = diff ÷ kcal
+consistent (no message) when |pct| &lt; 5 %  OR  |diff| &lt; 8 kcal
+</pre>
+<p>If not consistent, <code>explainEnergy()</code> gives a reason instead of assuming an error:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Reason</th><th>Condition</th><th>Meaning</th></tr>
+<tr><td>fiber</td><td>diff &lt; 0, vegetable/fruit (by category or carbs &gt; protein, fat &lt; 2 g, kcal &lt; 120) and pct &gt; −35 %</td><td>fibre provides less than 4 kcal/g</td></tr>
+<tr><td>nuts</td><td>diff &lt; 0, fat &gt; 25 g and pct &gt; −12 %</td><td>food-specific Atwater factors of nuts are lower</td></tr>
+<tr><td>animal</td><td>diff &gt; 0, carbs &lt; 2 g and pct &lt; 10 %</td><td>specific factors of meat/fish are higher than 4/9</td></tr>
+<tr><td>review</td><td>anything else</td><td>value should be checked</td></tr>
+</table>
+<p>A food is "suspicious" (<code>isEnergySuspicious</code>) only when the reason is <i>review</i> AND |pct| ≥ 10 % AND |diff| ≥ 10 kcal.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Food (per 100 g)</th><th>calc</th><th>diff / pct</th><th>Result</th></tr>
+<tr><td>Chicken breast roasted 165 / 31.02 / 0 / 3.57</td><td>156.2</td><td>+8.8 / +5.3 %</td><td>explained: animal</td></tr>
+<tr><td>Lentils cooked 116 / 9.02 / 20.13 / 0.38</td><td>120.0</td><td>−4.0 kcal</td><td>consistent (|diff| &lt; 8)</td></tr>
+<tr><td>Almonds 579 / 21.15 / 21.55 / 49.93</td><td>620.2</td><td>−41.2 / −7.1 %</td><td>explained: nuts</td></tr>
+<tr><td>Test value 300 / 10 / 10 / 10</td><td>170</td><td>+130 / +43.3 %</td><td>review → suspicious</td></tr>
+</table>
+
+<h2>7. Protein, carbohydrate and fat targets</h2>
+<p>When a goal recommendation is calculated (<code>recommend()</code> in <code>goals.ts</code>), the calorie target is computed first (see MEGO_Daily_Calorie_Target_Calculation) and the macros are then derived from it:</p>
+<pre>
+protein (g) = round(body weight kg × proteinPerKg of the goal)
+fat (g)     = round(max(0.8 × body weight, 25 % × kcal ÷ 9))
+carbs (g)   = max(0, round((kcal − 4 × protein − 9 × fat) ÷ 4))     ← the remainder
+</pre>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Goal</th><th>proteinPerKg</th><th>Goal</th><th>proteinPerKg</th></tr>
+<tr><td>fat_loss</td><td>1.8</td><td>lean_bulk</td><td>1.8</td></tr>
+<tr><td>fat_loss_preserve</td><td>2.2</td><td>bulk</td><td>1.6</td></tr>
+<tr><td>recomp</td><td>2.2</td><td>maintain</td><td>1.6</td></tr>
+<tr><td>performance</td><td>1.8</td><td>healthy</td><td>1.4</td></tr>
+</table>
+<p>"custom" has no recommendation (targets are entered by hand).</p>
+<h3>7.1 Worked example</h3>
+<p>Default profile (male, 26 y, 170 cm, 72 kg, activity "active"), goal <i>fat_loss_preserve</i>, recommended calories 2,350 kcal:</p>
+<pre>
+protein = round(72 × 2.2)                   = round(158.4)  = 158 g   (632 kcal)
+fat     = round(max(72 × 0.8, 2350×0.25/9)) = round(max(57.6, 65.28)) = 65 g (585 kcal)
+carbs   = round((2350 − 632 − 585) ÷ 4)     = round(283.25) = 283 g   (1,132 kcal)
+check: 632 + 1,132 + 585 = 2,349 kcal ≈ 2,350
+</pre>
+<p>Settings shows "Macro calories" for any target set (<code>macroCalories</code> = 4P + 4C + 9F) so a hand-entered target can be checked. The shipped default targets (2,000 kcal; P 160 / C 200 / F 62) give 4×160 + 4×200 + 9×62 = 1,998 kcal.</p>
+<h3>7.2 How targets are chosen for a date</h3>
+<p><code>targetsFor(date)</code>: a per-date override set in the Diary wins; otherwise the target of the day type (training or rest). The day type is the one set on that day, else "training" if the weekday is in <i>Training weekdays</i> (default Saturday–Thursday) and "rest" otherwise.</p>
+
+<h2>8. Recipes</h2>
+<pre>
+recipe totals      = Σ nutrients of every ingredient (each from its own per-100 g record)
+per serving        = totals ÷ number of servings      (stored at 0.01 precision)
+</pre>
+<p>For library recipes each ingredient is taken from the user's own food with the same Arabic name, else from a hand-checked USDA match (<code>recipeRefMap.ts</code>), else it is reported <b>missing</b> and contributes nothing — it is never estimated (see MEGO_Missing_and_Duplicate_Foods_Management). Labels are derived from the computed values: <i>high-protein</i> (≥ 25 g protein and ≥ 30 % of kcal from protein per serving), <i>low-calorie</i> (≤ 400 kcal), <i>low-carb</i> (≤ 20 g carbs).</p>
+
+<h2>9. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Formulas and thresholds</td><td>Verified by reading <code>nutrition.ts</code>, <code>goals.ts</code>, <code>targets.ts</code>, <code>recipeEngine.ts</code></td></tr>
+<tr><td>Worked examples</td><td>Computed by executing the app code on 10 Nov 2026 with USDA values from <code>public/fooddb/usda.json</code></td></tr>
+<tr><td>Automated tests</td><td>Covered by the unit suite (195 tests, vitest), e.g. <code>tests/v2.test.ts</code> (explainEnergy reasons, units, recommendations) and <code>tests/cardio-goals.test.ts</code> (recipe totals = sum of ingredients)</td></tr>
+<tr><td>Accuracy versus laboratory values</td><td>Not verified — values are as published by the source (USDA, the owner's Hub, Open Food Facts or the user)</td></tr>
+</table>
+
+<h2>10. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

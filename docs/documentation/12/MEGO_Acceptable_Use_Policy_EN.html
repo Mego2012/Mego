@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MEGO_Acceptable_Use_Policy_EN</title></head>
+<body style="font-family:Arial">
+<p style="background:#fff3cd;border:2px solid #b8860b;padding:10px"><b>DRAFT — requires review by a qualified legal professional before publication</b></p>
+<h1>MEGO — Acceptable Use Policy</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-77</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires legal review</td></tr>
+<tr><td>Audience</td><td>Project owner, legal counsel, administrators; after approval: all MEGO users</td></tr>
+<tr><td>Related documents</td><td>MEGO_Terms_of_Service_Draft, MEGO_Privacy_Policy_Draft, MEGO_Nutrition_Disclaimer, MEGO_Medical_Disclaimer, MEGO_Access_Control_and_Permissions, MEGO_User_Management_Procedures, MEGO_Admin_User_Manual</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This draft sets out what users may and may not do when using MEGO, and how the rules are enforced. It expands the in-app Terms text <code>tos_3</code> ("Do not abuse the service, attempt to access other accounts or overload the AI scanner. Accounts may be suspended for abuse.") and forms part of MEGO_Terms_of_Service_Draft (section 5). It applies to signed-in users and, where relevant, to guest use. Every statement about enforcement describes what the code does as of 10 November 2026. Text in [square brackets] must be completed by the owner and legal counsel. This draft is not legal advice.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Principles</li>
+<li>Your account</li>
+<li>Prohibited activities</li>
+<li>AI photo scanner</li>
+<li>Shared food database submissions</li>
+<li>How the rules are enforced technically</li>
+<li>Suspension and its effects</li>
+<li>Reporting abuse and security problems</li>
+<li>Verification status</li>
+<li>Decisions required from the owner and legal counsel</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Principles</h2>
+<p>MEGO is a free personal nutrition tool running on free-tier services with limited quotas (Firebase Spark plan, Apps Script quotas, Gemini API free tier). Use it for your own nutrition and fitness tracking, in a way that does not harm other users, the operator or the providers.</p>
+
+<h2>2. Your account</h2>
+<ul>
+<li>One account belongs to one adult person (18+). Do not share your account or use another person's account.</li>
+<li>Keep your password private (<code>tos_2</code>). Passwords are handled by Google Firebase Authentication.</li>
+<li>Provide a truthful age confirmation and country. The country determines whether the AI scanner is available (not offered in the EU, EEA, UK and Switzerland); do not give a false country to bypass this.</li>
+</ul>
+
+<h2>3. Prohibited activities</h2>
+<p>You must not:</p>
+<ol>
+<li>attempt to access, read or change other users' data or accounts, or to obtain administrator rights;</li>
+<li>probe, scan or test the security of the service, its backend or its Firebase project, except as agreed in writing with the operator [responsible-disclosure terms — to be decided];</li>
+<li>overload the service: automated or bulk requests, scripts that create accounts, mass uploads or repeated requests designed to exhaust free quotas;</li>
+<li>circumvent limits such as the daily scan limits, the region restriction or the account suspension;</li>
+<li>upload unlawful, offensive or third-party confidential content in any field, food name, recipe, note or photo;</li>
+<li>submit deliberately false or misleading nutrition values to the shared food database;</li>
+<li>use the service to harm yourself or others, or present its estimates as professional medical or dietary advice to others;</li>
+<li>reverse-engineer the backend to extract secrets (keys, tokens) or reuse them outside MEGO;</li>
+<li>[any further prohibited uses — to be decided after legal review].</li>
+</ol>
+
+<h2>4. AI photo scanner</h2>
+<ul>
+<li>Photograph meals only. Do not photograph people, documents or anything confidential: on the Gemini free tier Google may use the content to improve its products and human reviewers may see it (<code>pp_4</code>).</li>
+<li>Do not overload the scanner (<code>tos_3</code>). Each signed-in user has a daily scan limit (default 10 per day) and the backend has a global daily limit (default 40); the operator can configure both. Failed analyses are not counted.</li>
+<li>AI results are estimates; nothing is saved until you review and confirm (<code>tos_8</code>).</li>
+</ul>
+
+<h2>5. Shared food database submissions</h2>
+<p>Signed-in users can suggest a personal food for the shared database ("Suggest for the shared database"). Submit only values you have checked against the product label or a reliable source. Submissions stay pending until an administrator approves or rejects them; approved foods become visible to every user. A pending submission can be withdrawn by its author. [Licence granted by users for submitted foods — to be decided after legal review.]</p>
+
+<h2>6. How the rules are enforced technically</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Rule</th><th>Enforcement (firebase/firestore.rules, apps-script/Code.gs)</th></tr>
+<tr><td>Only you can access your records</td><td>Records under <code>users/{uid}</code> can be read and written only by the owner of that uid and only while the account is active</td></tr>
+<tr><td>No self-promotion to administrator</td><td>The <code>admins</code> collection cannot be written by any client; a regular account cannot list profiles or suspend others (refused live, HTTP 403)</td></tr>
+<tr><td>Profile integrity</td><td>A profile can be created only with status "active", age confirmation true and the signed-in e-mail; users can change only display name, country and last-activity date; administrators can change only the status</td></tr>
+<tr><td>Record size and type</td><td>Each synced record is limited to fewer than 300,000 characters and to the app's known tables; older copies cannot overwrite newer ones</td></tr>
+<tr><td>Error reports</td><td>Only signed-in users; fixed fields; message under 500 characters; readable only by administrators</td></tr>
+<tr><td>AI scanner abuse</td><td>Backend verifies the Firebase sign-in, requires an active profile, refuses restricted countries and applies per-user and global daily limits</td></tr>
+</table>
+
+<h2>7. Suspension and its effects</h2>
+<p>7.1 Administrators may suspend accounts that break these rules (<code>tos_3</code>, <code>tos_9</code>). A suspended account cannot read or write its cloud records or use the AI scanner. Suspension does not delete data ("Your data is kept and nothing has been deleted"). An administrator can reactivate the account.</p>
+<p>7.2 In the current version the suspended screen offers only sign-out; export during suspension is not available in the app, although in-app text <code>tos_9</code> says "you can still export your data". [The owner must decide how a suspended user obtains a copy of their data and correct the wording.]</p>
+<p>7.3 [Notice of suspension, reasons given, appeal process and termination — to be decided after legal review.]</p>
+
+<h2>8. Reporting abuse and security problems</h2>
+<p>Report suspected abuse, unauthorised access or a security weakness to the operator: [Operator name, country and contact email — to be completed by the owner before launch.] Do not include passwords, keys or other secrets in reports.</p>
+<p><b>[Limitation of liability — wording to be provided by legal review.]</b> [Applicable law and jurisdiction — to be decided by the owner after legal review.]</p>
+
+<h2>9. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Statement</th><th>Status</th></tr>
+<tr><td>Owner-only access, no self-promotion, no suspending others</td><td>Verified live (scripts/live-verify.mjs: 403 for cross-account access, listing profiles, self-promotion, suspending others) and on emulators (tests-rules)</td></tr>
+<tr><td>Suspended account blocked from cloud records</td><td>Tested on emulators</td></tr>
+<tr><td>Record size limit, error-report limits, submission rules</td><td>Verified in firebase/firestore.rules</td></tr>
+<tr><td>Scanner limits and region restriction</td><td>Verified in apps-script/Code.gs; live configured values not verified; restricted-country account not tested live</td></tr>
+<tr><td>Export during suspension</td><td>Not available in the current UI (discrepancy with tos_9)</td></tr>
+<tr><td>Enforceability of this policy</td><td>Not verified — requires legal review</td></tr>
+</table>
+
+<h2>10. Decisions required from the owner and legal counsel</h2>
+<ol>
+<li>Operator identity and contact for abuse and security reports.</li>
+<li>Complete list of prohibited uses; responsible-disclosure terms.</li>
+<li>Suspension notice, appeal and termination process; data access for suspended users.</li>
+<li>Licence for user-submitted foods.</li>
+<li>Liability and governing law.</li>
+</ol>
+
+<h2>11. Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

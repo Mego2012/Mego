@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Monitoring_and_Maintenance_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — المراقبة والصيانة (Monitoring and Maintenance)</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-70</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع والمسؤولون والقائمون على الصيانة</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Admin_User_Manual، MEGO_Support_and_Incident_Management، MEGO_Production_Verification_Checklist، MEGO_Update_and_Rollback_Procedures، MEGO_Gemini_AI_Integration، MEGO_Data_Backup_and_Recovery، MEGO_Security_Audit_and_Known_Risks</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تحدد هذه الوثيقة ما يجب مراقبته في نظام MEGO العامل، والأدوات المتاحة لذلك، ومهام الصيانة الدورية وأوامرها. لا يملك MEGO <b>أي خدمة مراقبة أو تنبيه آلية</b>؛ فكل فحص أدناه يبدؤه شخص (أو يعمل ضمن عملية النشر). تغطي الوثيقة النشر على GitHub Pages، ومشروع Firebase (خطة Spark المجانية)، وخادم Apps Script والـ Hub، وماسح الوجبات Gemini. المصادر: <code dir="ltr">.github/workflows/deploy.yml</code> و<code dir="ltr">scripts/laptop-setup.mjs</code> و<code dir="ltr">scripts/live-verify.mjs</code> و<code dir="ltr">apps-script/Code.gs</code> و<code dir="ltr">src/lib/firebase.ts</code> و<code dir="ltr">src/lib/cloudSync.ts</code> و<code dir="ltr">docs/ARCHITECTURE.md</code>.</p>
+<p dir="rtl">لا تلصق أبدًا رابط الخادم <code dir="ltr">/exec</code> أو توكن التطبيق أو مفتاح Gemini أو رمز الاتصال في التذاكر أو المحادثات أو لقطات الشاشة. حالة الإعداد (معرّف السكربت والرابط والتوكن) محفوظة على حاسوب المالك في <code dir="ltr">~/.mego-backend/</code>.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">خريطة المراقبة</li>
+<li dir="rtl">عمليات النشر (GitHub Actions)</li>
+<li dir="rtl">التحقق الحي من تطبيق الإنتاج</li>
+<li dir="rtl">سلامة الخادم والـ Hub</li>
+<li dir="rtl">مراقبة ماسح الذكاء الاصطناعي: aiDiag وaiStats والعدادات</li>
+<li dir="rtl">لوحة الإدارة وتقارير الأخطاء</li>
+<li dir="rtl">حدود الخطط المجانية</li>
+<li dir="rtl">مهام الصيانة الدورية</li>
+<li dir="rtl">جدول زمني مقترح</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. خريطة المراقبة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المكوّن</th><th>ما قد يتعطل</th><th>الأداة</th><th>القسم</th></tr>
+<tr><td>تطبيق الويب (GitHub Pages)</td><td>فشل الاختبارات يمنع النشر فلا يُحدَّث الموقع</td><td>GitHub Actions «Test &amp; deploy to GitHub Pages»</td><td>2</td></tr>
+<tr><td>الحسابات والعزل والمزامنة والتقارير (Firebase)</td><td>تراجع في القواعد أو الدخول أو المزامنة</td><td><code dir="ltr">scripts/live-verify.mjs</code></td><td>3</td></tr>
+<tr><td>خادم Apps Script والـ Hub</td><td>التوكن، ونمط الـ Hub، وجدول الأطعمة، والكتابة والقراءة</td><td><code dir="ltr">laptop-setup.mjs --test</code></td><td>4</td></tr>
+<tr><td>ماسح Gemini</td><td>الضغط، والحصة، والمفتاح، والمنطقة، والنموذج</td><td><code dir="ltr">laptop-setup.mjs --update-backend</code> (aiDiag) و<code dir="ltr">aiStats</code> وخصائص السكربت</td><td>5</td></tr>
+<tr><td>قاعدة المستخدمين وأخطاء المزامنة</td><td>الإيقافات، والأطعمة المعلّقة، وفشل المزامنة</td><td>لوحة الإدارة <code dir="ltr">#/admin</code></td><td>6</td></tr>
+<tr><td>الحصص</td><td>الحدود اليومية لـ Firestore والمصادقة وGemini</td><td>وحدة تحكم Firebase وGoogle AI Studio</td><td>7</td></tr>
+</table>
+
+<h2 dir="rtl">2. عمليات النشر (GitHub Actions)</h2>
+<p dir="rtl">يعمل سير العمل <code dir="ltr">.github/workflows/deploy.yml</code> عند كل دفع (push) إلى <code dir="ltr">main</code> أو <code dir="ltr">claude/nutrition-tracking-app-989rku</code>، ويمكن تشغيله يدويًا (<code dir="ltr">workflow_dispatch</code>).</p>
+<pre dir="ltr">
+ push ─► build job: checkout → Node 22 → npm ci → npm test (vitest) → npm run build ─► upload dist
+                                                   │ fails?
+                                                   └─► stop: the live site keeps the previous version
+         deploy job (needs build) ─► actions/deploy-pages ─► https://mego2012.github.io/Mego/
+</pre>
+<ul dir="rtl">
+<li dir="rtl">لا تعمل في هذا المسار إلا اختبارات الوحدات (<code dir="ltr">npm test</code>: ‏195 اختبارًا في 13 ملفًا حتى 10 نوفمبر 2026). أما اختبارات المتصفح واللمس وتعدد المستخدمين والقواعد والاختبارات الحية فتُشغَّل يدويًا.</li>
+<li dir="rtl">مجموعة التزامن <code dir="ltr">pages</code> مع <code dir="ltr">cancel-in-progress</code>: الدفع الأحدث يلغي تشغيلًا أقدم ما زال قيد التنفيذ.</li>
+<li dir="rtl">طريقة الفحص: المستودع على GitHub ← تبويب Actions ← آخر تشغيل باللون الأخضر؛ أو <code dir="ltr">gh run list --workflow deploy.yml --limit 5</code>.</li>
+<li dir="rtl">عند الفشل: افتح سجل الخطوة الفاشلة، أصلح ثم ادفع مجددًا. لا يتغير شيء في الموقع الحي حتى ينجح تشغيل.</li>
+</ul>
+
+<h2 dir="rtl">3. التحقق الحي من تطبيق الإنتاج</h2>
+<p dir="rtl">يفتح <code dir="ltr">scripts/live-verify.mjs</code> التطبيق المنشور في متصفح حقيقي (Playwright) مقابل مشروع Firebase الحقيقي، وينشئ حسابين مؤقتين بعناوين عشوائية على <code dir="ltr">example.com</code> ويحذفهما في النهاية حتى عند فشل أحد الفحوص. ولا يستخدم إلا توكنات حسابي الاختبار، فكل نتيجة «مسموح/مرفوض» هي قواعد الإنتاج نفسها وهي تعمل.</p>
+<ul dir="rtl">
+<li dir="rtl">التشغيل: <code dir="ltr">node scripts/live-verify.mjs</code> (أو <code dir="ltr">node scripts/laptop-setup.mjs --verify</code>). يجب تثبيت Playwright (<code dir="ltr">npm install --no-save playwright@1.63.0 &amp;&amp; npx playwright install chromium</code>).</li>
+<li dir="rtl">التقرير: <code dir="ltr">~/.mego-backend/live-verify-&lt;time&gt;.md</code>.</li>
+<li dir="rtl">يحتوي السكربت الآن 17 فحصًا: تقديم الموقع والإعدادات، وتسجيل حسابين، وقراءة كل مستخدم لبطاقته فقط، وتسجيل الطعام ومزامنته، والعزل على الخادم، وتغذية الوصفات لحساب جديد، وخصوصية الكارديو والتمارين، والمزامنة إلى جهاز ثانٍ، والتقرير الأسبوعي والشهري، ورفض وظائف المسؤول لحساب عادي، وطلب استعادة كلمة المرور، والخروج والدخول، وحذف الحسابين.</li>
+<li dir="rtl">آخر نتيجة مسجلة على الإنتاج: 14/14 في 7 نوفمبر 2026 بمجموعة الفحوص السابقة. أما تشغيل كامل على الإنتاج يشمل الفحوص الثلاثة المضافة لاحقًا (الوصفات والكارديو والتمارين) فهو <i>غير مُتحقَّق منه</i> في سجلات المستودع.</li>
+</ul>
+<p dir="rtl">كل تشغيل ينشئ حسابات ويحذفها، فيستهلك بضع عشرات من عمليات القراءة والكتابة في Firestore وعمليتي تسجيل؛ ولا يمس المستخدمين الحقيقيين.</p>
+
+<h2 dir="rtl">4. سلامة الخادم والـ Hub</h2>
+<p dir="rtl">الأمر <code dir="ltr">node scripts/laptop-setup.mjs --test</code> يشغّل الاختبارات الحية على الخادم الحالي دون إعادة نشر:</p>
+<ol dir="rtl">
+<li dir="rtl">الخادم يستجيب بتوكن المالك، والتوكن الخاطئ يُرفض؛</li>
+<li dir="rtl">هوية الـ Hub (المصدر هو ملف Excel الأصلي)، وأن الـ Hub جدول Google أصلي قابل للكتابة، وتحقق installMego؛</li>
+<li dir="rtl">Food_Database يضم كل الأطعمة بقيم مقروءة؛</li>
+<li dir="rtl">كتابة سجل اختبار من الهاتف إلى الـ Hub وقراءته، وأن النسخة الأقدم لا تستبدل الأحدث، والحذف المرن إلى <code dir="ltr">Deleted_Records</code>؛</li>
+<li dir="rtl">Gemini: وجود المفتاح ثم تحليل صورة حقيقية واحدة (صورة وجبة عامة من Wikimedia Commons، أو <code dir="ltr">--photo &lt;file&gt;</code>).</li>
+</ol>
+<p dir="rtl">ملاحظة: يترك الاختبار صفًا محذوفًا حذفًا مرنًا في <code dir="ltr">Deleted_Records</code>، وإذا نجح التحليل يُحتسب مسحًا واحدًا في عداد الذكاء الاصطناعي اليومي. ويُكتب تقرير في <code dir="ltr">~/.mego-backend/report-&lt;time&gt;.md</code>.</p>
+<p dir="rtl">فحص سريع للإصدار دون توكن: طلب GET على رابط تطبيق الويب يعيد <code dir="ltr">{ ok: true, app: "mego-nutrition", version: N }</code> (<code dir="ltr">SCRIPT_VERSION</code>). الشيفرة في المستودع عند الإصدار 8 (الإصدار 7 = تحويل أخطاء الذكاء الاصطناعي وسلسلة النماذج، 10 نوفمبر 2026؛ والإصدار 8 = الإجراء <code dir="ltr">fillFoodNames</code> لإكمال أطعمة الـ Hub). الإصدار 7 مُتحقَّق منه حيًّا، أما نشر الإصدار 8 على خادم المالك فـ<i>غير مُتحقَّق منه</i>. وإن ظهر رقم أقل من رقم المستودع فعلى المالك تشغيل <code dir="ltr">--update-backend</code>.</p>
+
+<h2 dir="rtl">5. مراقبة ماسح الذكاء الاصطناعي: aiDiag وaiStats والعدادات</h2>
+<h3 dir="rtl">5.1 aiDiag — سلامة كل نموذج</h3>
+<p dir="rtl">شغّل <code dir="ltr">git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend</code>. يرفع الأمر <code dir="ltr">Code.gs</code> الحالي إلى النشر <b>نفسه</b> (الرابط نفسه، والبيانات دون مساس) ثم يستدعي <code dir="ltr">aiDiag</code> الذي يرسل طلبًا نصيًا صغيرًا جدًا («Reply with the single word OK.») إلى كل نموذج مجاني، ويطبع لكل نموذج: حالة HTTP، ورمز الخطأ المحوَّل، وحالة Google ورسالتها، والمدة بالمللي ثانية.</p>
+<pre dir="ltr">
+  backend version 7 · configured model gemini-3.8-flash
+  ✅ gemini-3.8-flash: HTTP 200 OK (… ms)
+  ❌ gemini-3.6-flash: HTTP 503 AI_OVERLOADED — UNAVAILABLE: … (… ms)   ← example of a failing model
+  ✅ gemini-3.5-flash-lite: HTTP 200 OK (… ms)
+</pre>
+<p dir="rtl">(الشكل توضيحي؛ القيم تعتمد على Google وقت التشغيل.) ويمكن أيضًا استدعاء <code dir="ltr">aiDiag</code> بتوكن هوية Firebase لأي مستخدم مسجَّل له بطاقة — لا للمسؤولين فقط — ولا يستهلك عدادات المسح.</p>
+<h3 dir="rtl">5.2 aiStats — الاستخدام خلال آخر 7 أيام (للمسؤول فقط)</h3>
+<p dir="rtl">يتحقق إجراء الخادم <code dir="ltr">aiStats</code> من توكن هوية Firebase للمستدعي ومن وجود <code dir="ltr">admins/{uid}</code>، ثم يعيد: النموذج، وهل المفتاح مضبوط، والحدين اليوميين العام ولكل مستخدم، ولكل يوم من آخر 7 أيام عدد عمليات المسح الناجحة وعدد المستخدمين المختلفين؛ أعدادًا فقط دون أي محتوى. <b>لا توجد شاشة في التطبيق تستدعيه بعد</b>، لذلك تُقرأ الأرقام اليوم مباشرة من محرر Apps Script ← Project settings ← Script Properties (المفاتيح <code dir="ltr">AI_USED_&lt;yyyy-mm-dd&gt;</code> و<code dir="ltr">AI_U_&lt;yyyy-mm-dd&gt;_&lt;uid&gt;</code>). لا تلتقط صورة لتلك الصفحة أبدًا، فهي تحتوي أيضًا مفتاح Gemini وتوكن التطبيق.</p>
+<h3 dir="rtl">5.3 الحدود والعدادات</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الخاصية</th><th>المعنى</th><th>القيمة</th></tr>
+<tr><td><code dir="ltr">AI_USER_DAILY_LIMIT</code></td><td>عدد المسحات لكل مستخدم مسجَّل يوميًا (بتاريخ UTC)</td><td>الافتراضي في الشيفرة 10؛ يضبطها <code dir="ltr">--cloud</code> على 10؛ المسموح 1–50</td></tr>
+<tr><td><code dir="ltr">AI_DAILY_LIMIT</code></td><td>المسحات العامة يوميًا (سقف خاص فوق حصة Google المجانية)</td><td>الافتراضي في الشيفرة 40؛ يضبطها <code dir="ltr">--cloud</code> على 200؛ المسموح 1–1500. القيمة المخزنة حاليًا: غير مُتحقَّق منها</td></tr>
+<tr><td><code dir="ltr">AI_USED_&lt;date&gt;</code></td><td>المسحات العامة الناجحة في ذلك اليوم</td><td>تُحتسب عند النجاح فقط</td></tr>
+<tr><td><code dir="ltr">AI_U_&lt;date&gt;_&lt;uid&gt;</code></td><td>مسحات مستخدم واحد في ذلك اليوم</td><td>تُسترد عند فشل التحليل</td></tr>
+</table>
+<p dir="rtl">العدادات القديمة: الدالة <code dir="ltr">cleanupAiCounters()</code> تحذف العدادات الأقدم من 8 أيام، وهي مصممة لمشغّل زمني يومي اختياري <b>لا</b> يثبّته سكربت الإعداد؛ ويستطيع المالك إضافته من محرر Apps Script (Triggers ← إضافة مشغّل ← <code dir="ltr">cleanupAiCounters</code>، زمني، يومي). <i>غير مُتحقَّق منه.</i></p>
+<h3 dir="rtl">5.4 رموز الأخطاء التي تجب مراقبتها</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الرمز</th><th>السبب</th><th>هل تُعاد المحاولة؟</th><th>إجراء المالك</th></tr>
+<tr><td><code dir="ltr">AI_OVERLOADED</code> (503)</td><td>ضغط على نموذج Google</td><td>ينتقل الخادم فورًا إلى النموذج المجاني التالي؛ ويعيد التطبيق المحاولة بعد 3 ثوانٍ ثم 8 ثوانٍ</td><td>لا شيء؛ وإن استمر فشغّل aiDiag</td></tr>
+<tr><td><code dir="ltr">AI_SERVER_ERROR</code> (500) و<code dir="ltr">AI_TIMEOUT</code> (504)</td><td>خطأ مؤقت لدى Google</td><td>يعيد الخادم المحاولة بعد ثانيتين ثم 4 ثوانٍ، ثم النموذج التالي</td><td>كما سبق</td></tr>
+<tr><td><code dir="ltr">AI_QUOTA_MINUTE</code> / <code dir="ltr">AI_QUOTA_DAY</code> (429)</td><td>نفاد الحصة المجانية لدى Google</td><td>لا</td><td>الانتظار؛ يعرض التطبيق وقت التجدد (منتصف الليل بتوقيت المحيط الهادئ)</td></tr>
+<tr><td><code dir="ltr">AI_KEY_INVALID</code></td><td>مفتاح ملغى أو خاطئ</td><td>لا</td><td>إنشاء مفتاح مجاني جديد وحفظه من التطبيق</td></tr>
+<tr><td><code dir="ltr">AI_REGION</code> و<code dir="ltr">AI_MODEL_UNAVAILABLE</code> و<code dir="ltr">AI_CONFIG</code></td><td>مشكلة في الموقع أو النموذج أو الطلب</td><td>لا</td><td>تشغيل aiDiag ومراجعة قائمة نماذج Google</td></tr>
+<tr><td><code dir="ltr">AI_DAILY_LIMIT</code> و<code dir="ltr">AI_USER_LIMIT</code></td><td>بلوغ سقوف MEGO الخاصة</td><td>لا</td><td>الرفع عبر <code dir="ltr">setCloudConfig</code> فقط إن سمحت حصة Google</td></tr>
+</table>
+
+<h2 dir="rtl">6. لوحة الإدارة وتقارير الأخطاء</h2>
+<p dir="rtl">عند وجود مسؤول (لا يوجد بعد) تعرض <code dir="ltr">#/admin</code> عدد المسجلين والنشطين خلال 7 أيام والحسابات الموقوفة والأطعمة المقترحة المعلّقة، إضافة إلى آخر 50 تقرير خطأ. تُنشأ تقارير الأخطاء تلقائيًا من الأجهزة المسجَّلة بنوع <code dir="ltr">sync</code> (فشل رفع إلى السحابة) أو <code dir="ltr">sync-apply</code> (تعذّر تطبيق سجل واحد منزَّل؛ وتذكر الرسالة الجدول والمفتاح). ازدياد التقارير بعد إصدار جديد إشارة إلى ضرورة التحقيق (انظر MEGO_Support_and_Incident_Management). التقارير لا تحمل معرّف المستخدم.</p>
+
+<h2 dir="rtl">7. حدود الخطط المجانية</h2>
+<p dir="rtl">تعمل كل الخدمات على خطط مجانية؛ وعند بلوغ الحد تتوقف الخدمة لبقية اليوم بدل أي فوترة. الأرقام أدناه كما وردت في <code dir="ltr">docs/ARCHITECTURE.md</code>، وقد تغيّرها Google؛ راجع وثائق Firebase وGemini الحالية (<i>غير مُتحقَّق منها</i> مقابل صفحات Google في 10 نوفمبر 2026).</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الخدمة</th><th>الحد</th><th>ما يستهلكه في MEGO</th></tr>
+<tr><td>Firebase Authentication (Spark)</td><td>3,000 مستخدم نشط يوميًا؛ 150 رسالة استعادة كلمة مرور يوميًا؛ 100 تسجيل في الساعة لكل عنوان IP</td><td>الدخول والتسجيل وطلبات الاستعادة وتشغيلات live-verify</td></tr>
+<tr><td>Cloud Firestore (Spark)</td><td>1 GiB تخزين؛ 50,000 قراءة و20,000 كتابة و20,000 حذف يوميًا</td><td>مستمعات حية على 12 جدولًا خاصًا إضافة إلى <code dir="ltr">/foods</code> لكل جهاز مسجَّل؛ كل تغيير محلي = كتابة واحدة؛ نشر الأطعمة = كتابة لكل طعام وإعادة قراءة على كل جهاز؛ حذف الحساب = حذف لكل سجل</td></tr>
+<tr><td>الفئة المجانية لـ Gemini API</td><td>حصص Google بالدقيقة واليوم</td><td>كل مسح وجبة (وحتى نموذجين احتياطيين عند الفشل)؛ aiDiag = ثلاثة طلبات صغيرة</td></tr>
+<tr><td>Google Apps Script</td><td>حصص Google للحسابات الشخصية (غير مُتحقَّق منها)</td><td>مزامنة الـ Hub، والمسح، والنسخ الاحتياطية في Drive</td></tr>
+</table>
+<p dir="rtl">أين تنظر: وحدة تحكم Firebase ← المشروع ← صفحات الاستخدام (Usage) لـ Firestore؛ وGoogle AI Studio لاستخدام Gemini. أسماء القوائم الدقيقة <i>غير مُتحقَّق منها</i>.</p>
+
+<h2 dir="rtl">8. مهام الصيانة الدورية</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المهمة</th><th>الطريقة</th></tr>
+<tr><td>تحديث خادم Apps Script</td><td><code dir="ltr">git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend</code> (الرابط نفسه، البيانات دون مساس، ينتهي بـ aiDiag)</td></tr>
+<tr><td>إكمال قاعدة أطعمة الـ Hub (مرة واحدة، بعد تحديث مكتبة الوصفات)</td><td><code dir="ltr">node scripts/laptop-setup.mjs --hub-complete-foods</code> — يحدّث الخادم ويضيف مكوّنات الوصفات والوجبات الجاهزة الناقصة ويملأ الأسماء الإنجليزية الفارغة؛ إضافة فقط (انظر MEGO_Food_Database_Administration)</td></tr>
+<tr><td>نشر قواعد Firestore أو فهارسها بعد تعديلها</td><td>ضمن <code dir="ltr">node scripts/laptop-setup.mjs --cloud</code> (ينفّذ <code dir="ltr">firebase deploy --only firestore:rules,firestore:indexes</code>)؛ ثم شغّل live-verify</td></tr>
+<tr><td>تدوير توكن التطبيق (موصى به لأنه ظهر في محادثة أثناء الإعداد)</td><td>محرر Apps Script ← تشغيل <code dir="ltr">rotateToken()</code>؛ يظهر التوكن الجديد في سجل التنفيذ؛ أعد ربط أجهزة المالك برمز اتصال جديد. يتوقف التوكن القديم فورًا. <i>غير مُتحقَّق منه</i> من البداية للنهاية</td></tr>
+<tr><td>تدوير مفتاح Gemini (موصى به للسبب نفسه)</td><td>أنشئ مفتاحًا مجانيًا جديدًا في Google AI Studio (بلا فوترة)، واحفظه بالأمر <code dir="ltr">node scripts/laptop-setup.mjs --test --ai-key-from-clipboard</code> بعد إزالة المفتاح القديم من التطبيق أو من خصائص السكربت (فالسكربت لا يحفظ مفتاحًا إلا إذا لم يكن هناك مفتاح مضبوط)، ثم احذف المفتاح القديم من AI Studio. <i>غير مُتحقَّق منه</i></td></tr>
+<tr><td>نسخ الـ Hub الاحتياطية</td><td>نسخ تلقائية في Drive باسم «BACKUP MEGO Nutrition Hub — …» قبل الترحيل ويوميًا قبل أول كتابة للأطعمة، ومدرجة في <code dir="ltr">Backup_Log</code>. راجع النسخ القديمة ونظّفها من حين لآخر</td></tr>
+<tr><td>نسخ الأجهزة الاحتياطية</td><td>نسخة محلية يومية تلقائية، ونسخة قبل التحديث مرة لكل إصدار (<code dir="ltr">APP_RELEASE</code>)؛ ويمكن للمستخدمين التصدير بصيغ CSV/XLSX/JSON</td></tr>
+<tr><td>قبل كل إصدار</td><td>شغّل كل المجموعات: الوحدات (195)، ومتصفح e2e ‏(57)، واللمس والتمرير (103)، والقواعد وتعدد المستخدمين على المحاكيات، وسيناريو فقدان التخزين؛ وبعد النشر شغّل live-verify</td></tr>
+<tr><td>الاعتماديات</td><td>إصدارات محددة في <code dir="ltr">package.json</code>؛ حدّثها عن قصد ثم شغّل كل المجموعات</td></tr>
+<tr><td>إيداعات عامة قديمة تكشف ملف اختبار</td><td>يرسل المالك الطلب المعدّ في <code dir="ltr">docs/GITHUB-SUPPORT-REQUEST.md</code></td></tr>
+</table>
+
+<h2 dir="rtl">9. جدول زمني مقترح</h2>
+<p dir="rtl">توصية، وليست أتمتة منفَّذة:</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>متى</th><th>الفحص</th></tr>
+<tr><td>كل دفع</td><td>تشغيل Actions أخضر (تلقائي)</td></tr>
+<tr><td>بعد كل إصدار</td><td>live-verify، وفتح التطبيق الحي على هاتف</td></tr>
+<tr><td>أسبوعيًا</td><td>لوحة الإدارة (تقارير الأخطاء والأطعمة المعلّقة)، وعدادات الذكاء الاصطناعي، واستخدام Firestore</td></tr>
+<tr><td>شهريًا</td><td><code dir="ltr">--test</code> (الخادم والـ Hub)، و<code dir="ltr">--update-backend</code> مع aiDiag، ونسخ الـ Hub الاحتياطية</td></tr>
+<tr><td>عند إبلاغ المستخدمين عن مشكلات الذكاء الاصطناعي</td><td>aiDiag أولًا (القسم 5.1)</td></tr>
+</table>
+
+<h2 dir="rtl">10. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>العنصر</th><th>الحالة</th></tr>
+<tr><td>سير عمل النشر والموقع الحي</td><td>مُتحقَّق منه (تشغيلات خضراء؛ والمجموعات الحية عملت على الرابط الحي)</td></tr>
+<tr><td>live-verify ‏14/14 (مجموعة الفحوص السابقة) واختبارات laptop-setup الحية</td><td>مُتحقَّق منه حيًّا، 7 نوفمبر 2026</td></tr>
+<tr><td>نشر الخادم v8 ‏(fillFoodNames) حيًّا</td><td>غير مُتحقَّق منه (مختبر فقط على خادم محاكى: <code dir="ltr">e2e/hub-complete-test.mjs</code>)</td></tr>
+<tr><td>الخادم v7 مع aiDiag وسلسلة النماذج؛ ومسح وجبة حي عبر التطبيق (~64 ثانية، 4 عناصر)</td><td>مُتحقَّق منه حيًّا، 10 نوفمبر 2026</td></tr>
+<tr><td>aiStats بتوكن مسؤول</td><td>لم يتم — لا يوجد مسؤول ولا شاشة تستدعيه</td></tr>
+<tr><td>تدوير التوكن والمفتاح، ومشغّل التنظيف، وصفحات استخدام Firebase، وحدود Google الحالية</td><td>غير مُتحقَّق منه</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

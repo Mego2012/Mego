@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Profile_and_Goals_Guide_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Profile and Goals Guide</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-11</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>End users</td></tr>
+<tr><td>Related documents</td><td>MEGO_Getting_Started, MEGO_Registration_and_Login_Guide, MEGO_Food_Tracking_Guide, MEGO_Progress_and_Insights_Guide, MEGO_Reports_Guide, MEGO_Daily_Calorie_Target_Calculation, MEGO_Calorie_and_Macronutrient_Calculation_Methodology</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This guide explains how to enter your personal profile, how MEGO turns it into a <b>recommended</b> calorie and macronutrient target, how to set training-day and rest-day targets, and how to use the <b>Goals</b> page (<code>#/goals</code>): weekly progress bars, the Goals advisor (recommendations), the weekly check-in, fitness and cardio goals, and the smart cardio–calorie adjustment shown on the Dashboard. It does not cover account registration (see MEGO_Registration_and_Login_Guide) or the scientific background in detail (see MEGO_Daily_Calorie_Target_Calculation).</p>
+<p><b>Important:</b> every number MEGO calculates is a starting point, not a medical prescription. Targets are never changed automatically — you always confirm a change first.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Where the profile and goals live</li>
+<li>Entering your profile (Settings → Profile)</li>
+<li>The recommendation and how it is calculated</li>
+<li>Nutrition targets: training day, rest day, tolerances</li>
+<li>The Goals page</li>
+<li>The Goals advisor (recommendations)</li>
+<li>Fitness goals and cardio settings</li>
+<li>Smart cardio adjustment of the daily target</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Where the profile and goals live</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Screen</th><th>How to open</th><th>What you set there</th></tr>
+<tr><td>Settings → Profile</td><td>Menu → Settings, then the "Profile" chip at the top</td><td>Name, goal, sex, age, height, weights, waist, weekly change, activity level, training days</td></tr>
+<tr><td>Settings → Nutrition targets</td><td>"Nutrition targets" chip</td><td>Training/rest targets, training weekdays, tolerances, week start, auto-complete rule, water target</td></tr>
+<tr><td>Goals</td><td>Menu (More) → Goals</td><td>Weekly progress, recommendations, weekly check-in, quick target editing, fitness and cardio goals, body progress</td></tr>
+<tr><td>Dashboard</td><td>Home</td><td>Card "Today's calories with cardio" (result of the smart adjustment)</td></tr>
+</table>
+<p>The top of Settings shows a header with your name (or "Profile"), the goal, current → target weight and the training-day targets (kcal, P, C, F).</p>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/settings-en-light.png" width="300" alt="Settings screen"></p>
+
+<h2>2. Entering your profile (Settings → Profile)</h2>
+<ol>
+<li>Open Settings and tap the <b>Profile</b> chip.</li>
+<li>Enter <b>Your name</b> (max. 30 characters, optional).</li>
+<li>Choose your <b>Goal</b> from the list (table below). If you choose "Custom goal", type a free-text description.</li>
+<li>Fill in sex, age, height (cm), current weight, starting weight, target weight (kg), starting waist (cm, optional), weekly weight-change target (kg, e.g. −0.25), activity level and training days per week.</li>
+<li>Tap <b>Save</b>. The profile is saved; your targets are <b>not</b> changed by this.</li>
+</ol>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Goal (app label)</th><th>Energy adjustment vs TDEE</th><th>Protein (g per kg body weight)</th></tr>
+<tr><td>Fat loss (lose weight)</td><td>−20 %</td><td>1.8</td></tr>
+<tr><td>Fat loss while preserving muscle</td><td>−18 %</td><td>2.2</td></tr>
+<tr><td>Body recomposition</td><td>−7 %</td><td>2.2</td></tr>
+<tr><td>Muscle gain (lean bulk)</td><td>+7 %</td><td>1.8</td></tr>
+<tr><td>Muscle gain (bulk)</td><td>+15 %</td><td>1.6</td></tr>
+<tr><td>Weight maintenance</td><td>0 %</td><td>1.6</td></tr>
+<tr><td>Healthy lifestyle</td><td>0 %</td><td>1.4</td></tr>
+<tr><td>Athletic performance</td><td>+5 %</td><td>1.8</td></tr>
+<tr><td>Custom goal</td><td colspan="2">no automatic recommendation</td></tr>
+</table>
+<p>Activity levels and their factors: Sedentary 1.2 · Light (1–3 days/week) 1.375 · Moderate (3–5 days/week) 1.55 · Active (6–7 days/week) 1.725 · Very active (twice a day / physical job) 1.9.</p>
+<p><b>Current weight is kept up to date automatically:</b> when you save a weigh-in on the Progress page for the latest date, the profile's current weight is updated to that value.</p>
+
+<h2>3. The recommendation and how it is calculated</h2>
+<p>Below the profile fields, the box "Recommended for this goal" recalculates live while you type:</p>
+<pre>
+BMR  (Mifflin-St Jeor) = 10 × weight + 6.25 × height − 5 × age + 5 (male) / − 161 (female)
+TDEE = BMR × activity factor
+kcal = max(BMR, round(TDEE × (1 + adjustment) / 10) × 10)     ← never below BMR
+protein = weight × protein-per-kg
+fat     = max(0.8 g × weight, 25 % of kcal ÷ 9)
+carbs   = (kcal − 4 × protein − 9 × fat) ÷ 4
+expected weekly change ≈ (kcal − TDEE) × 7 ÷ 7700 kg
+</pre>
+<p><b>Worked example</b> (the default starting profile: male, 26 years, 170 cm, 72 kg, Active, goal "Fat loss while preserving muscle"):</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Step</th><th>Result</th></tr>
+<tr><td>BMR = 720 + 1,062.5 − 130 + 5</td><td>1,658 kcal</td></tr>
+<tr><td>TDEE = 1,658 × 1.725</td><td>2,860 kcal</td></tr>
+<tr><td>kcal = round(2,860 × 0.82 / 10) × 10</td><td>2,350 kcal</td></tr>
+<tr><td>Protein = 72 × 2.2</td><td>158 g</td></tr>
+<tr><td>Fat = max(57.6, 2,350 × 0.25 / 9 = 65.3)</td><td>65 g</td></tr>
+<tr><td>Carbs = (2,350 − 632 − 585) / 4</td><td>283 g</td></tr>
+<tr><td>Expected change = (2,350 − 2,860) × 7 / 7,700</td><td>≈ −0.46 kg/week</td></tr>
+</table>
+<p>If your saved targets differ from the recommendation, MEGO says "Your current targets are custom … they are kept unless you choose to replace them" and shows the button <b>Use these targets</b>. Tapping it asks for confirmation ("Replace your current training and rest-day targets … Past days are not changed.") and then writes the recommendation into <b>both</b> the training-day and rest-day targets.</p>
+
+<h2>4. Nutrition targets: training day, rest day, tolerances</h2>
+<p>Settings → <b>Nutrition targets</b> holds the targets that the Diary, Dashboard and reports use:</p>
+<ul>
+<li><b>Training-day targets</b> and <b>Rest-day targets</b>: kcal, protein, carbs, fat. Under each set the app shows the check "4P + 4C + 9F = … kcal" so you can see whether the macros add up to the calories.</li>
+<li><b>Training weekdays</b>: tap the weekday chips (default Saturday–Thursday training, Friday rest). A date's day type comes from this list unless you override it for one day in the Diary.</li>
+<li><b>Consistency tolerances</b>: calorie range ± % (default 10) and protein allowance − % (default 5).</li>
+<li><b>Week starts on</b> (Saturday, Sunday or Monday; default Saturday).</li>
+<li><b>Count past days with entries as fully logged</b> (default on) and the threshold "A past day counts as fully logged at ≥ % of calorie target" (default 60).</li>
+<li><b>Water target</b> in ml (default 3,000).</li>
+</ul>
+<p>Press <b>Save</b> at the bottom of the card. Changing targets never rewrites past diary entries. A single day can have its own targets via Diary → "Targets for this day" (see MEGO_Food_Tracking_Guide).</p>
+
+<h2>5. The Goals page</h2>
+<p>Open Menu → <b>Goals</b>. The page contains these cards, top to bottom:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Card</th><th>Content</th></tr>
+<tr><td>This week</td><td>Progress bars: Calories in range (days / fully logged days), Protein target days, Cardio minutes (done / weekly goal), Cardio sessions, and — when start and target weight differ by ≥ 0.1 kg — Toward target weight (%)</td></tr>
+<tr><td>Recommendations</td><td>The Goals advisor list (section 6). Note: "Nothing changes until you approve a suggestion."</td></tr>
+<tr><td>Weekly check-in</td><td>Strength in the gym (Down / Same / Up), Hunger 1–5, Recovery 1–5, Resistance sessions this week, then Save</td></tr>
+<tr><td>Nutrition goals</td><td>Quick editor for training-day / rest-day kcal and macros (calories below 800 are ignored), target weight, weekly weight-change target (accepted up to ±1.5 kg)</td></tr>
+<tr><td>Fitness goals</td><td>Resistance days, cardio sessions, minutes per session, cardio–calorie mode and add-back share (section 7)</td></tr>
+<tr><td>Body progress</td><td>Current weight (7-day average), waist and change since start, estimated rate (kg/week and % of body weight), 90-day weight chart with average line and target</td></tr>
+</table>
+<p>The weight shown as "current" is the 7-day rolling average when available. The note under Body progress reminds you that this is a weight trend, not pure fat — MEGO cannot measure body composition.</p>
+<p>The weekly check-in is stored per week (key <code>checkin:&lt;week start&gt;</code> in the synced <code>kv</code> table), so it is backed up and, for signed-in accounts, synced like other data.</p>
+
+<h2>6. The Goals advisor (recommendations)</h2>
+<p>The advisor (<code>src/lib/goalAdvisor.ts</code>) reviews <b>trends, not single readings</b>: the 7-day weight average and a 28-day regression line, waist change over 14 days, your adherence in the last 14 days, cardio in the last 7 days, and your latest check-in (if it is from the last 14 days). It produces suggestions only.</p>
+<h3>6.1 What it checks</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Situation</th><th>Message (summary)</th><th>Suggested action</th></tr>
+<tr><td>Fewer than 6 weigh-ins over 2 weeks</td><td>Weight trend needs more data; calorie advice waits</td><td>—</td></tr>
+<tr><td>Fewer than 8 fully logged days in 14</td><td>Log complete days so the review is reliable</td><td>—</td></tr>
+<tr><td>Calories in range on &lt; 70 % of logged days</td><td>Improve consistency before changing targets</td><td>—</td></tr>
+<tr><td>Protein target below 1.8 g/kg (loss/recomp goals) or 1.6 g/kg (others)</td><td>Suggests 2.0 g/kg (loss goals) or 1.8 g/kg (others)</td><td>Set protein; calories unchanged, carbs absorb the difference</td></tr>
+<tr><td>Protein reached on &lt; 60 % of days (≥ 5 logged days)</td><td>Add a protein source to each meal</td><td>—</td></tr>
+<tr><td>Loss goal, losing faster than planned (or &gt; 1 % body weight/week, or check-in shows weak strength + high hunger / poor recovery)</td><td>Losing too fast / struggling</td><td>+150 kcal/day</td></tr>
+<tr><td>Loss goal, good adherence, weight not moving</td><td>If waist dropped &gt; 0.5 cm: likely recomposition, keep targets; otherwise a stall</td><td>−150 kcal/day (stall only)</td></tr>
+<tr><td>Gain goal, gaining too slowly / too fast</td><td>Gain stall / gaining too fast</td><td>+150 / −100 kcal/day</td></tr>
+<tr><td>Maintenance, drift &gt; 0.25 kg/week with good adherence</td><td>Weight drifting down / up</td><td>+100 / −100 kcal/day</td></tr>
+<tr><td>Cardio minutes vs weekly goal</td><td>Below goal / goal reached</td><td>—</td></tr>
+<tr><td>Poor recovery and cardio &gt; 1.5 × goal</td><td>Consider fewer or easier sessions</td><td>—</td></tr>
+<tr><td>Check-in resistance sessions below plan</td><td>Training is key for keeping muscle</td><td>—</td></tr>
+<tr><td>No recent check-in</td><td>Do the weekly check-in</td><td>—</td></tr>
+</table>
+<h3>6.2 Safety rule for fat-loss goals</h3>
+<p>For Fat loss, Fat loss while preserving muscle and Body recomposition, a suggested calorie <b>increase</b> may reduce the deficit but never creates a surplus: the training-day target may not exceed 90 % of your estimated TDEE. If there is less than 50 kcal room, the suggestion is replaced by "A calorie increase would bring you close to maintenance … focus on recovery and protein instead". Otherwise the increase is cut to the available room.</p>
+<h3>6.3 Applying a suggestion</h3>
+<ol>
+<li>Tap <b>Apply</b> next to a suggestion that has an action.</li>
+<li>A confirmation shows the current and the new targets ("Current → new").</li>
+<li>Confirm. The change is applied to <b>both</b> training-day and rest-day targets. Calorie changes are absorbed by carbohydrates (Δkcal ÷ 4 g); protein and fat stay the same. A protein change keeps calories and moves the same grams out of carbohydrates.</li>
+</ol>
+<p>Nothing is applied automatically. The advisor is local rule-based logic in the app, not an AI service.</p>
+
+<h2>7. Fitness goals and cardio settings</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Default</th><th>Accepted range</th></tr>
+<tr><td>Resistance training days / week</td><td>= training days per week in the profile (6)</td><td>0–14</td></tr>
+<tr><td>Cardio sessions / week</td><td>= training days per week (6)</td><td>0–21</td></tr>
+<tr><td>Minutes per session</td><td>10</td><td>0–300</td></tr>
+</table>
+<p>The weekly cardio goal is sessions × minutes (default 6 × 10 = 60 min). Until you save one of these fields, the card says "Default: one 10-min cardio session after each of your 6 training days (not saved yet …)". After saving it shows "Saved by you: … sessions × … min". MEGO does not read a step counter, so daily step goals are not tracked.</p>
+<p><b>Cardio and calorie target</b> (mode):</p>
+<ul>
+<li><b>Smart (only justified extra)</b> — default; see section 8.</li>
+<li><b>Off (never adjust)</b> — the daily target always stays as set.</li>
+</ul>
+<p><b>Add-back share (%)</b> (Smart mode only): "Automatic by goal" (default) or a fixed 0, 25, 50, 75 or 100 %. Automatic means 50 % for fat-loss, recomposition and custom goals, 75 % for maintenance and healthy lifestyle, 100 % for muscle gain and performance.</p>
+<p>Your saved cardio routine (default: treadmill walk, 10 min, 3.5 km/h, 13 % incline, moderate) is managed on the Cardio page; see MEGO_Progress_and_Insights_Guide for cardio statistics.</p>
+
+<h2>8. Smart cardio adjustment of the daily target</h2>
+<p>The Dashboard card <b>Today's calories with cardio</b> shows: Base target → Cardio (estimate) → Extra allowed → <b>Adjusted target</b> → Eaten → <b>Remaining</b>. Tap <b>Why?</b> to see the reasons in plain language. The adjustment is shown on the Dashboard only; your saved targets are never changed by it.</p>
+<p>The logic (<code>src/lib/energy.ts</code>):</p>
+<ol>
+<li><b>Planned cardio is already in your target.</b> For any activity level above Sedentary, your planned weekly cardio minutes count as already included in TDEE. Minutes from the 6 previous days use up the plan first; only today's minutes beyond the plan are "extra".</li>
+<li><b>Only net energy counts.</b> Net kcal = (MET − 1) × kg × hours, because the body would have burned about 1 MET at rest anyway.</li>
+<li><b>Extra resistance workouts</b> beyond your planned resistance days in the last 7 days count as net energy of a moderate session (3.5 MET).</li>
+<li><b>Partial add-back.</b> Allowed extra = extra net kcal × add-back share, rounded to 10 kcal, capped at <b>400 kcal per day</b>.</li>
+<li><b>Fat-loss safeguard.</b> For loss/recomposition goals the adjusted target stays ≤ 0.9 × (TDEE + extra net energy), so exercise can never move the day to maintenance or surplus.</li>
+</ol>
+<p><b>Example:</b> base target 2,000 kcal, goal fat loss (share 50 %), plan 60 min/week already completed on previous days, today an extra 30-min session with ≈ 150 kcal net → allowed = round(150 × 0.5 / 10) × 10 = 80 kcal → adjusted target 2,080 kcal. Logging only your planned routine never raises the target.</p>
+<p>All cardio calories are estimates (typically ± 20–30 %) and are labelled as such.</p>
+
+<h2>9. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Formulas, defaults, ranges and advisor rules</td><td>Verified in code: src/lib/goals.ts, goalAdvisor.ts, energy.ts, defaults.ts, src/pages/Settings.tsx, Goals.tsx</td></tr>
+<tr><td>Cardio, energy and goals logic</td><td>Covered by unit tests (tests/cardio-goals.test.ts; total unit suite 199 tests in 14 files passing, re-run 10 Nov 2026)</td></tr>
+<tr><td>Settings / Goals UI</td><td>Covered by browser e2e on emulated devices (57/57); not tested on a real Android phone</td></tr>
+<tr><td>Medical suitability of the targets for an individual</td><td>Not verified — targets are general starting points; see MEGO_Medical_Disclaimer</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

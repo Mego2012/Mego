@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Food_Database_Import_and_Update_Procedures_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — إجراءات استيراد قاعدة بيانات الأطعمة وتحديثها</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-27</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع (مسؤول الـ Hub)، المطورون، المستخدمون المتقدمون</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Food_Database_Documentation، MEGO_Food_Data_Validation_and_Quality_Control، MEGO_Missing_and_Duplicate_Foods_Management، MEGO_Google_Sheets_Integration_and_Sync، MEGO_Food_Database_Administration، MEGO_Build_and_Release_Procedures</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تقدّم هذه الوثيقة الإجراءات خطوة بخطوة لإدخال بيانات الأطعمة إلى MEGO وتحديثها بأمان: إعادة بناء قاعدة USDA المرجعية، وسحب تبويب Food_Database من Hub المالك في Google Sheets، واستيراد ملفات CSV/Excel، وتصدير الأطعمة الشخصية واستيرادها (JSON)، وإضافة أطعمة من بحث USDA وOpen Food Facts والباركود، واعتماد مطابقات مكونات الوصفات، وإكمال قاعدة الأطعمة من مكتبة الوصفات، وملء الأسماء العربية/الإنجليزية الناقصة. وتشرح أيضًا كيف تُسجَّل التحديثات (سجل التغييرات والإصدارات) وما الذي لا يحدث أبدًا (حذف الأطعمة، التحويل بين النيء والمطبوخ، اختلاق القيم). المصادر: <code dir="ltr">scripts/build-food-db.mjs</code>، <code dir="ltr">src/lib/sheetImport.ts</code>، <code dir="ltr">src/lib/sync.ts</code>، <code dir="ltr">src/lib/customFoods.ts</code>، <code dir="ltr">src/lib/refFoods.ts</code>، <code dir="ltr">src/lib/barcode.ts</code>، <code dir="ltr">src/lib/repo.ts</code>، <code dir="ltr">src/lib/recipeEngine.ts</code>، <code dir="ltr">src/lib/libraryFoods.ts</code>، <code dir="ltr">src/lib/foodNames.ts</code>، <code dir="ltr">src/pages/Foods.tsx</code>، <code dir="ltr">scripts/laptop-setup.mjs</code>، <code dir="ltr">apps-script/Code.gs</code>، <code dir="ltr">src/pages/Settings.tsx</code>، <code dir="ltr">docs/HUB.md</code>.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">مصادر بيانات الأطعمة ومن يحق له تغييرها</li>
+<li dir="rtl">الإجراء أ — إعادة بناء قاعدة USDA المرجعية</li>
+<li dir="rtl">الإجراء ب — استيراد الأطعمة من Hub جوجل شيت</li>
+<li dir="rtl">الإجراء ج — استيراد ملف CSV أو Excel</li>
+<li dir="rtl">الإجراء د — تصدير/استيراد الأطعمة الشخصية (JSON)</li>
+<li dir="rtl">الإجراء هـ — إضافة أطعمة مفردة (USDA، Open Food Facts، الباركود، الملصق)</li>
+<li dir="rtl">الإجراء و — أطعمة مكتبة الوصفات والأسماء بلغتين</li>
+<li dir="rtl">كيف تُسجَّل التحديثات</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. مصادر بيانات الأطعمة ومن يحق له تغييرها</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المصدر</th><th>مكان التخزين</th><th>من يغيّره</th><th>قيمة source</th></tr>
+<tr><td>قاعدة USDA FoodData Central المرجعية (12,879 طعامًا)</td><td><code dir="ltr">public/fooddb/usda.json</code> + <code dir="ltr">usda-extra.json</code>، تُشحن مع التطبيق للقراءة فقط</td><td>المطوّر بإعادة البناء (الإجراء أ) وإعادة النشر</td><td><code dir="ltr">usda</code> بعد نسخها إلى أطعمة المستخدم</td></tr>
+<tr><td>تبويب Food_Database في Hub المالك (160 طعامًا، معرّفات F0001…)</td><td>جدول جوجل «MEGO Nutrition Hub»</td><td>المالك في الجدول؛ والتطبيق لا يكتب إليه إلا عند تفعيل «كتابة تعديلات الأطعمة»</td><td><code dir="ltr">sheet</code></td></tr>
+<tr><td>ملف CSV / Excel</td><td>جدول أطعمة المستخدم</td><td>المستخدم (الإجراء ج)</td><td><code dir="ltr">sheet</code> (يُستورد بمفاتيح الجدول)</td></tr>
+<tr><td>الأطعمة الشخصية</td><td>جدول أطعمة المستخدم</td><td>المستخدم</td><td><code dir="ltr">custom</code>، <code dir="ltr">openfoodfacts</code>، <code dir="ltr">usda</code></td></tr>
+</table>
+<p dir="rtl">قواعد عامة تطبّقها جميع الإجراءات: تُنسخ القيم كما نُشرت (لكل 100 غ)؛ الاستيراد <b>لا يحذف</b> أي طعام أبدًا؛ سجلات اليوميات تحتفظ بلقطتها الخاصة فلا تتغير الأيام الماضية؛ النيء والمطبوخ سجلان منفصلان ولا يُحوَّل أحدهما إلى الآخر.</p>
+
+<h2 dir="rtl">2. الإجراء أ — إعادة بناء قاعدة USDA المرجعية</h2>
+<p dir="rtl">البناء الحالي: <code dir="ltr">meta.builtAt</code> = 2026-11-06؛ SR Legacy (إصدار 2018-04) 7,448 طعامًا + أطعمة FNDDS المسحية (إصدار 2024-10-31) 5,431 طعامًا = 12,879؛ 195 فئة؛ طعام واحد مُستبعد (بلا طاقة أو مغذيات)؛ 211 صفًا عليها علامة عدم اتساق الطاقة.</p>
+<ol dir="rtl">
+<li dir="rtl">نزّل إصدارات CSV من USDA FoodData Central لـ<b>SR Legacy</b> و<b>FNDDS (Survey)</b> وفك ضغطها في مجلد واحد. يبحث السكربت عن مجلدات فرعية يحتوي اسمها <code dir="ltr">sr_legacy_food_csv</code> و<code dir="ltr">survey_food_csv</code> وتضم <code dir="ltr">food.csv</code>. (رابط التنزيل وأسماء الإصدارات بالضبط غير مُتحقَّق منها في المستودع.)</li>
+<li dir="rtl">شغّل <code dir="ltr">node scripts/build-food-db.mjs &lt;folder&gt;</code>؛ فيكتب <code dir="ltr">public/fooddb/usda.json</code> و<code dir="ltr">public/fooddb/usda-extra.json</code> ويطبع الإحصاءات.</li>
+<li dir="rtl">قارن الإحصاءات المطبوعة بالبناء السابق (الأعداد، المستبعد، الموسوم).</li>
+<li dir="rtl">شغّل اختبارات الوحدة (<code dir="ltr">npx vitest run</code>). تتحقق ضمن أمور أخرى من: 12,879 طعامًا بمصادر وأرقام صحيحة، ونسخ قيم عيّنات بدقة (<code dir="ltr">tests/fooddb.test.ts</code>)، ووجود كل معرّف في كتالوج ذكاء الأطعمة (<code dir="ltr">tests/intel.test.ts</code>)، ووجود كل معرّف USDA للوصفات (<code dir="ltr">tests/cardio-goals.test.ts</code>). إذا غيّرت USDA عددًا أو حذفت معرّفًا فحدّث توقع الاختبار أو المطابقة عن قصد.</li>
+<li dir="rtl">ارفع التغيير وانشره عبر الإصدار المعتاد (MEGO_Build_and_Release_Procedures). يحفظ عامل الخدمة (Service Worker) الملف <code dir="ltr">fooddb/usda.json</code> مسبقًا، ويخزّن <code dir="ltr">usda-extra.json</code> بأسلوب stale-while-revalidate، فيصل الملف الجديد للمستخدمين مع تحديث التطبيق.</li>
+</ol>
+<p dir="rtl"><b>ما يفعله السكربت:</b> يقرأ الطاقة (العنصر 1008، ثم البديل 2048 بمعاملات Atwater الخاصة ثم 2047 العامة)، والبروتين 1003، والدهون 1004، والكربوهيدرات 1005، والألياف 1079، والسكريات 2000 (البديل 1063)، والدهون المشبعة 1258، والصوديوم 1093؛ وحتى 6 حصص لكل طعام؛ ويستبعد فئتي SR «Quality Control Materials» و«Baby Foods»؛ ويتجاوز الأطعمة الخالية من الطاقة أو من أحد المغذيات الثلاثة؛ ويقرّب إلى 0.01؛ ويضع علامة (دون تغيير القيم) حين تكون السعرات &gt; 40 و|4P+4C+9F − kcal| ÷ kcal &gt; 25 %. المعرّفات تبدأ بـ <code dir="ltr">S</code> (SR Legacy) أو <code dir="ltr">N</code> (FNDDS) يليها رقم FDC.</p>
+<p dir="rtl"><b>الأثر على المستخدمين:</b> الأطعمة التي سبق نسخها إلى قائمة المستخدم (source = <code dir="ltr">usda</code>) تحتفظ بقيمها؛ القيم المرجعية الجديدة تسري فقط على ما يُختار لاحقًا. إعادة فحص الأطعمة المنسوخة سابقًا مهمة يدوية (غير مؤتمتة).</p>
+
+<h2 dir="rtl">3. الإجراء ب — استيراد الأطعمة من Hub جوجل شيت</h2>
+<p dir="rtl">متاح على جهاز المالك بعد ربط الخادم (الإعدادات ← المزامنة). إجراء الخادم <code dir="ltr">foods</code> يعيد تبويب Food_Database.</p>
+<ol dir="rtl">
+<li dir="rtl"><b>الربط / حفظ + اختبار الاتصال.</b> يختبر التطبيق الخادم ثم يجري <b>مقارنة للقراءة فقط</b> (<code dir="ltr">checkHubFoods</code>): الأطعمة المتطابقة، المختلفة في القيم، الموجودة في الـ Hub فقط، الموجودة على الهاتف فقط (المطابقة بالاسم العربي + الحالة).</li>
+<li dir="rtl">إذا اختلفت أي قيمة <b>يتوقف</b> المسار ويعرض حتى 10 اختلافات بصيغة «محلي سعرات/بروتين/كارب/دهون ← Hub سعرات/بروتين/كارب/دهون»، ولا يُستبدل شيء حتى يضغط المالك <b>استخدم قيم الـ Hub (بعد نسخة احتياطية؛ سجلات اليوميات السابقة تحتفظ بقيمها)</b>.</li>
+<li dir="rtl">قبل الاستيراد تُحفظ نسخة احتياطية محلية <code dir="ltr">pre-import</code>.</li>
+<li dir="rtl">تحلّل <code dir="ltr">pullFoodsFromSheet()</code> التبويب وتدمجه عبر <code dir="ltr">importParsedFoods(…, 'sheet')</code>؛ وتظهر رسالة: «تم الاستيراد: {added} جديد، {updated} محدَّث، {unchanged} بدون تغيير…» مع التأكيد على عدم حذف أي شيء.</li>
+<li dir="rtl">للتحديثات اللاحقة: زر <b>استيراد الأطعمة من الجدول</b> في الإعدادات ← المزامنة.</li>
+</ol>
+<p dir="rtl"><b>أعمدة Food_Database المنظمة</b> (مطلوبة: <code dir="ltr">food_id</code>، <code dir="ltr">name_ar</code>، <code dir="ltr">kcal_100g</code>، <code dir="ltr">protein_100g</code>، <code dir="ltr">carbs_100g</code>، <code dir="ltr">fat_100g</code>؛ اختيارية: <code dir="ltr">name_en</code>، <code dir="ltr">category</code>، <code dir="ltr">fiber_100g</code>، <code dir="ltr">sugar_100g</code>، <code dir="ltr">sodium_mg_100g</code>، <code dir="ltr">piece_g</code>، <code dir="ltr">state</code>، <code dir="ltr">state_label</code>، <code dir="ltr">prep</code>، <code dir="ltr">notes</code>، <code dir="ltr">verification</code>، <code dir="ltr">active</code>). تُتجاوز الصفوف ذات <code dir="ltr">active = no</code> أو الخالية من <code dir="ltr">food_id</code>. غياب عمود مطلوب يوقف الاستيراد بالخطأ <code dir="ltr">missingColumns:…</code>.</p>
+<p dir="rtl"><b>الكتابة العكسية:</b> عند تفعيل «كتابة تعديلات الأطعمة في جوجل شيت (مع نسخة احتياطية للتبويب أولاً)» تُرسل تعديلات أطعمة الجدول عبر الإجراء <code dir="ltr">saveFoods</code> إلى Food_Database (لا إلى التبويب الأصلي أبدًا). أما الأطعمة الشخصية فتُرفع كسجلات عادية.</p>
+
+<h2 dir="rtl">4. الإجراء ج — استيراد ملف CSV أو Excel</h2>
+<ol dir="rtl">
+<li dir="rtl">الأطعمة ← الاستيراد/التصدير ← <b>استيراد CSV / Excel</b> (.csv، .xlsx، .xls).</li>
+<li dir="rtl">في Excel تُجرَّب أولًا الأوراق المسماة «قاعدة بيانات الأطعمة» أو «Foods» أو «Food Database» ثم البقية؛ وتُستخدم أول ورقة فيها ترويسة معروفة.</li>
+<li dir="rtl">اكتشاف الترويسة: ضمن أول 15 صفًا، أول صف فيه عمود <b>اسم</b> و<b>سعرات</b> و<b>بروتين</b> (بأسماء عربية أو إنجليزية مثل «الاسم/name» و«سعرات/kcal» و«بروتين/protein»). الأعمدة الأخرى المعروفة: الاسم الإنجليزي، الفئة، الكربوهيدرات، الدهون، الألياف، السكر، الصوديوم، وزن الحبة، الحالة، التحضير، الملاحظات.</li>
+<li dir="rtl">تعرض <b>معاينة الاستيراد</b> الإجماليات (نيء / مطبوخ / أخرى) وأعداد المشكلات (بدون قيم، قيم ناقصة، فاصلة عشرية، عدم تطابق الطاقة، اسم مكرر، معلَّم في الملاحظات) وتسرد حتى 60 صفًا بها مشكلات مع أرقامها.</li>
+<li dir="rtl">اضغط <b>استيراد</b>: تُحفظ نسخة احتياطية محلية <code dir="ltr">pre-import</code> ثم تُدمج الصفوف (المصدر <code dir="ltr">file</code>).</li>
+</ol>
+<h3 dir="rtl">4.1 قراءة الأرقام والحالة (أمثلة)</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الخلية</th><th>تُقرأ</th><th>ملاحظة</th></tr>
+<tr><td><code dir="ltr">2,6</code></td><td>2.6</td><td>يُبلَّغ عنها «فاصلة عشرية»</td></tr>
+<tr><td><code dir="ltr">1,234</code></td><td>1234</td><td>يُزال فاصل الآلاف</td></tr>
+<tr><td><code dir="ltr">٣٫٥</code></td><td>3.5</td><td>تحويل الأرقام العربية والفاصلة العشرية العربية</td></tr>
+<tr><td>فارغة أو «—» أو «-» أو سالبة</td><td>ناقصة</td><td>يُستورد الطعام لكن يُعلَّم ناقصًا (لا يمكن تسجيله)</td></tr>
+<tr><td>الحالة «نيء» أو «raw» أو «جاف» أو «dry»</td><td>نيء</td><td rowspan="3">كلمات المصنّع/المسحوق/المحضّر ← أخرى؛ والفارغ ← أخرى</td></tr>
+<tr><td>الحالة «مطبوخ» أو «مشوي» أو «boiled» أو «grilled»</td><td>مطبوخ</td></tr>
+<tr><td>الحالة «مسحوق» أو «powder» أو «محضّر»</td><td>أخرى</td></tr>
+</table>
+<h3 dir="rtl">4.2 قواعد الدمج (<code dir="ltr">importParsedFoods</code>)</h3>
+<ul dir="rtl">
+<li dir="rtl">لكل صف مفتاح: <code dir="ltr">food_id</code> من الـ Hub (التبويب المنظم) أو الاسم العربي (الملف)؛ والاسم المكرر يأخذ <code dir="ltr">name#2</code>، <code dir="ltr">name#3</code>…</li>
+<li dir="rtl">طعام موجود بنفس المفتاح ← يُحدَّث فقط إن تغيّر حقل متتبَّع؛ وإلا «بدون تغيير».</li>
+<li dir="rtl">الأطعمة المستوردة سابقًا بالاسم <b>يُعاد ربطها</b> بالمعرّف الثابت الجديد بدل تكرارها (<code dir="ltr">legacyKey</code>).</li>
+<li dir="rtl">الصف المفتاح باسمه يطابق طعام Hub موجودًا (معرّف F0001…) له الاسم العربي والحالة نفسيهما، فلا يكرر الملف أطعمة الـ Hub أبدًا.</li>
+<li dir="rtl">لا تطابق ← طعام جديد بـ <code dir="ltr">source = sheet</code>. والأطعمة غير الموجودة في الملف تبقى (تُعدّ «محفوظة»).</li>
+</ul>
+
+<h2 dir="rtl">5. الإجراء د — تصدير/استيراد الأطعمة الشخصية (JSON)</h2>
+<ol dir="rtl">
+<li dir="rtl">الأطعمة ← <b>تصدير أطعمتي (JSON)</b> يحفظ <code dir="ltr">mego-my-foods.json</code> (الصيغة <code dir="ltr">mego-custom-foods</code>، الإصدار 1) بكل الأطعمة غير المؤرشفة التي مصدرها ليس <code dir="ltr">sheet</code>؛ مع إزالة المعرّفات والعدادات والطوابع الزمنية.</li>
+<li dir="rtl">الأطعمة ← <b>استيراد أطعمتي (JSON)</b> على جهاز/حساب آخر: يُتحقق من كل طعام (<code dir="ltr">validateMacros</code>، وجود اسم، حالة نيء/مطبوخ/أخرى). غير الصالح يُعدّ «غير صالح»؛ وما له الاسم والحالة نفسيهما مسبقًا «يُتجاوز»؛ وغير ذلك يُضاف. يُحتفظ بالمصدر إن كان <code dir="ltr">usda</code> أو <code dir="ltr">openfoodfacts</code> وإلا يصبح <code dir="ltr">custom</code>.</li>
+</ol>
+
+<h2 dir="rtl">6. الإجراء هـ — إضافة أطعمة مفردة</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>بحث USDA</b> (إضافة طعام / منتقي الأطعمة): اختيار طعام مرجعي ينسخه <b>مرة واحدة</b> إلى أطعمة المستخدم (source = <code dir="ltr">usda</code>، وsourceRef بصيغة «USDA FDC &lt;id&gt; (…)»، وحصص USDA كحصص)؛ والاختيارات اللاحقة تعيد استخدام النسخة نفسها. إن كانت USDA قد وسمت الطاقة تذكر الملاحظة «⚠ calories vs macros differ in the source data».</li>
+<li dir="rtl"><b>الباركود</b>: يُتحقق من رقم التحقق لـ EAN-8/EAN-13/UPC-A؛ ويُستخدم أولًا الطعام المحلي الذي يحمل الباركود نفسه؛ وإلا يُستعلم من Open Food Facts. نموذج المنتج قابل للتعديل، ويُحفظ بمصدر <code dir="ltr">openfoodfacts</code> مع ملاحظة «Open Food Facts — external data, verify with label» (أو <code dir="ltr">custom</code> إذا أدخل المستخدم القيم بنفسه).</li>
+<li dir="rtl"><b>البحث النصي في Open Food Facts</b>: لا تُعرض إلا المنتجات التي لها سعرات وبروتين وكربوهيدرات ودهون.</li>
+<li dir="rtl"><b>من الملصق</b>: زر «أنشئ «…» كطعام خاص بي» في المنتقي يفتح محرر الطعام بنص البحث اسمًا. يمكن إدخال القيم لكل 100 غ أو لكل 100 مل (÷ الكثافة) أو لكل حصة (× 100 ÷ غرامات الحصة)، وتُخزَّن لكل 100 غ.</li>
+</ul>
+
+<h2 dir="rtl">7. الإجراء و — أطعمة مكتبة الوصفات والأسماء بلغتين</h2>
+<h3 dir="rtl">7.1 اعتماد مطابقات مكونات الوصفات</h3>
+<p dir="rtl">قد تستخدم وصفات المكتبة مطابقات USDA مُراجعة يدويًا للمكونات غير الموجودة في أطعمة المستخدم. حفظ الوصفة في «وصفاتي» (أو تسجيلها) يعتمد هذه المطابقات: تضيف <code dir="ltr">approveRecipeMatches</code> كل طعام USDA مطابق <b>مرة واحدة</b> باسم المكوّن العربي في الوصفة مع الملاحظة «… · approved recipe match». لا تُعدَّل الأطعمة الموجودة أبدًا، والمكونات التي لا مطابقة موثوقة لها (مثل اللبنة) لا تُضاف (انظر MEGO_Missing_and_Duplicate_Foods_Management).</p>
+<h3 dir="rtl">7.2 «إكمال قاعدة أطعمتي» (صفحة الأطعمة، <code dir="ltr">libraryFoods.ts</code>)</h3>
+<ol dir="rtl">
+<li dir="rtl">الأطعمة ← بطاقة <b>إكمال قاعدة أطعمتي</b> ← <b>افحص ما ينقص</b>. معاينة للقراءة فقط (<code dir="ltr">previewLibraryFoods</code>) تعدّ: المكونات المطلوب إضافتها، والمكونات الموجودة في أطعمتي، والوجبات الجاهزة المطلوب إضافتها، والوجبات الموجودة، وتسرد المكونات التي ليس لها قيم موثّقة.</li>
+<li dir="rtl"><b>أضِف إلى أطعمتي</b> (<code dir="ltr">completeFoodDatabase</code>): تُحفظ أولًا نسخة احتياطية محلية <code dir="ltr">pre-import</code> (فقط إن كان هناك ما يُضاف)؛ ثم (أ) يُضاف كل مكوّن من مكتبة الوصفات ليس له طعام بالاسم العربي نفسه من مطابقته في USDA (الآلية نفسها في 7.1)، مع الاسم الإنجليزي القصير من قاموس الأسماء إن وُجد؛ (ب) كل وصفة من المكتبة مكوناتها كلها معروفة تصبح <b>طعامًا جاهزًا</b>: الفئة «وجبات (مكتبة الوصفات)»، الحالة مطبوخ، المصدر <code dir="ltr">custom</code>، وsourceRef بصيغة «MEGO recipe library: &lt;id&gt;»، وحصة واحدة «حصة (وصفة)» = غرامات المكونات النيئة لكل حصة.</li>
+<li dir="rtl">إضافة فقط: الأطعمة الموجودة (الاسم العربي نفسه أو sourceRef نفسه) لا تتغير أبدًا، والوصفات التي تحتاج مكوّنًا ناقصًا تُتجاوز.</li>
+</ol>
+<p dir="rtl"><b>النتيجة على حساب جديد فارغ (محسوبة في 10 نوفمبر 2026):</b> 68 مكوّنًا للإضافة، ومكوّن واحد ناقص (اللبنة)، و100 وجبة جاهزة للإضافة، ووصفة واحدة متجاوزة (lib-labneh-plate).</p>
+<pre dir="ltr">
+Ready-meal values: per 100 g = recipe totals × 100 ÷ total raw ingredient grams
+Example "Pepper &amp; tomato shakshuka" (2 servings, 940 g raw ingredients):
+  per 100 g = 89.06 kcal · P 6.08 · C 8.15 · F 3.63
+  1 serving = 470 g → 418 kcal · P 28.5 · C 38.3 · F 17.0   (log it by serving; seasonings ~8 kcal/serving not counted)
+</pre>
+<h3 dir="rtl">7.3 ملء الأسماء العربية/الإنجليزية الناقصة (<code dir="ltr">foodNames.ts</code>)</h3>
+<p dir="rtl">الأطعمة ← بطاقة <b>الأسماء بالعربي والإنجليزي</b>: تعرض الأطعمة التي لها الاسمان، والأسماء التي يمكن إضافتها الآن، والأطعمة التي ما زال ينقصها اسم. زر <b>أضِف الأسماء الناقصة</b> يحفظ نسخة احتياطية محلية ثم يملأ فقط الاسم الإنجليزي (أو العربي) <b>الفارغ</b> من القاموس المترجم يدويًا <code dir="ltr">public/fooddb/food-names.json</code> (160 زوجًا عربي←إنجليزي، بلا قيم غذائية). يُعاد فحص كل طعام قبل الكتابة مباشرة؛ ولا يتغير أي اسم موجود؛ وإن كان الاسم الجديد سيكرر طعامًا آخر يُترك الطعام كما هو. أما ما تبقى فيُسمّى يدويًا من محرر الطعام.</p>
+<h3 dir="rtl">7.4 الإكمال نفسه على Hub المالك</h3>
+<p dir="rtl">الأمر (على حاسوب المالك): <code dir="ltr">node scripts/laptop-setup.mjs --hub-complete-foods</code>. يحدّث الخادم، ويتطلب إصدار الخادم 8 أو أحدث وتبويب Food_Database المنظم، ثم:</p>
+<ul dir="rtl">
+<li dir="rtl">يضيف كل مكوّن من مكتبة الوصفات غير موجود في Food_Database بقيم USDA (المعرّف <code dir="ltr">LIB-ING-…</code>، الفئة «مكوّنات الوصفات»)؛ والمكونات التي ليس لها مرجع موثّق تُسرد ولا تُقدَّر أبدًا؛</li>
+<li dir="rtl">يضيف كل وجبة من المكتبة غير موجودة كطعام جاهز (المعرّف <code dir="ltr">LIB-&lt;recipe id&gt;</code>) محسوبة من <b>قيم الـ Hub نفسه</b> (وUSDA فقط حيث لا يملك الـ Hub شيئًا)، لكل 100 غ من المكونات النيئة، ووزن الحبة = حصة واحدة؛ وتُتجاوز الوجبات التي فيها مكوّن بلا قيم صالحة؛</li>
+<li dir="rtl">يستدعي إجراء الخادم <code dir="ltr">fillFoodNames</code> الذي يملأ فقط خلايا <code dir="ltr">name_en</code> الفارغة (بعد النسخة الاحتياطية اليومية في Drive).</li>
+</ul>
+<p dir="rtl">الصفوف والقيم الموجودة لا تتغير أبدًا، والبيانات المرجعية من <code dir="ltr">public/fooddb/library-recipes.json</code>. مُتحقَّق منه على خادم Google محاكى مع <code dir="ltr">Code.gs</code> الحقيقي: <code dir="ltr">e2e/hub-complete-test.mjs</code> ‏9/9 (بما في ذلك تشغيل ثانٍ لا يضيف شيئًا). التشغيل على الـ Hub الحي: غير مُتحقَّق منه في هذه الوثيقة.</p>
+
+<h2 dir="rtl">8. كيف تُسجَّل التحديثات</h2>
+<ul dir="rtl">
+<li dir="rtl">تقارن <code dir="ltr">updateFood</code> الحقول المتتبَّعة (الاسم العربي/الإنجليزي، الفئة، قيم 100 غ، الحالة، تسمية الحالة، التحضير، الملاحظات، وزن الحبة، الكثافة، الحصص). إن تغيّر أيٌّ منها يزيد <code dir="ltr">version</code> بمقدار 1 ويُكتب صف في سجل التغييرات (الإجراء <code dir="ltr">update</code> من التطبيق، أو <code dir="ltr">sheet-update</code> من الـ Hub/الملف) بالقيم قبل وبعد. يظهر ذلك في محرر الطعام ← تبويب <b>سجل التغييرات</b>.</li>
+<li dir="rtl">يُسجَّل الإنشاء بـ <code dir="ltr">create</code> (أو <code dir="ltr">import</code> لأطعمة الجدول)، وكذلك الأرشفة والاستعادة.</li>
+<li dir="rtl">كل تغيير يدخل طابور المزامنة (outbox) فيصل إلى النسخة السحابية/الـ Hub عند إعداد المزامنة.</li>
+</ul>
+<pre dir="ltr">
+Example: the Hub changes "F0042" protein from 9.0 to 9.5
+  pull → key F0042 found → per100 differs → updateFood(…, 'sheet')
+  → version 3 → 4, history: before {per100:{…protein:9.0}} after {per100:{…protein:9.5}}
+  → diary entries logged before keep protein 9.0 in their snapshot
+</pre>
+
+<h2 dir="rtl">9. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>الإجراءات والقواعد</td><td>مُتحقَّق منها في الشيفرة المذكورة في النطاق</td></tr>
+<tr><td>محتوى قاعدة USDA (12,879 طعامًا والإحصاءات)</td><td>مُتحقَّق منه من بيانات meta في <code dir="ltr">public/fooddb/usda.json</code> ومن اختبار الوحدة</td></tr>
+<tr><td>استيراد 160 طعامًا من الـ Hub والمقارنة والكتابة/القراءة</td><td>مُتحقَّق منه مباشرة أثناء إعداد الحاسوب (7 نوفمبر 2026): Food_Database ‏160 طعامًا و0 غير مقروء؛ ومغطى باختبارات وحدة في <code dir="ltr">tests/v2.test.ts</code></td></tr>
+<tr><td>استيراد CSV/XLSX وتصدير/استيراد JSON</td><td>مغطى باختبارات وحدة (<code dir="ltr">tests/core.test.ts</code>، <code dir="ltr">tests/v2.test.ts</code>، <code dir="ltr">tests/fooddb.test.ts</code>) واختبارات متصفح على أجهزة محاكاة</td></tr>
+<tr><td>إكمال قاعدة أطعمتي / الأسماء (في التطبيق)</td><td>مُتحقَّق منه في <code dir="ltr">libraryFoods.ts</code> و<code dir="ltr">foodNames.ts</code>؛ والأعداد محسوبة بتشغيل <code dir="ltr">planLibraryFoods</code> في 10 نوفمبر 2026</td></tr>
+<tr><td>تشغيل <code dir="ltr">build-food-db.mjs</code> على إصدار USDA جديد</td><td>غير مُتحقَّق منه في هذه المراجعة (الإجراء مستنتج من السكربت)</td></tr>
+<tr><td>مسح الباركود بالكاميرا على هاتف أندرويد حقيقي</td><td>غير مُتحقَّق منه (لا اختبار على جهاز حقيقي بعد)</td></tr>
+</table>
+
+<h2 dir="rtl">10. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

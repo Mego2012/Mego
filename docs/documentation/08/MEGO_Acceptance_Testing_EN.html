@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Acceptance_Testing_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Acceptance Testing</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-61</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Project owner, testers, developers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Testing_Strategy, MEGO_Nutrition_Calculation_Accuracy_Tests, MEGO_Multi_User_Testing, MEGO_Android_Device_Testing, MEGO_Release_Readiness_Checklist, MEGO_User_Manual</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes MEGO's automated acceptance suite <code>e2e/run-e2e.mjs</code>: the environment it simulates, all 57 checks it performs in a real browser, how to run it locally or against the live site, and how to read the results. It also covers the touch-scrolling acceptance suite <code>e2e/scroll-test.mjs</code> (103 checks). Multi-user acceptance is in MEGO_Multi_User_Testing; the manual phone checklist is in MEGO_Android_Device_Testing.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Acceptance approach</li>
+<li>Test environment of run-e2e.mjs</li>
+<li>The 57 acceptance checks</li>
+<li>Touch-scrolling acceptance (scroll-test.mjs)</li>
+<li>Running the suites and reading results</li>
+<li>Acceptance criteria for a release</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Acceptance approach</h2>
+<p>The suite started from the 15 acceptance scenarios in the original project brief (TEST 1 to TEST 15) and has grown with the releases: new features added checks that drive the real user interface the way a person would (tapping, typing, choosing from lists) and asserts what the person sees. Checks use stable <code>data-testid</code> attributes, not visual positions. Screenshots of key screens are saved to <code>e2e/screens/</code>.</p>
+
+<h2>2. Test environment of run-e2e.mjs</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Aspect</th><th>Setting (from the script)</th></tr>
+<tr><td>Browser</td><td>Pre-installed Playwright Chromium, persistent profile in <code>e2e/.profile</code> (deleted at the end unless <code>KEEP_PROFILE</code> is set)</td></tr>
+<tr><td>Device</td><td>Playwright device profile "Galaxy S9+", locale <code>ar-SA</code>, time zone Asia/Riyadh</td></tr>
+<tr><td>App</td><td>Local production build via <code>vite preview</code> on port 4173, or any deployment via <code>E2E_BASE</code></td></tr>
+<tr><td>Mode</td><td>Guest mode: <code>/firebase-config.json</code> is answered with 404 (accounts are tested separately)</td></tr>
+<tr><td>Backend</td><td>Requests to <code>https://script.google.com/**</code> are answered by the real <code>apps-script/Code.gs</code> running in <code>e2e/gas-mock.mjs</code>, with an emulated Excel Hub and a scripted Gemini stand-in</td></tr>
+<tr><td>Open Food Facts</td><td>Mocked: one known barcode returns a sample product, others 404</td></tr>
+<tr><td>Result</td><td>Each check prints PASS/FAIL with a detail; the run ends with <code>N/57 checks passed</code> and exit code 1 if any check failed</td></tr>
+</table>
+
+<h2>3. The 57 acceptance checks</h2>
+<p>Listed in execution order (the order matters: later checks use data created by earlier ones).</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>ID</th><th>What is accepted</th></tr>
+<tr><td>1</td><td>SETUP</td><td>Connect with the one-line connection code → Hub verified → foods imported → records uploaded</td></tr>
+<tr><td>2</td><td>AIKEY</td><td>Free Gemini key checked by the backend, stored only in Script Properties, never kept in the app</td></tr>
+<tr><td>3</td><td>IMPORT</td><td>CSV import shows the audit preview (header detection, issues)</td></tr>
+<tr><td>4–7</td><td>TEST 1–4</td><td>100 g raw chicken breast = 120 kcal (P23 C0 F2.6); 100 g cooked = 165 kcal; 3 eggs (55 g) = 236 kcal; 3 slices whole-wheat toast (28 g) = 207 kcal</td></tr>
+<tr><td>8</td><td>DASH</td><td>Dashboard updates immediately (728 kcal consumed)</td></tr>
+<tr><td>9</td><td>TEST 5</td><td>Recipe 500 g raw chicken + 300 g raw rice, 4 servings → 1680 total / 420 per serving, logged</td></tr>
+<tr><td>10–11</td><td>TEST 6–7</td><td>Calories 2000→2200 and protein 160→170 update dashboard, diary, macro bars and weekly report</td></tr>
+<tr><td>12</td><td>TEST 8</td><td>Log food on a previous date</td></tr>
+<tr><td>13</td><td>TEST 9</td><td>Weekly report from saved records (complete/partial/empty days, targets 2200/170)</td></tr>
+<tr><td>14</td><td>TEST 10</td><td>Monthly report + CSV/XLSX export</td></tr>
+<tr><td>15</td><td>TEST 11</td><td>Edit raw chicken 120→110 kcal: past entries keep 120, new ones use 110, history logged</td></tr>
+<tr><td>16</td><td>TEST 13</td><td>Offline logging, then reconnect and verify sync</td></tr>
+<tr><td>17</td><td>TEST 12</td><td>Close and reopen the app: all data still there</td></tr>
+<tr><td>18</td><td>BODY</td><td>Weight and waist (one per date) feed progress and reports</td></tr>
+<tr><td>19</td><td>TEST 14</td><td>PWA installability prerequisites (manifest, service worker, offline app shell)</td></tr>
+<tr><td>20</td><td>TEST 15</td><td>Switch Arabic ⇄ English: <code>dir</code> rtl/ltr and labels</td></tr>
+<tr><td>21</td><td>REMAIN</td><td>Dashboard shows remaining protein/carbs/fat and water</td></tr>
+<tr><td>22</td><td>UNDO</td><td>Delete an entry, then Undo restores it</td></tr>
+<tr><td>23</td><td>COPYGUARD</td><td>Copy from yesterday into a non-empty day asks for confirmation</td></tr>
+<tr><td>24</td><td>LIBRARY</td><td>Recipe library ≥ 50 recipes computed from the food DB; detail, rate, add to diary</td></tr>
+<tr><td>25</td><td>SUGGEST</td><td>Suggestions fit remaining calories and include protein</td></tr>
+<tr><td>26</td><td>GOAL</td><td>Goal dropdown (9 options, default fat-loss-preserve); recommendation needs confirmation</td></tr>
+<tr><td>27</td><td>PLAN</td><td>Suggest a week plan, apply, shopping list with check-off</td></tr>
+<tr><td>28</td><td>HABITS</td><td>Water, habits and fasting timer</td></tr>
+<tr><td>29</td><td>BARCODE</td><td>Manual barcode → Open Food Facts (mocked) → save &amp; log</td></tr>
+<tr><td>30</td><td>PHOTO</td><td>Progress photo stored locally</td></tr>
+<tr><td>31</td><td>BACKUP</td><td>Local backup list + "backup now"</td></tr>
+<tr><td>32</td><td>SYNC2</td><td>Everything synced to the converted native Hub by the real Code.gs; Excel original untouched</td></tr>
+<tr><td>33</td><td>HUBINFO</td><td>Settings shows MEGO Nutrition Hub with its fixed ID; backend reported the same ID</td></tr>
+<tr><td>34</td><td>SCAN</td><td>AI meal scanner: photo → review (DB values, confidence, confirm uncertain) → edit grams → save → dashboard</td></tr>
+<tr><td>35</td><td>DEEPLINK</td><td>QR/deep link from the laptop setup connects the app and removes the token from the address bar</td></tr>
+<tr><td>36</td><td>FOODDB</td><td>USDA database: Arabic search «صدور فراخ» → chicken breast → log; missing food created from its label and logged</td></tr>
+<tr><td>37</td><td>COACH</td><td>Nutrition Coach: today, complete-my-macros, rankings with breakdown and amino acids, education with sources, AR/EN</td></tr>
+<tr><td>38</td><td>LIB100</td><td>Recipe library has ≥ 100 recipes, all calculable</td></tr>
+<tr><td>39</td><td>COOK</td><td>"What can I cook today?" ranks recipes by pantry and lists missing items</td></tr>
+<tr><td>40</td><td>BACKBTN</td><td>Android Back closes an open sheet without leaving the page; scrolling still works</td></tr>
+<tr><td>41</td><td>STREAK</td><td>Habit streaks and 14-day water history</td></tr>
+<tr><td>42</td><td>REPLACE</td><td>Replace a meal in the suggested week plan</td></tr>
+<tr><td>43</td><td>CARDIO</td><td>Log the saved routine, add, edit and delete a session; daily/weekly/monthly totals</td></tr>
+<tr><td>44</td><td>ENERGY</td><td>Home: base → cardio → extra allowed → adjusted target; planned routine adds nothing</td></tr>
+<tr><td>45</td><td>GOALS</td><td>Goals: progress, recommendations (not applied), fitness goals, check-in saved</td></tr>
+<tr><td>46</td><td>RECIPE-NUTRITION</td><td>Every library recipe card shows calories and macros per serving</td></tr>
+<tr><td>47</td><td>REPORT-CARDIO</td><td>Weekly/monthly reports include cardio minutes, sessions, average and goal progress</td></tr>
+<tr><td>48</td><td>CARDIO-EN</td><td>Cardio, Goals and Home cards in English (ltr) and Arabic (rtl)</td></tr>
+<tr><td>49</td><td>WORKOUT</td><td>Owner split program, log a session (weights, reps, RIR, done), rest timer, finish, history, delete</td></tr>
+<tr><td>50</td><td>PROGRAM-GEN</td><td>Program generator keeps the split; pull-ups/dips frequency adjustable; reasons shown; saved as new program only on request</td></tr>
+<tr><td>51</td><td>EX-LIB</td><td>Exercise library: Arabic search, details, alternatives, custom exercise</td></tr>
+<tr><td>52</td><td>COACH-TRAIN</td><td>Training coach answers with confidence and data basis; weekly review separates observations and recommendations; recovery log</td></tr>
+<tr><td>53</td><td>TRAIN-EN</td><td>Workouts in English (ltr)</td></tr>
+<tr><td>54</td><td>DATACHECK</td><td>Settings → Data check: read-only record counts, pre-update backup comparison, per-scoop food detection</td></tr>
+<tr><td>55</td><td>EX-GUIDE</td><td>All 54 exercise pages in AR and EN: demonstration, start/finish, technique, mistakes, safety, muscles, prescription, history; no broken images; next/prev</td></tr>
+<tr><td>56</td><td>LAYOUT</td><td>No horizontal overflow on any screen at phone width</td></tr>
+<tr><td>57</td><td>DARK</td><td>Dark mode renders</td></tr>
+</table>
+
+<h2>4. Touch-scrolling acceptance (scroll-test.mjs)</h2>
+<p>A separate suite proves that a finger swipe scrolls every screen on Samsung-sized phones. It uses raw Chrome DevTools Protocol touch events (touchStart → touchMove… → touchEnd), which Chrome turns into compositor scrolling like a real finger; a control page first proves the method works.</p>
+<ul>
+<li>Viewports: Galaxy S23 (360×780), Galaxy A54 (412×915), Galaxy S9+ (320×658), each in Arabic (RTL) and English (LTR), Android Chrome user agent.</li>
+<li>Screens: Home, Diary, Recipes (four tabs), Foods, Planner, Progress, Habits, weekly and monthly reports, Settings.</li>
+<li>Also: sheet flows (open/close nested sheets, Escape/Back) must never leave the page scroll-locked.</li>
+<li>Result: 103/103, also against the live URL.</li>
+</ul>
+
+<h2>5. Running the suites and reading results</h2>
+<pre>
+npm run build
+npm run e2e                                         # local build, 57 checks
+E2E_BASE=https://mego2012.github.io/Mego/ npm run e2e   # same checks on the live site
+npm run e2e:scroll                                  # 103 touch checks (local)
+node e2e/scroll-test.mjs https://mego2012.github.io/Mego/
+</pre>
+<p>A FAIL line contains the first line of the error and, when relevant, the Playwright reason (element not visible, outside the viewport, intercepted by another element). Screenshots are in <code>e2e/screens/</code>.</p>
+
+<h2>6. Acceptance criteria for a release</h2>
+<ul>
+<li><code>npm run e2e</code>: 57/57 on the local production build.</li>
+<li><code>npm run e2e:scroll</code>: 103/103.</li>
+<li>After deployment: both suites against the live URL, plus <code>scripts/live-verify.mjs</code> (see MEGO_Release_Readiness_Checklist).</li>
+<li>Any failure blocks the release until fixed or explicitly documented in MEGO_Known_Bugs_and_Limitations.</li>
+</ul>
+
+<h2>7. Verification status</h2>
+<ul>
+<li><b>Tested (emulated device, local build):</b> 57/57 browser checks and 103/103 touch checks — latest recorded results (10 Nov 2026).</li>
+<li><b>Verified live:</b> 44/44 browser checks against the live URL on 7 Nov 2026 (before the 1.2/1.3 checks existed); 103/103 touch checks against the live URL; the 54 exercise pages 54/54 on the live site (10 Nov 2026).</li>
+<li><b>Not verified:</b> a full 57-check run against the live URL is not recorded; Gemini and Open Food Facts are simulated in this suite; camera, barcode scanning hardware and home-screen installation on a physical phone (see MEGO_Android_Device_Testing). The suite was not re-run while writing this document.</li>
+</ul>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

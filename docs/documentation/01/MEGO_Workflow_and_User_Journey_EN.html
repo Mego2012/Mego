@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Workflow_and_User_Journey_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Workflow and User Journey</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-07</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Project owner, designers, testers, support, new team members</td></tr>
+<tr><td>Related documents</td><td>MEGO_Features_and_Capabilities, MEGO_Getting_Started, MEGO_Registration_and_Login_Guide, MEGO_Food_Tracking_Guide, MEGO_Reports_Guide, MEGO_Admin_User_Manual, MEGO_Data_Backup_and_Recovery</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes how people move through MEGO: from the first launch, through daily, weekly and training-day routines, to multi-device use, recovery and administration. Each journey lists the screens involved, what the app does behind the scenes and the rules that protect the user's data. It describes the current code; detailed button-by-button instructions are in the user guides (folder 02).</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Actors and operating modes</li>
+<li>First launch and choosing a mode</li>
+<li>Registration and sign-in</li>
+<li>Daily nutrition routine</li>
+<li>Logging with the AI meal scanner</li>
+<li>Training day: workout, cardio and energy</li>
+<li>Weekly and monthly review cycle</li>
+<li>Recipes and meal planning</li>
+<li>Multi-device use and recovery</li>
+<li>Owner and administrator workflows</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Actors and operating modes</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Actor</th><th>Mode</th><th>Where data lives</th></tr>
+<tr><td>Guest</td><td>guest</td><td>Only in this browser (IndexedDB <code>mego-nutrition</code>)</td></tr>
+<tr><td>Registered user</td><td>account</td><td>Device (<code>mego-u-&lt;uid&gt;</code>) + Cloud Firestore, synced live</td></tr>
+<tr><td>Project owner</td><td>guest on the owner device, with Hub sync</td><td>Device + Google Sheet "MEGO Nutrition Hub" via Apps Script</td></tr>
+<tr><td>Administrator</td><td>account with an <code>admins/{uid}</code> record</td><td>Sees counts and account cards only, never private records</td></tr>
+</table>
+<p>The mode is decided at start-up by <code>bootAccount()</code> in <code>src/lib/account.ts</code>.</p>
+
+<h2>2. First launch and choosing a mode</h2>
+<pre>
+ Open app
+    |
+    v
+ Cloud config available? --no--&gt; GUEST mode (local only)
+    | yes
+    v
+ Signed-in account remembered? --yes--&gt; ACCOUNT mode (local DB + live sync)
+    | no
+    v
+ Guest chosen before? --yes--&gt; GUEST mode
+    | no
+    v
+ WELCOME screen: [Create account] [Sign in] [Continue without an account (this device only)]
+</pre>
+<p>The welcome screen lists the value points (USDA foods, calibrated calorie dial, photo scanner with confirmation, private diary) and links to the privacy policy and terms (drafts).</p>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/home-en-light.png" width="300" alt="Dashboard after start-up"></p>
+<p>The welcome, registration and account screenshots exist only in Arabic (see the Arabic version of this document).</p>
+
+<h2>3. Registration and sign-in</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Step</th><th>User does</th><th>App does</th></tr>
+<tr><td>1. Account</td><td>Name, e-mail, password, country, "I am 18 or older", accepts privacy policy and terms</td><td>Checks the password rule (at least 8 characters with a letter and a digit); shows an AI-region note when relevant</td></tr>
+<tr><td>2. About you</td><td>Sex, age, height, current and target weight, activity, goal</td><td>Requires age ≥ 18, height &gt; 100 cm, weight &gt; 30 kg</td></tr>
+<tr><td>3. Your daily targets</td><td>Reviews or edits calories, protein, carbs, fat</td><td>Pre-calculates with Mifflin–St Jeor × activity and the goal; values can be changed later in Settings</td></tr>
+<tr><td>Finish</td><td>"Create my account"</td><td>Creates the Firebase account and profile; opens the account's own local database</td></tr>
+</table>
+<ul>
+<li><b>Sign in:</b> e-mail and password; optional checkbox to copy the diary entries already on this device into the account.</li>
+<li><b>Forgot password:</b> Firebase sends a reset e-mail (request verified live; inbox delivery not checked).</li>
+<li><b>Suspended account:</b> the user sees a suspension screen; data is kept.</li>
+</ul>
+
+<h2>4. Daily nutrition routine</h2>
+<pre>
+ Dashboard --&gt; Diary --&gt; [+ Add] --&gt; Search / Recent / Frequent / Favorites / History / Meals / Recipes
+                                         |
+                                         v
+                              Choose food --&gt; quantity + unit (grams shown) --&gt; Log
+                                         |
+                                         v
+                    Entry saved with a snapshot of the food values; Undo offered
+                                         |
+                                         v
+                Dashboard ring and macro bars update; change queued for sync
+</pre>
+<ol>
+<li><b>Morning:</b> open the Dashboard — Goal − Food = Remaining, macro bars, water, today's training card.</li>
+<li><b>Log meals:</b> in the Diary pick the meal (breakfast, lunch, dinner, snacks) and add foods by search, barcode, photo, saved meal or recipe. Copy yesterday or a meal when eating the same thing (the app asks before adding into a day that already has entries).</li>
+<li><b>Water:</b> quick buttons on Dashboard, Diary or Water &amp; habits.</li>
+<li><b>Close the day:</b> "Mark day complete". Past days with entries count as fully logged automatically when they reach ≥ 60 % of the calorie target (configurable). A day without entries is never counted as zero.</li>
+</ol>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/diary-en-light.png" width="300" alt="Diary"> <img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/add-food-en-light.png" width="300" alt="Add food"></p>
+
+<h2>5. Logging with the AI meal scanner</h2>
+<ol>
+<li>Tap "Take a photo" or "Upload from gallery".</li>
+<li>The phone checks and compresses the image and sends it to the owner's Apps Script backend, which asks Gemini (free tier) to identify the items.</li>
+<li>The review sheet shows each item with grams (and range), state, cooking method, matched database food and a confidence chip. Uncertain items must be ticked as checked; the user can edit, swap the matched food, add or remove items.</li>
+<li>Nutrition is computed by the app from the database. Items not in the database are marked as AI estimates and can only be logged after an explicit choice.</li>
+<li><b>Confirm</b> saves the entries; nothing is saved before. If Google is busy, the app retries after 3 s and 8 s and keeps the photo for a manual retry.</li>
+</ol>
+
+<h2>6. Training day: workout, cardio and energy</h2>
+<pre>
+ Dashboard (today's workout card) --&gt; Workouts &gt; Today --&gt; log sets (weight, reps, RIR) --&gt; rest timer
+        |                                                     |
+        |                                     strength analytics &amp; progression advice
+        v
+ Cardio --&gt; log session (or use saved routine: treadmill 10 min, 3.5 km/h, 13 %)
+        |
+        v
+ Dashboard energy card: Base target, Cardio (estimate), Extra allowed, Adjusted target, Remaining
+</pre>
+<ul>
+<li>Planned cardio (default 6 × 10 min per week) is treated as already included in the target; only extra net energy is partly added back (50 % / 75 % / 100 % by goal, max 400 kcal). Saved targets are never changed.</li>
+<li>The training coach is local, rule-based logic — no AI service. It suggests; the user decides.</li>
+<li>Exercise pages (<code>#/exercise/:id</code>) show the animated drawing, technique and muscle chart.</li>
+</ul>
+
+<h2>7. Weekly and monthly review cycle</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>When</th><th>Action</th><th>Screen</th></tr>
+<tr><td>Regularly (e.g. mornings)</td><td>Weigh-in, waist (one record per date)</td><td>Progress</td></tr>
+<tr><td>Weekly</td><td>Weekly check-in (strength, hunger, recovery, sessions)</td><td>Goals</td></tr>
+<tr><td>Weekly</td><td>Read Recommendations; approve a suggestion or ignore it (never auto-applied)</td><td>Goals</td></tr>
+<tr><td>Weekly / monthly</td><td>Weekly or Monthly report: day ledger, averages over fully logged days, consistency, weight, workouts card; export CSV / Excel / PDF</td><td>Reports</td></tr>
+<tr><td>Any time</td><td>Coach week/month tabs, food rankings, education</td><td>Coach</td></tr>
+</table>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/week-en-light.png" width="300" alt="Weekly report"> <img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/progress-en-light.png" width="300" alt="Progress"></p>
+
+<h2>8. Recipes and meal planning</h2>
+<ol>
+<li>My Recipes → Library (101 recipes) or Suggestions (fits what is left today) or Cook ("What can I cook today?").</li>
+<li>Open a recipe → add to diary, add to plan, or save as an editable recipe.</li>
+<li>Planner → suggest a week plan or build it by hand → shopping list → log the plan → compare planned vs actual.</li>
+</ol>
+
+<h2>9. Multi-device use and recovery</h2>
+<ul>
+<li><b>Second device:</b> sign in with the same account; data downloads and stays in sync live. Older copies never overwrite newer ones.</li>
+<li><b>Offline:</b> logging continues; changes upload when the connection returns.</li>
+<li><b>Browser storage lost (incident 10 Nov 2026):</b> an Android phone lost its IndexedDB. After the fix, a missing local database resets the sync markers, empty tables download in full and settings are always re-read. The user signs in again and the data returns. Guest data cannot be recovered this way — guests should download backup files.</li>
+<li><b>Backups:</b> automatic on-device snapshots (last 10), a pre-update snapshot once per release, manual backup file and merge-only restore in Settings; Settings → Data check compares record counts with the pre-update backup (read-only).</li>
+<li><b>Leaving:</b> export data, then delete the account after password confirmation.</li>
+</ul>
+
+<h2>10. Owner and administrator workflows</h2>
+<h3>10.1 Owner</h3>
+<ol>
+<li>On the laptop: <code>node scripts/laptop-setup.mjs</code> (Hub + Apps Script + optional Gemini key) and <code>--cloud</code> for Firebase.</li>
+<li>Connect the owner device to the Hub in Settings; foods import from the sheet; changes sync every minute with automatic retry.</li>
+<li>Backend updates: <code>git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend</code>.</li>
+</ol>
+<h3>10.2 Administrator</h3>
+<ol>
+<li>The owner registers in the app, then runs <code>node scripts/laptop-setup.mjs --cloud &lt;e-mail&gt;</code> again to write <code>admins/{uid}</code>. <b>Not done yet — no administrator exists.</b></li>
+<li>Admin dashboard (<code>#/admin</code>): user counts, account list, suspend/reactivate, review submitted foods, error reports.</li>
+</ol>
+
+<h2>11. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Journey</th><th>Status</th></tr>
+<tr><td>Registration, sign-in/out, password-reset request, logging, second-device sync, weekly/monthly reports, account deletion</td><td>Verified live (<code>scripts/live-verify.mjs</code>)</td></tr>
+<tr><td>AI scanner journey</td><td>Verified live on 10 Nov 2026 through the app UI (disposable account)</td></tr>
+<tr><td>Storage-loss recovery</td><td>Reproduced and verified on emulators (<code>e2e/storage-loss.mjs</code>); owner confirmed data returned</td></tr>
+<tr><td>Guest journeys, planner, recipes, workouts, cardio, goals</td><td>Emulated devices (browser e2e 57/57) and unit tests</td></tr>
+<tr><td>Admin journey</td><td>Emulators only — no admin account in production</td></tr>
+<tr><td>Whole journey on a physical Android phone; password-reset e-mail delivery</td><td>Not verified</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

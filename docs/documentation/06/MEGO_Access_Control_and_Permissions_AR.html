@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Access_Control_and_Permissions_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — التحكم في الوصول والصلاحيات</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-45</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>المطوّرون، مالك المشروع، المشرفون، مراجعو الأمان</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Authentication_and_Authorization_Architecture، MEGO_Security_Architecture، MEGO_Database_Schema_and_Relationships، MEGO_Admin_User_Manual، MEGO_User_Management_Procedures، MEGO_Security_Audit_and_Known_Risks</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تشرح هذه الوثيقة، قاعدةً قاعدة، قواعد أمان Firestore في الملف <code dir="ltr">firebase/firestore.rules</code> — وهي الآلية المركزية للتحكم في الوصول في MEGO — وتلخّص الصلاحيات التي تفرضها خلفية Apps Script والعميل. وتتضمن مصفوفة صلاحيات كاملة، والاختبار الذي يغطي كل قاعدة، والثغرات المعروفة في القواعد، وإجراء تعديلها بأمان.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">المبادئ</li>
+<li dir="rtl">النص الكامل للقواعد</li>
+<li dir="rtl">الدوال المساعدة</li>
+<li dir="rtl">البيانات الخاصة: users/{uid}/{table}/{key}</li>
+<li dir="rtl">الملفات الشخصية</li>
+<li dir="rtl">المشرفون</li>
+<li dir="rtl">الأطعمة المشتركة ومقترحات الأطعمة</li>
+<li dir="rtl">تقارير الأخطاء</li>
+<li dir="rtl">مصفوفة الصلاحيات</li>
+<li dir="rtl">صلاحيات Apps Script والعميل</li>
+<li dir="rtl">تغطية الاختبارات</li>
+<li dir="rtl">ثغرات معروفة في القواعد</li>
+<li dir="rtl">تعديل القواعد</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. المبادئ</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>الرفض افتراضيًا:</b> أي مسار لا تطابقه قاعدة يُرفض (سلوك Firestore).</li>
+<li dir="rtl"><b>الإنفاذ على الخادم:</b> تقيّم Google القواعد في كل طلب، ولا يستطيع التطبيق تجاوزها.</li>
+<li dir="rtl"><b>للمالك فقط وللنشط فقط:</b> لا يصل إلى البيانات الخاصة إلا صاحبها، وفقط ما دامت حالة ملفه <code dir="ltr">status == 'active'</code>.</li>
+<li dir="rtl"><b>أقل صلاحية للمشرفين:</b> يدير المشرفون حالة الحسابات والأطعمة المشتركة، لكن لا يقرؤون السجلات الخاصة.</li>
+<li dir="rtl"><b>تحديثات أحادية الاتجاه:</b> لا يمكن لنسخة أقدم أن تحل محل نسخة أحدث.</li>
+</ul>
+<p dir="rtl">ملاحظة: تنطبق القواعد على طلبات مكتبة العميل أو REST المرسلة برموز المستخدمين. أما بيانات اعتماد Google Cloud الخاصة بمالك المشروع (وحدة التحكم وسكربت الإعداد) فلا تقيّدها هذه القواعد.</p>
+
+<h2 dir="rtl">2. النص الكامل للقواعد</h2>
+<p dir="rtl">النسخة المنشورة كما في المستودع (<code dir="ltr">rules_version = '2'</code>):</p>
+<pre dir="ltr">
+rules_version = '2';
+// MEGO — Firestore security rules (enforced by Google's servers on every request).
+//  * users/{uid}/**  : private data. Only the owner, only while the account is active. Admins have NO access.
+//                      An older copy can never overwrite a newer one (updatedAt must not go back).
+//  * profiles/{uid}  : account card (name, email, status, country, lastActiveAt). Owner reads/creates/updates a
+//                      fixed set of fields; admins read all and may change ONLY the status.
+//  * admins/{uid}    : admin list. Readable by that user only. Written only from the Firebase console / setup script.
+//  * foods/{id}      : shared verified food database. Any signed-in active user reads; only admins write.
+//  * foodSubmissions : users propose foods; owner and admins read; admins review.
+//  * errorReports    : users may create small error reports (no personal data); only admins read.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() &amp;&amp; exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    function profile(uid) { return get(/databases/$(database)/documents/profiles/$(uid)); }
+    function isActive() {
+      return signedIn() &amp;&amp; exists(/databases/$(database)/documents/profiles/$(request.auth.uid))
+        &amp;&amp; profile(request.auth.uid).data.status == 'active';
+    }
+    function isOwner(uid) { return signedIn() &amp;&amp; request.auth.uid == uid; }
+
+    match /users/{uid}/{table}/{key} {
+      allow read: if isOwner(uid) &amp;&amp; isActive();
+      allow create: if isOwner(uid) &amp;&amp; isActive() &amp;&amp; validRecord();
+      allow update: if isOwner(uid) &amp;&amp; isActive() &amp;&amp; validRecord()
+        &amp;&amp; request.resource.data.updatedAt &gt;= resource.data.updatedAt;
+      allow delete: if isOwner(uid) &amp;&amp; isActive();
+      function validRecord() {
+        return request.resource.data.keys().hasOnly(['data', 'updatedAt', 'deleted'])
+          &amp;&amp; request.resource.data.updatedAt is int
+          &amp;&amp; request.resource.data.data is string &amp;&amp; request.resource.data.data.size() &lt; 300000
+          &amp;&amp; (!('deleted' in request.resource.data) || request.resource.data.deleted is bool)
+          &amp;&amp; table in ['entries', 'body', 'days', 'recipes', 'templates', 'plans', 'plannedDays', 'fasts', 'kv', 'settings', 'foodChanges', 'foods'];
+      }
+    }
+
+    match /profiles/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid)
+        &amp;&amp; request.resource.data.keys().hasOnly(['displayName', 'email', 'status', 'country', 'ageConfirmed', 'createdAt', 'lastActiveAt'])
+        &amp;&amp; request.resource.data.status == 'active' &amp;&amp; request.resource.data.ageConfirmed == true
+        &amp;&amp; request.resource.data.email == request.auth.token.email;
+      allow update: if (isOwner(uid) &amp;&amp; profile(uid).data.status == 'active'
+          &amp;&amp; request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'country', 'lastActiveAt']))
+        || (isAdmin() &amp;&amp; request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          &amp;&amp; request.resource.data.status in ['active', 'suspended']);
+      allow delete: if isOwner(uid);
+    }
+
+    match /admins/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
+    match /foods/{id} {
+      allow read: if isActive();
+      allow write: if isAdmin();
+    }
+
+    match /foodSubmissions/{id} {
+      allow read: if isAdmin() || (isActive() &amp;&amp; resource.data.ownerUid == request.auth.uid);
+      allow create: if isActive() &amp;&amp; request.resource.data.ownerUid == request.auth.uid &amp;&amp; request.resource.data.status == 'pending';
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (isActive() &amp;&amp; resource.data.ownerUid == request.auth.uid &amp;&amp; resource.data.status == 'pending');
+    }
+
+    match /errorReports/{id} {
+      allow create: if signedIn() &amp;&amp; request.resource.data.keys().hasOnly(['at', 'kind', 'message', 'app'])
+        &amp;&amp; request.resource.data.message is string &amp;&amp; request.resource.data.message.size() &lt; 500;
+      allow read, delete: if isAdmin();
+    }
+  }
+}
+</pre>
+
+<h2 dir="rtl">3. الدوال المساعدة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الدالة</th><th>المعنى</th><th>ملاحظة التكلفة</th></tr>
+<tr><td><code dir="ltr">signedIn()</code></td><td>يحمل الطلب رمز هوية Firebase صالحًا</td><td>—</td></tr>
+<tr><td><code dir="ltr">isOwner(uid)</code></td><td>مسجّل الدخول، وuid في الرمز يساوي uid في المسار</td><td>—</td></tr>
+<tr><td><code dir="ltr">isAdmin()</code></td><td>يوجد مستند <code dir="ltr">admins/{token uid}</code></td><td>عملية بحث واحدة عن مستند</td></tr>
+<tr><td><code dir="ltr">profile(uid)</code></td><td>يقرأ <code dir="ltr">profiles/{uid}</code></td><td>عملية بحث واحدة عن مستند</td></tr>
+<tr><td><code dir="ltr">isActive()</code></td><td>مسجّل، ويوجد ملفه الشخصي، وحالته <code dir="ltr">'active'</code></td><td>عمليات بحث عن ملف المتصل</td></tr>
+</table>
+<p dir="rtl">عمليات البحث التي تجريها القواعد تُحتسب قراءاتٍ في Firestore، وعلى خطة Spark تدخل ضمن حصة القراءة اليومية.</p>
+
+<h2 dir="rtl">4. البيانات الخاصة: <code dir="ltr">users/{uid}/{table}/{key}</code></h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>العملية</th><th>الشرط</th></tr>
+<tr><td>القراءة (get، list)</td><td><code dir="ltr">isOwner(uid) &amp;&amp; isActive()</code></td></tr>
+<tr><td>الإنشاء</td><td>المالك، نشط، <code dir="ltr">validRecord()</code></td></tr>
+<tr><td>التحديث</td><td>المالك، نشط، <code dir="ltr">validRecord()</code>، و<code dir="ltr">request.resource.data.updatedAt &gt;= resource.data.updatedAt</code></td></tr>
+<tr><td>الحذف</td><td>المالك، نشط</td></tr>
+</table>
+<p dir="rtl"><b>تشترط <code dir="ltr">validRecord()</code>:</b></p>
+<ul dir="rtl">
+<li dir="rtl">المفاتيح <code dir="ltr">data</code> و<code dir="ltr">updatedAt</code> و<code dir="ltr">deleted</code> فقط؛</li>
+<li dir="rtl">أن يكون <code dir="ltr">updatedAt</code> عددًا صحيحًا؛</li>
+<li dir="rtl">أن يكون <code dir="ltr">data</code> نصًا أقصر من 300,000 حرف (يُخزَّن السجل نص JSON)؛</li>
+<li dir="rtl">أن يكون <code dir="ltr">deleted</code> قيمة منطقية إن وُجد؛</li>
+<li dir="rtl">أن يكون <code dir="ltr">table</code> واحدًا من 12 اسمًا: <code dir="ltr">entries, body, days, recipes, templates, plans, plannedDays, fasts, kv, settings, foodChanges, foods</code>.</li>
+</ul>
+<p dir="rtl"><b>كيف يستخدمها التطبيق:</b> يكتب <code dir="ltr">src/lib/cloudSync.ts</code> كل تغيير محلي عبر <code dir="ltr">setDoc</code>. ويُكتب الحذف «شاهدَ حذف» (tombstone) بالشكل <code dir="ltr">{data: '{}', updatedAt, deleted: true}</code> (وهو تحديث كي تعلم به الأجهزة الأخرى)؛ ولا يُستخدم الحذف الفعلي <code dir="ltr">delete</code> إلا عند حذف الحساب. ويُحتسب الرد <code dir="ltr">permission-denied</code> تعارضًا: الخادم يحمل نسخة أحدث، أو الحساب موقوف.</p>
+<p dir="rtl"><b>مثال:</b> الجهاز A (غير متصل) يعدّل الإدخال <code dir="ltr">e1</code> في الوقت 100، والجهاز B يعدّله في الوقت 200 ويتزامن أولًا. عند عودة A للاتصال تُرفض كتابته ذات <code dir="ltr">updatedAt = 100</code>، ثم يستقبل نسخة B عبر المستمع الحي.</p>
+
+<h2 dir="rtl">5. الملفات الشخصية: <code dir="ltr">profiles/{uid}</code></h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>العملية</th><th>من</th><th>الشرط</th></tr>
+<tr><td>القراءة</td><td>المالك أو المشرف</td><td>يستطيع المالك قراءة ملفه حتى وهو موقوف (لازم لشاشة الإيقاف). ولا يستطيع المستخدمون العاديون سرد الملفات.</td></tr>
+<tr><td>الإنشاء</td><td>المالك</td><td>المفاتيح فقط <code dir="ltr">displayName, email, status, country, ageConfirmed, createdAt, lastActiveAt</code>؛ و<code dir="ltr">status == 'active'</code>؛ و<code dir="ltr">ageConfirmed == true</code>؛ و<code dir="ltr">email == request.auth.token.email</code></td></tr>
+<tr><td>التحديث</td><td>المالك</td><td>ملفه نشط حاليًا، ولا يتغير إلا <code dir="ltr">displayName</code> و<code dir="ltr">country</code> و<code dir="ltr">lastActiveAt</code></td></tr>
+<tr><td>التحديث</td><td>المشرف</td><td>لا يتغير إلا <code dir="ltr">status</code>، وإلى <code dir="ltr">'active'</code> أو <code dir="ltr">'suspended'</code> فقط</td></tr>
+<tr><td>الحذف</td><td>المالك</td><td>دائمًا (حتى وهو موقوف)</td></tr>
+</table>
+<p dir="rtl">النتيجة: لا يستطيع المستخدم تغيير بريده أو حالته ولا إعادة تفعيل نفسه، ولا يستطيع المشرف إعادة تسمية المستخدمين أو ضبط أي حالة غير نشط/موقوف.</p>
+
+<h2 dir="rtl">6. المشرفون: <code dir="ltr">admins/{uid}</code></h2>
+<ul dir="rtl">
+<li dir="rtl">القراءة: لصاحب uid فقط (يستخدمها التطبيق لاكتشاف دور المشرف)؛</li>
+<li dir="rtl">الكتابة: <code dir="ltr">false</code> للجميع — لا يُنشأ إلا ببيانات اعتماد المالك (سكربت الإعداد <code dir="ltr">--cloud</code> أو وحدة تحكم Firebase).</li>
+</ul>
+
+<h2 dir="rtl">7. الأطعمة المشتركة ومقترحات الأطعمة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المسار</th><th>القراءة</th><th>الإنشاء</th><th>التحديث</th><th>الحذف</th></tr>
+<tr><td><code dir="ltr">foods/{id}</code></td><td>المستخدمون النشطون</td><td colspan="3">المشرفون فقط (<code dir="ltr">allow write: if isAdmin()</code>)</td></tr>
+<tr><td><code dir="ltr">foodSubmissions/{id}</code></td><td>المشرفون؛ أو المالك النشط (<code dir="ltr">ownerUid</code>)</td><td>مستخدم نشط، <code dir="ltr">ownerUid</code> = uid الخاص به، <code dir="ltr">status == 'pending'</code></td><td>المشرفون</td><td>المشرفون؛ أو المالك النشط ما دام المقترح معلّقًا</td></tr>
+</table>
+<p dir="rtl">الاعتماد (<code dir="ltr">adminReview</code>) ينسخ الطعام إلى <code dir="ltr">foods/U-&lt;submission id&gt;</code> ويعلّم المقترح بأنه معتمد؛ والرفض يكتفي بتعليمه. لا يُنشر شيء تلقائيًا.</p>
+
+<h2 dir="rtl">8. تقارير الأخطاء: <code dir="ltr">errorReports/{id}</code></h2>
+<ul dir="rtl">
+<li dir="rtl">الإنشاء: أي مستخدم مسجّل؛ المفاتيح فقط <code dir="ltr">at, kind, message, app</code>؛ و<code dir="ltr">message</code> نص أقصر من 500 حرف؛</li>
+<li dir="rtl">القراءة والحذف: المشرفون؛ والتحديث: لا أحد.</li>
+</ul>
+
+<h2 dir="rtl">9. مصفوفة الصلاحيات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المورد</th><th>مجهول</th><th>مستخدم نشط</th><th>مستخدم موقوف</th><th>مشرف (بصفته مشرفًا)</th></tr>
+<tr><td>سجلاته الخاصة</td><td>—</td><td>قراءة/كتابة/حذف</td><td>لا شيء</td><td>سجلاته فقط (بصفته مستخدمًا)</td></tr>
+<tr><td>السجلات الخاصة للآخرين</td><td>لا شيء</td><td>لا شيء</td><td>لا شيء</td><td><b>لا شيء</b></td></tr>
+<tr><td>ملفه الشخصي</td><td>—</td><td>قراءة؛ تحديث الاسم/الدولة/آخر نشاط؛ حذف</td><td>قراءة؛ حذف</td><td>—</td></tr>
+<tr><td>كل الملفات (سرد/عدّ)</td><td>لا شيء</td><td>لا شيء</td><td>لا شيء</td><td>قراءة؛ تغيير الحالة فقط</td></tr>
+<tr><td><code dir="ltr">admins/</code></td><td>لا شيء</td><td>قراءة مدخله</td><td>قراءة مدخله</td><td>قراءة مدخله؛ بلا كتابة</td></tr>
+<tr><td>الأطعمة المشتركة</td><td>لا شيء</td><td>قراءة</td><td>لا شيء</td><td>قراءة/كتابة</td></tr>
+<tr><td>مقترحات الأطعمة</td><td>لا شيء</td><td>إنشاء معلّق؛ قراءة مقترحاته؛ حذف مقترحاته المعلّقة</td><td>لا شيء</td><td>قراءة/تحديث/حذف الكل</td></tr>
+<tr><td>تقارير الأخطاء</td><td>لا شيء</td><td>إنشاء</td><td>إنشاء</td><td>قراءة/حذف</td></tr>
+</table>
+
+<h2 dir="rtl">10. صلاحيات Apps Script والعميل</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإجراء (<code dir="ltr">doPost</code>)</th><th>بيانات الاعتماد المطلوبة</th></tr>
+<tr><td><code dir="ltr">bootstrap</code></td><td>سر لمرة واحدة يطابق <code dir="ltr">BOOTSTRAP_HASH</code> (معطّل إن كانت القيمة فارغة أو بعد أول استخدام)</td></tr>
+<tr><td><code dir="ltr">analyzeMeal</code> و<code dir="ltr">aiDiag</code> مع <code dir="ltr">idToken</code></td><td>رمز هوية Firebase صالح؛ وملف شخصي يمكن قراءته بهذا الرمز؛ ولـ <code dir="ltr">analyzeMeal</code>: حالة نشطة، ودولة غير مقيّدة، وضمن الحدين اليوميين لكل مستخدم والعام</td></tr>
+<tr><td><code dir="ltr">aiStats</code> مع <code dir="ltr">idToken</code></td><td>رمز هوية صالح، ومستند <code dir="ltr">admins/{uid}</code> يمكن قراءته بهذا الرمز</td></tr>
+<tr><td><code dir="ltr">ping, foods, push, pull, saveFoods, backup, meta, analyzeMeal, aiDiag, setAiKey, setCloudConfig</code></td><td><code dir="ltr">APP_TOKEN</code> مطابق تمامًا</td></tr>
+<tr><td>أي إجراء آخر</td><td>مرفوض (<code dir="ltr">unknown action</code>)</td></tr>
+</table>
+<p dir="rtl"><b>قيود الواجهة (ليست حدًا أمنيًا):</b> لا تُعرض لوحة المشرف (<code dir="ltr">#/admin</code>) إلا إذا كانت <code dir="ltr">acc.admin</code> صحيحة؛ وتحل شاشة الإيقاف محل التطبيق إذا كان الملف موقوفًا؛ ولا يستطيع المشرف تبديل حالته هو في القائمة (<code dir="ltr">u.uid !== acc.uid</code>).</p>
+
+<h2 dir="rtl">11. تغطية الاختبارات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الاختبار (<code dir="ltr">tests-rules/rules.test.ts</code>)</th><th>القواعد المغطاة</th></tr>
+<tr><td>كل مستخدم يقرأ ويكتب سجلاته فقط (3 مستخدمين)</td><td>العزل §4</td></tr>
+<tr><td>تغيير uid في المسار لا يفيد؛ والطلبات دون تسجيل دخول مرفوضة</td><td>§4، المجهول</td></tr>
+<tr><td>النسخة الأقدم لا تستبدل الأحدث؛ وفحص شكل السجل (مفتاح زائد، بيانات غير نصية، أكثر من 300,000 حرف، جدول مجهول)</td><td><code dir="ltr">validRecord</code> §4 والتحديث الأحادي</td></tr>
+<tr><td>المشرف يرى بطاقات الحسابات والأعداد ولا يرى السجلات الخاصة أبدًا</td><td>§5، §4</td></tr>
+<tr><td>المشرف يوقف ويعيد التفعيل ولا يغيّر شيئًا آخر</td><td>تحديث المشرف §5</td></tr>
+<tr><td>الخادم يحجب المستخدم الموقوف (لا قراءة ولا كتابة ولا إعادة تفعيل)</td><td><code dir="ltr">isActive</code> §4، §5</td></tr>
+<tr><td>لا أحد يجعل نفسه مشرفًا؛ المستخدم العادي لا يسرد الملفات ولا يغيّر الحالة/البريد</td><td>§6، §5</td></tr>
+<tr><td>الأطعمة المشتركة: الجميع يقرأ والمشرفون فقط يكتبون؛ مراجعة المقترحات</td><td>§7</td></tr>
+<tr><td>المستخدم الجديد ينشئ ملفه النشط فقط مع تأكيد العمر وبريده الحقيقي</td><td>الإنشاء §5</td></tr>
+<tr><td>تقارير الأخطاء: تقارير صغيرة، والقراءة للمشرفين فقط</td><td>§8</td></tr>
+</table>
+<p dir="rtl">إضافة إلى 4 اختبارات سحابية في <code dir="ltr">tests-rules/cloud.test.ts</code> (التسجيل، ومسارات الكتابة لكل مستخدم، والجهاز الثاني المباشر، والتعارض دون اتصال) — 14 اختبارًا إجمالًا، تُشغَّل بالأمر <code dir="ltr">npm run test:rules</code> على المحاكيات الرسمية. وفحوص الإنتاج: <code dir="ltr">scripts/live-verify.mjs</code> ‏(14/14).</p>
+
+<h2 dir="rtl">12. ثغرات معروفة في القواعد</h2>
+<ul dir="rtl">
+<li dir="rtl">تحديثات المالك لملفه لا تتحقق من نوع <code dir="ltr">displayName</code> أو <code dir="ltr">country</code> أو طولهما (يقص التطبيق الاسم إلى 40 حرفًا). ولأن <code dir="ltr">country</code> قابلة للتعديل ويصرّح بها المستخدم، فإن قيد المنطقة في الذكاء الاصطناعي يعتمد على صدق المستخدم.</li>
+<li dir="rtl">إنشاء <code dir="ltr">foodSubmissions</code> يفحص <code dir="ltr">ownerUid</code> و<code dir="ltr">status</code> فقط، لا حقول الطعام.</li>
+<li dir="rtl">يمكن لأي مستخدم مسجّل، بمن فيهم الموقوفون، إنشاء <code dir="ltr">errorReports</code>؛ ولا يُحدّ إلا طول الرسالة.</li>
+<li dir="rtl">لا يستطيع المستخدم الموقوف حذف سجلاته الخاصة (الحذف يتطلب <code dir="ltr">isActive()</code>)، بل ملفه الشخصي فقط.</li>
+<li dir="rtl">لا يُفحص <code dir="ltr">email_verified</code> في أي مكان.</li>
+</ul>
+<p dir="rtl">هذه البنود متابَعة في MEGO_Security_Audit_and_Known_Risks.</p>
+
+<h2 dir="rtl">13. تعديل القواعد</h2>
+<ol dir="rtl">
+<li dir="rtl">عدّل <code dir="ltr">firebase/firestore.rules</code> في فرع مستقل.</li>
+<li dir="rtl">أضف الاختبارات أو حدّثها في <code dir="ltr">tests-rules/</code> وشغّل <code dir="ltr">npm run test:rules</code> (المحاكيات) — ويجب أن تنجح كلها.</li>
+<li dir="rtl">انشر ببيانات اعتماد المالك: <code dir="ltr">node scripts/laptop-setup.mjs --cloud &lt;e-mail&gt;</code> (ينفّذ <code dir="ltr">firebase deploy --only firestore:rules,firestore:indexes</code>) أو عبر Firebase CLI مباشرة.</li>
+<li dir="rtl">شغّل <code dir="ltr">node scripts/laptop-setup.mjs --verify</code> (التحقق المباشر) وتأكد من نجاح كل الفحوص.</li>
+<li dir="rtl">التراجع: أعد نشر النسخة السابقة من الملف من git.</li>
+</ol>
+
+<h2 dir="rtl">14. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>نشر القواعد على مشروع الإنتاج</td><td>مُتحقَّق منه (التحقق المباشر 14/14 على الإنتاج، 7 نوفمبر 2026)</td></tr>
+<tr><td>كل القواعد في الأقسام 4–8</td><td>مختبرة على المحاكيات (14 اختبارًا)</td></tr>
+<tr><td>دور المشرف على الإنتاج</td><td>غير مُتحقَّق منه — لا يوجد مشرف بعد</td></tr>
+<tr><td>صلاحيات إجراءات Apps Script</td><td>فحوص الرمز مُتحقَّق منها مباشرة؛ ومسار رمز الهوية مختبر على المحاكيات</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

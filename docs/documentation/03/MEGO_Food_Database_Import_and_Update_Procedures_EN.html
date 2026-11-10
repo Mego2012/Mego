@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Food_Database_Import_and_Update_Procedures_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Food Database Import and Update Procedures</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-27</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Project owner (Hub administrator), developers, advanced users</td></tr>
+<tr><td>Related documents</td><td>MEGO_Food_Database_Documentation, MEGO_Food_Data_Validation_and_Quality_Control, MEGO_Missing_and_Duplicate_Foods_Management, MEGO_Google_Sheets_Integration_and_Sync, MEGO_Food_Database_Administration, MEGO_Build_and_Release_Procedures</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document gives the step-by-step procedures for bringing food data into MEGO and for updating it safely: rebuilding the USDA reference database, pulling the owner's Google Sheets Hub (Food_Database tab), importing CSV/Excel files, exporting/importing personal foods (JSON), adding foods from USDA search, Open Food Facts and barcodes, and approving recipe ingredient matches, completing the food database from the recipe library and filling missing Arabic/English names. It also explains how updates are recorded (change history, versions) and what is never done (deleting foods, converting raw↔cooked, inventing values). Sources: <code>scripts/build-food-db.mjs</code>, <code>src/lib/sheetImport.ts</code>, <code>src/lib/sync.ts</code>, <code>src/lib/customFoods.ts</code>, <code>src/lib/refFoods.ts</code>, <code>src/lib/barcode.ts</code>, <code>src/lib/repo.ts</code>, <code>src/lib/recipeEngine.ts</code>, <code>src/lib/libraryFoods.ts</code>, <code>src/lib/foodNames.ts</code>, <code>src/pages/Foods.tsx</code>, <code>scripts/laptop-setup.mjs</code>, <code>apps-script/Code.gs</code>, <code>src/pages/Settings.tsx</code>, <code>docs/HUB.md</code>.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Food data sources and who may change them</li>
+<li>Procedure A — rebuild the USDA reference database</li>
+<li>Procedure B — import foods from the Google Sheets Hub</li>
+<li>Procedure C — import a CSV or Excel file</li>
+<li>Procedure D — export / import personal foods (JSON)</li>
+<li>Procedure E — add single foods (USDA, Open Food Facts, barcode, label)</li>
+<li>Procedure F — recipe library foods and bilingual names</li>
+<li>How updates are recorded</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Food data sources and who may change them</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Source</th><th>Stored where</th><th>Changed by</th><th>source value</th></tr>
+<tr><td>USDA FoodData Central reference DB (12,879 foods)</td><td><code>public/fooddb/usda.json</code> + <code>usda-extra.json</code>, shipped with the app, read-only</td><td>Developer, by rebuilding (Procedure A) and redeploying</td><td><code>usda</code> once copied into a user's foods</td></tr>
+<tr><td>Owner's Hub Food_Database (160 foods, IDs F0001…)</td><td>Google Sheet "MEGO Nutrition Hub"</td><td>Owner in the sheet; the app writes back only if "Write food edits back" is enabled</td><td><code>sheet</code></td></tr>
+<tr><td>CSV / Excel file</td><td>user foods table</td><td>User (Procedure C)</td><td><code>sheet</code> (imported with sheet keys)</td></tr>
+<tr><td>Personal foods</td><td>user foods table</td><td>User</td><td><code>custom</code>, <code>openfoodfacts</code>, <code>usda</code></td></tr>
+</table>
+<p>General rules applied by every procedure: values are copied as published (per 100 g); imports <b>never delete</b> foods; diary entries keep their own snapshot so past days do not change; raw and cooked are separate records and never converted.</p>
+
+<h2>2. Procedure A — rebuild the USDA reference database</h2>
+<p>Current build: <code>meta.builtAt</code> 2026-11-06; SR Legacy (release 2018-04) 7,448 foods + FNDDS Survey foods (release 2024-10-31) 5,431 foods = 12,879; 195 categories; 1 food skipped (no energy or macros); 211 rows energy-flagged.</p>
+<ol>
+<li>Download the USDA FoodData Central CSV releases for <b>SR Legacy</b> and <b>FNDDS (Survey)</b> and unzip them into one folder. The script looks for sub-folders whose names contain <code>sr_legacy_food_csv</code> and <code>survey_food_csv</code> and that contain <code>food.csv</code>. (The exact download location/release names are Not verified in the repository.)</li>
+<li>Run <code>node scripts/build-food-db.mjs &lt;folder&gt;</code>. It writes <code>public/fooddb/usda.json</code> and <code>public/fooddb/usda-extra.json</code> and prints the stats.</li>
+<li>Check the printed stats against the previous build (counts, skipped, energyFlagged).</li>
+<li>Run the unit tests (<code>npx vitest run</code>). They check, among others: 12,879 foods with sources and valid numbers, spot values copied exactly (<code>tests/fooddb.test.ts</code>), every Food Intelligence catalog id exists (<code>tests/intel.test.ts</code>), every recipe USDA id exists (<code>tests/cardio-goals.test.ts</code>). If USDA changed a count or removed an id, update the test expectation or the mapping deliberately.</li>
+<li>Commit and deploy through the normal release (MEGO_Build_and_Release_Procedures). The service worker precaches <code>fooddb/usda.json</code> and caches <code>usda-extra.json</code> stale-while-revalidate, so users receive the new file with the app update.</li>
+</ol>
+<p><b>What the script does:</b> reads energy (nutrient 1008, falling back to Atwater-specific 2048 then general 2047), protein 1003, fat 1004, carbs 1005, fibre 1079, sugars 2000 (fallback 1063), saturated fat 1258, sodium 1093; up to 6 portions per food; excludes SR categories "Quality Control Materials" and "Baby Foods"; skips foods without energy or any of the three macros; rounds to 0.01; flags (does not change) rows where kcal &gt; 40 and |4P+4C+9F − kcal| ÷ kcal &gt; 25 %. IDs are prefixed <code>S</code> (SR Legacy) or <code>N</code> (FNDDS) + FDC ID.</p>
+<p><b>Effect on users:</b> foods already copied into a user's list (source <code>usda</code>) keep their values; the new reference values apply only to foods picked afterwards. Re-checking previously copied foods is a manual task (Not automated).</p>
+
+<h2>3. Procedure B — import foods from the Google Sheets Hub</h2>
+<p>Available on the owner's device after connecting the backend (Settings → Sync). The backend action <code>foods</code> returns the Food_Database tab.</p>
+<ol>
+<li><b>Connect / Save + Test connection.</b> The app tests the backend, then runs a <b>read-only comparison</b> (<code>checkHubFoods</code>): foods identical, values different, only in Hub, only on phone (matched by Arabic name + state).</li>
+<li>If any value differs, the flow <b>stops</b> and lists up to 10 differences as "local kcal/P/C/F → Hub kcal/P/C/F". Nothing is overwritten until the owner presses <b>Use the Hub values (backup first; past diary entries keep their values)</b>.</li>
+<li>Before importing, a local backup <code>pre-import</code> is saved.</li>
+<li><code>pullFoodsFromSheet()</code> parses the tab and merges it with <code>importParsedFoods(…, 'sheet')</code>; the message reads "Imported: {added} new, {updated} updated, {unchanged} unchanged. Nothing was deleted."</li>
+<li>Later updates: press <b>Import foods from sheet</b> in Settings → Sync.</li>
+</ol>
+<p><b>Structured Food_Database columns</b> (required: <code>food_id</code>, <code>name_ar</code>, <code>kcal_100g</code>, <code>protein_100g</code>, <code>carbs_100g</code>, <code>fat_100g</code>; optional: <code>name_en</code>, <code>category</code>, <code>fiber_100g</code>, <code>sugar_100g</code>, <code>sodium_mg_100g</code>, <code>piece_g</code>, <code>state</code>, <code>state_label</code>, <code>prep</code>, <code>notes</code>, <code>verification</code>, <code>active</code>). Rows with <code>active = no</code> or without <code>food_id</code> are skipped. A missing required column stops the import with <code>missingColumns:…</code>.</p>
+<p><b>Write-back:</b> with "Write food edits back to the Google Sheet (backs up the tab first)" enabled, edits of sheet foods are sent with the <code>saveFoods</code> action to Food_Database (never to the original tab). Personal (non-sheet) foods are pushed as ordinary records.</p>
+
+<h2>4. Procedure C — import a CSV or Excel file</h2>
+<ol>
+<li>Foods → Import / export → <b>Import CSV / Excel</b> (.csv, .xlsx, .xls).</li>
+<li>Excel: sheets named "قاعدة بيانات الأطعمة", "Foods" or "Food Database" are tried first, then the others; the first sheet with a recognisable header is used.</li>
+<li>Header detection: within the first 15 rows, the first row that has a <b>name</b>, a <b>calories</b> and a <b>protein</b> column (Arabic or English names, e.g. "الاسم/name", "سعرات/kcal", "بروتين/protein"). Other recognised columns: English name, category, carbs, fat, fibre, sugar, sodium, piece weight, state, preparation, notes.</li>
+<li>The <b>Import preview</b> shows totals (raw / cooked / other) and issue counts (no values, missing values, decimal comma, energy mismatch, duplicate name, flagged in notes) and lists up to 60 rows with issues and their row numbers.</li>
+<li>Press <b>Import</b>: a local backup <code>pre-import</code> is saved, then rows are merged (origin <code>file</code>).</li>
+</ol>
+<h3>4.1 Number and state parsing (examples)</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Cell</th><th>Read as</th><th>Note</th></tr>
+<tr><td><code>2,6</code></td><td>2.6</td><td>reported as "decimal comma"</td></tr>
+<tr><td><code>1,234</code></td><td>1234</td><td>thousands separator removed</td></tr>
+<tr><td><code>٣٫٥</code></td><td>3.5</td><td>Arabic-Indic digits and decimal sign converted</td></tr>
+<tr><td>empty, "—", "-" or negative</td><td>missing</td><td>food imported but marked incomplete (cannot be logged)</td></tr>
+<tr><td>state "نيء", "raw", "جاف", "dry"</td><td>raw</td><td rowspan="3">processed/powder/prepared words → other; empty → other</td></tr>
+<tr><td>state "مطبوخ", "مشوي", "boiled", "grilled"</td><td>cooked</td></tr>
+<tr><td>state "مسحوق", "powder", "محضّر"</td><td>other</td></tr>
+</table>
+<h3>4.2 Merge rules (<code>importParsedFoods</code>)</h3>
+<ul>
+<li>Each row has a key: the Hub <code>food_id</code> (structured tab) or the Arabic name (file); a repeated name gets <code>name#2</code>, <code>name#3</code>…</li>
+<li>Existing food with the same key → updated only if a tracked field changed; otherwise "unchanged".</li>
+<li>Foods imported earlier by name are <b>re-keyed</b> to the new stable ID instead of duplicated (<code>legacyKey</code>).</li>
+<li>A name-keyed row matches an existing Hub food (ID F0001…) with the same Arabic name and state, so a file never duplicates Hub foods.</li>
+<li>No match → new food with <code>source = sheet</code>. Foods not present in the file are kept (counted as "kept").</li>
+</ul>
+
+<h2>5. Procedure D — export / import personal foods (JSON)</h2>
+<ol>
+<li>Foods → <b>Export my foods (JSON)</b> saves <code>mego-my-foods.json</code> (format <code>mego-custom-foods</code>, version 1) with all non-archived foods whose source is not <code>sheet</code>; ids, counters and timestamps are removed.</li>
+<li>Foods → <b>Import my foods (JSON)</b> on another device/account: each food is validated (<code>validateMacros</code>, a name, state raw/cooked/other). Invalid → counted "invalid"; same name + state already present → "skipped"; otherwise added. The source is kept if <code>usda</code> or <code>openfoodfacts</code>, else set to <code>custom</code>.</li>
+</ol>
+
+<h2>6. Procedure E — add single foods</h2>
+<ul>
+<li><b>USDA search</b> (Add food / food picker): picking a reference food copies it <b>once</b> into the user's foods (source <code>usda</code>, sourceRef "USDA FDC &lt;id&gt; (…)", USDA portions as servings); later picks reuse that copy. If USDA flagged the energy, the note says "⚠ calories vs macros differ in the source data".</li>
+<li><b>Barcode</b>: EAN-8/EAN-13/UPC-A check digit validated; a local food with that barcode is used first; otherwise Open Food Facts is queried. The product form is editable; saved with source <code>openfoodfacts</code> and the note "Open Food Facts — external data, verify with label" (or <code>custom</code> if the user typed the values).</li>
+<li><b>Open Food Facts text search</b>: only products with kcal, protein, carbs and fat are listed.</li>
+<li><b>From a label</b>: "Create “…” as my food" in the picker opens the food editor with the search text as name. Values may be typed per 100 g, per 100 ml (÷ density) or per serving (× 100 ÷ serving grams); they are stored per 100 g.</li>
+</ul>
+
+<h2>7. Procedure F — recipe library foods and bilingual names</h2>
+<h3>7.1 Approve recipe ingredient matches</h3>
+<p>Library recipes may use hand-checked USDA matches for ingredients that are not in the user's foods. Saving the recipe to "My recipes" (or logging it) approves them: <code>approveRecipeMatches</code> adds each matched USDA food <b>once</b>, under the recipe's Arabic ingredient name, with note "… · approved recipe match". Existing foods are never changed; ingredients without a reliable match (e.g. labneh) are not added (see MEGO_Missing_and_Duplicate_Foods_Management).</p>
+<h3>7.2 "Complete my food database" (Foods page, <code>libraryFoods.ts</code>)</h3>
+<ol>
+<li>Foods → card <b>Complete my food database</b> → <b>Check what is missing</b>. A read-only preview (<code>previewLibraryFoods</code>) counts: ingredients to add, ingredients already in my foods, ready meals to add, meals already in my foods, and lists ingredients with no verified values.</li>
+<li><b>Add to my foods</b> (<code>completeFoodDatabase</code>): a local backup <code>pre-import</code> is saved first (only if something will be added); then (a) every recipe-library ingredient that has no food of that Arabic name is added from its USDA match (same mechanism as 7.1), with the short English name from the name dictionary when known; (b) every library recipe whose ingredients are all known becomes a <b>ready food</b>: category "وجبات (مكتبة الوصفات)", state cooked, source <code>custom</code>, sourceRef "MEGO recipe library: &lt;id&gt;", one serving "حصة (وصفة)" = raw ingredient grams per serving.</li>
+<li>Adds only: existing foods (same Arabic name or same sourceRef) are never changed. Recipes needing a missing ingredient are skipped.</li>
+</ol>
+<p><b>Result on a new, empty account (computed 10 Nov 2026):</b> 68 ingredients to add, 1 missing (labneh / لبنة), 100 ready meals to add, 1 skipped (lib-labneh-plate).</p>
+<pre>
+Ready-meal values: per 100 g = recipe totals × 100 ÷ total raw ingredient grams
+Example "Pepper &amp; tomato shakshuka" (2 servings, 940 g raw ingredients):
+  per 100 g = 89.06 kcal · P 6.08 · C 8.15 · F 3.63
+  1 serving = 470 g → 418 kcal · P 28.5 · C 38.3 · F 17.0   (log it by serving; seasonings ~8 kcal/serving not counted)
+</pre>
+<h3>7.3 Fill missing Arabic / English names (<code>foodNames.ts</code>)</h3>
+<p>Foods → card <b>Arabic &amp; English names</b>: shows foods with both names, names that can be added now, and foods still missing a name. <b>Add the missing names</b> saves a local backup, then fills only an <b>empty</b> English (or Arabic) name from the hand-translated dictionary <code>public/fooddb/food-names.json</code> (160 Arabic→English pairs, no nutrition values). Each food is re-checked just before writing; a name the user already has is never changed; if the new name would duplicate another food the food is left as is. Remaining foods must be named by hand in the food editor.</p>
+<h3>7.4 Same completion on the owner's Hub</h3>
+<p>Command (owner's laptop): <code>node scripts/laptop-setup.mjs --hub-complete-foods</code>. It updates the backend, requires backend version 8 or newer and the structured Food_Database tab, then:</p>
+<ul>
+<li>adds every recipe-library ingredient missing from Food_Database with its USDA values (food_id <code>LIB-ING-…</code>, category "مكوّنات الوصفات"); ingredients without a verified reference are listed, never estimated;</li>
+<li>adds every library meal not yet present as a ready food (food_id <code>LIB-&lt;recipe id&gt;</code>) computed from the <b>Hub's own values</b> (USDA only where the Hub had nothing), per 100 g of raw ingredients, piece weight = one serving; meals with an unusable ingredient are skipped;</li>
+<li>calls the backend action <code>fillFoodNames</code>, which fills only empty <code>name_en</code> cells (after the once-per-day Drive backup).</li>
+</ul>
+<p>Existing rows and values are never changed; the reference data comes from <code>public/fooddb/library-recipes.json</code>. Verified on the emulated Google backend with the real <code>Code.gs</code>: <code>e2e/hub-complete-test.mjs</code> 9/9 (including a second run that adds nothing). Running it against the live Hub: Not verified in this document.</p>
+
+<h2>8. How updates are recorded</h2>
+<ul>
+<li><code>updateFood</code> compares tracked fields (Arabic/English name, category, per-100 g values, state, state label, preparation, notes, piece weight, density, servings). If any changed, <code>version</code> increases by 1 and a change-history row is written (action <code>update</code> from the app, <code>sheet-update</code> from Hub/file) with before/after values. Food editor → <b>Change history</b> tab shows it.</li>
+<li>Creation logs <code>create</code> (or <code>import</code> for sheet foods); archive/restore are logged too.</li>
+<li>Every change is queued for sync (outbox) and therefore reaches the cloud/Hub copy when sync is configured.</li>
+</ul>
+<pre>
+Example: the Hub changes "F0042" protein from 9.0 to 9.5
+  pull → key F0042 found → per100 differs → updateFood(…, 'sheet')
+  → version 3 → 4, history: before {per100:{…protein:9.0}} after {per100:{…protein:9.5}}
+  → diary entries logged before keep protein 9.0 in their snapshot
+</pre>
+
+<h2>9. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Procedures and rules</td><td>Verified in the code listed in the scope</td></tr>
+<tr><td>USDA database contents (12,879 foods, stats)</td><td>Verified from <code>public/fooddb/usda.json</code> meta and the unit test</td></tr>
+<tr><td>Hub import of 160 foods, comparison, write/read</td><td>Verified live during laptop setup (7 Nov 2026): Food_Database 160 foods, 0 unreadable; covered by unit tests in <code>tests/v2.test.ts</code></td></tr>
+<tr><td>CSV/XLSX import and JSON export/import</td><td>Covered by unit tests (<code>tests/core.test.ts</code>, <code>tests/v2.test.ts</code>, <code>tests/fooddb.test.ts</code>) and browser e2e on emulated devices</td></tr>
+<tr><td>Complete my food database / names (app)</td><td>Verified in <code>libraryFoods.ts</code>, <code>foodNames.ts</code>; counts computed by running <code>planLibraryFoods</code> on 10 Nov 2026</td></tr>
+<tr><td>Running <code>build-food-db.mjs</code> on a new USDA release</td><td>Not verified in this documentation pass (procedure derived from the script)</td></tr>
+<tr><td>Barcode camera scanning on a real Android phone</td><td>Not verified (no real-device test yet)</td></tr>
+</table>
+
+<h2>10. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

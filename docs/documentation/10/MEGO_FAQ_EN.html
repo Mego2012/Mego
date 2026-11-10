@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_FAQ_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Frequently Asked Questions (FAQ)</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-19</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>End users, support</td></tr>
+<tr><td>Related documents</td><td>MEGO_Troubleshooting_Manual, MEGO_User_Manual, MEGO_Getting_Started, MEGO_Registration_and_Login_Guide, MEGO_Backup_and_Export_Guide, MEGO_Privacy_Policy_Draft, MEGO_Nutrition_Disclaimer, MEGO_Medical_Disclaimer</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>Short, verified answers to the questions users most often ask about MEGO. Each answer reflects what the application does in the repository as of 10 November 2026. For step-by-step fixes of errors see MEGO_Troubleshooting_Manual.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>General</li>
+<li>Account and sign-in</li>
+<li>Your data, privacy and backups</li>
+<li>Food logging and the food database</li>
+<li>Targets, calculations and reports</li>
+<li>AI meal scanner</li>
+<li>Training, cardio and the coach</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. General</h2>
+<h3>1.1 What is MEGO?</h3>
+<p>A nutrition-tracking web app (Progressive Web App) for phones: food diary, daily calorie and macronutrient targets, body measurements, water, habits and fasting, recipes, meal planning, weekly and monthly reports, food rankings and education, workouts and cardio logging. It runs at https://mego2012.github.io/Mego/.</p>
+<h3>1.2 Does it cost anything?</h3>
+<p>No. It is offered free of charge. There are no paid plans, advertising or in-app purchases. It runs on free tiers of the underlying services (GitHub Pages, Firebase Spark plan, Google Apps Script, Gemini API free tier), whose limits apply.</p>
+<h3>1.3 Which languages are supported?</h3>
+<p>Arabic (right-to-left) and English. Change the language in Settings → Language. Settings → Theme offers System, Light and Dark.</p>
+<h3>1.4 Do I need to install it?</h3>
+<p>No. It works in the browser. Because it is a Progressive Web App with a web manifest and offline cache, you can add it to the home screen with the browser's own "Install app" / "Add to Home screen" menu item.</p>
+<h3>1.5 Does it work offline?</h3>
+<p>Yes, for logging. Data is kept in a local database on the device; when offline the app says "You are offline. Everything you log is saved and will sync when you reconnect." Sign-in, sync, barcode lookup and the AI scanner need the internet.</p>
+<h3>1.6 Has it been tested on a real Android phone?</h3>
+<p>Not yet. Tests ran on emulated devices (Pixel 7 and Galaxy viewports with touch events). A real-device checklist exists (docs/ANDROID-TEST.md).</p>
+
+<h2>2. Account and sign-in</h2>
+<h3>2.1 Do I need an account?</h3>
+<p>No. "Continue without an account (this device only)" keeps everything on the device only. An account adds cloud sync between devices and recovery after a phone or browser problem.</p>
+<h3>2.2 Who can register?</h3>
+<p>Adults aged 18 and over. Registration requires ticking "I am 18 or older", accepting the Terms and Privacy Policy, a display name, e-mail, password (at least 8 characters including a letter and a number) and country.</p>
+<h3>2.3 Can I keep what I logged as a guest?</h3>
+<p>Yes. When creating an account the app offers "Copy the n diary entries already on this device into my account".</p>
+<h3>2.4 I forgot my password.</h3>
+<p>Use "Forgot password?" on the sign-in screen. If an account exists, a reset link is sent; check the spam folder too.</p>
+<h3>2.5 How do I delete my account?</h3>
+<p>Account → "Delete account". It permanently deletes the account, its cloud data and this device's copy. Export your data first if you want to keep it.</p>
+<h3>2.6 My account shows "Account suspended".</h3>
+<p>An administrator suspended it. Your data is kept and nothing is deleted, but it cannot be used while suspended. Contact the operator.</p>
+
+<h2>3. Your data, privacy and backups</h2>
+<h3>3.1 Who can see my diary?</h3>
+<p>Only you. Server-side security rules let each account read and write only its own records, and only while active. Administrators see only the account card (name, e-mail, country, status, last activity) and totals — never diaries, weights or photos.</p>
+<h3>3.2 Is there advertising or tracking?</h3>
+<p>No advertising and no analytics or tracking tools.</p>
+<h3>3.3 How do I export my data?</h3>
+<p>Account → "Export my data" or Settings → "Download backup file" (both download a JSON backup file). Reports can be exported as CSV, Excel (XLSX) or printed to PDF.</p>
+<h3>3.4 Are there automatic backups?</h3>
+<p>Yes, on the phone: a daily backup (last 10 kept), backups before import/restore, and a backup before each app release ("Before app update"). These live in the same browser database as your data, so they do not protect against the browser losing its storage. Download a backup file regularly.</p>
+<h3>3.5 My data disappeared after the app showed the welcome screen.</h3>
+<p>If you have an account: sign in again while online and the data downloads from the cloud. This exact situation happened on 10 November 2026 and was fixed the same day. Guest data can only be restored from a downloaded backup file. Details: MEGO_Troubleshooting_Manual, section 3.</p>
+
+<h2>4. Food logging and the food database</h2>
+<h3>4.1 Where do food values come from?</h3>
+<p>The built-in reference database has 12,879 foods from USDA FoodData Central (SR Legacy and FNDDS), searchable in Arabic and English. Packaged products can be looked up by barcode in Open Food Facts. You can also create your own foods. Values may contain errors; estimated values are labelled.</p>
+<h3>4.2 The barcode was not found.</h3>
+<p>Open Food Facts has no entry for it; add the food manually. Camera scanning needs the browser's BarcodeDetector (Chrome on Android); otherwise type the number.</p>
+<h3>4.3 Raw or cooked?</h3>
+<p>Raw, cooked and ready-to-eat records are kept separate and never converted into each other. Choose the record that matches what you weighed.</p>
+<h3>4.4 Which units can I use?</h3>
+<p>g, kg, ml, L, cup (240 ml), tbsp (15 ml), tsp (5 ml), piece, slice and custom servings; every unit shows its gram weight.</p>
+
+<h2>5. Targets, calculations and reports</h2>
+<h3>5.1 How are my targets calculated?</h3>
+<p>BMR by Mifflin–St Jeor × activity factor = TDEE, then a goal adjustment. Calories = max(BMR, TDEE × (1 + adjustment) rounded to 10). Protein = weight × g/kg for the goal; fat = max(0.8 g/kg, 25 % of calories ÷ 9); carbohydrates = the remainder ÷ 4. The recommendation never goes below BMR and is never applied without your confirmation. See MEGO_Daily_Calorie_Target_Calculation.</p>
+<h3>5.2 Why does an empty day not lower my weekly average?</h3>
+<p>Averages use fully logged days only; partial and empty days are excluded and never counted as zero.</p>
+<h3>5.3 Are the results medical advice?</h3>
+<p>No. See MEGO_Nutrition_Disclaimer and MEGO_Medical_Disclaimer.</p>
+
+<h2>6. AI meal scanner</h2>
+<h3>6.1 How does it work?</h3>
+<p>You take or upload a photo. The phone shrinks it and re-encodes it as JPEG (removing location and other metadata); it is sent with your food names to Google's Gemini API free tier. The AI identifies items and estimates grams; MEGO computes nutrition from its own database. Nothing is saved until you review and press Confirm.</p>
+<h3>6.2 Why did I see "AI is busy" / "overloaded"?</h3>
+<p>Google's free model was overloaded (HTTP 503). The current backend moves automatically to the next free model and the app retries temporary errors twice; if it still fails, try again in a few minutes. Your photo is kept.</p>
+<h3>6.3 How many scans can I do?</h3>
+<p>By default 10 per signed-in user per day and 40 per day in total for the backend (the operator can change these). Failed analyses are not counted. Google's free quotas may also apply.</p>
+<h3>6.4 Why is the scanner not available in my country?</h3>
+<p>For accounts in the EU, EEA, UK and Switzerland it is not offered, because the Gemini free-tier terms do not allow this use there. Everything else works.</p>
+<h3>6.5 Does it cost money or store my photos?</h3>
+<p>Only free-tier models are used, never a paid model. MEGO does not store the photos. On the free tier Google may use the content to improve its products and human reviewers may see it — do not photograph people or documents.</p>
+
+<h2>7. Training, cardio and the coach</h2>
+<h3>7.1 Is the training coach an AI?</h3>
+<p>No. It is rule-based logic that runs on your phone using only your logged data; it explains each answer and never changes your program or targets.</p>
+<h3>7.2 How accurate are cardio calories?</h3>
+<p>They are estimates (MET × body weight × time) and can differ from real expenditure by 20–30 %. Logging cardio within your plan does not raise your calorie target; only cardio beyond the plan can, partly and with a cap of 400 kcal per day.</p>
+
+<h2>8. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Registration, sign-in, private access, deletion, reports</td><td>Verified live (scripts/live-verify.mjs, 14/14)</td></tr>
+<tr><td>Formulas, limits and messages quoted</td><td>Verified in code (src/lib/goals.ts, energy.ts, mealScanner.ts, i18n files, apps-script/Code.gs)</td></tr>
+<tr><td>Storage-loss recovery</td><td>Verified on emulators (e2e/storage-loss.mjs) and confirmed by the owner live</td></tr>
+<tr><td>AI scanner</td><td>One real photo analysed live on 10 Nov 2026; configured live scan limits not verified</td></tr>
+<tr><td>Behaviour on a real Android phone (install, camera, barcode)</td><td>Not verified</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

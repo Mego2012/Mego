@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="utf-8"><title>MEGO_Production_Deployment_Guide_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — دليل النشر في بيئة الإنتاج</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-51</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع وفريق الصيانة</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Developer_Setup_and_Local_Installation، MEGO_Firebase_Setup_Guide، MEGO_Apps_Script_Setup_Guide، MEGO_Gemini_API_Setup_Guide، MEGO_Build_and_Release_Procedures، MEGO_Update_and_Rollback_Procedures، MEGO_Production_Verification_Checklist، MEGO_Technical_Architecture</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">يصف هذا الدليل طريقة نشر منظومة MEGO في الإنتاج: تطبيق الويب التقدّمي (PWA) الثابت على GitHub Pages، وملف إعداد Firebase العام الذي يفعّل الحسابات، وخادم Google Apps Script الخاص بالمالك (مزامنة الـ Hub وماسح الوجبات الذكي)، والترتيب الذي تُطلَق به هذه الأجزاء. التفاصيل الكاملة لكل خدمة سحابية موجودة في أدلتها المخصصة؛ أما هذه الوثيقة فهي النظرة العامة وإجراء GitHub Pages.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">مكونات الإنتاج</li>
+<li dir="rtl">مسار عمل GitHub Pages ‏(deploy.yml)</li>
+<li dir="rtl">إعدادات GitHub لمرة واحدة</li>
+<li dir="rtl">نشر تغيير جديد</li>
+<li dir="rtl">إعداد Firebase العام</li>
+<li dir="rtl">نشر الخادم والذكاء الاصطناعي (Apps Script)</li>
+<li dir="rtl">ترتيب النشر الموصى به</li>
+<li dir="rtl">بعد النشر</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. مكونات الإنتاج</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>المكوّن</th><th>مكان التشغيل</th><th>طريقة النشر</th><th>الحالة (10 نوفمبر 2026)</th></tr>
+<tr><td>تطبيق PWA (بناء Vite + React)</td><td>GitHub Pages على <span dir="ltr">https://mego2012.github.io/Mego/</span></td><td>تلقائيًا عبر <code dir="ltr">.github/workflows/deploy.yml</code></td><td>يعمل (LIVE)</td></tr>
+<tr><td>الحسابات والبيانات السحابية</td><td>خطة Firebase Spark (دون فوترة)، المشروع <code dir="ltr">mego-473920</code>، قاعدة Firestore ‏<code dir="ltr">(default)</code> في <code dir="ltr">me-central2</code> (الدمام)</td><td><code dir="ltr">node scripts/laptop-setup.mjs --cloud</code></td><td>يعمل</td></tr>
+<tr><td>إعداد العميل العام</td><td><code dir="ltr">public/firebase-config.json</code> ← يُقدَّم على <code dir="ltr">/Mego/firebase-config.json</code></td><td>تكتبه مرحلة <code dir="ltr">--cloud</code> وترفعه، ثم ينشره مسار العمل</td><td>يعمل</td></tr>
+<tr><td>خادم الـ Hub للمالك + وسيط الذكاء الاصطناعي</td><td>تطبيق ويب Google Apps Script في Drive الخاص بالمالك (يُنفَّذ باسم المالك؛ الوصول للجميع مع رمز سري)</td><td><code dir="ltr">node scripts/laptop-setup.mjs</code> / <code dir="ltr">--update-backend</code></td><td>يعمل (شيفرة المستودع بإصدار SCRIPT_VERSION 8؛ الإصدار المنشور غير مُتحقَّق منه)</td></tr>
+<tr><td>ماسح الوجبات Gemini</td><td>يستدعيه خادم Apps Script فقط؛ المفتاح في خصائص السكربت (Script Properties)</td><td>يُحفظ المفتاح عبر laptop-setup أو من إعدادات التطبيق</td><td>يعمل (الفئة المجانية)</td></tr>
+</table>
+<pre dir="ltr">
+ Phone / browser ──HTTPS──► GitHub Pages (static PWA, /Mego/)
+        │                          └─ firebase-config.json (public identifiers only)
+        ├──► Firebase Auth + Firestore (security rules enforce access)
+        └──► Apps Script web app ──► Google Sheet "MEGO Nutrition Hub"
+                                   └─► Gemini API (free tier)
+</pre>
+
+<h2 dir="rtl">2. مسار عمل GitHub Pages ‏(deploy.yml)</h2>
+<p dir="rtl">اسم مسار العمل (Workflow): <b dir="ltr">"Test &amp; deploy to GitHub Pages"</b>.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الإعداد</th><th>القيمة في الملف</th></tr>
+<tr><td>المشغّلات</td><td>الدفع (<code dir="ltr">push</code>) إلى <code dir="ltr">main</code> أو <code dir="ltr">claude/nutrition-tracking-app-989rku</code>؛ والتشغيل اليدوي <code dir="ltr">workflow_dispatch</code></td></tr>
+<tr><td>الصلاحيات</td><td><code dir="ltr">contents: read</code>، <code dir="ltr">pages: write</code>، <code dir="ltr">id-token: write</code></td></tr>
+<tr><td>التزامن</td><td>المجموعة <code dir="ltr">pages</code> مع <code dir="ltr">cancel-in-progress: true</code> (الدفع الأحدث يلغي التشغيل الأقدم)</td></tr>
+<tr><td>مهمة <b>build</b> ‏(ubuntu-latest)</td><td dir="ltr">checkout@v4 → setup-node@v4 (Node 22, npm cache) → <code>npm ci</code> → <code>npm test</code> → <code>npm run build</code> with <code>BASE_PATH=/&lt;repository name&gt;/</code> → upload-pages-artifact@v3 (<code>dist</code>)</td></tr>
+<tr><td>مهمة <b>deploy</b></td><td>تعتمد على build؛ البيئة <code dir="ltr">github-pages</code>؛ <code dir="ltr">deploy-pages@v4</code></td></tr>
+</table>
+<p dir="rtl">نتائج مهمة:</p>
+<ul dir="rtl">
+<li dir="rtl">فشل أي اختبار وحدة يوقف النشر: لا يُنشر شيء ما لم ينجح <code dir="ltr">npm test</code> والبناء.</li>
+<li dir="rtl">مجموعات المتصفح واللمس والقواعد وتعدد المستخدمين <b>لا</b> تُشغَّل في CI؛ يجب تشغيلها قبل الدفع (انظر MEGO_Build_and_Release_Procedures).</li>
+<li dir="rtl">يُشتق <code dir="ltr">BASE_PATH</code> من اسم المستودع، فيُبنى التطبيق للمسار <code dir="ltr">/Mego/</code>. ويستخدمه <code dir="ltr">vite.config.ts</code> بوصفه <code dir="ltr">base</code> و<code dir="ltr">start_url</code> و<code dir="ltr">scope</code> لتطبيق PWA.</li>
+</ul>
+
+<h2 dir="rtl">3. إعدادات GitHub لمرة واحدة</h2>
+<ol dir="rtl">
+<li dir="rtl">في GitHub: المستودع ← <b dir="ltr">Settings → Pages → Source: GitHub Actions</b> (docs/SETUP.md).</li>
+<li dir="rtl">شغّل مسار العمل مرة واحدة (Actions ← «Test &amp; deploy to GitHub Pages» ← Run workflow).</li>
+<li dir="rtl">تعرض خطوة deploy رابط الصفحة. رابط الإنتاج: <span dir="ltr">https://mego2012.github.io/Mego/</span>.</li>
+</ol>
+<p dir="rtl">يذكر docs/SETUP.md أن GitHub Pages على مستودع خاص يتطلب خطة GitHub مدفوعة، وأن أي استضافة ثابتة يمكنها تقديم <code dir="ltr">dist/</code> بدلًا منه (مع <code dir="ltr">BASE_PATH=/</code>). المستخدم والمُتحقَّق منه لـ MEGO هو GitHub Pages فقط.</p>
+
+<h2 dir="rtl">4. نشر تغيير جديد</h2>
+<ol dir="rtl">
+<li dir="rtl">شغّل الفحوص المحلية (على الأقل <code dir="ltr">npm test</code> و<code dir="ltr">npm run build</code> و<code dir="ltr">npm run e2e</code> و<code dir="ltr">npm run e2e:scroll</code>).</li>
+<li dir="rtl">احفظ التغييرات وادفعها إلى <code dir="ltr">claude/nutrition-tracking-app-989rku</code>.</li>
+<li dir="rtl">راقب التشغيل في تبويب Actions؛ يجب أن تكون المهمتان باللون الأخضر.</li>
+<li dir="rtl">التطبيقات المثبّتة تتحدث ذاتيًا: بُني تطبيق PWA بالخيار <code dir="ltr">registerType: 'autoUpdate'</code>، فيتولى عامل الخدمة الجديد العمل في تشغيل لاحق.</li>
+<li dir="rtl">نفّذ فحوص الإنتاج في MEGO_Production_Verification_Checklist.</li>
+</ol>
+<p dir="rtl">عند تغيير معرّف الإصدار <code dir="ltr">APP_RELEASE</code> ‏(<code dir="ltr">src/lib/localBackup.ts</code>، حاليًا <code dir="ltr">'1.3-training'</code>) يأخذ كل جهاز يحتوي بيانات <b>نسخة احتياطية قبل التحديث</b> واحدة داخل قاعدة بياناته المحلية عند أول فتح للإصدار الجديد (<code dir="ltr">src/main.tsx</code>).</p>
+
+<h2 dir="rtl">5. إعداد Firebase العام</h2>
+<p dir="rtl">يجلب التطبيق الملف <code dir="ltr">./firebase-config.json</code> عند بدء التشغيل (<code dir="ltr">src/lib/firebase.ts</code>). إذا لم يوجد يعمل النشر بوضع الضيف فقط. يحتوي الملف معرّفات عامة فقط: <code dir="ltr">apiKey</code> و<code dir="ltr">authDomain</code> و<code dir="ltr">projectId</code> و<code dir="ltr">appId</code> و<code dir="ltr">aiBackendUrl</code>. الحماية تفرضها القواعد في <code dir="ltr">firebase/firestore.rules</code> وليس إخفاء هذه القيم. يولّد الملفَ الأمرُ <code dir="ltr">laptop-setup --cloud</code>، ثم يحفظه بالهوية المحايدة «MEGO setup» ويرفعه ويتحقق من أن GitHub استلم الإيداع؛ بعدها يعيد GitHub Pages النشر (نحو 1–3 دقائق، وينتظر السكربت ذلك).</p>
+
+<h2 dir="rtl">6. نشر الخادم والذكاء الاصطناعي (Apps Script)</h2>
+<p dir="rtl">لا يبني مسار العمل الخادم. يُنشر الخادم من لابتوب المالك بأداة سطر الأوامر الرسمية لـ Apps Script ‏(clasp 3.4.1 عبر npx):</p>
+<pre dir="ltr">node scripts/laptop-setup.mjs                    # first install or full update + live tests
+git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend   # upload the latest Code.gs to the SAME deployment + AI diagnostic
+node scripts/laptop-setup.mjs --hub-complete-foods            # update the backend, then add missing library foods to the Hub (adds only)</pre>
+<p dir="rtl">تعيد عمليات النشر اللاحقة استخدام معرّف النشر المحفوظ، فيبقى رابط تطبيق الويب ورمز التطبيق كما هما. انظر MEGO_Apps_Script_Setup_Guide وMEGO_Gemini_API_Setup_Guide.</p>
+
+<h2 dir="rtl">7. ترتيب النشر الموصى به (بيئة جديدة)</h2>
+<ol dir="rtl">
+<li dir="rtl">GitHub Pages: فعّل Pages وادفع ← التطبيق الثابت يعمل بوضع الضيف.</li>
+<li dir="rtl">خادم Apps Script والـ Hub: <code dir="ltr">node scripts/laptop-setup.mjs</code>.</li>
+<li dir="rtl">مفتاح Gemini (اختياري، الفئة المجانية): أثناء الخطوة 2، أو عبر <code dir="ltr">--test --ai-key-from-clipboard</code>.</li>
+<li dir="rtl">Firebase: <code dir="ltr">node scripts/laptop-setup.mjs --cloud</code> ← نشر ملف الإعداد ← تشغيل التحقق الحي تلقائيًا.</li>
+<li dir="rtl">المسؤول (Admin): يسجّل المالك حسابه في التطبيق، ثم يشغّل <code dir="ltr">--cloud &lt;e-mail&gt;</code> مرة أخرى (ما زال معلّقًا حتى 10 نوفمبر 2026).</li>
+</ol>
+
+<h2 dir="rtl">8. بعد النشر</h2>
+<ul dir="rtl">
+<li dir="rtl">نفّذ قائمة فحص الإنتاج (أداة التحقق الحي، مجموعات المتصفح على الموقع الحي، تشخيص الذكاء الاصطناعي).</li>
+<li dir="rtl">حافظ على سرية <code dir="ltr">~/.mego-backend/</code>؛ ففيه رابط الخادم والرمز.</li>
+<li dir="rtl">يُوصى (وفق حقائق الحالة) بتدوير مفتاح Gemini ورابط اتصال الخادم، لأنهما ظهرا في محادثة أثناء الإعداد.</li>
+</ul>
+
+<h2 dir="rtl">9. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>محتوى مسار العمل وسلوكه في القسم 2</td><td>مُتحقَّق منه في <code dir="ltr">.github/workflows/deploy.yml</code>؛ تشغيلات النشر ناجحة (حقائق الحالة)</td></tr>
+<tr><td>التطبيق الحي وFirebase وخادم الـ Hub وGemini</td><td>مُتحقَّق منها حيًّا (7 نوفمبر 2026؛ وأُعيد التحقق من الماسح الذكي عبر الواجهة الحية في 10 نوفمبر 2026)</td></tr>
+<tr><td>التحديث التلقائي لتطبيق مثبّت على هاتف Android حقيقي</td><td>غير مُتحقَّق منه (أجهزة محاكاة فقط)</td></tr>
+<tr><td>الاستضافة على منصات أخرى / مستودع خاص</td><td>غير مُتحقَّق منه</td></tr>
+<tr><td>حساب المسؤول</td><td>لم يُنفَّذ — بانتظار المالك</td></tr>
+</table>
+
+<h2 dir="rtl">10. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body>
+</html>

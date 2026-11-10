@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Monitoring_and_Maintenance_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Monitoring and Maintenance</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-70</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>MEGO Project Owner, administrators, maintainers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Admin_User_Manual, MEGO_Support_and_Incident_Management, MEGO_Production_Verification_Checklist, MEGO_Update_and_Rollback_Procedures, MEGO_Gemini_AI_Integration, MEGO_Data_Backup_and_Recovery, MEGO_Security_Audit_and_Known_Risks</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document lists what must be watched in the running MEGO system, the tools available for watching it, and the routine maintenance tasks with their commands. MEGO has <b>no automated monitoring or alerting service</b>: every check below is started by a person (or runs as part of a deployment). The document covers the GitHub Pages deployment, the Firebase project (Spark plan), the Apps Script backend and Hub, and the Gemini meal scanner. Sources: <code>.github/workflows/deploy.yml</code>, <code>scripts/laptop-setup.mjs</code>, <code>scripts/live-verify.mjs</code>, <code>apps-script/Code.gs</code>, <code>src/lib/firebase.ts</code>, <code>src/lib/cloudSync.ts</code>, <code>docs/ARCHITECTURE.md</code>.</p>
+<p>Never paste the backend <code>/exec</code> URL, the app token, the Gemini key or a connection code into tickets, chats or screenshots. The setup state (script id, URL, token) is kept on the owner's laptop in <code>~/.mego-backend/</code>.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Monitoring map</li>
+<li>Deployment runs (GitHub Actions)</li>
+<li>Live verification of the production app</li>
+<li>Backend and Hub health</li>
+<li>AI scanner monitoring: aiDiag, aiStats and counters</li>
+<li>Admin dashboard and error reports</li>
+<li>Free-plan limits</li>
+<li>Routine maintenance tasks</li>
+<li>Suggested schedule</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Monitoring map</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Component</th><th>What can fail</th><th>Tool</th><th>Section</th></tr>
+<tr><td>Web app (GitHub Pages)</td><td>Failing tests block deployment; site not updated</td><td>GitHub Actions "Test &amp; deploy to GitHub Pages"</td><td>2</td></tr>
+<tr><td>Accounts, isolation, sync, reports (Firebase)</td><td>Rules, sign-in, sync regressions</td><td><code>scripts/live-verify.mjs</code></td><td>3</td></tr>
+<tr><td>Apps Script backend + Hub</td><td>Token, Hub mode, food table, write/read</td><td><code>laptop-setup.mjs --test</code></td><td>4</td></tr>
+<tr><td>Gemini scanner</td><td>Overload, quota, key, region, model</td><td><code>laptop-setup.mjs --update-backend</code> (aiDiag), <code>aiStats</code>, Script Properties</td><td>5</td></tr>
+<tr><td>User base and sync errors</td><td>Suspensions, pending foods, sync failures</td><td>Admin dashboard <code>#/admin</code></td><td>6</td></tr>
+<tr><td>Quotas</td><td>Firestore / Auth / Gemini daily limits</td><td>Firebase console, Google AI Studio</td><td>7</td></tr>
+</table>
+
+<h2>2. Deployment runs (GitHub Actions)</h2>
+<p>The workflow <code>.github/workflows/deploy.yml</code> runs on every push to <code>main</code> or <code>claude/nutrition-tracking-app-989rku</code> and can be started manually (<code>workflow_dispatch</code>).</p>
+<pre>
+ push ─► build job: checkout → Node 22 → npm ci → npm test (vitest) → npm run build ─► upload dist
+                                                   │ fails?
+                                                   └─► stop: the live site keeps the previous version
+         deploy job (needs build) ─► actions/deploy-pages ─► https://mego2012.github.io/Mego/
+</pre>
+<ul>
+<li>Only the unit tests (<code>npm test</code>, 195 tests in 13 files as of 10 Nov 2026) run in the pipeline. Browser, touch, multi-user, rules and live suites are run separately by hand.</li>
+<li>Concurrency group <code>pages</code> with <code>cancel-in-progress</code>: a newer push cancels an older run still in progress.</li>
+<li>How to check: GitHub repository → Actions tab → latest run is green; or <code>gh run list --workflow deploy.yml --limit 5</code>.</li>
+<li>If a run fails: open the failing step log; fix and push again. Nothing on the live site changes until a run succeeds.</li>
+</ul>
+
+<h2>3. Live verification of the production app</h2>
+<p><code>scripts/live-verify.mjs</code> opens the deployed app in a real browser (Playwright) against the real Firebase project, creates two disposable accounts with random addresses on <code>example.com</code>, and deletes both at the end, also when a check fails. It uses only the test accounts' own tokens, so every allowed/denied result is the production rules at work.</p>
+<ul>
+<li>Run: <code>node scripts/live-verify.mjs</code> (or <code>node scripts/laptop-setup.mjs --verify</code>). Playwright must be installed (<code>npm install --no-save playwright@1.63.0 &amp;&amp; npx playwright install chromium</code>).</li>
+<li>Report: <code>~/.mego-backend/live-verify-&lt;time&gt;.md</code>.</li>
+<li>The script now contains 17 checks: site and config served, registration of two accounts, own profile only, food logging and sync, server-side isolation, recipe nutrition for a new account, cardio and workout privacy, second-device sync, weekly and monthly report, admin functions refused for a regular account, password-reset request, sign-out/in, deletion of both accounts.</li>
+<li>Last recorded production result: 14/14 on 7 Nov 2026 with the earlier set of checks. A full production run with the three checks added later (recipe, cardio, workouts) is <i>Not verified</i> in the repository records.</li>
+</ul>
+<p>Each run creates and deletes accounts, so it uses a few dozen Firestore reads/writes and two sign-ups; it does not affect real users.</p>
+
+<h2>4. Backend and Hub health</h2>
+<p><code>node scripts/laptop-setup.mjs --test</code> runs the live integration tests against the existing backend without redeploying:</p>
+<ol>
+<li>backend answers with the owner token; a wrong token is refused;</li>
+<li>Hub identity (source is the original Excel file) and Hub is a native, writable Google Sheet; installMego verification;</li>
+<li>Food_Database has every food with readable values;</li>
+<li>write phone → Hub of a test record, read back, an older copy never overwrites a newer one, soft delete into <code>Deleted_Records</code>;</li>
+<li>Gemini: key present, then one real photo analysis (a public Wikimedia Commons meal photo, or <code>--photo &lt;file&gt;</code>).</li>
+</ol>
+<p>Note: the test leaves a soft-deleted row in <code>Deleted_Records</code> and, if the analysis succeeds, counts one scan in the daily AI counter. A report is written to <code>~/.mego-backend/report-&lt;time&gt;.md</code>.</p>
+<p>Quick version check without the token: an HTTP GET on the web-app URL returns <code>{ ok: true, app: "mego-nutrition", version: N }</code> (<code>SCRIPT_VERSION</code>). The repository code is at version 8 (v7 = AI error mapping and model chain, 10 Nov 2026; v8 = action <code>fillFoodNames</code> for the Hub food completion). Version 7 was verified live; whether v8 has been deployed to the owner's backend is <i>Not verified</i>. A lower number than the repository means the owner should run <code>--update-backend</code>.</p>
+
+<h2>5. AI scanner monitoring: aiDiag, aiStats and counters</h2>
+<h3>5.1 aiDiag — per-model health</h3>
+<p>Run <code>git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend</code>. It uploads the current <code>Code.gs</code> to the <b>same</b> deployment (same URL, data untouched) and then calls <code>aiDiag</code>, which sends one tiny text-only request ("Reply with the single word OK.") to each free model and prints, per model: HTTP status, mapped error code, Google's status/message and duration in ms.</p>
+<pre>
+  backend version 7 · configured model gemini-3.8-flash
+  ✅ gemini-3.8-flash: HTTP 200 OK (… ms)
+  ❌ gemini-3.6-flash: HTTP 503 AI_OVERLOADED — UNAVAILABLE: … (… ms)   ← example of a failing model
+  ✅ gemini-3.5-flash-lite: HTTP 200 OK (… ms)
+</pre>
+<p>(Illustrative layout; the values depend on Google at the time of the run.) <code>aiDiag</code> is also reachable with a Firebase ID token for any signed-in user who has a profile — not only admins; it does not use the scan counters.</p>
+<h3>5.2 aiStats — usage for the last 7 days (admin only)</h3>
+<p>The backend action <code>aiStats</code> checks the caller's Firebase ID token and that <code>admins/{uid}</code> exists, then returns: model, whether a key is configured, global and per-user daily limits, and for each of the last 7 days the number of successful scans and of distinct users. It returns counts only, no content. <b>No screen in the app calls it yet</b>, so today the figures are read directly in the Apps Script editor → Project settings → Script Properties (keys <code>AI_USED_&lt;yyyy-mm-dd&gt;</code> and <code>AI_U_&lt;yyyy-mm-dd&gt;_&lt;uid&gt;</code>). Never screenshot that page: it also holds the Gemini key and the app token.</p>
+<h3>5.3 Limits and counters</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Property</th><th>Meaning</th><th>Value</th></tr>
+<tr><td><code>AI_USER_DAILY_LIMIT</code></td><td>Scans per signed-in user per day (UTC date)</td><td>Default 10 in code; set to 10 by <code>--cloud</code>; allowed 1–50</td></tr>
+<tr><td><code>AI_DAILY_LIMIT</code></td><td>Global scans per day (own cap on top of Google's free quota)</td><td>Default 40 in code; set to 200 by <code>--cloud</code>; allowed 1–1500. Which value is stored now: Not verified</td></tr>
+<tr><td><code>AI_USED_&lt;date&gt;</code></td><td>Global successful scans that day</td><td>Counted only on success</td></tr>
+<tr><td><code>AI_U_&lt;date&gt;_&lt;uid&gt;</code></td><td>Scans of one user that day</td><td>Refunded when the analysis fails</td></tr>
+</table>
+<p>Old counters: the function <code>cleanupAiCounters()</code> deletes counters older than 8 days. It is meant for an optional daily time trigger, which the setup script does <b>not</b> install; the owner can add it in the Apps Script editor (Triggers → add trigger → <code>cleanupAiCounters</code>, time-driven, daily). <i>Not verified.</i></p>
+<h3>5.4 Error codes to watch</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Code</th><th>Cause</th><th>Retried?</th><th>Owner action</th></tr>
+<tr><td><code>AI_OVERLOADED</code> (503)</td><td>Google model overloaded</td><td>Backend moves at once to the next free model; client retries after 3 s and 8 s</td><td>None; persistent → run aiDiag</td></tr>
+<tr><td><code>AI_SERVER_ERROR</code> (500), <code>AI_TIMEOUT</code> (504)</td><td>Google temporary error</td><td>Backend retries after 2 s and 4 s, then next model</td><td>As above</td></tr>
+<tr><td><code>AI_QUOTA_MINUTE</code> / <code>AI_QUOTA_DAY</code> (429)</td><td>Google free quota used</td><td>No</td><td>Wait; the app shows the reset time (midnight Pacific)</td></tr>
+<tr><td><code>AI_KEY_INVALID</code></td><td>Key revoked/wrong</td><td>No</td><td>Create a new free key and store it from the app</td></tr>
+<tr><td><code>AI_REGION</code>, <code>AI_MODEL_UNAVAILABLE</code>, <code>AI_CONFIG</code></td><td>Location, model or request problem</td><td>No</td><td>Run aiDiag; check Google's model list</td></tr>
+<tr><td><code>AI_DAILY_LIMIT</code>, <code>AI_USER_LIMIT</code></td><td>MEGO's own caps reached</td><td>No</td><td>Raise via <code>setCloudConfig</code> only if Google's quota allows</td></tr>
+</table>
+
+<h2>6. Admin dashboard and error reports</h2>
+<p>Once an admin exists (none yet), <code>#/admin</code> shows registered users, active in 7 days, suspended accounts and pending food submissions, plus the latest 50 error reports. Error reports are created automatically by signed-in devices with kind <code>sync</code> (a cloud push failed) or <code>sync-apply</code> (one downloaded record could not be applied; the message names table/key). A rising number of reports after a release is a signal to investigate (see MEGO_Support_and_Incident_Management). Reports carry no user id.</p>
+
+<h2>7. Free-plan limits</h2>
+<p>All services run on free plans; when a limit is reached the service stops for the day instead of billing. The figures below are as documented in <code>docs/ARCHITECTURE.md</code>; Google can change them — check the current Firebase and Gemini documentation (<i>Not verified</i> against Google's pages on 10 Nov 2026).</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Service</th><th>Limit</th><th>What in MEGO consumes it</th></tr>
+<tr><td>Firebase Authentication (Spark)</td><td>3,000 daily active users; 150 password-reset e-mails/day; 100 sign-ups/hour per IP</td><td>Sign-ins, registrations, reset requests, live-verify runs</td></tr>
+<tr><td>Cloud Firestore (Spark)</td><td>1 GiB stored; 50,000 reads, 20,000 writes, 20,000 deletes per day</td><td>Live listeners on 12 private tables plus <code>/foods</code> per signed-in device; each local change = 1 write; publishing foods = 1 write per food and a re-read on every device; account deletion = 1 delete per record</td></tr>
+<tr><td>Gemini API free tier</td><td>Google's per-minute and per-day quotas</td><td>Each meal scan (plus up to two fallback models on failure); aiDiag = 3 small requests</td></tr>
+<tr><td>Google Apps Script</td><td>Google's consumer quotas (Not verified)</td><td>Hub sync, scans, Drive backups</td></tr>
+</table>
+<p>Where to look: Firebase console → project → Usage and billing / Firestore usage; Google AI Studio for Gemini usage. Exact menu names are <i>Not verified</i>.</p>
+
+<h2>8. Routine maintenance tasks</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Task</th><th>How</th></tr>
+<tr><td>Update the Apps Script backend</td><td><code>git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend</code> (same URL, data untouched, ends with aiDiag)</td></tr>
+<tr><td>Complete the Hub food database (one-off, after a recipe-library update)</td><td><code>node scripts/laptop-setup.mjs --hub-complete-foods</code> — updates the backend, adds missing recipe ingredients and ready meals, fills empty English names; adds only (see MEGO_Food_Database_Administration)</td></tr>
+<tr><td>Deploy changed Firestore rules/indexes</td><td>Part of <code>node scripts/laptop-setup.mjs --cloud</code> (runs <code>firebase deploy --only firestore:rules,firestore:indexes</code>); then run live-verify</td></tr>
+<tr><td>Rotate the app token (recommended, it was shown in a chat during setup)</td><td>Apps Script editor → run <code>rotateToken()</code>; the new token appears in the execution log; reconnect the owner's devices with a new connection code. The old token stops working immediately. <i>Not verified</i> end-to-end</td></tr>
+<tr><td>Rotate the Gemini key (recommended for the same reason)</td><td>Create a new free key in Google AI Studio (no billing), store it with <code>node scripts/laptop-setup.mjs --test --ai-key-from-clipboard</code> only after removing the old one in the app or Script Properties (the script stores a key only when none is configured), then delete the old key in AI Studio. <i>Not verified</i></td></tr>
+<tr><td>Hub backups</td><td>Automatic Drive copies "BACKUP MEGO Nutrition Hub — …" before migrations and daily before the first food write-back; listed in <code>Backup_Log</code>. Review and clean old copies occasionally</td></tr>
+<tr><td>Device backups</td><td>Automatic daily local backup and one pre-update backup per release (<code>APP_RELEASE</code>); users can export CSV/XLSX/JSON</td></tr>
+<tr><td>Before every release</td><td>Run all suites: unit (195), browser e2e (57), touch/scroll (103), rules + multi-user on emulators, storage-loss scenario; after deploy run live-verify</td></tr>
+<tr><td>Dependencies</td><td>Exact versions in <code>package.json</code>; update deliberately, then run all suites</td></tr>
+<tr><td>Old public commits exposing a test fixture</td><td>Owner sends the prepared request in <code>docs/GITHUB-SUPPORT-REQUEST.md</code></td></tr>
+</table>
+
+<h2>9. Suggested schedule</h2>
+<p>A recommendation, not an implemented automation:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>When</th><th>Check</th></tr>
+<tr><td>Every push</td><td>Actions run green (automatic)</td></tr>
+<tr><td>After every release</td><td>live-verify; open the live app on a phone</td></tr>
+<tr><td>Weekly</td><td>Admin dashboard (error reports, pending foods); AI counters; Firestore usage</td></tr>
+<tr><td>Monthly</td><td><code>--test</code> (backend/Hub), <code>--update-backend</code> aiDiag; Hub backup copies</td></tr>
+<tr><td>When users report AI problems</td><td>aiDiag first (section 5.1)</td></tr>
+</table>
+
+<h2>10. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Deploy workflow, live site</td><td>Verified (green runs; live suites ran against the live URL)</td></tr>
+<tr><td>live-verify 14/14 (earlier check set), laptop-setup live tests</td><td>Verified live, 7 Nov 2026</td></tr>
+<tr><td>Backend v8 (fillFoodNames) deployed live</td><td>Not verified (tested only against an emulated backend: <code>e2e/hub-complete-test.mjs</code>)</td></tr>
+<tr><td>Backend v7 with aiDiag and model chain; live meal scan through the app (~64 s, 4 items)</td><td>Verified live, 10 Nov 2026</td></tr>
+<tr><td>aiStats through an admin token</td><td>Not done — no admin exists and no screen calls it</td></tr>
+<tr><td>Token/key rotation, cleanup trigger, Firebase usage pages, current Google limits</td><td>Not verified</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Daily_Calorie_Target_Calculation_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Daily Calorie Target Calculation</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-25</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Product owner, developers, nutrition reviewers, testers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Calorie_and_Macronutrient_Calculation_Methodology, MEGO_Cardio_and_Calorie_Adjustment, MEGO_Profile_and_Goals_Guide, MEGO_Nutrition_Disclaimer, MEGO_Nutrition_Calculation_Accuracy_Tests</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes how MEGO arrives at the calorie target shown for a day: the saved training/rest targets, the goal recommendation (BMR → TDEE → goal adjustment), the per-date override, the smart cardio/extra-workout adjustment and the fat-loss ceiling. Sources: <code>src/lib/goals.ts</code>, <code>src/lib/targets.ts</code>, <code>src/lib/energy.ts</code>, <code>src/lib/cardio.ts</code>, <code>src/lib/goalAdvisor.ts</code>, <code>src/lib/defaults.ts</code>, <code>src/pages/Settings.tsx</code>, <code>src/pages/Dashboard.tsx</code>. All numeric examples were produced by running this code on 10 Nov 2026. The values are estimates for general guidance, not medical advice (see MEGO_Nutrition_Disclaimer).</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Overview: from saved target to the day's target</li>
+<li>Saved targets and day type</li>
+<li>Goal recommendation (BMR, TDEE, adjustment)</li>
+<li>Applying a recommendation</li>
+<li>Smart cardio and extra-workout adjustment</li>
+<li>Fat-loss ceiling</li>
+<li>Goals advisor suggestions</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Overview: from saved target to the day's target</h2>
+<pre>
+ Profile (sex, age, height, weight, activity, goal)
+        │  recommend()  — suggestion only
+        ▼
+ Saved targets  { training: kcal/P/C/F , rest: kcal/P/C/F }   ← changed only by the user
+        │  targetsFor(date): per-date override  &gt;  day-type target
+        ▼
+ Base target of the day  ──►  energyFor(): + allowed extra (cardio / extra workouts), fat-loss ceiling
+        ▼
+ Adjusted target (Home dial and "remaining")   — never written back to the saved targets
+</pre>
+
+<h2>2. Saved targets and day type</h2>
+<ul>
+<li>Settings store two target sets: <b>training</b> and <b>rest</b>. Shipped defaults: 2,000 kcal, protein 160 g, carbs 200 g, fat 62 g for both.</li>
+<li><b>Training weekdays</b> default to Saturday–Thursday (Friday rest). A day's type can also be changed on that day in the Diary.</li>
+<li>A <b>per-date override</b> (Diary → day targets) replaces both for that date; "Use default" removes it.</li>
+</ul>
+
+<h2>3. Goal recommendation (BMR, TDEE, adjustment)</h2>
+<pre>
+BMR  (Mifflin-St Jeor) = 10 × weight kg + 6.25 × height cm − 5 × age + 5   (male)
+                                                                  − 161 (female)      → rounded
+TDEE = round(BMR × activity factor)
+kcal = max(BMR, round(TDEE × (1 + adjust) ÷ 10) × 10)      — never below BMR
+expected weekly change (kg) = round((kcal − TDEE) × 7 ÷ 7700, 2)   — rough estimate
+</pre>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Activity level</th><th>Factor</th></tr>
+<tr><td>sedentary</td><td>1.2</td></tr>
+<tr><td>light</td><td>1.375</td></tr>
+<tr><td>moderate (default if missing)</td><td>1.55</td></tr>
+<tr><td>active</td><td>1.725</td></tr>
+<tr><td>very_active</td><td>1.9</td></tr>
+</table>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Goal</th><th>adjust</th><th>protein g/kg</th></tr>
+<tr><td>fat_loss</td><td>−20 %</td><td>1.8</td></tr>
+<tr><td>fat_loss_preserve</td><td>−18 %</td><td>2.2</td></tr>
+<tr><td>recomp</td><td>−7 %</td><td>2.2</td></tr>
+<tr><td>maintain</td><td>0 %</td><td>1.6</td></tr>
+<tr><td>healthy</td><td>0 %</td><td>1.4</td></tr>
+<tr><td>performance</td><td>+5 %</td><td>1.8</td></tr>
+<tr><td>lean_bulk</td><td>+7 %</td><td>1.8</td></tr>
+<tr><td>bulk</td><td>+15 %</td><td>1.6</td></tr>
+<tr><td>custom</td><td colspan="2">no recommendation</td></tr>
+</table>
+<h3>3.1 Worked example — default profile</h3>
+<p>Male, 26 years, 170 cm, 72 kg, activity "active":</p>
+<pre>
+BMR  = 10×72 + 6.25×170 − 5×26 + 5 = 720 + 1062.5 − 130 + 5 = 1657.5 → 1658
+TDEE = 1658 × 1.725 = 2860.05 → 2860
+fat_loss_preserve: 2860 × 0.82 = 2345.2 → ÷10 = 234.52 → 235 → 2350 kcal  (≥ BMR 1658 ✓)
+weekly change = (2350 − 2860) × 7 ÷ 7700 = −0.4636 → −0.46 kg/week
+</pre>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Goal</th><th>kcal</th><th>P g</th><th>C g</th><th>F g</th><th>kg/week</th></tr>
+<tr><td>fat_loss</td><td>2,290</td><td>130</td><td>299</td><td>64</td><td>−0.52</td></tr>
+<tr><td>fat_loss_preserve</td><td>2,350</td><td>158</td><td>283</td><td>65</td><td>−0.46</td></tr>
+<tr><td>recomp</td><td>2,660</td><td>158</td><td>341</td><td>74</td><td>−0.18</td></tr>
+<tr><td>maintain</td><td>2,860</td><td>115</td><td>422</td><td>79</td><td>0</td></tr>
+<tr><td>healthy</td><td>2,860</td><td>101</td><td>436</td><td>79</td><td>0</td></tr>
+<tr><td>performance</td><td>3,000</td><td>130</td><td>433</td><td>83</td><td>+0.13</td></tr>
+<tr><td>lean_bulk</td><td>3,060</td><td>130</td><td>444</td><td>85</td><td>+0.18</td></tr>
+<tr><td>bulk</td><td>3,290</td><td>115</td><td>503</td><td>91</td><td>+0.39</td></tr>
+</table>
+<h3>3.2 Worked example — the BMR floor</h3>
+<p>Female, 35 y, 160 cm, 50 kg, sedentary, fat_loss: BMR = 500 + 1000 − 175 − 161 = 1164; TDEE = round(1164 × 1.2) = 1397; 1397 × 0.8 = 1117.6 → 1120, which is below BMR, so the recommendation is <b>1,164 kcal</b> (P 90 g, F 40 g, C 111 g; −0.21 kg/week).</p>
+
+<h2>4. Applying a recommendation</h2>
+<ul>
+<li>Settings → Profile shows the recommendation live (kcal and P/C/F, BMR, TDEE, protein g/kg, expected weekly change).</li>
+<li>If the saved training target differs (kcal by more than 10, or any macro by more than 2 g), a note "targets differ" and an <b>Apply recommendation</b> button appear. Applying asks for confirmation and then writes the same values to <b>both</b> training and rest targets.</li>
+<li>Saving the profile alone never changes targets. During registration the recommended values are pre-filled as editable starting targets.</li>
+</ul>
+
+<h2>5. Smart cardio and extra-workout adjustment</h2>
+<p>Implemented in <code>energyFor()</code>; full rationale in MEGO_Cardio_and_Calorie_Adjustment. Mode "smart" is the default; "off" never adds anything. The result is used for the Home dial and remaining calories only; saved targets are never modified.</p>
+<pre>
+1. Session energy (cardio.ts):  gross = MET × kg × h,   net = (MET − 1) × kg × h
+2. Planned weekly minutes = cardio sessions/week × minutes/session  (default 6 × 10 = 60; 0 if activity = sedentary)
+3. Minutes of the 6 previous days use up the plan first; today's sessions (by time) use what is left;
+   only the uncovered minutes count:  extraNet += session net × uncovered min ÷ session min
+4. Extra resistance sessions (completed workouts in the last 7 days beyond the planned number/week):
+   extraNet += (3.5 − 1) × kg × workout hours
+5. replenish % = user setting, else 50 % (fat_loss, fat_loss_preserve, recomp, custom),
+                 75 % (maintain, healthy), 100 % (lean_bulk, bulk, performance)
+6. allowed = min(400, round(extraNet × replenish% ÷ 10) × 10)
+7. fat-loss goals: ceiling check (section 6)
+8. adjusted target = base + allowed ;  remaining = adjusted − consumed
+</pre>
+<h3>5.1 Worked examples (72 kg, activity "active", plan 60 min/week)</h3>
+<p>Saved routine: treadmill 10 min, 3.5 km/h, 13 % incline → ACSM walking MET = (0.1×58.33 + 1.8×58.33×0.13 + 3.5) ÷ 3.5 = 6.57 → gross 79 kcal, net 67 kcal per session. Five routine sessions on the previous days (50 min) + today's routine (10 min) = 60 min.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Case</th><th>Base</th><th>Extra net</th><th>Replenish</th><th>Allowed</th><th>Adjusted</th></tr>
+<tr><td>Only the routine (within plan)</td><td>2,350</td><td>0</td><td>—</td><td>0</td><td>2,350</td></tr>
+<tr><td>+ 45 min walk 5 km/h, 5 % (MET 5.52, gross 298, net 244), fat_loss_preserve</td><td>2,350</td><td>244</td><td>50 %</td><td>122 → 120</td><td>2,470</td></tr>
+<tr><td>Same extra, goal maintain</td><td>2,860</td><td>244</td><td>75 %</td><td>183 → 180</td><td>3,040</td></tr>
+<tr><td>Same extra, goal lean_bulk</td><td>3,060</td><td>244</td><td>100 %</td><td>244 → 240</td><td>3,300</td></tr>
+<tr><td>Extra net 550 kcal, maintain</td><td>2,860</td><td>550</td><td>75 %</td><td>412.5 → 410 → cap 400</td><td>3,260</td></tr>
+</table>
+<p><b>Extra workout example:</b> with 6 planned resistance days, a 7th completed 60-minute session within 7 days adds (3.5 − 1) × 72 × 1 = 180 kcal net to <i>extraNet</i>.</p>
+
+<h2>6. Fat-loss ceiling</h2>
+<p>For fat_loss, fat_loss_preserve and recomp, exercise can never move the day to maintenance or surplus:</p>
+<pre>
+ceiling = floor(0.9 × (TDEE + extraNet) ÷ 10) × 10
+if base + allowed &gt; ceiling:  allowed = max(0, ceiling − base)
+</pre>
+<p><b>Example:</b> same 45-minute extra walk (extraNet 244), but a hand-set base of 2,900 kcal: ceiling = floor(0.9 × (2860 + 244) ÷ 10) × 10 = floor(279.36) × 10 = 2,790. 2,900 + 120 &gt; 2,790 → allowed = max(0, 2,790 − 2,900) = <b>0</b>; adjusted stays 2,900 (the ceiling never lowers the base).</p>
+<p><b>Sedentary example:</b> TDEE = round(1658 × 1.2) = 1,990; nothing is planned, so a 30-min session with net 160 kcal is all extra → 50 % = 80. Ceiling = floor(0.9 × 2,150 ÷ 10) × 10 = 1,930; base 2,000 + 80 &gt; 1,930 → allowed 0.</p>
+
+<h2>7. Goals advisor suggestions</h2>
+<p><code>goalAdvisor.ts</code> reviews trends (7-day weight averages, 28-day regression, 14-day adherence, waist change, weekly check-in) and may suggest a calorie change (typically ±150 kcal, ±100 kcal for maintenance drift or fast gain) or a protein target. Suggestions are <b>never applied automatically</b>; when the user approves one, it is applied to both day types (carbohydrates absorb the kcal change: carbs ± delta ÷ 4). For loss goals an increase is limited so the training target stays ≤ round(0.9 × TDEE at the current average weight); if less than 50 kcal of room remains the suggestion becomes "no surplus" without an action.</p>
+
+<h2>8. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Formulas, factors, defaults</td><td>Verified in the code listed above</td></tr>
+<tr><td>Worked examples</td><td>Computed by executing <code>recommend()</code>, <code>acsmWalkMet()</code>, <code>estimateCalories()</code> and <code>energyFor()</code> on 10 Nov 2026</td></tr>
+<tr><td>Automated tests</td><td>Unit tests in <code>tests/cardio-goals.test.ts</code> ("smart cardio → calorie target", "fat-loss safeguard", "goal recommendations") and <code>tests/v2.test.ts</code> (recommendation never auto-overwrites targets); unit suite 195 passing</td></tr>
+<tr><td>Physiological accuracy of BMR/TDEE/MET estimates for an individual</td><td>Not verified — population equations; MET estimates are typically ±20–30 % (comment in <code>energy.ts</code>)</td></tr>
+</table>
+
+<h2>9. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

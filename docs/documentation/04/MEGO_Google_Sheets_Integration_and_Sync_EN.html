@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Google_Sheets_Integration_and_Sync_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Google Sheets Integration and Sync</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-35</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Developers, maintainers, the project owner</td></tr>
+<tr><td>Related documents</td><td>MEGO_Backend_Architecture, MEGO_API_Documentation, MEGO_Apps_Script_Setup_Guide, MEGO_Firebase_Integration, MEGO_Data_Backup_and_Recovery, MEGO_Error_Handling_and_Logging, MEGO_Configuration_and_Environment</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document explains how the MEGO app synchronises a guest/owner device with the <b>MEGO Nutrition Hub</b>, a Google Sheet served by a private Google Apps Script web app. It covers the client <code>src/lib/sync.ts</code> (plus the Settings screen that drives it) and the server <code>apps-script/Code.gs</code>. Signed-in public accounts do not use this path; they sync through Firestore (MEGO_Firebase_Integration). The individual request/response formats are listed in MEGO_API_Documentation.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Overview</li>
+<li>The Hub and its identity checks</li>
+<li>Connecting a device</li>
+<li>Data mapping: app tables to Hub tabs</li>
+<li>Push (phone → Hub)</li>
+<li>Pull (Hub → phone)</li>
+<li>Foods: import, comparison and write-back</li>
+<li>Scheduling, status and retries</li>
+<li>Backups related to sync</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Overview</h2>
+<pre>
+ Phone (guest / owner device)                     Google (owner's account)
+ ┌──────────────────────────────┐   POST text/plain  ┌─────────────────────────────┐
+ │ repo.ts  → Dexie outbox       │ ── JSON {action,──▶│ Apps Script web app (Code.gs)│
+ │ sync.ts  pushNow / pullAll    │     token, …}      │  doPost → push_/pull_/…     │
+ │ Settings: connection code     │ ◀── {ok, …} ───────│  LockService (25 s)         │
+ └──────────────────────────────┘                    │  ▼                          │
+                                                     │ MEGO Nutrition Hub (Sheet)  │
+                                                     │  structured tabs + json col │
+                                                     └─────────────────────────────┘
+</pre>
+<p>Principles (from the Code.gs header and sync.ts): one source of truth (the Hub only); every write is timestamp-checked so an older record never overwrites a newer one; deletes are soft (copied to <code>Deleted_Records</code>); the original Excel file and the original food tab are never modified.</p>
+
+<h2>2. The Hub and its identity checks</h2>
+<ul>
+<li>The Hub started as an Excel file. <code>installMego()</code> converts it once into a native Google Sheet in the same folder (a new file ID); the Excel file is kept untouched as the backup. Backend mode is <code>native</code> (two-way) or <code>xlsx</code> (read-only; writes fail with <code>HUB_IS_XLSX</code>).</li>
+<li>The client constant <code>HUB_ID</code> (sync.ts) and the server constant <code>SOURCE_ID</code> (Code.gs) hold the same original file ID. File IDs are not reproduced here.</li>
+<li><code>checkHub()</code> on every connection: the backend's reported <code>sourceId</code> must equal <code>HUB_ID</code>, otherwise <code>WRONG_SPREADSHEET</code>. The native ID is <b>pinned</b> on the phone (<code>settings.sync.hubNativeId</code>) at the first successful connection; a later different native ID raises <code>HUB_CHANGED</code>, which the Settings screen only accepts after a confirmation dialog.</li>
+<li><code>assertHub()</code> runs this check once per session before any data exchange.</li>
+</ul>
+
+<h2>3. Connecting a device</h2>
+<h3>3.1 Connection code</h3>
+<p>The setup prints a one-line code of the form <code>MEGO1|&lt;web app URL&gt;|&lt;token&gt;</code>. <code>parseConnectionCode()</code> accepts it only if the URL starts with <code>https://script.google.com/</code> and the token is 32–128 letters/digits. The laptop setup can also show a QR code / link that opens <code>#/settings?connect=…</code>; the Settings screen connects once and removes the parameter from the address bar. The code contains a secret and must never be shared.</p>
+<h3>3.2 Connect flow (Settings → Sync)</h3>
+<ol>
+<li>Save URL, token, auto-sync and write-back options in <code>settings.sync</code> (device-local; never uploaded).</li>
+<li><code>testConnection()</code> → action <code>ping</code>; Hub identity check and pinning; the app shows the sheet name, food tab, writable / read-only, and AI scanner on/off.</li>
+<li>If the Hub is read-only, stop here.</li>
+<li><code>checkHubFoods()</code> compares the Hub's foods with the shared foods on the phone (read-only). If any values differ, the flow stops and the differences are shown — nothing is overwritten silently.</li>
+<li>Otherwise: local backup <code>pre-import</code>, <code>pullFoodsFromSheet()</code>, <code>queueFullUpload()</code>, <code>pushNow()</code>.</li>
+</ol>
+
+<h2>4. Data mapping: app tables to Hub tabs</h2>
+<p>Each structured tab has readable columns followed by <code>updated_at</code> and <code>json</code> (the full record, for lossless round trips).</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>App table (Dexie)</th><th>Hub tab</th><th>Key column</th><th>Owner</th></tr>
+<tr><td>foods</td><td>Food_Database</td><td>food_id</td><td>sheet</td></tr>
+<tr><td>entries</td><td>Food_Log</td><td>record_id</td><td>app</td></tr>
+<tr><td>body</td><td>Body_Measurements</td><td>record_id</td><td>app</td></tr>
+<tr><td>days</td><td>Daily_Log</td><td>date</td><td>app</td></tr>
+<tr><td>recipes</td><td>Recipes</td><td>recipe_id</td><td>app</td></tr>
+<tr><td>templates</td><td>Saved_Meals</td><td>template_id</td><td>app</td></tr>
+<tr><td>plans</td><td>Meal_Plan_Templates</td><td>plan_id</td><td>app</td></tr>
+<tr><td>plannedDays</td><td>Meal_Plans</td><td>date</td><td>app</td></tr>
+<tr><td>fasts</td><td>Fasting_Log</td><td>record_id</td><td>app</td></tr>
+<tr><td>kv</td><td>App_KeyValue</td><td>key</td><td>app</td></tr>
+<tr><td>settings</td><td>Settings_App</td><td>key</td><td>both (newest wins)</td></tr>
+<tr><td>foodChanges</td><td>Food_Change_Log</td><td>change_id</td><td>app</td></tr>
+</table>
+<p>Derived tabs, rebuilt by the server after a push: <code>Weight_Log</code>, <code>Water_Log</code>, <code>Habits_Log</code> (after body/days changes), <code>Recipe_Ingredients</code> (after recipes), <code>Shopping_List</code> (after kv keys <code>shopping:&lt;week&gt;</code>). Other tabs: <code>Food_Aliases</code>, <code>Sync_Metadata</code>, <code>Deleted_Records</code>, <code>Backup_Log</code>, <code>Migration_Report</code>, <code>Hub_Dashboard</code> (formulas and charts). New data such as cardio, workouts and check-ins is stored in the <code>kv</code> table and therefore lands in <code>App_KeyValue</code> (key column + json).</p>
+
+<h2>5. Push (phone → Hub)</h2>
+<h3>5.1 Client (pushNow)</h3>
+<ol>
+<li>Skip with status <code>disabled</code> if URL or token is empty; <code>offline</code> if the browser is offline.</li>
+<li>Hub identity check (<code>assertHub</code>).</li>
+<li>Loop: read up to 300 outbox items (by id), coalesce to the latest change per table+key.</li>
+<li>Shared foods (<code>source: 'sheet'</code>) are removed from the batch — food values belong to the Hub. If write-back is enabled (<code>writeFoodsToSheet</code>), edited shared foods are sent separately with action <code>saveFoods</code>.</li>
+<li>Send action <code>push</code> with <code>changes</code> and <code>clientSchema</code> (Dexie schema version 2). On success the batch is removed from the outbox; <code>dataVersion</code> is stored in <code>sync.serverVersion</code>.</li>
+<li>If the answer lists <code>conflicts</code> (the Hub holds newer versions), the conflict counter increases and <code>pullAll()</code> brings those records back instead of overwriting.</li>
+<li>On success: <code>sync.lastPushAt</code> set, <code>sync.lastError</code> cleared, status <code>idle</code>.</li>
+</ol>
+<h3>5.2 Server (push_)</h3>
+<ul>
+<li>Runs inside a script lock (<code>waitLock(25000)</code>) and only in native mode.</li>
+<li>Limits: at most 500 changes per request (<code>MAX_CHANGES</code>); key up to 200 characters; payload JSON up to 45,000 characters. The whole request is rejected if any change is invalid (<code>"&lt;n&gt; invalid change(s) rejected"</code>).</li>
+<li>Validation: table must be known; op <code>upsert</code> or <code>delete</code>; for <code>entries</code> the date must be <code>YYYY-MM-DD</code> and <code>macros.kcal</code> a number; for <code>body</code> a weight, if present, must be a number from 20 to 400.</li>
+<li>Conflict rule: if the stored <code>updated_at</code> is greater than the incoming <code>updatedAt</code> (or <code>at</code>), the change is skipped and reported in <code>conflicts</code>.</li>
+<li>Delete: the row's JSON is copied to <code>Deleted_Records</code> (table, key, deleted_at, json, recovered = "no"), then the row is removed.</li>
+<li>Metadata: when something was applied, <code>dataVersion</code> increments and <code>lastWriteAt</code> / <code>appSchemaVersion</code> are written; <code>lastSyncAt</code> and <code>lastConflicts</code> are written on every push.</li>
+</ul>
+
+<h2>6. Pull (Hub → phone)</h2>
+<ul>
+<li><code>pullAll()</code> (Settings button "Restore from sheet", after a local backup <code>pre-pull</code>) calls action <code>pull</code>, which returns the json column of every structured tab (in xlsx mode an empty result marked <code>readOnly</code>).</li>
+<li>Foods are skipped here (they come through the food import with stable IDs).</li>
+<li>Merge rule: a row is written locally only if no local record exists or the remote <code>updatedAt</code>/<code>at</code> is newer. For settings, the remote copy wins only if newer, and the device-local <code>sync</code> block is always kept.</li>
+<li>Nothing local is deleted by a pull. <code>sync.lastPullAt</code> is updated. The server also supports <code>since</code> (incremental), but the client does not send it.</li>
+</ul>
+
+<h2>7. Foods: import, comparison and write-back</h2>
+<ul>
+<li><code>pullFoodsFromSheet()</code>: action <code>foods</code> returns rows from <code>Food_Database</code> (structured) or, if absent, from the original Arabic food tab; parsed with <code>parseStructuredFoods</code> or <code>parseFoodRows</code> and merged with <code>importParsedFoods(…, 'sheet')</code> (never deletes local records).</li>
+<li><code>checkHubFoods()</code>: read-only comparison by Arabic name + state → identical, different (kcal, protein, carbs, fat, piece grams), only in Hub, only on phone.</li>
+<li><code>saveFoods</code> (server): up to 200 foods; each needs a name and kcal/protein/carbs/fat numbers from 0 to 1000; a full Drive copy of the Hub is made once per day before the first write-back; values are written to <code>Food_Database</code> only, never the original tab.</li>
+<li><code>fillFoodNames</code> (server, since backend <code>SCRIPT_VERSION</code> 8): takes an Arabic → English name map and writes only <b>empty</b> <code>name_en</code> cells of <code>Food_Database</code> (non-empty names and all other cells stay unchanged), after the daily Drive backup. It is called by the laptop command, not by the app.</li>
+<li><code>node scripts/laptop-setup.mjs --hub-complete-foods</code>: updates the backend, then <b>adds</b> to the Hub's Food_Database every recipe-library ingredient that is missing (USDA values) and every library meal as a ready food (id <code>LIB-&lt;recipe id&gt;</code>, values computed from the Hub's own values, per 100 g of raw ingredients, 1 serving as the piece weight) through <code>saveFoods</code> in batches of 100, then fills empty English names through <code>fillFoodNames</code>. Existing rows and values are never changed; ingredients without verified values are listed and never estimated; meals with such an ingredient are skipped.</li>
+</ul>
+
+<h2>8. Scheduling, status and retries</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Trigger (startAutoSync)</th><th>Delay</th></tr>
+<tr><td>App start</td><td>1 s</td></tr>
+<tr><td>Local change (onLocalChange)</td><td>2.5 s (debounced)</td></tr>
+<tr><td>Browser back online / app visible again</td><td>0.5 s</td></tr>
+<tr><td>Periodic</td><td>every 60 s</td></tr>
+</table>
+<p>Each trigger pushes only when <code>settings.sync.autoSync</code> is on (default on); otherwise it just refreshes the pending count. The header sync chip shows <code>disabled</code>, <code>offline</code>, <code>idle</code>, <code>syncing</code> or <code>error</code>, plus the number of pending changes and, after an error, "retry in N s". Tapping it pushes immediately (or opens Settings when disabled).</p>
+<p><b>Backoff after failures:</b> <code>backoffMs(n) = min(300000, 5000 × 2^(n−1))</code> → 5 s, 10 s, 20 s … capped at 5 min. Errors matching <code>unauthorized</code>, <code>WRONG_SPREADSHEET</code> or <code>HUB_IS_XLSX</code> are permanent and are not retried automatically. The last error is stored in <code>sync.lastError</code>.</p>
+
+<h2>9. Backups related to sync</h2>
+<ul>
+<li>Local backups before risky steps: <code>pre-import</code> (connect flow), <code>pre-pull</code> (restore from sheet).</li>
+<li>Server: <code>migrateHub()</code> makes a Drive copy first ("BACKUP MEGO Nutrition Hub — before migrateHub — …"); daily copy before the first food write-back; action <code>backup</code> stores an app snapshot JSON in the Drive folder "MEGO Nutrition Backups" and logs it in <code>Backup_Log</code>.</li>
+</ul>
+<p>Full procedures: MEGO_Data_Backup_and_Recovery.</p>
+
+<h2>10. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Code statements</td><td>Verified in <code>src/lib/sync.ts</code>, <code>src/pages/Settings.tsx</code>, <code>src/components/Layout.tsx</code>, <code>apps-script/Code.gs</code></td></tr>
+<tr><td>Live backend (7 Nov 2026)</td><td>Verified live by the laptop-setup tests: token accepted, wrong token refused, Hub identity, native + writable, Food_Database 160 foods / 0 unreadable, write phone → Hub, read Hub → phone, older copy never overwrites newer, soft delete into Deleted_Records</td></tr>
+<tr><td>Server logic (push/pull, conflicts, soft delete, migration, installMego, bootstrap)</td><td>Unit-tested against an Apps Script mock (<code>tests/v2.test.ts</code>, <code>e2e/gas-mock.mjs</code>)</td></tr>
+<tr><td>Hub food completion (<code>--hub-complete-foods</code>, <code>fillFoodNames</code>)</td><td>Tested against a fake backend running the real Code.gs (<code>e2e/hub-complete-test.mjs</code>, 9/9 per the commit record); a run against the live Hub is not verified</td></tr>
+<tr><td>Long-term behaviour with large data volumes (Apps Script quotas)</td><td>Not verified</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

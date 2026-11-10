@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="utf-8"><title>MEGO_Apps_Script_Setup_Guide_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — دليل إعداد Apps Script</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-53</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع (غير متخصص تقنيًا، لابتوب Windows) وفريق الصيانة</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Backend_Architecture، MEGO_Google_Sheets_Integration_and_Sync، MEGO_API_Documentation، MEGO_Gemini_API_Setup_Guide، MEGO_Firebase_Setup_Guide، MEGO_Update_and_Rollback_Procedures، MEGO_Developer_Setup_and_Local_Installation</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">يشرح هذا الدليل كيف يُثبَّت خادم Google Apps Script الخاص بالمالك وكيف يُحدَّث. هذا الخادم (<code dir="ltr">apps-script/Code.gs</code>، الإصدار SCRIPT_VERSION 8) يربط التطبيق بجدول Google ‏«MEGO Nutrition Hub»، وهو المكوّن الوحيد الذي يتواصل مع Gemini API. الطريقة الآلية هي <code dir="ltr">scripts/laptop-setup.mjs</code>؛ ويقدّم الدليل خطوات Windows PowerShell نقرةً بنقرة لمالك غير متخصص، وشاشات Google التي يوافق عليها، وما يفحصه السكربت، وكيفية تحديث الخادم بالخيار <code dir="ltr">--update-backend</code> وإكمال قائمة أطعمة الـ Hub بالخيار <code dir="ltr">--hub-complete-foods</code>.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">ما الذي يُثبَّت</li>
+<li dir="rtl">Windows: تجهيز اللابتوب (مرة واحدة)</li>
+<li dir="rtl">Windows: تشغيل الإعداد</li>
+<li dir="rtl">شاشات Google التي توافق عليها</li>
+<li dir="rtl">ما يفعله السكربت وما يفحصه</li>
+<li dir="rtl">تحديث الخادم (‎--update-backend)</li>
+<li dir="rtl">خيارات أخرى وصيانة</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. ما الذي يُثبَّت</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>البند</th><th>القيمة (apps-script/appsscript.json وCode.gs)</th></tr>
+<tr><td>المشروع</td><td>مشروع Apps Script مستقل باسم «MEGO Nutrition Hub Backend» في Drive الخاص بالمالك</td></tr>
+<tr><td>تطبيق الويب</td><td>يُنفَّذ باسم من نشره (المالك)؛ الوصول: الجميع، لكن كل طلب يجب أن يحمل رمز التطبيق السري</td></tr>
+<tr><td>بيئة التشغيل / المنطقة الزمنية</td><td>V8، ‏Asia/Riyadh</td></tr>
+<tr><td>الأذونات (OAuth scopes)</td><td>Google Sheets وGoogle Drive والطلبات الخارجية (لـ Gemini وفحوص Firebase)؛ خدمة Drive المتقدمة v3</td></tr>
+<tr><td>الـ Hub</td><td>ملف Excel الأصلي يبقى دون مساس؛ وتصبح نسخة Google Sheet الأصلية «MEGO Nutrition Hub» هي الـ Hub العامل فقط بعد نجاح التحقق</td></tr>
+<tr><td>الإجراءات (doPost)</td><td dir="ltr"><code>bootstrap</code>, <code>ping</code>, <code>foods</code>, <code>push</code>, <code>pull</code>, <code>saveFoods</code>, <code>fillFoodNames</code> (new in v8), <code>backup</code>, <code>meta</code>, <code>analyzeMeal</code>, <code>aiDiag</code>, <code>setAiKey</code>, <code>setCloudConfig</code>; Firebase users: <code>analyzeMeal</code>, <code>aiStats</code>, <code>aiDiag</code></td></tr>
+<tr><td>الأسرار</td><td>محفوظة في خصائص السكربت (Script Properties) مثل APP_TOKEN وGEMINI_API_KEY، وفي <code dir="ltr">~/.mego-backend/</code> على اللابتوب — ولا توجد أبدًا في المستودع</td></tr>
+</table>
+
+<h2 dir="rtl">2. Windows: تجهيز اللابتوب (مرة واحدة)</h2>
+<ol dir="rtl">
+<li dir="rtl">اضغط زر <b>ابدأ (Start)</b>، واكتب <b>PowerShell</b>، وافتح <b>Windows PowerShell</b>.</li>
+<li dir="rtl">ثبّت Git وNode.js (اكتب كل سطر ثم Enter، ووافق على أي سؤال):
+<pre dir="ltr">winget install --id Git.Git -e
+winget install --id OpenJS.NodeJS.LTS -e</pre></li>
+<li dir="rtl"><b>أغلق PowerShell ثم افتحه من جديد</b> حتى يتعرف على البرامج الجديدة. للتحقق: يجب أن يطبع كل من <code dir="ltr">git --version</code> و<code dir="ltr">node -v</code> رقم إصدار.</li>
+<li dir="rtl">إذا ظهرت رسالة «running scripts is disabled on this system» فنفّذ مرة واحدة:
+<pre dir="ltr">Set-ExecutionPolicy -Scope CurrentUser RemoteSigned</pre></li>
+<li dir="rtl">نزّل المشروع إلى مجلد المستخدم:
+<pre dir="ltr">cd $HOME
+git clone -b claude/nutrition-tracking-app-989rku https://github.com/Mego2012/Mego.git
+cd Mego</pre></li>
+</ol>
+<p dir="rtl">مهم: أثناء عمل السكربت <b>لا تنقر داخل نافذة PowerShell</b>. في وضع QuickEdit يؤدي النقر إلى إيقاف البرنامج مؤقتًا فيبدو متجمّدًا؛ اضغط <b>Enter</b> أو <b>Esc</b> للمتابعة.</p>
+
+<h2 dir="rtl">3. Windows: تشغيل الإعداد</h2>
+<pre dir="ltr">cd $HOME\Mego
+node scripts/laptop-setup.mjs</pre>
+<p dir="rtl">يطبع السكربت كل خطوة بالرمز ▶ وكل فحص بالرمز ✅ أو ❌. وعندما يحتاجك يعرض «👉» مع تعليمة وينتظر <b>Enter</b>. أبقِ حسابك في Google مفتوحًا في المتصفح. إعادة التشغيل آمنة: يُعاد استخدام المشروع والنشر والرمز الموجودة.</p>
+
+<h2 dir="rtl">4. شاشات Google التي توافق عليها</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>متى</th><th>ماذا ترى</th><th>على ماذا تضغط</th></tr>
+<tr><td>الخطوة الأولى</td><td>تسجيل دخول في المتصفح لأداة Apps Script الرسمية من Google ‏(clasp 3.4.1)</td><td>اختر حسابك في Google ← <b>Allow</b></td></tr>
+<tr><td>إنشاء المشروع (أول مرة)</td><td>صفحة <span dir="ltr">script.google.com/home/usersettings</span></td><td>فعّل <b>Google Apps Script API</b> إلى <b>On</b>، ثم ارجع إلى PowerShell واضغط Enter (إذا كان مفعّلًا أصلًا فانتظر 5 دقائق)</td></tr>
+<tr><td>التثبيت لمرة واحدة</td><td>يُفتح محرر Apps Script</td><td>اختر الدالة <b>authorize</b> في الأعلى ← <b>▶ Run</b> ← Review permissions ← حسابك ← <b>Advanced</b> ← <b>Go to MEGO Nutrition Hub Backend</b> ← <b>Allow</b>؛ ثم ارجع إلى PowerShell واضغط Enter</td></tr>
+<tr><td>الماسح الذكي (اختياري)</td><td>صفحة مفاتيح Google AI Studio</td><td>انظر MEGO_Gemini_API_Setup_Guide (لا تضغط «Set up billing» أبدًا)</td></tr>
+</table>
+<p dir="rtl">التحذير في شاشة الأذونات متوقع: السكربت خاص بحسابك وغير منشور للعامة.</p>
+
+<h2 dir="rtl">5. ما يفعله السكربت وما يفحصه</h2>
+<ol dir="rtl">
+<li dir="rtl"><b>الرفع:</b> ينسخ <code dir="ltr">Code.gs</code> و<code dir="ltr">appsscript.json</code> إلى المشروع الخاص. في التثبيت الأول يكتب في نسختك الخاصة فقط بصمة SHA-256 لسرّ عشوائي يُستخدم مرة واحدة (BOOTSTRAP_HASH)؛ والسرّ نفسه لا يغادر اللابتوب.</li>
+<li dir="rtl"><b>النشر:</b> ينشئ نشر تطبيق الويب (والتشغيلات اللاحقة تحدّث معرّف النشر نفسه).</li>
+<li dir="rtl"><b>التثبيت لمرة واحدة (<code dir="ltr">bootstrap</code>):</b> يشغّل <code dir="ltr">installMego()</code> — نسخة احتياطية في Drive، وتحويل Excel إلى Google Sheet أصلي، والتحقق من جميع الأطعمة، والترحيل إلى التبويبات المنظمة. ثم يعطّل نفسه (BOOTSTRAP_DONE) ويعيد رمز التطبيق الذي يُحفظ فقط في <code dir="ltr">~/.mego-backend/state.json</code>.</li>
+<li dir="rtl"><b>الاختبارات الحية (10):</b> قبول الرمز؛ هوية الـ Hub هي ملف Excel الأصلي؛ الـ Hub أصلي وقابل للكتابة؛ تحقق installMego؛ رفض الرمز الخاطئ؛ Food_Database يحتوي كل الأطعمة بقيم مقروءة؛ الكتابة من الهاتف إلى الـ Hub (سجل اختباري)؛ القراءة من الـ Hub إلى الهاتف؛ النسخة الأقدم لا تستبدل الأحدث أبدًا؛ حذف السجل الاختباري حذفًا ناعمًا إلى Deleted_Records.</li>
+<li dir="rtl"><b>Gemini (اختياري):</b> يحفظ مفتاحًا مجانيًا ويجري تحليل صورة حقيقيًا واحدًا.</li>
+<li dir="rtl"><b>ربط التطبيق:</b> يطبع رمز QR ورابطًا يربطان التطبيق على الهاتف. <b>احتفظ به سرًّا</b> لأنه يحتوي الرمز. لإعادة طباعته: <code dir="ltr">node scripts/laptop-setup.mjs --test</code>.</li>
+<li dir="rtl"><b>التقرير:</b> يُكتب في <code dir="ltr">~/.mego-backend/report-&lt;time&gt;.md</code>.</li>
+</ol>
+<p dir="rtl">النتيجة الحية لتشغيل المالك (7 نوفمبر 2026): جميع الفحوص ✅؛ الـ Hub ‏«MEGO Nutrition Hub» يحتوي 160 طعامًا دون أي مشكلة رقمية؛ ونسخة احتياطية باسم «BACKUP MEGO Nutrition Hub — before migrateHub — 2026-11-07 1425».</p>
+
+<h2 dir="rtl">6. تحديث الخادم (‎--update-backend)</h2>
+<p dir="rtl">عند صدور <code dir="ltr">Code.gs</code> جديد (مثل الإصدار SCRIPT_VERSION 7 بمعالجة أخطاء الذكاء الاصطناعي المحسّنة، أو SCRIPT_VERSION 8 بالإجراء <code dir="ltr">fillFoodNames</code>) نفّذ في PowerShell:</p>
+<pre dir="ltr">cd $HOME\Mego
+git pull
+node scripts/laptop-setup.mjs --update-backend</pre>
+<p dir="rtl">ما يحدث: يُرفع أحدث <code dir="ltr">Code.gs</code> ويُنشر على <b>النشر نفسه</b> (رابط تطبيق الويب نفسه والرمز نفسه، وبيانات الـ Hub دون مساس)، ثم يرسل <b>تشخيص الذكاء الاصطناعي</b> (<code dir="ltr">aiDiag</code>) طلبًا نصيًّا صغيرًا إلى كل نموذج مجاني ويطبع لكل منها ✅/❌ ورمز HTTP ورسالة Google، إضافة إلى إصدار الخادم والنموذج المضبوط. لا تُشغَّل الاختبارات الحية في هذا الوضع؛ شغّل بعده <code dir="ltr">node scripts/laptop-setup.mjs --test</code> إن أردتها.</p>
+
+<h2 dir="rtl">7. خيارات أخرى وصيانة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الأمر / الدالة</th><th>الاستخدام</th></tr>
+<tr><td><code dir="ltr">--hub-complete-foods</code></td><td>يتضمن <code dir="ltr">--update-backend</code> (يرفع أحدث Code.gs وينشره على النشر نفسه)، ثم يشترط خادمًا بالإصدار 8 أو أحدث وجدول Food_Database المنظّم. وهو <b>يضيف فقط</b>: كل مكوّن من مكتبة الوصفات غير موجود في الـ Hub (بقيم USDA مراجعة يدويًا من <code dir="ltr">public/fooddb/library-recipes.json</code>؛ والمكوّن الذي لا مرجع موثّق له يُذكر في القائمة ولا يُقدَّر أبدًا)، وكل وجبة من المكتبة كطعام جاهز محسوب من قيم الـ Hub نفسه (لكل 100 غ من المكونات النيئة، والحصة = وجبة واحدة؛ وتُتخطّى الوجبة إذا كان أحد مكوناتها بلا قيم صالحة)، ويملأ الأسماء الإنجليزية <b>الفارغة</b> فقط (<code dir="ltr">public/fooddb/food-names.json</code>). لا تتغير أي صفوف أو قيم موجودة؛ تُؤخذ نسخة احتياطية يومية للـ Hub في Drive أولًا؛ وإعادة التشغيل لا تضيف شيئًا. لا يُشغَّل تشخيص الذكاء الاصطناعي في هذا الوضع</td></tr>
+<tr><td><code dir="ltr">--test</code></td><td>الاختبارات الحية فقط على الخادم الحالي (مع خطوة Gemini ورابط الربط)</td></tr>
+<tr><td><code dir="ltr">--auto</code></td><td>دون أسئلة لوحة المفاتيح؛ ينتظر بإعادة الفحص كل 10 ثوانٍ</td></tr>
+<tr><td><code dir="ltr">--photo meal.jpg</code></td><td>استخدام صورتك الخاصة لاختبار الذكاء الاصطناعي</td></tr>
+<tr><td><code dir="ltr">rotateToken()</code> (في المحرر)</td><td>ينشئ رمز تطبيق جديدًا ويجب ربط التطبيق من جديد. يُوصى به لأن رابط الاتصال ظهر في محادثة أثناء الإعداد</td></tr>
+<tr><td><code dir="ltr">cleanupAiCounters()</code></td><td>يحذف عدّادات استخدام الذكاء الاصطناعي الأقدم من 8 أيام (مشغّل زمني اختياري)</td></tr>
+<tr><td>البديل اليدوي</td><td>الصق Code.gs وappsscript.json في المحرر ثم Deploy ← Manage deployments ← Edit ← New version (docs/SETUP.md وdocs/PHONE-SETUP.md)</td></tr>
+</table>
+<p dir="rtl">أخطاء الشبكة عند الاتصال بالخادم يُعاد المحاولة فيها 4 مرات (بعد 3 و6 و9 و12 ثانية)، ثم تُعرض رسالة الخطأ الحقيقية من Google.</p>
+
+<h2 dir="rtl">8. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>الإعداد الكامل والاختبارات الحية</td><td>مُتحقَّق منها حيًّا على لابتوب Windows الخاص بالمالك (7 نوفمبر 2026)؛ والسكربت مُختبر آليًّا بالأمر <code dir="ltr">npm run e2e:laptop</code> ‏(10/10 مع Google محاكى)</td></tr>
+<tr><td>نشر SCRIPT_VERSION 7/8 بالخيار <code dir="ltr">--update-backend</code></td><td>الأمر مُتحقَّق منه في الشيفرة. أما الإصدار المنشور حاليًا في الإنتاج ومخرجات التشخيص من تشغيل المالك فغير مسجلة في المستودع — غير مُتحقَّق منه</td></tr>
+<tr><td>خطوات Windows في القسم 2 (winget وPATH وسياسة التنفيذ وQuickEdit)</td><td>من تشغيل المالك الفعلي؛ لم يُعَد اختبارها — غير مُتحقَّق منها</td></tr>
+<tr><td><code dir="ltr">--hub-complete-foods</code></td><td>مُختبر على Code.gs الحقيقي مع Google محاكى (<code dir="ltr">node e2e/hub-complete-test.mjs</code>، 9/9). أما تشغيله على الـ Hub الحقيقي للمالك فغير مسجل — غير مُتحقَّق منه</td></tr>
+<tr><td><code dir="ltr">rotateToken()</code> في الإنتاج</td><td>لم يُنفَّذ (موصى به)</td></tr>
+</table>
+
+<h2 dir="rtl">9. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body>
+</html>

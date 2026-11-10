@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_User_Data_Protection_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — User Data Protection</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-44</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires legal review</td></tr>
+<tr><td>Audience</td><td>Project owner, developers, legal reviewer, support</td></tr>
+<tr><td>Related documents</td><td>MEGO_Privacy_Policy_Draft, MEGO_Security_Architecture, MEGO_Access_Control_and_Permissions, MEGO_Data_Retention_and_Deletion, MEGO_Data_Backup_and_Recovery, MEGO_Gemini_AI_Integration, MEGO_Security_Audit_and_Known_Risks</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document lists the personal data MEGO handles, where each category is stored, who can access it, and the technical measures that protect it — exactly as implemented in the code. It supports the privacy policy draft (MEGO_Privacy_Policy_Draft, folder 12), which is the single user-facing policy. Legal classifications (for example whether body measurements count as health data under applicable law) are open items for a qualified lawyer and are not decided here (see <code>docs/LEGAL-REVIEW.md</code>).</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Data inventory</li>
+<li>Storage locations by mode</li>
+<li>Who can access what</li>
+<li>Protection measures</li>
+<li>AI meal scanner and third parties</li>
+<li>User controls (export, correction, deletion)</li>
+<li>Gaps and recommendations</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Data inventory</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Category</th><th>Examples</th><th>Source</th><th>Synced to cloud (account mode)?</th></tr>
+<tr><td>Account data</td><td>E-mail, display name (≤ 40 chars), country code, 18+ confirmation, created / last-active timestamps, account status</td><td>Registration</td><td>Yes — <code>profiles/{uid}</code> and Firebase Authentication</td></tr>
+<tr><td>Password</td><td>—</td><td>User</td><td>Held only by Firebase Authentication; never stored by MEGO</td></tr>
+<tr><td>Body profile and goals</td><td>Sex, age, height, weight, target weight, activity, goal type, calorie and macro targets</td><td>Registration step 2–3, Settings</td><td>Yes — <code>settings</code> record</td></tr>
+<tr><td>Diary</td><td>Food entries, meals, quantities, nutrients, day status, water, habits</td><td>User</td><td>Yes — <code>entries</code>, <code>days</code></td></tr>
+<tr><td>Body measurements</td><td>Weight, waist, chest, hips, arm, thigh, neck, body fat, notes</td><td>User</td><td>Yes — <code>body</code></td></tr>
+<tr><td>Plans and personal content</td><td>Custom foods, recipes, saved meals, meal plans, fasting sessions, cardio, workouts, check-ins, preferences</td><td>User</td><td>Yes — <code>foods</code>, <code>recipes</code>, <code>templates</code>, <code>plans</code>, <code>plannedDays</code>, <code>fasts</code>, <code>kv</code>, <code>foodChanges</code></td></tr>
+<tr><td>Progress photos</td><td>Photos the user adds on the Progress page</td><td>User</td><td><b>No</b> — device only (<code>photos</code> table is not a sync table)</td></tr>
+<tr><td>Meal photos for AI</td><td>One photo per scan</td><td>User camera/gallery</td><td>Sent to the AI proxy for one analysis; not stored by MEGO</td></tr>
+<tr><td>Food proposals</td><td>A custom food the user submits for the shared database</td><td>User</td><td><code>foodSubmissions</code> with the user's uid</td></tr>
+<tr><td>Error reports</td><td>Error kind and message</td><td>App, automatically</td><td><code>errorReports</code> (no uid field, no diary content)</td></tr>
+<tr><td>AI usage counters</td><td>Daily scan count per uid</td><td>AI proxy</td><td>Apps Script Script Properties (<code>AI_U_&lt;date&gt;_&lt;uid&gt;</code>)</td></tr>
+</table>
+<p>No advertising identifiers, no analytics events and no location data are collected by the code.</p>
+
+<h2>2. Storage locations by mode</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Mode</th><th>On the device</th><th>Off the device</th></tr>
+<tr><td>Guest</td><td>IndexedDB <code>mego-nutrition</code></td><td>Nothing, unless the owner connected a Google Sheets Hub (owner's own Google Drive)</td></tr>
+<tr><td>Signed-in account</td><td>IndexedDB <code>mego-u-&lt;uid&gt;</code> (one per account), local backups inside it</td><td>Cloud Firestore, database <code>(default)</code> in <code>me-central2</code> (Dammam); Firebase Authentication</td></tr>
+<tr><td>Owner with Hub</td><td>IndexedDB</td><td>The owner's Google Sheet «MEGO Nutrition Hub» and Drive folder "MEGO Nutrition Backups"</td></tr>
+</table>
+<p>In Firestore every record is stored as <code>users/{uid}/{table}/{key}</code> = <code>{ data: JSON string, updatedAt, deleted? }</code>. The device's sync configuration (Hub URL and token) is removed before upload.</p>
+
+<h2>3. Who can access what</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Data</th><th>The user</th><th>Other users</th><th>Administrators</th><th>Project owner (outside the app)</th></tr>
+<tr><td>Private records <code>users/{uid}/**</code></td><td>Read/write while active</td><td>No</td><td><b>No</b></td><td>Firebase console access as project owner (Google Cloud IAM) — not limited by rules</td></tr>
+<tr><td>Profile card</td><td>Read; change name/country</td><td>No</td><td>Read all; change status only</td><td>Console</td></tr>
+<tr><td>Food proposals</td><td>Own only</td><td>No</td><td>Read/review</td><td>Console</td></tr>
+<tr><td>Error reports</td><td>Create only</td><td>No</td><td>Read/delete</td><td>Console</td></tr>
+<tr><td>Local device data</td><td>Yes</td><td>Not through the app (separate database per account); anyone with access to the unlocked device/browser storage could read it</td><td>No</td><td>No</td></tr>
+</table>
+<p>The admin dashboard states this limit to the administrator (text key <code>admin_privacy</code>) and is built on aggregate counts plus the profile list.</p>
+
+<h2>4. Protection measures</h2>
+<h3>4.1 In transit</h3>
+<p>All network traffic uses HTTPS (Firebase, Apps Script, Gemini via Apps Script, Open Food Facts, GitHub Pages, Google Fonts).</p>
+<h3>4.2 At rest in the cloud</h3>
+<p>Firestore and Firebase Authentication are Google-managed services; encryption at rest is provided by Google (Google's general statement; not separately verified for this project). Access is enforced by <code>firebase/firestore.rules</code>: owner-only, active accounts only, validated record shape, size limit 300,000 characters per record.</p>
+<h3>4.3 On the device</h3>
+<ul>
+<li>Separate IndexedDB database per account; switching account reloads the app.</li>
+<li>The app requests persistent browser storage (<code>navigator.storage.persist()</code>) to reduce eviction; Settings shows whether it was granted.</li>
+<li>Data is not encrypted by the app and stays on the device after sign-out (see section 7).</li>
+</ul>
+<h3>4.4 Data minimisation</h3>
+<ul>
+<li>The profile document accepts only seven fields (<code>displayName, email, status, country, ageConfirmed, createdAt, lastActiveAt</code>); the e-mail must equal the e-mail of the signed-in token.</li>
+<li>Error reports: kind (≤ 40 chars) and message (≤ 400 chars written, rule limit 500) without diary content.</li>
+<li>Exports and backups never contain the Hub token.</li>
+</ul>
+<h3>4.5 Age</h3>
+<p>Registration requires an 18+ confirmation (checkbox, <code>AGE_REQUIRED</code>), stored as <code>ageConfirmed: true</code>, and step 2 requires age ≥ 18. Age is self-declared; it is not verified.</p>
+
+<h2>5. AI meal scanner and third parties</h2>
+<ul>
+<li>Before upload the photo is downscaled and re-encoded as JPEG through a canvas, which drops all EXIF metadata (GPS location, device, time) (<code>src/lib/mealScanner.ts</code>).</li>
+<li>The request carries the photo, a list of food names from the user's database and an optional note (≤ 300 characters). It goes to the owner's Apps Script, which calls the Gemini API free tier. MEGO stores nothing about the meal; only a daily counter per uid is kept.</li>
+<li>Privacy-policy text in the app (<code>pp_4</code>) states that on the free tier Google may use the content to improve its products and human reviewers may see it, and asks users not to photograph people or documents.</li>
+<li>Results are never saved automatically; the user reviews them first.</li>
+<li>Accounts registered in the EU/EEA, UK or Switzerland are refused the scanner (country is self-declared at registration).</li>
+</ul>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Third party</th><th>Receives</th></tr>
+<tr><td>Google Firebase</td><td>Account and synced records (account mode)</td></tr>
+<tr><td>Google Apps Script + Gemini API</td><td>Meal photo and food names (scanner only); owner's Hub data</td></tr>
+<tr><td>GitHub Pages</td><td>Standard web requests to load the app</td></tr>
+<tr><td>Google Fonts</td><td>Font requests</td></tr>
+<tr><td>Open Food Facts</td><td>Barcode number or typed search words only</td></tr>
+</table>
+
+<h2>6. User controls</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Right / need</th><th>How in the app</th></tr>
+<tr><td>Access / portability</td><td>Settings → Data &amp; backups → "Download backup file" (JSON of all synced tables), "Export full diary (CSV)"; reports export CSV/XLSX; account card → "Export my data" (same JSON backup)</td></tr>
+<tr><td>Correction</td><td>Edit any entry, food, measurement or setting; account card → display name</td></tr>
+<tr><td>Deletion</td><td>Account card → "Delete account" (password required) — removes cloud records, profile, login and the device copy (MEGO_Data_Retention_and_Deletion)</td></tr>
+<tr><td>Withdraw from AI</td><td>Simply do not use the scanner; nothing is sent otherwise</td></tr>
+</table>
+
+<h2>7. Gaps and recommendations</h2>
+<ul>
+<li>Local data remains on the device after sign-out and is not encrypted; on shared devices, recommend "Delete account" or clearing site data. A "remove this device's copy on sign-out" option does not exist.</li>
+<li>Account deletion does not remove the user's <code>foodSubmissions</code> documents, and error reports cannot be linked to a user (no uid) and are not removed.</li>
+<li>The privacy policy and terms are drafts; operator identity, legal basis, retention period for inactive accounts and cross-border transfer wording are open (<code>docs/LEGAL-REVIEW.md</code>).</li>
+<li>Rotate the Gemini key and backend token that were shown in a chat (MEGO_Security_Audit_and_Known_Risks).</li>
+</ul>
+
+<h2>8. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Isolation between accounts, deletion of test accounts</td><td>Verified live (<code>scripts/live-verify.mjs</code>, 14/14)</td></tr>
+<tr><td>Admins cannot read private records</td><td>Tested on emulators (rules suite)</td></tr>
+<tr><td>EXIF removal by canvas re-encoding</td><td>Code reviewed; not verified on a real Android camera</td></tr>
+<tr><td>Google encryption at rest, Gemini data use</td><td>Provider statements — Not verified by the project</td></tr>
+<tr><td>Legal classification of the data</td><td>Not decided — requires legal review</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

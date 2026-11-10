@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Features_and_Capabilities_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — الميزات والإمكانات</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-04</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع، أصحاب المصلحة، المختبرون، الدعم، أعضاء الفريق الجدد</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Product_Overview، MEGO_Product_Requirements_PRD، MEGO_Platforms_and_System_Requirements، MEGO_Workflow_and_User_Journey، MEGO_User_Manual، MEGO_Known_Bugs_and_Limitations</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">هذه الوثيقة هي الجرد الكامل لما يستطيع MEGO فعله في 10 نوفمبر 2026: كل شاشة وكل إمكانية رئيسية، والوحدة البرمجية التي تنفّذها، ومستوى التحقق منها. وهي تصف المنتج كما بُني فعلًا وليست خطة مستقبلية؛ فالأعمال المقترحة موجودة في MEGO_Product_Roadmap وMEGO_Future_Development_Recommendations، والخطوات التفصيلية في أدلة المستخدم (المجلد 02).</p>
+<p dir="rtl"><b>ملاحظة حول الوثائق السابقة:</b> بعض الملاحظات القديمة في المستودع (<code dir="ltr">README.md</code> و<code dir="ltr">docs/FEATURES.md</code>) ووثيقة المتطلبات بتاريخ 7 نوفمبر تصف MEGO بأنه «للتغذية فقط ولا يشمل التمارين». منذ ذلك الحين أُضيف الكارديو والتمارين ومدرب التدريب (تم التحقق في 10 نوفمبر 2026). هذه الوثيقة تعكس الكود الحالي.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">خريطة الإمكانات</li>
+<li dir="rtl">الشاشات والتنقل</li>
+<li dir="rtl">تسجيل التغذية وبيانات الأطعمة</li>
+<li dir="rtl">ماسح الوجبات بالذكاء الاصطناعي</li>
+<li dir="rtl">الأهداف والمستهدفات وتعديل الطاقة</li>
+<li dir="rtl">التدريب: الكارديو والتمارين ومدرب التدريب</li>
+<li dir="rtl">المدرب وذكاء الأطعمة والتثقيف</li>
+<li dir="rtl">الوصفات وتخطيط الوجبات</li>
+<li dir="rtl">الجسم والعادات والتقارير</li>
+<li dir="rtl">الحسابات والمزامنة والنسخ الاحتياطي والإدارة</li>
+<li dir="rtl">خصائص عامة</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. خريطة الإمكانات</h2>
+<pre dir="ltr">
+                         MEGO (PWA, Arabic RTL / English LTR)
+ +-----------------+-----------------+------------------+-------------------+
+ | NUTRITION       | TRAINING        | INSIGHT          | DATA &amp; ACCOUNTS   |
+ | Diary           | Cardio          | Coach (5 tabs)   | Guest / account   |
+ | Foods &amp; search  | Workouts        | Rankings/compare | Cloud sync        |
+ | AI scanner      | Exercise guide  | Weekly/monthly   | Owner Hub sync    |
+ | Recipes/planner | Training coach  |  reports         | Backups/export    |
+ | Goals/targets   | Energy card     | Insights         | Admin dashboard   |
+ +-----------------+-----------------+------------------+-------------------+
+</pre>
+<p dir="rtl">أربعة محاور: التغذية، والتدريب، والتحليل والمتابعة، والبيانات والحسابات.</p>
+
+<h2 dir="rtl">2. الشاشات والتنقل</h2>
+<p dir="rtl">المسارات معرّفة في <code dir="ltr">src/App.tsx</code> باستخدام HashRouter، لذا تظهر الروابط بالشكل <code dir="ltr">#/diary</code>. يعرض الشريط السفلي: الرئيسية واليوميات ووصفاتي والتقدم، إضافة إلى لوحة «المزيد» (<code dir="ltr">src/components/Layout.tsx</code>)، وعلى الشاشات العريضة تظهر قائمة جانبية بكل العناصر.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المسار</th><th>الشاشة</th><th>المحتوى الرئيسي</th></tr>
+<tr><td><code dir="ltr">#/</code></td><td>الرئيسية</td><td>حلقة السعرات (الهدف − الطعام = المتبقي)، أشرطة المغذيات الكبرى، الوجبات، الماء، الوزن، بطاقة الطاقة، بطاقة تمرين اليوم، أزرار مسح الصورة، الملاحظات الذكية</td></tr>
+<tr><td><code dir="ltr">#/diary</code></td><td>اليوميات</td><td>شريط الأسبوع، الوجبات، الإضافة والتعديل والنسخ والتراجع، حالة اليوم، مستهدفات اليوم</td></tr>
+<tr><td><code dir="ltr">#/foods</code></td><td>الأطعمة</td><td>قاعدة الأطعمة، المرشحات، المحرر، الاستيراد والتصدير، مؤشرات جودة البيانات</td></tr>
+<tr><td><code dir="ltr">#/recipes</code></td><td>وصفاتي</td><td>تبويبات: المكتبة، الاقتراحات، ماذا أطبخ، وصفاتي، الوجبات المحفوظة</td></tr>
+<tr><td><code dir="ltr">#/planner</code></td><td>مخطط الوجبات</td><td>خطة الأسبوع، الخطة التلقائية، قائمة التسوق، المخطط مقابل الفعلي</td></tr>
+<tr><td><code dir="ltr">#/coach</code></td><td>المدرب</td><td>تبويبات: اليوم، الأسبوع، الشهر، الأطعمة (الترتيب والمقارنة)، تعلّم</td></tr>
+<tr><td><code dir="ltr">#/progress</code></td><td>التقدم</td><td>الوزن والخصر والقياسات والصور (على الجهاز فقط) والاتجاهات</td></tr>
+<tr><td><code dir="ltr">#/goals</code></td><td>الأهداف</td><td>هذا الأسبوع، التوصيات، أهداف التغذية واللياقة، تقدّم الجسم، المراجعة الأسبوعية</td></tr>
+<tr><td><code dir="ltr">#/workouts</code></td><td>التمارين</td><td>تبويبات: نظرة عامة، اليوم، البرنامج، التمارين، التقدّم، المدرب</td></tr>
+<tr><td><code dir="ltr">#/exercise/:id</code></td><td>دليل التمرين</td><td>رسم متحرك، طريقة الأداء، مخطط العضلات</td></tr>
+<tr><td><code dir="ltr">#/cardio</code></td><td>الكارديو</td><td>روتيني، رسوم الأسبوع والشهر، الاتجاهات، السجل</td></tr>
+<tr><td><code dir="ltr">#/habits</code></td><td>الماء والعادات</td><td>الماء، العادات، مؤقت الصيام، التذكيرات</td></tr>
+<tr><td><code dir="ltr">#/reports/week</code>، <code dir="ltr">#/reports/month</code></td><td>التقارير</td><td>التقرير الأسبوعي والشهري والتصدير</td></tr>
+<tr><td><code dir="ltr">#/settings</code></td><td>الإعدادات</td><td>اللغة والمظهر، الملف الشخصي، المستهدفات، المزامنة، ماسح الوجبات، تفضيلات الطعام، البيانات والنسخ الاحتياطي، فحص البيانات، النسخ المحلية، حقوق الصور</td></tr>
+<tr><td><code dir="ltr">#/admin</code>، <code dir="ltr">#/privacy</code>، <code dir="ltr">#/terms</code></td><td>الإدارة والصفحات القانونية</td><td>لوحة المسؤول؛ سياسة الخصوصية والشروط (مسودات)</td></tr>
+</table>
+<p dir="rtl"><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/home-ar-light.png" width="300" alt="الرئيسية"> <img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/diary-ar-light.png" width="300" alt="اليوميات"></p>
+
+<h2 dir="rtl">3. تسجيل التغذية وبيانات الأطعمة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإمكانية</th><th>التفاصيل</th><th>الكود</th></tr>
+<tr><td>أساس لكل 100 غ</td><td>كل طعام يخزّن السعرات والبروتين والكربوهيدرات والدهون لكل 100 غ؛ السجلات النيئة والمطبوخة والجاهزة منفصلة ولا يُحوَّل بينها أبدًا</td><td><code dir="ltr">src/lib/nutrition.ts</code>، <code dir="ltr">types.ts</code></td></tr>
+<tr><td>الوحدات</td><td>غ، كغ، مل، لتر، كوب (240 مل)، ملعقة كبيرة (15 مل)، ملعقة صغيرة (5 مل)، حبة، شريحة، حصص مخصصة؛ كل وحدة تُظهر وزنها بالغرام، مع كثافة لكل طعام لوحدات الحجم</td><td><code dir="ltr">nutrition.ts</code></td></tr>
+<tr><td>الوجبات</td><td>الإفطار والغداء والعشاء والوجبات الخفيفة في أي تاريخ</td><td><code dir="ltr">src/pages/Diary.tsx</code></td></tr>
+<tr><td>اللقطة المحفوظة</td><td>يحتفظ كل إدخال بالقيم المستخدمة وقت التسجيل؛ تعديل الطعام لاحقًا لا يغيّر الأيام الماضية</td><td><code dir="ltr">db.ts</code>، <code dir="ltr">repo.ts</code></td></tr>
+<tr><td>التعديل</td><td>تعديل الكمية والوحدة والوجبة والتاريخ، التكرار، النسخ لتاريخ آخر، الحذف مع تأكيد، التراجع؛ نسخ وجبة أو يوم أو الأمس مع تحذير قبل الإضافة إلى يوم فيه إدخالات؛ الوجبات المحفوظة</td><td><code dir="ltr">Diary.tsx</code></td></tr>
+<tr><td>حالة اليوم</td><td>مكتمل أو جزئي؛ قاعدة تلقائية عند ≥ 60 % من هدف السعرات (قابلة للتعديل)؛ يوم تدريب أو راحة؛ مستهدفات خاصة بيوم معيّن</td><td><code dir="ltr">reports.ts</code>، <code dir="ltr">targets.ts</code></td></tr>
+<tr><td>قاعدة البيانات المرجعية</td><td>12,879 طعامًا من USDA FoodData Central (<code dir="ltr">public/fooddb/usda.json</code>) إضافة إلى <code dir="ltr">usda-extra.json</code>، متاحة دون اتصال</td><td><code dir="ltr">refFoods.ts</code></td></tr>
+<tr><td>البحث</td><td>بالعربية والإنجليزية، يتسامح مع اختلاف كتابة الحروف العربية والأخطاء الإملائية؛ المفضلة، الأخيرة، الأكثر استخدامًا، السجل</td><td><code dir="ltr">foodSearch.ts</code>، <code dir="ltr">normalize.ts</code></td></tr>
+<tr><td>الباركود</td><td>مسح بالكاميرا (واجهة BarcodeDetector: EAN-13 وEAN-8 وUPC-A وUPC-E) أو إدخال يدوي؛ بحث في Open Food Facts مع وسم البيانات بأنها خارجية</td><td><code dir="ltr">barcode.ts</code>، <code dir="ltr">BarcodeSheet.tsx</code></td></tr>
+<tr><td>الأطعمة المخصصة</td><td>إنشاء من ملصق القيم الغذائية، تعديل مع سجل إصدارات، أرشفة بدل الحذف، تصدير واستيراد JSON، استيراد CSV/Excel مع معاينة تدقيق</td><td><code dir="ltr">customFoods.ts</code>، <code dir="ltr">sheetImport.ts</code></td></tr>
+<tr><td>صور الأطعمة</td><td>74 صورة مرخّصة بحرية من Wikimedia Commons؛ بقية الأطعمة تُعرض برسم بديل</td><td><code dir="ltr">foodPhotos.ts</code></td></tr>
+<tr><td>جودة البيانات</td><td>فحص السعرات مقابل المغذيات (معاملات أتواتر Atwater) مع تفسير؛ القيم الفارغة تمنع التسجيل؛ كشف الفواصل العشرية والتكرارات</td><td><code dir="ltr">nutrition.ts</code>، <code dir="ltr">sheetImport.ts</code></td></tr>
+</table>
+
+<h2 dir="rtl">4. ماسح الوجبات بالذكاء الاصطناعي</h2>
+<ul dir="rtl">
+<li dir="rtl">التقط صورة أو اخترها من المعرض (من الرئيسية أو اليوميات أو نافذة إضافة الطعام). تُفحص الصورة وتُضغط على الهاتف قبل الإرسال (<code dir="ltr">src/lib/mealScanner.ts</code>).</li>
+<li dir="rtl">تُرسل الصورة إلى خادم Apps Script الخاص، والذي يستدعي الفئة المجانية من Gemini API. المفتاح محفوظ فقط في خصائص السكربت (Script Properties). سلسلة النماذج (مجانية فقط): <code dir="ltr">gemini-3.8-flash → gemini-3.6-flash → gemini-3.5-flash-lite</code> (إصدار الخادم <code dir="ltr">SCRIPT_VERSION 7</code>).</li>
+<li dir="rtl">يتعرّف الذكاء الاصطناعي على المكونات ويقدّر الغرامات (مع مدى) والحالة نيء/مطبوخ وطريقة الطهي ويختار الطعام المطابق. <b>القيم الغذائية تُحسب دائمًا بمحرك التطبيق من قاعدة البيانات</b>، وما ليس في القاعدة يُوسم بأنه تقدير من الذكاء الاصطناعي.</li>
+<li dir="rtl"><b>لا يُحفظ أي شيء قبل أن يؤكد المستخدم</b> في شاشة المراجعة، ويجب تأكيد مراجعة العناصر غير المؤكدة.</li>
+<li dir="rtl">تُترجم الأخطاء إلى رموز دقيقة (مثل AI_OVERLOADED وAI_TIMEOUT وAI_QUOTA_MINUTE/DAY وAI_KEY_INVALID وAI_REGION). يعيد التطبيق المحاولة تلقائيًا للأخطاء المؤقتة بعد 3 ثوانٍ و8 ثوانٍ، ويحتفظ بالصورة لإعادة المحاولة يدويًا، وطلب واحد فقط في كل مرة.</li>
+<li dir="rtl">الحدود: سقف يومي خاص <code dir="ltr">AI_DAILY_LIMIT</code> (الافتراضي 40) وحد لكل مستخدم <code dir="ltr">AI_USER_DAILY_LIMIT</code> (الافتراضي 10) في <code dir="ltr">apps-script/Code.gs</code>، إضافة إلى الحصة المجانية من Google. قد تكون الفئة المجانية بطيئة وقت الذروة (تجربة حية في 10 نوفمبر: نحو 64 ثانية، 4 عناصر).</li>
+</ul>
+
+<h2 dir="rtl">5. الأهداف والمستهدفات وتعديل الطاقة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإمكانية</th><th>التفاصيل</th></tr>
+<tr><td>أنواع الأهداف</td><td>9 أهداف: خسارة الدهون، خسارة الدهون مع الحفاظ على العضلات (الافتراضي)، إعادة تشكيل الجسم، تضخيم نظيف، تضخيم، ثبات، أكل صحي، أداء، مخصص (<code dir="ltr">src/lib/types.ts</code>)</td></tr>
+<tr><td>توصية المستهدفات</td><td>معدل الأيض الأساسي بمعادلة Mifflin-St Jeor × معامل النشاط؛ <code dir="ltr">kcal = max(BMR, round(TDEE × (1 + adjust)/10) × 10)</code>؛ البروتين = الوزن × غ/كغ؛ الدهون = الأكبر بين 0.8 غ/كغ و25 % من السعرات ÷ 9؛ الكربوهيدرات = الباقي ÷ 4 (<code dir="ltr">goals.ts</code>). لا تُطبَّق إلا بعد التأكيد.</td></tr>
+<tr><td>مستهدفات التدريب والراحة</td><td>مستهدفات منفصلة، أيام التدريب، تجاوزات ليوم معيّن، هوامش السماح (<code dir="ltr">targets.ts</code>، الإعدادات)</td></tr>
+<tr><td>مستشار الأهداف</td><td>يراجع متوسطات الوزن لسبعة أيام، وانحدار 28 يومًا، والخصر، والالتزام خلال 14 يومًا، والكارديو الأسبوعي، والمراجعة الأسبوعية؛ ويقدّم اقتراحات فقط ولا يطبّقها تلقائيًا، ولا فائض سعرات لأهداف الخسارة (<code dir="ltr">goalAdvisor.ts</code>)</td></tr>
+<tr><td>تعديل الطاقة الذكي</td><td>تعرض الرئيسية: الهدف الأساسي، الكارديو (تقدير)، الإضافة المسموحة، الهدف المعدّل، المتبقي. الكارديو المخطط يُعتبر محسوبًا مسبقًا؛ ولا يُضاف إلا صافي الطاقة الزائدة × 50 % (خسارة دهون) / 75 % (ثبات) / 100 % (زيادة)، بحد أقصى 400 سعرة؛ سقف خسارة الدهون <code dir="ltr">0.9 × (TDEE + extra)</code>. المستهدفات المحفوظة لا تتغير أبدًا (<code dir="ltr">energy.ts</code>).</td></tr>
+</table>
+
+<h2 dir="rtl">6. التدريب: الكارديو والتمارين ومدرب التدريب</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>الكارديو</b> (<code dir="ltr">src/lib/cardio.ts</code>، <code dir="ltr">#/cardio</code>): عشرة أنواع نشاط (المشي، المشي على السير، الجري، الدراجة، الدراجة الثابتة، الإليبتيكال، جهاز الدرج، السباحة، التجديف، أخرى). الطاقة <b>تقدير</b> مبني على المكافئ الأيضي (MET) ومعادلات ACSM للمشي والجري مع السرعة والميل، وموسوم بذلك. الروتين المحفوظ افتراضيًا: سير 10 دقائق، 3.5 كم/س، ميل 13 %؛ والخطة الافتراضية 6 جلسات × 10 دقائق أسبوعيًا. رسوم أسبوعية وشهرية وسجل.</li>
+<li dir="rtl"><b>التمارين</b> (<code dir="ltr">workouts.ts</code>، <code dir="ltr">#/workouts</code>): مولّد برامج يحافظ على تقسيمة المستخدم، تسجيل الجلسات (الوزن، التكرارات، RIR، وRPE اختياري، مؤقت الراحة)، تحليلات القوة (تقدير 1RM بمعادلة Epley، الحجم، الأرقام القياسية، الاتجاهات)، ونصائح التقدم المزدوج.</li>
+<li dir="rtl"><b>مكتبة التمارين ودليلها</b>: 54 تمرينًا مدمجًا (<code dir="ltr">exercises.ts</code>) بالعربية والإنجليزية، وتمارين مخصصة، ورسومات أصلية بوضعيتي البداية والنهاية مع حركة (<code dir="ltr">exerciseVisuals.ts</code>)، ونصوص طريقة الأداء (<code dir="ltr">src/lib/technique/</code>)، ومخطط عضلات أمامي/خلفي (<code dir="ltr">MuscleChart.tsx</code>). لا توجد صور فوتوغرافية أو فيديو.</li>
+<li dir="rtl"><b>مدرب التدريب</b> (<code dir="ltr">trainingCoach.ts</code>): منطق محلي قائم على قواعد يعمل على الجهاز — <b>وليس خدمة ذكاء اصطناعي</b>. كل إجابة تذكر بياناتها ودرجة الثقة، ولا يتغير شيء دون موافقة. يتضمن التقريران الأسبوعي والشهري بطاقة للتمارين.</li>
+</ul>
+<p dir="rtl">تُحفظ بيانات التدريب في جدول <code dir="ltr">kv</code> المتزامن (المفاتيح <code dir="ltr">cardio:</code> و<code dir="ltr">cardioRoutine</code> و<code dir="ltr">checkin:</code> و<code dir="ltr">program:</code> و<code dir="ltr">activeProgram</code> و<code dir="ltr">workout:</code> و<code dir="ltr">exercise:</code> و<code dir="ltr">recovery:</code> و<code dir="ltr">preferredExercises</code>)، ولم يتغير مخطط قاعدة البيانات (الإصدار 2).</p>
+
+<h2 dir="rtl">7. المدرب وذكاء الأطعمة والتثقيف</h2>
+<ul dir="rtl">
+<li dir="rtl">تبويبات المدرب «اليوم / الأسبوع / الشهر»: رسائل محسوبة من سجلات المستخدم نفسه، مع فصل رسائل «البيانات» عن «الإرشاد العام» الموسوم بمصدره (<code dir="ltr">coach.ts</code>).</li>
+<li dir="rtl">ترتيب الأطعمة (البروتين، الكربوهيدرات، الدهون، الألياف، منخفض السعرات، البروتين لكل سعرة، الكثافة الغذائية، التنشيف، البناء) باستخدام درجة الأحماض الأمينية مقارنة بمرجع FAO/WHO 2007 ومؤشر NRF9.3 بأوزان تتبع الهدف؛ الأطعمة كاملة القياس تُرتَّب قبل الأطعمة ناقصة البيانات (<code dir="ltr">foodIntel.ts</code>، و<code dir="ltr">intelCatalog.ts</code> بـ 83 طعامًا). وجدول مقارنة.</li>
+<li dir="rtl">التثقيف: 13 مقالًا بمصادر موثّقة (<code dir="ltr">education.ts</code>).</li>
+<li dir="rtl">الملاحظات الذكية (<code dir="ltr">insights.ts</code>): من البيانات المحفوظة فقط، وتحتاج 3 أيام مكتملة على الأقل، واتجاهات الوزن من متوسطات سبعة أيام.</li>
+</ul>
+
+<h2 dir="rtl">8. الوصفات وتخطيط الوجبات</h2>
+<ul dir="rtl">
+<li dir="rtl">101 وصفة مدمجة (<code dir="ltr">recipeLibraryData.ts</code> + <code dir="ltr">recipeLibraryData2.ts</code>) بالعربية والإنجليزية. تُحسب القيم الغذائية من قاعدة الأطعمة وقت التشغيل (<code dir="ltr">recipeEngine.ts</code>، <code dir="ltr">recipeRefMap.ts</code>)، والمكونات غير الموجودة تُعرض كناقصة ولا تُختلق قيمها أبدًا (مثال: اللبنة).</li>
+<li dir="rtl">مرشحات وتقييمات ومفضلة؛ إضافة إلى اليوميات أو الخطة؛ حفظ كوصفة قابلة للتعديل؛ اقتراحات تناسب المتبقي من اليوم؛ و«ماذا أطبخ اليوم؟» من مكونات مختارة.</li>
+<li dir="rtl">المخطط: عرض أسبوعي، خطط يومية قابلة لإعادة الاستخدام، خطة أسبوع تلقائية، نسخ الأسبوع الماضي، قائمة تسوق مع علامات، المخطط مقابل الفعلي.</li>
+</ul>
+
+<h2 dir="rtl">9. الجسم والعادات والتقارير</h2>
+<ul dir="rtl">
+<li dir="rtl">التقدم: الوزن والخصر وقياسات اختيارية (سجل واحد لكل تاريخ)، رسم بمتوسط سبعة أيام، متوسطات أسبوعية وشهرية، معدل التغير، تاريخ تقديري للوصول، تحذير من السرعة الزائدة؛ صور التقدم تبقى على الجهاز فقط.</li>
+<li dir="rtl">الماء والعادات: هدف الماء والإضافة السريعة، عادات مخصصة مع سلاسل الإنجاز، مؤقت صيام مع سجل، تذكيرات (تعمل فقط أثناء فتح التطبيق أو بقائه في الخلفية — <code dir="ltr">reminders.ts</code>).</li>
+<li dir="rtl">التقارير: أسبوعية وشهرية مع سجل الأيام، ومتوسطات على الأيام المكتملة فقط، والالتزام، والوزن، وتوزيع المغذيات، والماء، والألياف، وأكثر الأطعمة، والمقارنة بالفترة السابقة، وبطاقة التمارين؛ تصدير CSV أو Excel ‏(XLSX) أو طباعة إلى PDF (<code dir="ltr">reports.ts</code>، <code dir="ltr">exporters.ts</code>).</li>
+</ul>
+
+<h2 dir="rtl">10. الحسابات والمزامنة والنسخ الاحتياطي والإدارة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإمكانية</th><th>التفاصيل</th></tr>
+<tr><td>أوضاع التشغيل</td><td>الترحيب، الضيف (قاعدة محلية <code dir="ltr">mego-nutrition</code>)، الحساب (قاعدة محلية <code dir="ltr">mego-u-&lt;uid&gt;</code>) — <code dir="ltr">account.ts</code></td></tr>
+<tr><td>الحسابات</td><td>تسجيل من 3 خطوات (الحساب؛ الجسم والهدف؛ المستهدفات)، تسجيل الدخول والخروج، استعادة كلمة المرور، استيراد اختياري لبيانات الضيف، التصدير، حذف الحساب — عبر Firebase Authentication (البريد وكلمة المرور)</td></tr>
+<tr><td>المزامنة السحابية</td><td>مستمعات مباشرة على قاعدة البيانات السحابية (Cloud Firestore)؛ النسخة الأقدم لا تستبدل الأحدث أبدًا؛ عزل كل مستخدم مفروض في <code dir="ltr">firebase/firestore.rules</code></td></tr>
+<tr><td>مزامنة مركز المالك</td><td>جهاز الضيف/المالك ↔ Apps Script ↔ جدول Google «MEGO Nutrition Hub»: طابور إرسال، إعادة محاولة من 5 ثوانٍ حتى 5 دقائق، مزامنة كل دقيقة، كشف التعارض، حذف ناعم (<code dir="ltr">sync.ts</code>)</td></tr>
+<tr><td>النسخ الاحتياطي</td><td>لقطات على الجهاز (آخر 10)، نسخة قبل التحديث مرة لكل إصدار (<code dir="ltr">APP_RELEASE '1.3-training'</code>)، تنزيل ملف نسخة واستعادة بالدمج فقط، تصدير CSV/XLSX/JSON</td></tr>
+<tr><td>فحص البيانات</td><td>في الإعدادات: أعداد السجلات مقارنة بالنسخة السابقة للتحديث، الأطعمة المشتبه بأنها مسجلة لكل حصة، الإدخالات المكررة المحتملة — للقراءة فقط (<code dir="ltr">dataCheck.ts</code>)</td></tr>
+<tr><td>الإدارة</td><td>لوحة المسؤول: الأعداد، قائمة الحسابات، الإيقاف وإعادة التفعيل، مراجعة الأطعمة المقترحة، تقارير الأخطاء — دون أي وصول للسجلات الخاصة. لا يوجد حساب مسؤول حتى الآن.</td></tr>
+</table>
+
+<h2 dir="rtl">11. خصائص عامة</h2>
+<ul dir="rtl">
+<li dir="rtl">ثنائي اللغة: عربية كاملة من اليمين لليسار وإنجليزية من اليسار لليمين (<code dir="ltr">src/lib/i18n*.ts</code>)؛ مظهر فاتح وداكن وحسب النظام.</li>
+<li dir="rtl">يعمل دون اتصال أولًا: IndexedDB عبر Dexie، مع عامل خدمة (Service Worker) من Workbox يخزّن واجهة التطبيق وقاعدة USDA مسبقًا.</li>
+<li dir="rtl">تكلفة صفرية: GitHub Pages وFirebase Spark وApps Script والفئة المجانية من Gemini — دون أي حساب فوترة.</li>
+<li dir="rtl">قواعد الأمانة: اليوم الفارغ لا يُحسب صفرًا، والتقديرات موسومة، والتوصيات لا تُطبَّق تلقائيًا.</li>
+</ul>
+
+<h2 dir="rtl">12. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>جرد الشاشات والوحدات والأعداد (101 وصفة، 54 تمرينًا، 12,879 طعامًا من USDA، 74 صورة، 13 مقالًا، 83 طعامًا في كتالوج الذكاء، 9 أهداف، 10 أنشطة كارديو)</td><td>مُتحقَّق منه في الكود بتاريخ 10 نوفمبر 2026</td></tr>
+<tr><td>الحسابات والعزل والمزامنة والتقارير على الإنتاج</td><td>مُتحقَّق منه مباشرة (<code dir="ltr">scripts/live-verify.mjs</code>)</td></tr>
+<tr><td>ماسح الوجبات</td><td>مُتحقَّق منه مباشرة في 10 نوفمبر 2026 (وجبة واحدة، نحو 64 ثانية، 4 عناصر)؛ الفئة المجانية بطيئة وقت الذروة</td></tr>
+<tr><td>صفحات التمارين</td><td>54/54 على الموقع المباشر</td></tr>
+<tr><td>كل الشاشات والتمرير باللمس</td><td>على أجهزة محاكاة فقط (اختبارات المتصفح 57/57، اللمس 103/103)؛ اختبارات الوحدة 195</td></tr>
+<tr><td>كاميرا الباركود، التذكيرات والتطبيق مغلق، هاتف أندرويد حقيقي، الطباعة إلى PDF على الهاتف</td><td>غير مُتحقَّق منه</td></tr>
+<tr><td>لوحة المسؤول على الإنتاج</td><td>غير مُتحقَّق منه — لا يوجد حساب مسؤول بعد (اختبارات المحاكي فقط)</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

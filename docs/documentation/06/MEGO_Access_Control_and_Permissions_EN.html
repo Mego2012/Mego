@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Access_Control_and_Permissions_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Access Control and Permissions</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-45</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Developers, project owner, administrators, security reviewers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Authentication_and_Authorization_Architecture, MEGO_Security_Architecture, MEGO_Database_Schema_and_Relationships, MEGO_Admin_User_Manual, MEGO_User_Management_Procedures, MEGO_Security_Audit_and_Known_Risks</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document explains, rule by rule, the Firestore security rules in <code>firebase/firestore.rules</code> — the central access-control mechanism of MEGO — and summarises the permissions enforced by the Apps Script backend and the client. It includes a complete permission matrix, the test that covers each rule, the known gaps of the rules and the procedure for changing them safely.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Principles</li>
+<li>Full rules text</li>
+<li>Helper functions</li>
+<li>Private data: users/{uid}/{table}/{key}</li>
+<li>Profiles</li>
+<li>Admins</li>
+<li>Shared foods and food submissions</li>
+<li>Error reports</li>
+<li>Permission matrix</li>
+<li>Apps Script and client permissions</li>
+<li>Test coverage</li>
+<li>Known gaps in the rules</li>
+<li>Changing the rules</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Principles</h2>
+<ul>
+<li><b>Default deny:</b> any path not matched by a rule is refused (Firestore behaviour).</li>
+<li><b>Server enforcement:</b> Google evaluates the rules on every request; the app cannot bypass them.</li>
+<li><b>Owner only, active only:</b> private data is reachable only by its owner and only while the owner's profile has <code>status == 'active'</code>.</li>
+<li><b>Least privilege for admins:</b> admins manage account status and shared foods, but cannot read private records.</li>
+<li><b>Monotonic updates:</b> an older copy can never replace a newer one.</li>
+</ul>
+<p>Note: rules apply to client SDK/REST requests made with user tokens. The project owner's Google Cloud credentials (console, setup script) are not limited by these rules.</p>
+
+<h2>2. Full rules text</h2>
+<p>Deployed version as in the repository (<code>rules_version = '2'</code>):</p>
+<pre>
+rules_version = '2';
+// MEGO — Firestore security rules (enforced by Google's servers on every request).
+//  * users/{uid}/**  : private data. Only the owner, only while the account is active. Admins have NO access.
+//                      An older copy can never overwrite a newer one (updatedAt must not go back).
+//  * profiles/{uid}  : account card (name, email, status, country, lastActiveAt). Owner reads/creates/updates a
+//                      fixed set of fields; admins read all and may change ONLY the status.
+//  * admins/{uid}    : admin list. Readable by that user only. Written only from the Firebase console / setup script.
+//  * foods/{id}      : shared verified food database. Any signed-in active user reads; only admins write.
+//  * foodSubmissions : users propose foods; owner and admins read; admins review.
+//  * errorReports    : users may create small error reports (no personal data); only admins read.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() { return request.auth != null; }
+    function isAdmin() { return signedIn() &amp;&amp; exists(/databases/$(database)/documents/admins/$(request.auth.uid)); }
+    function profile(uid) { return get(/databases/$(database)/documents/profiles/$(uid)); }
+    function isActive() {
+      return signedIn() &amp;&amp; exists(/databases/$(database)/documents/profiles/$(request.auth.uid))
+        &amp;&amp; profile(request.auth.uid).data.status == 'active';
+    }
+    function isOwner(uid) { return signedIn() &amp;&amp; request.auth.uid == uid; }
+
+    match /users/{uid}/{table}/{key} {
+      allow read: if isOwner(uid) &amp;&amp; isActive();
+      allow create: if isOwner(uid) &amp;&amp; isActive() &amp;&amp; validRecord();
+      allow update: if isOwner(uid) &amp;&amp; isActive() &amp;&amp; validRecord()
+        &amp;&amp; request.resource.data.updatedAt &gt;= resource.data.updatedAt;
+      allow delete: if isOwner(uid) &amp;&amp; isActive();
+      function validRecord() {
+        return request.resource.data.keys().hasOnly(['data', 'updatedAt', 'deleted'])
+          &amp;&amp; request.resource.data.updatedAt is int
+          &amp;&amp; request.resource.data.data is string &amp;&amp; request.resource.data.data.size() &lt; 300000
+          &amp;&amp; (!('deleted' in request.resource.data) || request.resource.data.deleted is bool)
+          &amp;&amp; table in ['entries', 'body', 'days', 'recipes', 'templates', 'plans', 'plannedDays', 'fasts', 'kv', 'settings', 'foodChanges', 'foods'];
+      }
+    }
+
+    match /profiles/{uid} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow create: if isOwner(uid)
+        &amp;&amp; request.resource.data.keys().hasOnly(['displayName', 'email', 'status', 'country', 'ageConfirmed', 'createdAt', 'lastActiveAt'])
+        &amp;&amp; request.resource.data.status == 'active' &amp;&amp; request.resource.data.ageConfirmed == true
+        &amp;&amp; request.resource.data.email == request.auth.token.email;
+      allow update: if (isOwner(uid) &amp;&amp; profile(uid).data.status == 'active'
+          &amp;&amp; request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'country', 'lastActiveAt']))
+        || (isAdmin() &amp;&amp; request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
+          &amp;&amp; request.resource.data.status in ['active', 'suspended']);
+      allow delete: if isOwner(uid);
+    }
+
+    match /admins/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
+    match /foods/{id} {
+      allow read: if isActive();
+      allow write: if isAdmin();
+    }
+
+    match /foodSubmissions/{id} {
+      allow read: if isAdmin() || (isActive() &amp;&amp; resource.data.ownerUid == request.auth.uid);
+      allow create: if isActive() &amp;&amp; request.resource.data.ownerUid == request.auth.uid &amp;&amp; request.resource.data.status == 'pending';
+      allow update: if isAdmin();
+      allow delete: if isAdmin() || (isActive() &amp;&amp; resource.data.ownerUid == request.auth.uid &amp;&amp; resource.data.status == 'pending');
+    }
+
+    match /errorReports/{id} {
+      allow create: if signedIn() &amp;&amp; request.resource.data.keys().hasOnly(['at', 'kind', 'message', 'app'])
+        &amp;&amp; request.resource.data.message is string &amp;&amp; request.resource.data.message.size() &lt; 500;
+      allow read, delete: if isAdmin();
+    }
+  }
+}
+</pre>
+
+<h2>3. Helper functions</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Function</th><th>Meaning</th><th>Cost note</th></tr>
+<tr><td><code>signedIn()</code></td><td>The request carries a valid Firebase ID token</td><td>—</td></tr>
+<tr><td><code>isOwner(uid)</code></td><td>Signed in and the token uid equals the uid in the path</td><td>—</td></tr>
+<tr><td><code>isAdmin()</code></td><td>A document <code>admins/{token uid}</code> exists</td><td>One document lookup</td></tr>
+<tr><td><code>profile(uid)</code></td><td>Reads <code>profiles/{uid}</code></td><td>One document lookup</td></tr>
+<tr><td><code>isActive()</code></td><td>Signed in, own profile exists and its <code>status</code> is <code>'active'</code></td><td>Lookups of the caller's profile</td></tr>
+</table>
+<p>Document lookups made by rules are billed/counted as Firestore reads; on the Spark plan they count toward the daily read quota.</p>
+
+<h2>4. Private data: <code>users/{uid}/{table}/{key}</code></h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Operation</th><th>Condition</th></tr>
+<tr><td>read (get, list)</td><td><code>isOwner(uid) &amp;&amp; isActive()</code></td></tr>
+<tr><td>create</td><td>owner, active, <code>validRecord()</code></td></tr>
+<tr><td>update</td><td>owner, active, <code>validRecord()</code>, and <code>request.resource.data.updatedAt &gt;= resource.data.updatedAt</code></td></tr>
+<tr><td>delete</td><td>owner, active</td></tr>
+</table>
+<p><b><code>validRecord()</code></b> requires:</p>
+<ul>
+<li>only the keys <code>data</code>, <code>updatedAt</code>, <code>deleted</code>;</li>
+<li><code>updatedAt</code> is an integer;</li>
+<li><code>data</code> is a string shorter than 300,000 characters (the record is stored as JSON text);</li>
+<li><code>deleted</code>, if present, is a boolean;</li>
+<li><code>table</code> is one of 12 names: <code>entries, body, days, recipes, templates, plans, plannedDays, fasts, kv, settings, foodChanges, foods</code>.</li>
+</ul>
+<p><b>How the app uses it:</b> <code>src/lib/cloudSync.ts</code> writes each local change with <code>setDoc</code>. A deletion is written as a tombstone <code>{data: '{}', updatedAt, deleted: true}</code> (an update, so other devices learn about it); hard <code>delete</code> is used only during account deletion. A <code>permission-denied</code> answer is counted as a conflict: the server already holds a newer copy, or the account is suspended.</p>
+<p><b>Example:</b> device A (offline) edits entry <code>e1</code> at time 100; device B edits it at time 200 and syncs first. When A reconnects, its write with <code>updatedAt = 100</code> is refused; A then receives B's version through the live listener.</p>
+
+<h2>5. Profiles: <code>profiles/{uid}</code></h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Operation</th><th>Who</th><th>Condition</th></tr>
+<tr><td>read</td><td>owner or admin</td><td>The owner can read their own profile even when suspended (needed for the suspended screen). Regular users cannot list profiles.</td></tr>
+<tr><td>create</td><td>owner</td><td>keys only <code>displayName, email, status, country, ageConfirmed, createdAt, lastActiveAt</code>; <code>status == 'active'</code>; <code>ageConfirmed == true</code>; <code>email == request.auth.token.email</code></td></tr>
+<tr><td>update</td><td>owner</td><td>own profile currently active, and only <code>displayName</code>, <code>country</code>, <code>lastActiveAt</code> change</td></tr>
+<tr><td>update</td><td>admin</td><td>only <code>status</code> changes, to <code>'active'</code> or <code>'suspended'</code></td></tr>
+<tr><td>delete</td><td>owner</td><td>always (also when suspended)</td></tr>
+</table>
+<p>Consequences: a user cannot change their e-mail or status, cannot reactivate themselves, and an admin cannot rename users or set any status other than active/suspended.</p>
+
+<h2>6. Admins: <code>admins/{uid}</code></h2>
+<ul>
+<li>read: only the user whose uid it is (the app uses this to detect the admin role);</li>
+<li>write: <code>false</code> for everyone — created only with owner credentials (setup script <code>--cloud</code> or Firebase console).</li>
+</ul>
+
+<h2>7. Shared foods and food submissions</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Path</th><th>read</th><th>create</th><th>update</th><th>delete</th></tr>
+<tr><td><code>foods/{id}</code></td><td>active users</td><td colspan="3">admins only (<code>allow write: if isAdmin()</code>)</td></tr>
+<tr><td><code>foodSubmissions/{id}</code></td><td>admins; or the active owner (<code>ownerUid</code>)</td><td>active user, <code>ownerUid == own uid</code>, <code>status == 'pending'</code></td><td>admins</td><td>admins; or the active owner while still pending</td></tr>
+</table>
+<p>Approval (<code>adminReview</code>) copies the food to <code>foods/U-&lt;submission id&gt;</code> and marks the submission approved; rejection only marks it. Nothing is published automatically.</p>
+
+<h2>8. Error reports: <code>errorReports/{id}</code></h2>
+<ul>
+<li>create: any signed-in user; keys only <code>at, kind, message, app</code>; <code>message</code> is a string shorter than 500 characters;</li>
+<li>read and delete: admins; update: nobody.</li>
+</ul>
+
+<h2>9. Permission matrix</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Resource</th><th>Anonymous</th><th>Active user</th><th>Suspended user</th><th>Admin (as admin)</th></tr>
+<tr><td>Own private records</td><td>—</td><td>R/W/D</td><td>none</td><td>own only (as user)</td></tr>
+<tr><td>Other users' private records</td><td>none</td><td>none</td><td>none</td><td><b>none</b></td></tr>
+<tr><td>Own profile</td><td>—</td><td>R; update name/country/lastActive; delete</td><td>R; delete</td><td>—</td></tr>
+<tr><td>All profiles (list/count)</td><td>none</td><td>none</td><td>none</td><td>R; change status only</td></tr>
+<tr><td><code>admins/</code></td><td>none</td><td>read own entry</td><td>read own entry</td><td>read own entry; no writes</td></tr>
+<tr><td>Shared foods</td><td>none</td><td>R</td><td>none</td><td>R/W</td></tr>
+<tr><td>Food submissions</td><td>none</td><td>create pending; R own; delete own pending</td><td>none</td><td>R/update/delete all</td></tr>
+<tr><td>Error reports</td><td>none</td><td>create</td><td>create</td><td>R/delete</td></tr>
+</table>
+
+<h2>10. Apps Script and client permissions</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Action (<code>doPost</code>)</th><th>Required credential</th></tr>
+<tr><td><code>bootstrap</code></td><td>One-time secret matching <code>BOOTSTRAP_HASH</code> (disabled when empty or after first use)</td></tr>
+<tr><td><code>analyzeMeal</code>, <code>aiDiag</code> with <code>idToken</code></td><td>Valid Firebase ID token; profile readable with that token; for <code>analyzeMeal</code>: status active, country not restricted, within per-user and global daily limits</td></tr>
+<tr><td><code>aiStats</code> with <code>idToken</code></td><td>Valid ID token and <code>admins/{uid}</code> readable with that token</td></tr>
+<tr><td><code>ping, foods, push, pull, saveFoods, backup, meta, analyzeMeal, aiDiag, setAiKey, setCloudConfig</code></td><td>Exact <code>APP_TOKEN</code></td></tr>
+<tr><td>any other action</td><td>Refused (<code>unknown action</code>)</td></tr>
+</table>
+<p><b>Client gating (not a security boundary):</b> the admin dashboard (<code>#/admin</code>) renders only when <code>acc.admin</code> is true; the suspended screen replaces the app when the profile is suspended; an admin cannot toggle their own status in the list (<code>u.uid !== acc.uid</code>).</p>
+
+<h2>11. Test coverage</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Test (<code>tests-rules/rules.test.ts</code>)</th><th>Rules covered</th></tr>
+<tr><td>each user reads and writes only their own records (3 users)</td><td>§4 isolation</td></tr>
+<tr><td>changing the user id in the path does not help; signed-out requests are refused</td><td>§4, anonymous</td></tr>
+<tr><td>an older copy never overwrites a newer one; record shape is validated (extra key, non-string data, &gt; 300,000 chars, unknown table)</td><td>§4 <code>validRecord</code>, monotonic update</td></tr>
+<tr><td>admin sees account cards and counts, never private records</td><td>§5, §4</td></tr>
+<tr><td>admin can suspend/reactivate but change nothing else</td><td>§5 admin update</td></tr>
+<tr><td>a suspended user is blocked by the server (cannot read, write or reactivate)</td><td>§4 <code>isActive</code>, §5</td></tr>
+<tr><td>nobody can make themselves admin; regular users cannot list profiles; cannot change status/e-mail</td><td>§6, §5</td></tr>
+<tr><td>shared foods: everyone reads, only admins write; submissions reviewed</td><td>§7</td></tr>
+<tr><td>new user creates only their own active profile with age confirmation and real e-mail</td><td>§5 create</td></tr>
+<tr><td>error reports: small reports, only admins read</td><td>§8</td></tr>
+</table>
+<p>Plus 4 cloud tests in <code>tests-rules/cloud.test.ts</code> (registration, per-user write paths, live second device, offline conflict) — 14 in total, run with <code>npm run test:rules</code> on the official emulators. Production checks: <code>scripts/live-verify.mjs</code> (14/14).</p>
+
+<h2>12. Known gaps in the rules</h2>
+<ul>
+<li>Owner profile updates do not validate the type or length of <code>displayName</code> or <code>country</code> (the app trims the name to 40 characters). Because <code>country</code> is editable and self-declared, the AI region restriction relies on user honesty.</li>
+<li><code>foodSubmissions</code> creation validates only <code>ownerUid</code> and <code>status</code>, not the food fields.</li>
+<li><code>errorReports</code> may be created by any signed-in user, including suspended ones; only the message length is limited.</li>
+<li>A suspended user cannot delete their private records (delete requires <code>isActive()</code>), only their profile.</li>
+<li><code>email_verified</code> is not checked anywhere.</li>
+</ul>
+<p>These are tracked in MEGO_Security_Audit_and_Known_Risks.</p>
+
+<h2>13. Changing the rules</h2>
+<ol>
+<li>Edit <code>firebase/firestore.rules</code> on a branch.</li>
+<li>Add or update tests in <code>tests-rules/</code> and run <code>npm run test:rules</code> (emulators) — all must pass.</li>
+<li>Deploy with the owner's credentials: <code>node scripts/laptop-setup.mjs --cloud &lt;e-mail&gt;</code> (runs <code>firebase deploy --only firestore:rules,firestore:indexes</code>) or the Firebase CLI directly.</li>
+<li>Run <code>node scripts/laptop-setup.mjs --verify</code> (live verification) and confirm all checks pass.</li>
+<li>Rollback: redeploy the previous version of the file from git.</li>
+</ol>
+
+<h2>14. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Rules deployed to production project</td><td>Verified (live verification 14/14 against production, 7 Nov 2026)</td></tr>
+<tr><td>All rules in sections 4–8</td><td>Tested on emulators (14 tests)</td></tr>
+<tr><td>Admin role in production</td><td>Not verified — no admin exists yet</td></tr>
+<tr><td>Apps Script action permissions</td><td>Token checks verified live; ID-token path tested on emulators</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

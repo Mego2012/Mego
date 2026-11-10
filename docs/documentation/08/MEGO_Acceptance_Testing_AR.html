@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Acceptance_Testing_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — اختبارات القبول</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-61</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع، المختبِرون، المطورون</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Testing_Strategy، MEGO_Nutrition_Calculation_Accuracy_Tests، MEGO_Multi_User_Testing، MEGO_Android_Device_Testing، MEGO_Release_Readiness_Checklist، MEGO_User_Manual</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تصف هذه الوثيقة مجموعة اختبارات القبول الآلية (Acceptance Tests) في MEGO، أي الملف <code dir="ltr">e2e/run-e2e.mjs</code>: البيئة التي يحاكيها، والفحوص الـ 57 التي ينفذها في متصفح حقيقي، وطريقة تشغيله محليًا أو على الموقع الحي، وكيفية قراءة النتائج. وتغطي أيضًا مجموعة قبول التمرير باللمس <code dir="ltr">e2e/scroll-test.mjs</code> ‏(103 فحوص). أما قبول تعدد المستخدمين ففي MEGO_Multi_User_Testing، وقائمة الفحص اليدوية على الهاتف في MEGO_Android_Device_Testing.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">منهج القبول</li>
+<li dir="rtl">بيئة الاختبار في run-e2e.mjs</li>
+<li dir="rtl">فحوص القبول الـ 57</li>
+<li dir="rtl">قبول التمرير باللمس (scroll-test.mjs)</li>
+<li dir="rtl">تشغيل المجموعات وقراءة النتائج</li>
+<li dir="rtl">معايير القبول للإصدار</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. منهج القبول</h2>
+<p dir="rtl">بدأت المجموعة من سيناريوهات القبول الخمسة عشر في وصف المشروع الأصلي (TEST 1 إلى TEST 15)، ثم توسعت مع الإصدارات: أضافت الميزات الجديدة فحوصًا تقود واجهة المستخدم الحقيقية كما يفعل الشخص (النقر، الكتابة، الاختيار من القوائم) وتتحقق مما يراه. تعتمد الفحوص على سمات <code dir="ltr">data-testid</code> الثابتة لا على المواضع المرئية. وتُحفظ لقطات الشاشات الرئيسية في <code dir="ltr">e2e/screens/</code>.</p>
+
+<h2 dir="rtl">2. بيئة الاختبار في run-e2e.mjs</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الجانب</th><th>الإعداد (من السكربت)</th></tr>
+<tr><td>المتصفح</td><td>Playwright Chromium المثبَّت مسبقًا، مع ملف شخصي دائم في <code dir="ltr">e2e/.profile</code> (يُحذف في النهاية ما لم يُضبط <code dir="ltr">KEEP_PROFILE</code>)</td></tr>
+<tr><td>الجهاز</td><td>ملف الجهاز «Galaxy S9+» في Playwright، اللغة <code dir="ltr">ar-SA</code>، المنطقة الزمنية Asia/Riyadh</td></tr>
+<tr><td>التطبيق</td><td>بناء إنتاجي محلي عبر <code dir="ltr">vite preview</code> على المنفذ 4173، أو أي نشر عبر <code dir="ltr">E2E_BASE</code></td></tr>
+<tr><td>الوضع</td><td>وضع الضيف: يُجاب على <code dir="ltr">/firebase-config.json</code> بالرمز 404 (الحسابات تُختبر بشكل منفصل)</td></tr>
+<tr><td>الخادم الخلفي</td><td>الطلبات إلى <code dir="ltr">https://script.google.com/**</code> يجيب عنها الملف الحقيقي <code dir="ltr">apps-script/Code.gs</code> داخل <code dir="ltr">e2e/gas-mock.mjs</code>، مع Hub بصيغة Excel محاكى وبديل مبرمج لـ Gemini</td></tr>
+<tr><td>Open Food Facts</td><td>محاكى: باركود واحد معروف يعيد منتجًا تجريبيًا، والباقي 404</td></tr>
+<tr><td>النتيجة</td><td>يطبع كل فحص PASS أو FAIL مع التفاصيل؛ وينتهي التشغيل بـ <code dir="ltr">N/57 checks passed</code> وبرمز خروج 1 إذا فشل أي فحص</td></tr>
+</table>
+
+<h2 dir="rtl">3. فحوص القبول الـ 57</h2>
+<p dir="rtl">مرتبة حسب التنفيذ (الترتيب مهم: الفحوص اللاحقة تستخدم بيانات أنشأتها الفحوص السابقة).</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>المعرّف</th><th>ما يتم قبوله</th></tr>
+<tr><td>1</td><td>SETUP</td><td>الاتصال برمز الاتصال ذي السطر الواحد ← التحقق من Hub ← استيراد الأطعمة ← رفع السجلات</td></tr>
+<tr><td>2</td><td>AIKEY</td><td>مفتاح Gemini المجاني يتحقق منه الخادم، ويُحفظ في Script Properties فقط، ولا يُحتفظ به في التطبيق أبدًا</td></tr>
+<tr><td>3</td><td>IMPORT</td><td>استيراد CSV يعرض معاينة التدقيق (اكتشاف صف العناوين، المشكلات)</td></tr>
+<tr><td>4–7</td><td>TEST 1–4</td><td>100 غ صدر دجاج نيء = 120 سعرة (بروتين 23، كارب 0، دهون 2.6)؛ 100 غ مطبوخ = 165 سعرة؛ 3 بيضات (55 غ) = 236 سعرة؛ 3 شرائح توست بر (28 غ) = 207 سعرات</td></tr>
+<tr><td>8</td><td>DASH</td><td>تحديث لوحة المعلومات فورًا (728 سعرة مستهلكة)</td></tr>
+<tr><td>9</td><td>TEST 5</td><td>وصفة 500 غ دجاج نيء + 300 غ أرز نيء، 4 حصص ← 1680 إجمالًا / 420 للحصة، مع التسجيل</td></tr>
+<tr><td>10–11</td><td>TEST 6–7</td><td>تغيير السعرات 2000←2200 والبروتين 160←170 يحدّث اللوحة واليوميات وأشرطة الماكروز والتقرير الأسبوعي</td></tr>
+<tr><td>12</td><td>TEST 8</td><td>تسجيل طعام في تاريخ سابق</td></tr>
+<tr><td>13</td><td>TEST 9</td><td>تقرير أسبوعي من السجلات المحفوظة (أيام مكتملة/جزئية/فارغة، أهداف 2200/170)</td></tr>
+<tr><td>14</td><td>TEST 10</td><td>التقرير الشهري + التصدير CSV/XLSX</td></tr>
+<tr><td>15</td><td>TEST 11</td><td>تعديل الدجاج النيء 120←110 سعرة: الإدخالات السابقة تبقى 120، والجديدة 110، مع تسجيل السجل التاريخي</td></tr>
+<tr><td>16</td><td>TEST 13</td><td>التسجيل دون إنترنت، ثم إعادة الاتصال والتحقق من المزامنة</td></tr>
+<tr><td>17</td><td>TEST 12</td><td>إغلاق التطبيق وإعادة فتحه: كل البيانات باقية</td></tr>
+<tr><td>18</td><td>BODY</td><td>الوزن ومحيط الخصر (قياس لكل تاريخ) يغذيان التقدم والتقارير</td></tr>
+<tr><td>19</td><td>TEST 14</td><td>متطلبات تثبيت PWA ‏(manifest، عامل الخدمة Service Worker، الواجهة دون اتصال)</td></tr>
+<tr><td>20</td><td>TEST 15</td><td>التبديل بين العربية والإنجليزية: <code dir="ltr">dir</code> ‏rtl/ltr والتسميات</td></tr>
+<tr><td>21</td><td>REMAIN</td><td>اللوحة تعرض المتبقي من البروتين والكارب والدهون والماء</td></tr>
+<tr><td>22</td><td>UNDO</td><td>حذف إدخال ثم التراجع يعيده</td></tr>
+<tr><td>23</td><td>COPYGUARD</td><td>النسخ من الأمس إلى يوم غير فارغ يطلب التأكيد</td></tr>
+<tr><td>24</td><td>LIBRARY</td><td>مكتبة وصفات ≥ 50 وصفة محسوبة من قاعدة الأطعمة؛ التفاصيل، التقييم، الإضافة لليوميات</td></tr>
+<tr><td>25</td><td>SUGGEST</td><td>الاقتراحات تناسب السعرات المتبقية وتتضمن بروتينًا</td></tr>
+<tr><td>26</td><td>GOAL</td><td>قائمة الأهداف (9 خيارات، الافتراضي خسارة الدهون مع الحفاظ على العضل)؛ التوصية تحتاج تأكيدًا</td></tr>
+<tr><td>27</td><td>PLAN</td><td>اقتراح خطة أسبوع، تطبيقها، قائمة تسوق قابلة للتأشير</td></tr>
+<tr><td>28</td><td>HABITS</td><td>الماء والعادات ومؤقت الصيام</td></tr>
+<tr><td>29</td><td>BARCODE</td><td>إدخال باركود يدويًا ← Open Food Facts (محاكى) ← حفظ وتسجيل</td></tr>
+<tr><td>30</td><td>PHOTO</td><td>صورة التقدم تُحفظ محليًا</td></tr>
+<tr><td>31</td><td>BACKUP</td><td>قائمة النسخ الاحتياطية المحلية + «نسخ الآن»</td></tr>
+<tr><td>32</td><td>SYNC2</td><td>كل شيء متزامن مع Hub الأصلي المحوَّل عبر Code.gs الحقيقي؛ ملف Excel الأصلي دون مساس</td></tr>
+<tr><td>33</td><td>HUBINFO</td><td>الإعدادات تعرض MEGO Nutrition Hub بمعرّفه الثابت؛ وأبلغ الخادم عن المعرّف نفسه</td></tr>
+<tr><td>34</td><td>SCAN</td><td>ماسح الوجبات: صورة ← مراجعة (قيم قاعدة البيانات، الثقة، تأكيد غير المؤكد) ← تعديل الغرامات ← حفظ ← اللوحة</td></tr>
+<tr><td>35</td><td>DEEPLINK</td><td>رابط QR/الرابط العميق من إعداد الحاسوب يربط التطبيق ويزيل الرمز من شريط العنوان</td></tr>
+<tr><td>36</td><td>FOODDB</td><td>قاعدة USDA: بحث عربي «صدور فراخ» ← صدر دجاج ← تسجيل؛ وإنشاء طعام مفقود من ملصقه وتسجيله</td></tr>
+<tr><td>37</td><td>COACH</td><td>المدرب الغذائي: اليوم، «أكمل الماكروز»، الترتيب مع التفصيل والأحماض الأمينية، التثقيف مع المصادر، بالعربية والإنجليزية</td></tr>
+<tr><td>38</td><td>LIB100</td><td>مكتبة الوصفات تضم ≥ 100 وصفة كلها قابلة للحساب</td></tr>
+<tr><td>39</td><td>COOK</td><td>«ماذا أطبخ اليوم؟» يرتب الوصفات حسب المخزون ويسرد الناقص</td></tr>
+<tr><td>40</td><td>BACKBTN</td><td>زر الرجوع في أندرويد يغلق النافذة المفتوحة دون مغادرة الصفحة؛ والتمرير يظل يعمل</td></tr>
+<tr><td>41</td><td>STREAK</td><td>سلاسل العادات وسجل الماء لـ 14 يومًا</td></tr>
+<tr><td>42</td><td>REPLACE</td><td>استبدال وجبة في خطة الأسبوع المقترحة</td></tr>
+<tr><td>43</td><td>CARDIO</td><td>تسجيل الروتين المحفوظ، الإضافة والتعديل والحذف؛ مجاميع يومية وأسبوعية وشهرية</td></tr>
+<tr><td>44</td><td>ENERGY</td><td>الرئيسية: الهدف الأساسي ← الكارديو ← الإضافي المسموح ← الهدف المعدَّل؛ والروتين المخطط لا يضيف شيئًا</td></tr>
+<tr><td>45</td><td>GOALS</td><td>الأهداف: التقدم، التوصيات (غير مطبَّقة)، أهداف اللياقة، حفظ المتابعة الأسبوعية</td></tr>
+<tr><td>46</td><td>RECIPE-NUTRITION</td><td>كل بطاقة وصفة في المكتبة تعرض السعرات والماكروز للحصة</td></tr>
+<tr><td>47</td><td>REPORT-CARDIO</td><td>التقارير الأسبوعية والشهرية تتضمن دقائق الكارديو والجلسات والمتوسط وتقدم الهدف</td></tr>
+<tr><td>48</td><td>CARDIO-EN</td><td>بطاقات الكارديو والأهداف والرئيسية بالإنجليزية (ltr) وبالعربية (rtl)</td></tr>
+<tr><td>49</td><td>WORKOUT</td><td>برنامج تقسيم المالك، تسجيل جلسة (الأوزان، التكرارات، RIR، إنجاز)، مؤقت الراحة، الإنهاء، السجل، الحذف</td></tr>
+<tr><td>50</td><td>PROGRAM-GEN</td><td>مولّد البرنامج يحافظ على التقسيم؛ تكرار العقلة والمتوازي قابل للتعديل؛ تُعرض الأسباب؛ ويُحفظ كبرنامج جديد عند الطلب فقط</td></tr>
+<tr><td>51</td><td>EX-LIB</td><td>مكتبة التمارين: بحث عربي، تفاصيل، بدائل، تمرين مخصص</td></tr>
+<tr><td>52</td><td>COACH-TRAIN</td><td>مدرب التدريب يجيب مع مستوى الثقة وأساس البيانات؛ المراجعة الأسبوعية تفصل الملاحظات عن التوصيات؛ سجل الاستشفاء</td></tr>
+<tr><td>53</td><td>TRAIN-EN</td><td>التمارين بالإنجليزية (ltr)</td></tr>
+<tr><td>54</td><td>DATACHECK</td><td>الإعدادات ← فحص البيانات: أعداد السجلات للقراءة فقط، المقارنة مع نسخة ما قبل التحديث، اكتشاف الأطعمة المسجلة لكل سكوب</td></tr>
+<tr><td>55</td><td>EX-GUIDE</td><td>صفحات التمارين الـ 54 بالعربية والإنجليزية: العرض، البداية/النهاية، التقنية، الأخطاء، السلامة، العضلات، الوصفة التدريبية، السجل؛ لا صور معطوبة؛ التالي/السابق</td></tr>
+<tr><td>56</td><td>LAYOUT</td><td>لا تجاوز أفقي في أي شاشة بعرض الهاتف</td></tr>
+<tr><td>57</td><td>DARK</td><td>الوضع الداكن يُعرض بشكل صحيح</td></tr>
+</table>
+
+<h2 dir="rtl">4. قبول التمرير باللمس (scroll-test.mjs)</h2>
+<p dir="rtl">مجموعة منفصلة تثبت أن سحب الإصبع يمرّر كل شاشة على هواتف بمقاسات Samsung. تستخدم أحداث لمس خامًا عبر بروتوكول أدوات مطوري Chrome ‏(CDP) ‏(touchStart ← touchMove… ← touchEnd)، يحولها Chrome إلى تمرير حقيقي كالإصبع؛ وتثبت صفحة تحكم أولًا أن الطريقة تعمل.</p>
+<ul dir="rtl">
+<li dir="rtl">المقاسات: Galaxy S23 ‏(360×780)، Galaxy A54 ‏(412×915)، Galaxy S9+‎ ‏(320×658)، كل منها بالعربية (RTL) والإنجليزية (LTR)، مع وكيل مستخدم Chrome لأندرويد.</li>
+<li dir="rtl">الشاشات: الرئيسية، اليوميات، الوصفات (أربعة تبويبات)، الأطعمة، المخطط، التقدم، العادات، التقريران الأسبوعي والشهري، الإعدادات.</li>
+<li dir="rtl">وأيضًا: تدفقات النوافذ (فتح وإغلاق النوافذ المتداخلة، Escape/الرجوع) يجب ألا تترك الصفحة مقفلة التمرير أبدًا.</li>
+<li dir="rtl">النتيجة: 103/103، وكذلك على الرابط الحي.</li>
+</ul>
+
+<h2 dir="rtl">5. تشغيل المجموعات وقراءة النتائج</h2>
+<pre dir="ltr">
+npm run build
+npm run e2e                                         # local build, 57 checks
+E2E_BASE=https://mego2012.github.io/Mego/ npm run e2e   # same checks on the live site
+npm run e2e:scroll                                  # 103 touch checks (local)
+node e2e/scroll-test.mjs https://mego2012.github.io/Mego/
+</pre>
+<p dir="rtl">يتضمن سطر FAIL السطر الأول من الخطأ، وعند الحاجة سبب Playwright (العنصر غير مرئي، خارج منطقة العرض، يعترضه عنصر آخر). اللقطات في <code dir="ltr">e2e/screens/</code>.</p>
+
+<h2 dir="rtl">6. معايير القبول للإصدار</h2>
+<ul dir="rtl">
+<li dir="rtl"><code dir="ltr">npm run e2e</code>: ‏57/57 على البناء الإنتاجي المحلي.</li>
+<li dir="rtl"><code dir="ltr">npm run e2e:scroll</code>: ‏103/103.</li>
+<li dir="rtl">بعد النشر: المجموعتان على الرابط الحي، إضافة إلى <code dir="ltr">scripts/live-verify.mjs</code> (انظر MEGO_Release_Readiness_Checklist).</li>
+<li dir="rtl">أي إخفاق يوقف الإصدار حتى يُصلَح أو يُوثَّق صراحةً في MEGO_Known_Bugs_and_Limitations.</li>
+</ul>
+
+<h2 dir="rtl">7. حالة التحقق</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>مختبَر (جهاز محاكى، بناء محلي):</b> ‏57/57 فحصًا في المتصفح و103/103 فحوص لمس — آخر نتائج مسجلة (10 نوفمبر 2026).</li>
+<li dir="rtl"><b>مُتحقَّق منه مباشرة:</b> ‏44/44 فحصًا على الرابط الحي في 7 نوفمبر 2026 (قبل إضافة فحوص الإصدارين 1.2 و1.3)؛ ‏103/103 فحوص لمس على الرابط الحي؛ صفحات التمارين الـ 54 ‏54/54 على الموقع الحي (10 نوفمبر 2026).</li>
+<li dir="rtl"><b>غير مُتحقَّق منه:</b> لا يوجد تشغيل مسجَّل للفحوص الـ 57 كاملة على الرابط الحي؛ Gemini وOpen Food Facts محاكيان في هذه المجموعة؛ الكاميرا وعتاد مسح الباركود والتثبيت على الشاشة الرئيسية في هاتف فعلي (انظر MEGO_Android_Device_Testing). لم تُعَد المجموعة أثناء كتابة هذه الوثيقة.</li>
+</ul>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Platforms_and_System_Requirements_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Platforms and System Requirements</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-06</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Project owner, end users, support, developers, testers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Features_and_Capabilities, MEGO_Technical_Architecture, MEGO_Developer_Setup_and_Local_Installation, MEGO_Production_Deployment_Guide, MEGO_Android_Device_Testing, MEGO_Known_Bugs_and_Limitations</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document states on which platforms MEGO runs, what a user's device and browser need, which hosted services the product depends on (and their free-tier limits), and what an owner's or developer's computer needs to set up, build and test MEGO. It separates what has been tested from what is only expected to work.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Platform summary</li>
+<li>End-user device and browser requirements</li>
+<li>Browser features used and fallbacks</li>
+<li>Storage, offline use and network</li>
+<li>Hosted services and free-tier limits</li>
+<li>Owner and developer machine requirements</li>
+<li>Tested configurations</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Platform summary</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Aspect</th><th>Fact</th><th>Source</th></tr>
+<tr><td>Application type</td><td>Progressive Web App (PWA): a website that can be installed to the home screen and works offline</td><td><code>vite.config.ts</code> (vite-plugin-pwa)</td></tr>
+<tr><td>Public URL</td><td>https://mego2012.github.io/Mego/ (HTTPS, GitHub Pages)</td><td><code>.github/workflows/deploy.yml</code></td></tr>
+<tr><td>Store packages</td><td>None — no Google Play or App Store app</td><td>repository contents</td></tr>
+<tr><td>Primary target</td><td>Android phones in Chrome (Samsung Internet is described in docs/SETUP.md); also usable in a desktop browser with a side navigation</td><td><code>docs/SETUP.md</code>, <code>Layout.tsx</code></td></tr>
+<tr><td>Manifest</td><td>name "MEGO — Nutrition", short name "MEGO", display standalone, orientation portrait, icons 192 and 512 px (one maskable)</td><td><code>vite.config.ts</code></td></tr>
+<tr><td>Languages</td><td>Arabic (RTL) and English (LTR); light, dark and system themes</td><td><code>src/lib/i18n*.ts</code>, <code>types.ts</code></td></tr>
+<tr><td>Code stack</td><td>React 18.3, TypeScript 5.6 (target ES2020), Vite 5.4, Dexie 4 (IndexedDB), Firebase JS SDK 13.1, Recharts, SheetJS (xlsx), PapaParse</td><td><code>package.json</code>, <code>tsconfig.json</code></td></tr>
+</table>
+
+<h2>2. End-user device and browser requirements</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Requirement</th><th>Needed for</th><th>Notes</th></tr>
+<tr><td>A modern browser with ES modules, IndexedDB and Service Worker support</td><td>Running the app at all</td><td>Minimum browser versions have not been defined or measured — <b>Not verified</b>. Only Chromium has been tested.</td></tr>
+<tr><td>HTTPS (provided by GitHub Pages)</td><td>Installation as an app and the service worker</td><td>Always the case on the public URL</td></tr>
+<tr><td>Free storage space</td><td>Offline app shell, food database, food photos, user data</td><td>The USDA file is ≈ 1.97 MB (<code>usda.json</code>, precached); <code>usda-extra.json</code> ≈ 1.28 MB (cached on use); food photos ≈ 1.4 MB folder (cached on view). Exact total on a device: Not verified.</td></tr>
+<tr><td>Camera (optional)</td><td>AI meal scanner photos, barcode scanning, progress photos</td><td>Photos can also be chosen from the gallery; barcodes can be typed</td></tr>
+<tr><td>Internet connection (intermittent)</td><td>Sign-in, cloud sync, AI scanner, barcode lookup, first view of photos and fonts</td><td>Food logging works offline</td></tr>
+<tr><td>Age 18+ (registered accounts)</td><td>Registration</td><td>Checkbox on step 1 and age ≥ 18 on step 2</td></tr>
+<tr><td>Supported region for the AI scanner</td><td>Gemini free-tier terms</td><td>Accounts from EU/EEA/UK/Switzerland are refused by the AI proxy (<code>AI_RESTRICTED_COUNTRIES</code> in <code>src/lib/firebase.ts</code>)</td></tr>
+</table>
+<h3>2.1 Installing on Android</h3>
+<ol>
+<li>Open https://mego2012.github.io/Mego/ in Chrome.</li>
+<li>Menu ⋮ → <b>Add to Home screen / Install app</b> (Samsung Internet: menu → Add page to → Home screen).</li>
+<li>Start MEGO from the icon: it opens full screen without a browser bar.</li>
+<li>Settings → Data &amp; backups shows whether "Persistent storage granted" is on. The app requests persistent storage at start-up (<code>requestPersistentStorage</code> in <code>src/lib/db.ts</code>), but the browser decides.</li>
+</ol>
+
+<h2>3. Browser features used and fallbacks</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Browser feature</th><th>Used for</th><th>If unavailable</th></tr>
+<tr><td>IndexedDB</td><td>Local database (Dexie)</td><td>App cannot store data — required</td></tr>
+<tr><td>Service Worker / Cache Storage</td><td>Offline use and auto-update (<code>registerType: 'autoUpdate'</code>)</td><td>App works online only</td></tr>
+<tr><td>BarcodeDetector + getUserMedia</td><td>Camera barcode scanning (EAN-13, EAN-8, UPC-A, UPC-E)</td><td>Manual barcode entry (the code checks <code>'BarcodeDetector' in window</code>)</td></tr>
+<tr><td>File input with <code>capture="environment"</code></td><td>Taking meal and progress photos</td><td>Gallery upload</td></tr>
+<tr><td>Notification API</td><td>Reminders (water, meals, weigh-in)</td><td>In-app toast; reminders fire only while the app is open or in the background — there is no push service</td></tr>
+<tr><td>StorageManager.persist()</td><td>Asking the browser not to evict data</td><td>Data can be removed by the browser under storage pressure</td></tr>
+<tr><td>Clipboard API</td><td>Copying backend code in Settings (owner)</td><td>Manual copy</td></tr>
+<tr><td>Print dialog</td><td>Saving reports as PDF</td><td>CSV / Excel export</td></tr>
+</table>
+
+<h2>4. Storage, offline use and network</h2>
+<pre>
+ Device (browser)                                   Internet (when available)
+ +-------------------------------+                 +-----------------------------+
+ | IndexedDB                     |  sign-in, sync  | Firebase Auth + Firestore   |
+ |  guest: mego-nutrition        | &lt;-------------&gt; | (Spark, me-central2)        |
+ |  account: mego-u-&lt;uid&gt;       |                 +-----------------------------+
+ | Cache Storage (service worker)|  owner Hub sync | Apps Script -&gt; Google Sheet  |
+ |  app shell, usda.json,        | &lt;-------------&gt; | Apps Script -&gt; Gemini (AI)  |
+ |  photos, fonts (on first use) |  barcode lookup | Open Food Facts             |
+ | localStorage (small markers)  | --------------&gt; | Google Fonts                |
+ +-------------------------------+                 +-----------------------------+
+</pre>
+<ul>
+<li><b>Works offline:</b> diary, foods (including the USDA database), recipes, planner, reports, progress, habits, cardio and workouts, backups to file.</li>
+<li><b>Needs a connection:</b> registration and sign-in, cloud sync (changes are queued and uploaded later), owner Hub sync, AI scanner, Open Food Facts lookup, first display of a food photo or font.</li>
+<li><b>Data loss risk:</b> guest data lives only in the browser. On 10 Nov 2026 an Android phone lost its IndexedDB; signed-in accounts were recoverable by signing in again (fix in <code>src/lib/cloudSync.ts</code>), guest data would not be. Regular backup files are recommended for guests.</li>
+</ul>
+
+<h2>5. Hosted services and free-tier limits</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Service</th><th>Role</th><th>Free-tier limit (from docs/ARCHITECTURE.md and code)</th></tr>
+<tr><td>GitHub Pages</td><td>Hosting of the static app</td><td>Public repository; static files</td></tr>
+<tr><td>Firebase Authentication (Spark)</td><td>Accounts (Email/Password)</td><td>3,000 daily active users; 150 password-reset e-mails/day; 100 sign-ups/hour per IP</td></tr>
+<tr><td>Cloud Firestore (Spark), region me-central2</td><td>Private user data, shared foods</td><td>1 GiB stored; 50,000 reads, 20,000 writes, 20,000 deletes per day</td></tr>
+<tr><td>Google Apps Script + Google Sheets</td><td>Owner Hub backend and AI proxy</td><td>Google Apps Script quotas (owner's account)</td></tr>
+<tr><td>Gemini API free tier</td><td>AI meal scanner</td><td>Google's free quota; MEGO caps: 40 scans/day overall (<code>AI_DAILY_LIMIT</code>), 10 per user per day (<code>AI_USER_DAILY_LIMIT</code>)</td></tr>
+<tr><td>Open Food Facts</td><td>Packaged products by barcode or text</td><td>Free public API, community data</td></tr>
+</table>
+<p>When a free limit is reached the service stops (it cannot bill) and the app shows a message. MEGO does not promise unlimited usage. Note: docs/ARCHITECTURE.md mentions a global AI limit of 200/day; the current code default is 40.</p>
+
+<h2>6. Owner and developer machine requirements</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Requirement</th><th>Source</th></tr>
+<tr><td>Operating system</td><td>Windows, macOS or Linux (the setup script has code paths for <code>win32</code> and <code>darwin</code>)</td><td><code>scripts/laptop-setup.mjs</code></td></tr>
+<tr><td>Node.js</td><td>18 or newer for the setup script (docs/PHONE-SETUP.md); the CI pipeline uses Node 22</td><td><code>docs/PHONE-SETUP.md</code>, <code>deploy.yml</code></td></tr>
+<tr><td>Git</td><td>To clone branch <code>claude/nutrition-tracking-app-989rku</code></td><td><code>docs/PRODUCTION-STATUS.md</code></td></tr>
+<tr><td>Google account</td><td>Apps Script, Sheets, Gemini key, Firebase project</td><td>—</td></tr>
+<tr><td>npm packages</td><td><code>npm ci</code> installs everything including firebase-tools 15.34.1 (emulators) and vitest</td><td><code>package.json</code></td></tr>
+<tr><td>Browser automation</td><td>Playwright with Chromium for <code>npm run e2e</code> and the touch suite</td><td><code>e2e/*.mjs</code></td></tr>
+<tr><td>Java runtime for the Firebase emulators</td><td>Not documented in the repository — <b>Not verified</b></td><td>—</td></tr>
+</table>
+<p>Common commands: <code>npm run dev</code> (local server on port 5173), <code>npm test</code>, <code>npm run build</code>, <code>npm run e2e</code>, <code>npm run test:rules</code>, <code>node scripts/laptop-setup.mjs</code> (with <code>--cloud</code>, <code>--verify</code>, <code>--update-backend</code>).</p>
+
+<h2>7. Tested configurations</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Configuration</th><th>Suite</th></tr>
+<tr><td>Chromium, Playwright device "Galaxy S9+", locale ar-SA, time zone Asia/Riyadh</td><td>Browser e2e (<code>e2e/run-e2e.mjs</code>) — 57/57</td></tr>
+<tr><td>Chromium, Samsung-sized mobile viewports with touch, Arabic and English, Android Chrome user agent</td><td>Touch/scroll (<code>e2e/scroll-test.mjs</code>) — 103/103</td></tr>
+<tr><td>Chromium, Playwright device "Pixel 7"</td><td>Multi-user on emulators (<code>e2e/multiuser-test.mjs</code>), storage-loss scenario (<code>e2e/storage-loss.mjs</code>)</td></tr>
+<tr><td>Owner's Windows laptop</td><td>Real setup run on 7 Nov 2026 (Hub, Apps Script, Gemini, Firebase)</td></tr>
+<tr><td>Live site</td><td>Production verification <code>scripts/live-verify.mjs</code>; 54/54 exercise pages</td></tr>
+</table>
+<p>Not tested: a physical Android phone, iPhone/Safari, Firefox, Samsung Internet, tablets.</p>
+
+<h2>8. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Manifest, dependencies, service-worker caching, browser feature checks</td><td>Verified in the code</td></tr>
+<tr><td>Public hosting over HTTPS, production Firebase</td><td>Verified live</td></tr>
+<tr><td>Android mobile behaviour</td><td>Tested only on emulated devices (Chromium)</td></tr>
+<tr><td>Physical Android device, iOS/Safari, Firefox, Samsung Internet, tablets</td><td>Not verified</td></tr>
+<tr><td>Minimum browser versions, total storage use on a device, Java requirement</td><td>Not verified</td></tr>
+<tr><td>Free-tier limits</td><td>Taken from docs/ARCHITECTURE.md and the code; provider limits can change — Not verified against current provider pages</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

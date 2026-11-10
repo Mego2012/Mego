@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Integration_Testing_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — اختبارات التكامل</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-60</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>المطورون، المختبِرون</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Testing_Strategy، MEGO_Unit_Testing، MEGO_Multi_User_Testing، MEGO_Firebase_Integration، MEGO_Google_Sheets_Integration_and_Sync، MEGO_Data_Backup_and_Recovery، MEGO_Known_Bugs_and_Limitations</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تصف هذه الوثيقة كيفية اختبار مكوّنات MEGO معًا: التطبيق مع Firebase (المصادقة Auth وقاعدة Firestore وقواعد الأمان) على المحاكيات الرسمية (Emulators)، والتطبيق مع خادم Apps Script عبر بيئة Google محاكاة، وسكربت إعداد الحاسوب المحمول مقابل كود الخادم الحقيقي، والترقية من v1 إلى v2، وسيناريو استعادة البيانات بعد فقدان التخزين المحلي (<code dir="ltr">e2e/storage-loss.mjs</code>) الذي يعيد إنتاج حادثة 10 نوفمبر 2026. أما مجموعة تعدد المستخدمين في المتصفح فموصوفة في MEGO_Multi_User_Testing.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">نقاط التكامل وطريقة اختبار كل منها</li>
+<li dir="rtl">قواعد Firestore والمزامنة السحابية (tests-rules/)</li>
+<li dir="rtl">بيئة المحاكيات</li>
+<li dir="rtl">سيناريو الاستعادة بعد فقدان التخزين (e2e/storage-loss.mjs)</li>
+<li dir="rtl">تكامل خادم Apps Script ‏(gas-mock)</li>
+<li dir="rtl">سيناريوهات إعداد الحاسوب المحمول والترقية</li>
+<li dir="rtl">تشغيل اختبارات التكامل</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. نقاط التكامل وطريقة اختبار كل منها</h2>
+<pre dir="ltr">
+ ┌──────────── PWA (React + Dexie) ────────────┐
+ │ src/lib/cloudSync.ts   src/lib/sync.ts      │
+ └───────┬─────────────────────────┬───────────┘
+         │ Firebase SDK            │ HTTPS POST (token)
+         ▼                         ▼
+ ┌───────────────────┐     ┌─────────────────────────┐
+ │ Firebase Auth +   │     │ Apps Script Code.gs     │
+ │ Firestore + rules │     │ → Google Sheet Hub      │
+ │ (emulators 9099 / │     │ → Gemini (AI scanner)   │
+ │  8080 in tests)   │     │ (gas-mock.mjs in tests) │
+ └───────────────────┘     └─────────────────────────┘
+</pre>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>التكامل</th><th>الاختبار</th><th>البيئة</th><th>النتيجة (آخر تسجيل)</th></tr>
+<tr><td>التطبيق ↔ قواعد Firestore</td><td><code dir="ltr">tests-rules/rules.test.ts</code></td><td>محاكي Firestore مع الملف الحقيقي <code dir="ltr">firebase/firestore.rules</code></td><td>10 اختبارات (ضمن 14/14)</td></tr>
+<tr><td>كود المزامنة ↔ حزمة Firebase SDK ↔ القواعد</td><td><code dir="ltr">tests-rules/cloud.test.ts</code></td><td>محاكيا Auth وFirestore</td><td>4 اختبارات (ضمن 14/14)</td></tr>
+<tr><td>التطبيق في المتصفح ↔ Firebase بعد فقدان البيانات المحلية</td><td><code dir="ltr">e2e/storage-loss.mjs</code></td><td>Chromium ‏(Pixel 7) + المحاكيات</td><td>ينجح السيناريو بعد إصلاح 10 نوفمبر (استُعيدت البيانات)</td></tr>
+<tr><td>التطبيق ↔ Apps Script ↔ Hub / Gemini</td><td><code dir="ltr">tests/v2.test.ts</code>، <code dir="ltr">tests/scanner.test.ts</code>، <code dir="ltr">e2e/run-e2e.mjs</code> ‏(SETUP، SYNC2، HUBINFO، SCAN)</td><td>Code.gs الحقيقي داخل <code dir="ltr">e2e/gas-mock.mjs</code></td><td>ضمن الوحدة 199/199 وe2e ‏57/57</td></tr>
+<tr><td>سكربت إعداد الحاسوب ↔ Apps Script</td><td><code dir="ltr">e2e/laptop-setup-test.mjs</code></td><td>Code.gs الحقيقي عبر HTTP محلي</td><td>10/10</td></tr>
+<tr><td>أمر الحاسوب <code dir="ltr">--hub-complete-foods</code> ↔ Apps Script ↔ جدول Food_Database في Hub</td><td><code dir="ltr">e2e/hub-complete-test.mjs</code></td><td>Code.gs الحقيقي (الخادم v8) عبر HTTP محلي</td><td>9/9</td></tr>
+<tr><td>البناء القديم ← البناء الجديد</td><td><code dir="ltr">e2e/migration-test.mjs</code></td><td>بناءان محليان على الأصل نفسه</td><td>سيناريو واحد، تقرير JSON</td></tr>
+<tr><td>كل شيء مقابل الإنتاج</td><td><code dir="ltr">scripts/live-verify.mjs</code></td><td>الموقع الحي + مشروع Firebase</td><td>14/14 (7 نوفمبر 2026)</td></tr>
+</table>
+
+<h2 dir="rtl">2. قواعد Firestore والمزامنة السحابية (tests-rules/)</h2>
+<p dir="rtl">تُشغَّل بالأمر <code dir="ltr">npm run test:rules</code>، الذي ينفّذ <code dir="ltr">firebase emulators:exec --project demo-mego --only firestore,auth "vitest run --config vitest.rules.config.ts"</code>. يشغّل الإعداد الملفات واحدًا تلو الآخر (<code dir="ltr">fileParallelism: false</code>) بمهلة 30 ثانية، ويعيد استخدام <code dir="ltr">tests/setup.ts</code>.</p>
+<h3 dir="rtl">2.1 الملف rules.test.ts — ‏10 اختبارات (باستخدام ‎@firebase/rules-unit-testing)</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المجموعة</th><th>الاختبار</th></tr>
+<tr><td rowspan="3">عزل البيانات الخاصة (3 مستخدمين)</td><td>كل مستخدم يقرأ ويكتب سجلاته فقط</td></tr>
+<tr><td>تغيير معرّف المستخدم في المسار لا يفيد؛ الطلبات دون تسجيل دخول مرفوضة</td></tr>
+<tr><td>النسخة الأقدم لا تكتب أبدًا فوق الأحدث؛ ويُتحقَّق من شكل السجل</td></tr>
+<tr><td rowspan="4">المشرف</td><td>يرى بطاقات الحسابات والأعداد، ولا يرى السجلات الخاصة أبدًا</td></tr>
+<tr><td>يستطيع الإيقاف وإعادة التفعيل ولا يغيّر شيئًا آخر في الملف الشخصي</td></tr>
+<tr><td>المستخدم الموقوف يحجبه الخادم</td></tr>
+<tr><td>لا أحد يستطيع جعل نفسه مشرفًا؛ والمستخدم العادي لا يستطيع سرد الملفات الشخصية</td></tr>
+<tr><td>قاعدة الأطعمة المشتركة</td><td>الجميع يقرأ، والمشرفون فقط يكتبون؛ والاقتراحات تخضع للمراجعة</td></tr>
+<tr><td rowspan="2">التسجيل وتقارير الأخطاء</td><td>المستخدم الجديد ينشئ ملفه الشخصي النشط فقط مع تأكيد العمر وبريده الحقيقي</td></tr>
+<tr><td>تقارير الأخطاء: المستخدمون يكتبون تقارير صغيرة، والمشرفون فقط يقرؤونها</td></tr>
+</table>
+<h3 dir="rtl">2.2 الملف cloud.test.ts — ‏4 اختبارات (كود المزامنة الحقيقي + Firebase SDK)</h3>
+<ul dir="rtl">
+<li dir="rtl">التسجيل ينشئ ملفًا شخصيًا نشطًا؛ وتأكيد العمر إلزامي.</li>
+<li dir="rtl">كل مستخدم يسجّل في قاعدة بيانات جهازه؛ وتصل السجلات تحت معرّفه (uid) فقط.</li>
+<li dir="rtl">الجهاز الثاني للمستخدم نفسه يستقبل البيانات مباشرة؛ ولا تظهر بيانات مستخدمين آخرين أبدًا.</li>
+<li dir="rtl">النسخة الأقدم من جهاز كان غير متصل لا تكتب فوق النسخة الأحدث.</li>
+</ul>
+
+<h2 dir="rtl">3. بيئة المحاكيات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإعداد</th><th>القيمة (firebase.json / الاختبارات)</th></tr>
+<tr><td>معرّف المشروع</td><td><code dir="ltr">demo-mego</code> (مشروع تجريبي — لا يُتصل بأي مشروع Google حقيقي)</td></tr>
+<tr><td>محاكي المصادقة</td><td>المنفذ 9099</td></tr>
+<tr><td>محاكي Firestore</td><td>المنفذ 8080، والقواعد من <code dir="ltr">firebase/firestore.rules</code></td></tr>
+<tr><td>واجهة المحاكي</td><td>معطّلة؛ <code dir="ltr">singleProjectMode: true</code></td></tr>
+<tr><td>الأدوات</td><td><code dir="ltr">firebase-tools</code> 15.34.1 و<code dir="ltr">@firebase/rules-unit-testing</code> 6.0.0 (ضمن devDependencies)</td></tr>
+<tr><td>إعداد التطبيق في اختبارات المتصفح</td><td>تعترض الاختبارات الطلب <code dir="ltr">/firebase-config.json</code> وتقدّم إعدادًا تجريبيًا فيه كتلة <code dir="ltr">emulator</code>، فيتصل التطبيق المبني بالمحاكيات</td></tr>
+</table>
+
+<h2 dir="rtl">4. سيناريو الاستعادة بعد فقدان التخزين (e2e/storage-loss.mjs)</h2>
+<p dir="rtl"><b>الخلفية:</b> في 10 نوفمبر 2026 فقد هاتف أندرويد قاعدة IndexedDB (السجلات وجلسة Firebase) بينما بقي <code dir="ltr">localStorage</code>. بعد تسجيل الدخول مجددًا ظل التطبيق فارغًا لأن مستمع السحابة استأنف من علامات «آخر ما شوهد» المحفوظة في <code dir="ltr">localStorage</code>، ولأن سجل إعدادات افتراضيًا جديدًا تقدّم على الإعدادات المحفوظة. وكان ذلك قد حدث مرة من قبل. الإصلاحات في <code dir="ltr">src/lib/cloudSync.ts</code> و<code dir="ltr">account.ts</code> و<code dir="ltr">repo.ts</code> (انظر MEGO_Known_Bugs_and_Limitations).</p>
+<h3 dir="rtl">4.1 الخطوات التي ينفذها السكربت</h3>
+<ol dir="rtl">
+<li dir="rtl">يشغّل <code dir="ltr">vite preview</code> على المنفذ 4192 وسياق Chromium يحاكي Pixel 7 (بالإنجليزية).</li>
+<li dir="rtl">يسجّل حسابًا مؤقتًا (الدولة، تأكيد العمر 18+ والشروط، الوزن 80، هدف السعرات 2110).</li>
+<li dir="rtl">ينشئ طعامًا مخصصًا من مربع البحث، ويسجّل 200 غ منه للغداء، وينتظر وصول صندوق الإرسال إلى السحابة.</li>
+<li dir="rtl">يزرع بيانات في السحابة مباشرة (كمستخدم أعاد إدخال بياناته بعد فقدان سابق): إدخال يوميات قديم ووزنَين لنفس التاريخ بقيمتي <code dir="ltr">updatedAt</code> مختلفتين (80.4 الأقدم، 80.1 الأحدث).</li>
+<li dir="rtl"><b>يحاكي الحادثة:</b> يحذف كل قواعد IndexedDB في الصفحة مع الإبقاء على <code dir="ltr">localStorage</code>.</li>
+<li dir="rtl">يعيد التحميل: يجب أن تظهر شاشة الترحيب. ثم يسجّل الدخول بالحساب نفسه.</li>
+<li dir="rtl">يتحقق بعد 8 ثوانٍ من: وجود إدخالَي يوميات على الأقل، وبقاء هدف السعرات 2110، وظهور الطعام المخصص في اليوميات، وأن الوزن لذلك التاريخ هو النسخة الأحدث (80.1).</li>
+<li dir="rtl">يطبع <code dir="ltr">RESULT: data recovered</code> وينتهي بالرمز 0، وإلا ينتهي بالرمز 1 ويحفظ <code dir="ltr">e2e/storage-loss-fail.png</code>.</li>
+</ol>
+<h3 dir="rtl">4.2 السلوك المتوقع الذي يُتحقَّق منه</h3>
+<ul dir="rtl">
+<li dir="rtl">إعادة تسمية العلامات إلى <code dir="ltr">mego.cloud2.</code> — كل جهاز يعيد تنزيل حسابه مرة واحدة.</li>
+<li dir="rtl">غياب قاعدة البيانات المحلية يعيد ضبط العلامات؛ والجدول الفارغ يُنزَّل كاملًا؛ والإعدادات تُقرأ دائمًا من جديد.</li>
+<li dir="rtl">الإعدادات الافتراضية غير المعدَّلة (<code dir="ltr">updatedAt</code> = 0) لا تتقدم أبدًا على نسخة السحابة (ومختبَرة أيضًا كوحدة في <code dir="ltr">tests/cloud-recovery.test.ts</code>).</li>
+<li dir="rtl">سجل واحد تالف لا يوقف التنزيل؛ ووزنان لنفس التاريخ يُحتفظ بالأحدث منهما.</li>
+</ul>
+<p dir="rtl">التشغيل (بعد <code dir="ltr">npm run build</code>): <code dir="ltr">firebase emulators:exec --project demo-mego --only firestore,auth "node e2e/storage-loss.mjs"</code>. لا يوجد أمر npm مخصص له.</p>
+
+<h2 dir="rtl">5. تكامل خادم Apps Script ‏(gas-mock)</h2>
+<p dir="rtl">يحمّل <code dir="ltr">e2e/gas-mock.mjs</code> الملف الحقيقي <code dir="ltr">apps-script/Code.gs</code> ويوفّر نسخًا في الذاكرة من SpreadsheetApp وDriveApp وPropertiesService وLockService وUrlFetchApp وUtilities. تستخدمه مجموعة الوحدة (اختبارات Hub والماسح)، ومجموعة المتصفح (تُوجَّه طلبات عنوان الخادم إليه)، ومجموعة تعدد المستخدمين (وسيط الذكاء الاصطناعي). ويغطي التفويض بالرمز، وتثبيت معرّف Hub، والتحويل من Excel إلى جدول أصلي مع بقاء الأصل دون مساس، والدفع والسحب، والتعارضات، والحذف المرن إلى Deleted_Records، ومسار استدعاء Gemini باستجابات مبرمجة. لا يُتصل بخدمات Google الحقيقية.</p>
+
+<h2 dir="rtl">6. سيناريوهات إعداد الحاسوب المحمول والترقية</h2>
+<h3 dir="rtl">6.1 الملف e2e/laptop-setup-test.mjs — ‏10 فحوص</h3>
+<p dir="rtl">يشغّل السكربت الحقيقي <code dir="ltr">scripts/laptop-setup.mjs</code> مقابل Code.gs المقدَّم عبر HTTP محلي. الفحوص: رمز خروج السكربت 0؛ تحويل bootstrap والانتقال إلى Hub الأصلي؛ ملف Excel الأصلي دون مساس؛ نجاح كل الفحوص المباشرة؛ الإبلاغ عن 160 طعامًا؛ تحليل الصورة بالذكاء الاصطناعي مرّ عبر الخادم إلى نقطة Gemini فقط؛ تنظيف سجل MEGO-TEST؛ ملف الحالة خاص (صلاحية 600) وخارج المستودع؛ طباعة رابط الاتصال؛ تعذّر تشغيل bootstrap مرتين. يستخدم جدول الأطعمة الخاص إن وُجد، وإلا البيانات التجريبية المصطنعة.</p>
+<h3 dir="rtl">6.2 الملف e2e/hub-complete-test.mjs — ‏9 فحوص</h3>
+<p dir="rtl">يشغّل <code dir="ltr">scripts/laptop-setup.mjs --hub-complete-foods</code> مرتين مقابل Code.gs الحقيقي على Hub أصلي محاكى. الفحوص: نجاح التشغيلين برمز 0؛ إضافة الوجبات الجاهزة (كل الوصفات التي لمكوناتها قيم)؛ بقاء كل خلية موجودة دون تغيير عدا الأسماء الإنجليزية الفارغة؛ عدم استبدال أي اسم إنجليزي موجود؛ وجود أسماء إنجليزية لكل الأطعمة الأصلية؛ صفوف الوجبات بقيم موجبة ووزن حصة؛ التشغيل الثاني لا يضيف شيئًا؛ أخذ نسخة احتياطية يومية في Drive قبل الكتابة؛ أول وجبة هي أول وصفة في المكتبة.</p>
+<h3 dir="rtl">6.3 الملف e2e/migration-test.mjs — الترقية من v1 إلى v2</h3>
+<p dir="rtl">يقدّم بناء v1، ويستورد عينة الجدول ويسجّل 200 غ صدر دجاج نيء؛ ثم يقدّم بناء v2 على الأصل والملف الشخصي نفسيهما. يطبع تقرير JSON (السعرات المعروضة قبل وبعد، وجود الواجهة الجديدة، قاعدة النسخة الاحتياطية قبل الترحيل <code dir="ltr">mego-nutrition-premigration</code> بأعداد الإدخالات والأطعمة). يتطلب الحزمة العامة <code dir="ltr">http-server</code>؛ ويقرأ التقريرَ شخصٌ (لا يوجد نجاح/فشل آلي).</p>
+
+<h2 dir="rtl">7. تشغيل اختبارات التكامل</h2>
+<pre dir="ltr">
+npm run build
+npm run test:rules        # 14 — needs firebase-tools (emulators)
+firebase emulators:exec --project demo-mego --only firestore,auth "node e2e/storage-loss.mjs"
+npm run e2e:laptop        # 10
+node e2e/hub-complete-test.mjs   # 9
+node e2e/migration-test.mjs &lt;dir&gt;   # &lt;dir&gt;/dist-v1 and &lt;dir&gt;/dist-v2
+</pre>
+
+<h2 dir="rtl">8. حالة التحقق</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>مختبَر على المحاكيات:</b> القواعد + السحابة 14/14؛ سيناريو فقدان التخزين (ينجح بعد الإصلاح؛ وأكد المالك على هاتفه الحقيقي أن البيانات عادت)؛ إعداد الحاسوب 10/10؛ إكمال أطعمة Hub ‏9/9؛ تكامل الخادم عبر gas-mock.</li>
+<li dir="rtl"><b>مُتحقَّق منه مباشرة:</b> مسارات القواعد والمزامنة نفسها عبر <code dir="ltr">scripts/live-verify.mjs</code> ‏14/14 في 7 نوفمبر 2026؛ وإصلاح 10 نوفمبر منشور على الموقع الحي.</li>
+<li dir="rtl"><b>غير مُتحقَّق منه:</b> لم تُعَد هذه المجموعات أثناء كتابة الوثيقة (أُعيدت مجموعة الوحدة فقط)؛ الأعداد هي آخر نتائج مسجلة. سلوك النظام عند حدود حصص Firebase Spark تحت الضغط غير مختبَر.</li>
+</ul>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

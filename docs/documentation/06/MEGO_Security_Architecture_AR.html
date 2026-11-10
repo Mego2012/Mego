@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Security_Architecture_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — بنية الأمان</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-43</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع، المطوّرون، مراجعو الأمان</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Authentication_and_Authorization_Architecture، MEGO_Access_Control_and_Permissions، MEGO_User_Data_Protection، MEGO_Authentication_and_Session_Management، MEGO_Data_Backup_and_Recovery، MEGO_Security_Audit_and_Known_Risks، MEGO_Technical_Architecture، MEGO_Gemini_AI_Integration</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تقدّم هذه الوثيقة الصورة الأمنية الكاملة لـ MEGO: المكوّنات وحدود الثقة بينها، وضوابط الأمان في كل طبقة، وأماكن حفظ الأسرار، وكيف تنتقل البيانات بين المكوّنات، والتهديدات التي يعالجها كل ضابط. أما تفاصيل القواعد وتدابير حماية البيانات والمخاطر المفتوحة ففي الوثائق ذات الصلة أعلاه.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">المكوّنات وحدود الثقة</li>
+<li dir="rtl">طبقات الأمان والضوابط</li>
+<li dir="rtl">جرد الأسرار</li>
+<li dir="rtl">تدفقات البيانات</li>
+<li dir="rtl">التهديدات وسبل التخفيف</li>
+<li dir="rtl">التوافر وحدود الفئات المجانية</li>
+<li dir="rtl">أمان البناء والنشر</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. المكوّنات وحدود الثقة</h2>
+<pre dir="ltr">
+ ┌──────────────────────── untrusted ────────────────────────┐
+ │  Browser / installed PWA (React, IndexedDB, localStorage) │
+ └─────────────┬──────────────────┬──────────────────┬───────┘
+          HTTPS│             HTTPS│             HTTPS│
+ ┌─────────────▼─────┐ ┌──────────▼─────────┐ ┌──────▼──────────────────┐
+ │ GitHub Pages      │ │ Firebase (Google)  │ │ Apps Script web app      │
+ │ static files only │ │ Auth + Firestore   │ │ (owner's Google account) │
+ │ no secrets        │ │ rules on server    │ │ token / ID-token checks  │
+ └───────────────────┘ └────────────────────┘ └──────┬──────────┬────────┘
+                                                     │          │
+                                     Google Sheets Hub│          │Gemini API (free tier)
+                                     + Drive backups  │          │key in Script Properties
+</pre>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المكوّن</th><th>مستوى الثقة</th><th>ما يحمله</th></tr>
+<tr><td>تطبيق PWA في المتصفح</td><td>غير موثوق (يستطيع مستخدمه تعديله)</td><td>بيانات المستخدم نفسه (IndexedDB)، والجلسة، ورمز الـ Hub على أجهزة المالك فقط</td></tr>
+<tr><td>GitHub Pages ‏(https://mego2012.github.io/Mego/)</td><td>موثوق لتقديم الملفات المبنية</td><td>شيفرة عامة، وبيانات أطعمة مرجعية عامة، وإعدادات Firebase العامة — بلا أسرار</td></tr>
+<tr><td>مصادقة Firebase وCloud Firestore (المشروع <code dir="ltr">mego-473920</code>، المنطقة <code dir="ltr">me-central2</code>)</td><td>نقطة إنفاذ موثوقة</td><td>الحسابات، الملفات الشخصية، السجلات الخاصة، الأطعمة المشتركة</td></tr>
+<tr><td>تطبيق الويب على Apps Script</td><td>نقطة إنفاذ موثوقة (يعمل بهوية المالك)</td><td>APP_TOKEN، مفتاح Gemini، عدّادات استخدام الذكاء الاصطناعي، الوصول إلى الـ Hub وDrive</td></tr>
+<tr><td>ملف Google Sheets المركزي «MEGO Nutrition Hub»</td><td>ملف خاص بالمالك</td><td>قاعدة أطعمة المالك، ويومياته المتزامنة من أجهزته</td></tr>
+</table>
+
+<h2 dir="rtl">2. طبقات الأمان والضوابط</h2>
+<h3 dir="rtl">2.1 النقل</h3>
+<ul dir="rtl">
+<li dir="rtl">كل النقاط الطرفية تعمل عبر HTTPS: ‏GitHub Pages وFirebase وApps Script ‏(<code dir="ltr">script.google.com</code>) وGemini وOpen Food Facts وGoogle Fonts. ولا يقبل محلّل رمز الاتصال إلا عناوين <code dir="ltr">https://script.google.com/…</code> ‏(<code dir="ltr">parseConnectionCode</code> في <code dir="ltr">src/lib/sync.ts</code>).</li>
+</ul>
+<h3 dir="rtl">2.2 الهوية</h3>
+<ul dir="rtl">
+<li dir="rtl">مصادقة Firebase بالبريد وكلمة المرور؛ تعالج Firebase وحدها كلمات المرور ولا يخزّنها MEGO. قاعدة التطبيق: 8 أحرف على الأقل تتضمن حرفًا ورقمًا.</li>
+<li dir="rtl">إعادة تعيين كلمة المرور تعرض الرسالة نفسها سواء وُجد الحساب أم لا.</li>
+<li dir="rtl">حذف الحساب يتطلب إعادة إدخال كلمة المرور (إعادة المصادقة).</li>
+</ul>
+<h3 dir="rtl">2.3 التفويض (على الخادم)</h3>
+<ul dir="rtl">
+<li dir="rtl">قواعد Firestore: الوصول إلى <code dir="ltr">users/{uid}/**</code> لصاحبه فقط ما دام ملفه نشطًا؛ فحص شكل السجل وحجمه؛ لا تستبدل نسخة أقدم نسخة أحدث؛ يرى المشرفون بطاقات الحسابات والأعداد فقط؛ لا يمكن إنشاء مشرف من التطبيق. التفاصيل في MEGO_Access_Control_and_Permissions.</li>
+<li dir="rtl">Apps Script: كل إجراء على الـ Hub يتطلب APP_TOKEN؛ وإجراءات الذكاء الاصطناعي للحسابات العامة تتطلب رمز هوية Firebase تتحقق منه Google، وملفًا شخصيًا نشطًا يُقرأ بالرمز ذاته.</li>
+</ul>
+<h3 dir="rtl">2.4 التحقق من المدخلات</h3>
+<ul dir="rtl">
+<li dir="rtl">Firestore: الحقول المسموحة فقط <code dir="ltr">data</code> (نص أقل من 300,000 حرف) و<code dir="ltr">updatedAt</code> (عدد صحيح) و<code dir="ltr">deleted</code> الاختياري (منطقي)، وضمن 12 اسم جدول معروفًا فقط.</li>
+<li dir="rtl">الدالة <code dir="ltr">validChange_</code> في Apps Script: جداول معروفة، مفتاح ≤ 200 حرف، حمولة ≤ 45,000 حرف، ≤ 500 تغيير في الطلب، تواريخ اليوميات بصيغة <code dir="ltr">YYYY-MM-DD</code> مع سعرات رقمية، والوزن بين 20 و400 كغ.</li>
+<li dir="rtl">الذكاء الاصطناعي: يجب أن تكون الصورة base64 لملف JPEG/PNG/WebP ضمن حد للحجم؛ وتُقص ملاحظة المستخدم إلى 300 حرف؛ وقائمة الأطعمة محدودة.</li>
+<li dir="rtl">استعادة النسخ الاحتياطية: يُفحص تنسيق الملف ومفتاح كل سجل وقيمه الغذائية قبل كتابة أي شيء؛ وتدمج الاستعادة السجلات (الأحدث يبقى) ولا تحذف شيئًا.</li>
+</ul>
+<h3 dir="rtl">2.5 عزل البيانات على الجهاز</h3>
+<ul dir="rtl">
+<li dir="rtl">لكل حساب قاعدة IndexedDB خاصة (<code dir="ltr">mego-u-&lt;uid&gt;</code>)، وتبقى بيانات الضيف في <code dir="ltr">mego-nutrition</code>. وتبديل الحساب يعيد تحميل التطبيق قبل عرض أي شيء.</li>
+<li dir="rtl">لا يشفّر التطبيق البيانات المحلية؛ وحمايتها متروكة للجهاز والمتصفح.</li>
+</ul>
+<h3 dir="rtl">2.6 ضوابط الخصوصية في التصميم</h3>
+<ul dir="rtl">
+<li dir="rtl">تُعاد ترميز صور الوجبات عبر canvas قبل الرفع، مما يزيل بيانات EXIF الوصفية (الموقع والجهاز والوقت)؛ ولا يحفظ MEGO الصور.</li>
+<li dir="rtl">صور التقدّم تبقى على الجهاز فقط (لا تُزامَن ولا تدخل ملفات النسخ الاحتياطية).</li>
+<li dir="rtl">تقارير الأخطاء تحتوي نوع الخطأ ورسالته فقط (≤ 500 حرف) دون محتوى اليوميات.</li>
+<li dir="rtl">لا توجد شيفرة تحليلات أو إعلانات.</li>
+</ul>
+<h3 dir="rtl">2.7 حدود منع إساءة الاستخدام</h3>
+<ul dir="rtl">
+<li dir="rtl">ماسح الذكاء الاصطناعي: حد يومي لكل مستخدم (الخاصية <code dir="ltr">AI_USER_DAILY_LIMIT</code>، الافتراضي 10) وحد يومي عام (<code dir="ltr">AI_DAILY_LIMIT</code>، الافتراضي 40 في الشيفرة ويضبطه سكربت الإعداد على 200)؛ والتحليلات الفاشلة لا تُحتسب.</li>
+<li dir="rtl">تُرفض خدمة الماسح للحسابات في الدول التي لا تسمح فيها شروط الفئة المجانية من Gemini بذلك (قائمة الاتحاد الأوروبي/المنطقة الاقتصادية الأوروبية والمملكة المتحدة وسويسرا في <code dir="ltr">AI_RESTRICTED</code>).</li>
+<li dir="rtl">تطبّق مصادقة Firebase تقييدًا خاصًا بها للمحاولات (<code dir="ltr">too-many-requests</code>).</li>
+</ul>
+
+<h2 dir="rtl">3. جرد الأسرار</h2>
+<p dir="rtl">لا تُكتب القيم أبدًا في الوثائق أو الشيفرة أو المستودع. الأسماء فقط:</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>السر</th><th>مكان الحفظ</th><th>هل يصل إلى الجهاز؟</th><th>التدوير</th></tr>
+<tr><td><code dir="ltr">APP_TOKEN</code> (رمز الـ Hub، ‏256 بت)</td><td>خصائص السكربت في Apps Script؛ سجل إعدادات أجهزة المالك؛ مجلد الحاسوب <code dir="ltr">~/.mego-backend/</code></td><td>نعم، على أجهزة المالك فقط</td><td><code dir="ltr">rotateToken()</code> في Apps Script ثم إعادة ربط الأجهزة</td></tr>
+<tr><td><code dir="ltr">GEMINI_API_KEY</code></td><td>خصائص السكربت فقط</td><td>لا</td><td>إنشاء مفتاح جديد في Google AI Studio ← <code dir="ltr">setAiKey</code> أو <code dir="ltr">--ai-key-from-clipboard</code> ← حذف المفتاح القديم</td></tr>
+<tr><td>سر التهيئة (bootstrap)</td><td>الحاسوب فقط؛ وبصمته SHA-256 في نسخة المالك الخاصة من السكربت</td><td>لا</td><td>لمرة واحدة؛ يتعطل بعد الاستخدام</td></tr>
+<tr><td>كلمات مرور المستخدمين</td><td>مصادقة Firebase</td><td>يكتبها المستخدم فقط</td><td>«نسيت كلمة المرور؟»</td></tr>
+<tr><td>بيانات اعتماد Google الخاصة بالمالك</td><td>Google؛ يستخدمها سكربت الإعداد</td><td>لا</td><td>إعدادات حساب Google</td></tr>
+</table>
+<p dir="rtl">ليست أسرارًا: إعدادات الويب الخاصة بـ Firebase ‏(apiKey وprojectId وauthDomain) والخاصيتان <code dir="ltr">FIREBASE_API_KEY</code> و<code dir="ltr">FIREBASE_PROJECT_ID</code> في خصائص السكربت، فهي معرّفات عامة. وتُحذف إعدادات المزامنة من النسخ الاحتياطية والتصدير، فلا يُصدَّر رمز الـ Hub أبدًا.</p>
+
+<h2 dir="rtl">4. تدفقات البيانات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>التدفق</th><th>البيانات</th><th>الحماية</th></tr>
+<tr><td>الجهاز ↔ Firestore (مستخدم مسجّل)</td><td>سجلاته فقط بالشكل <code dir="ltr">{data, updatedAt, deleted?}</code></td><td>HTTPS، رمز الهوية، القواعد</td></tr>
+<tr><td>Firestore ← الجهاز</td><td>الأطعمة المشتركة المعتمدة (<code dir="ltr">/foods</code>)</td><td>يقرؤها المستخدمون النشطون فقط ويكتبها المشرفون فقط</td></tr>
+<tr><td>الجهاز ← Apps Script ← Gemini</td><td>صورة مصغّرة بلا بيانات وصفية، وأسماء الأطعمة، وملاحظة اختيارية (≤ 300 حرف)</td><td>HTTPS، رمز الهوية أو APP_TOKEN، الحدود؛ لا يُحفظ شيء</td></tr>
+<tr><td>جهاز المالك ↔ Apps Script ↔ الـ Hub</td><td>يوميات المالك وأطعمته</td><td>HTTPS، ‏APP_TOKEN، التحقق، فحص التعارض بالطابع الزمني، حذف مرن (soft delete)</td></tr>
+<tr><td>الجهاز ← Open Food Facts</td><td>رقم الباركود أو كلمات البحث المكتوبة</td><td>HTTPS؛ بلا بيانات حساب</td></tr>
+<tr><td>الجهاز ← <code dir="ltr">errorReports</code> في Firestore</td><td>نوع الخطأ ورسالته</td><td>إنشاء فقط للمستخدمين المسجّلين، والقراءة للمشرفين فقط</td></tr>
+</table>
+
+<h2 dir="rtl">5. التهديدات وسبل التخفيف</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>التهديد</th><th>التخفيف</th><th>الخطر المتبقي</th></tr>
+<tr><td>قراءة المستخدم A بيانات المستخدم B أو كتابتها</td><td>تقارن القواعد uid في المسار بـ <code dir="ltr">request.auth.uid</code></td><td>منخفض — مُتحقَّق منه مباشرة (403)</td></tr>
+<tr><td>تصعيد الصلاحيات إلى مشرف</td><td><code dir="ltr">admins/</code> ممنوع الكتابة على الجميع؛ وحالة الملف لا يغيّرها إلا المشرفون</td><td>منخفض — مُتحقَّق منه مباشرة</td></tr>
+<tr><td>تلصّص المشرف على البيانات الخاصة</td><td>لا توجد قاعدة تمنح المشرفين وصولًا إلى <code dir="ltr">users/**</code></td><td>منخفض؛ لكن المشرفين يرون الأسماء والبريد والدولة وتواريخ النشاط</td></tr>
+<tr><td>جهاز قديم غير متصل يستبدل بيانات أحدث</td><td>قاعدة: لا يتناقص <code dir="ltr">updatedAt</code>؛ وفي الـ Hub تُرفض النسخ الأقدم كتعارضات</td><td>منخفض</td></tr>
+<tr><td>وصول غير مصرّح إلى الـ Hub عبر عنوان تطبيق الويب العام</td><td>يلزم APP_TOKEN بطول 256 بت</td><td>متوسط إلى أن يُدوَّر الرمز الذي ظهر في محادثة</td></tr>
+<tr><td>سرقة مفتاح Gemini أو استنزاف الحصة</td><td>المفتاح على الخادم فقط؛ فحص رمز الهوية؛ حدود لكل مستخدم وعامة</td><td>متوسط إلى أن يُدوَّر المفتاح الذي ظهر في محادثة</td></tr>
+<tr><td>فقدان بيانات الجهاز</td><td>المزامنة السحابية، والنسخ المحلية ونسخ الملفات (MEGO_Data_Backup_and_Recovery)</td><td>قد تضيع بيانات الضيف التي لا نسخة لها</td></tr>
+<tr><td>وصول مادي إلى جهاز غير مقفل</td><td>لا شيء داخل التطبيق (لا قفل للتطبيق ولا تشفير محلي)</td><td>متوسط — انظر وثيقة التدقيق</td></tr>
+<tr><td>البرمجة عبر المواقع (XSS)</td><td>تهرّب React النصوص المعروضة؛ ولا توجد سياسة أمان محتوى (CSP)</td><td>منخفض/متوسط — انظر وثيقة التدقيق</td></tr>
+</table>
+
+<h2 dir="rtl">6. التوافر وحدود الفئات المجانية</h2>
+<p dir="rtl">تعمل كل الخدمات على فئات مجانية دون فوترة (Firebase Spark وApps Script والفئة المجانية من Gemini وGitHub Pages). عند بلوغ الحصة تتوقف الخدمة حتى تتجدد ولا تُنشئ أي رسوم. الحدود المدوّنة في <code dir="ltr">docs/ARCHITECTURE.md</code> (وقد تغيّرها Google): مصادقة Firebase ‏3,000 مستخدم نشط يوميًا، و150 رسالة إعادة تعيين يوميًا، و100 تسجيل في الساعة لكل عنوان IP؛ وFirestore ‏1 GiB تخزين، و50,000 قراءة و20,000 كتابة و20,000 حذف يوميًا. قد تعيد الفئة المجانية من Gemini أخطاء ضغط (503) أو حصة (429)؛ وتنتقل الخلفية بين النماذج المجانية ويعيد العميل المحاولة في الأخطاء المؤقتة. وتبقى البيانات على الجهاز قابلة للاستخدام دون اتصال.</p>
+
+<h2 dir="rtl">7. أمان البناء والنشر</h2>
+<ul dir="rtl">
+<li dir="rtl">مسار عمل GitHub Actions ‏<code dir="ltr">.github/workflows/deploy.yml</code>: ‏<code dir="ltr">npm ci</code> (تثبيت من ملف القفل)، ويجب أن ينجح <code dir="ltr">npm test</code> قبل <code dir="ltr">npm run build</code>؛ وصلاحيات المسار مقصورة على <code dir="ltr">contents: read</code> و<code dir="ltr">pages: write</code> و<code dir="ltr">id-token: write</code>.</li>
+<li dir="rtl">تُنشر قواعد Firestore من <code dir="ltr">firebase/firestore.rules</code> عبر <code dir="ltr">scripts/laptop-setup.mjs</code> ‏(<code dir="ltr">firebase deploy --only firestore:rules,firestore:indexes</code>).</li>
+<li dir="rtl">تحديثات Apps Script: يرفع الأمر <code dir="ltr">node scripts/laptop-setup.mjs --update-backend</code> الملف <code dir="ltr">Code.gs</code> إلى النشر نفسه.</li>
+<li dir="rtl">يتجاهل المستودع المجلد <code dir="ltr">tests/private/</code>؛ ولم يكشف فحص الأسرار في 7 نوفمبر 2026 أي مفتاح أو رمز حقيقي في المستودع. ولا يزال إيداعان قديمان يكشفان ملف CSV خاصًا (انظر MEGO_Security_Audit_and_Known_Risks).</li>
+</ul>
+
+<h2 dir="rtl">8. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>العزل، رفض المجهول، منع الترقية الذاتية، الحذف</td><td>مُتحقَّق منه مباشرة (<code dir="ltr">scripts/live-verify.mjs</code>، ‏14/14)</td></tr>
+<tr><td>مجموعة اختبارات القواعد</td><td>14 اختبارًا على المحاكيات</td></tr>
+<tr><td>فحوص رمز الـ Hub، وعدم استبدال النسخة الأحدث بأقدم، والحذف المرن</td><td>مُتحقَّق منه مباشرة (اختبارات إعداد الحاسوب الحية)</td></tr>
+<tr><td>Gemini عبر الواجهة الحية بحساب مؤقت</td><td>مُتحقَّق منه مباشرة في 10 نوفمبر 2026 (≈ 64 ثانية، 4 أصناف)</td></tr>
+<tr><td>إعدادات مشروع Firebase (سياسة كلمات المرور، الحماية من تعداد البريد، النطاقات المصرّح بها)</td><td>غير مُتحقَّق منه</td></tr>
+<tr><td>اختبار اختراق من طرف ثالث</td><td>لم يُجرَ</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

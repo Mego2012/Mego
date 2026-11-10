@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MEGO_Gemini_API_Setup_Guide_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Gemini API Setup Guide</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-54</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Project owner, maintainers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Gemini_AI_Integration, MEGO_Apps_Script_Setup_Guide, MEGO_Firebase_Setup_Guide, MEGO_Production_Verification_Checklist, MEGO_Troubleshooting_Manual, MEGO_Security_Audit_and_Known_Risks</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This guide explains how to switch on MEGO's AI meal scanner with a <b>free-tier</b> Google Gemini API key, where the key is stored, which limits and models apply, how to test it and how to replace or remove it. MEGO uses only the free tier: <b>never add a billing account</b> to the key's project. The key is stored only in the Apps Script backend's Script Properties — never on the phone, never in GitHub.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Rules: free tier only</li>
+<li>Creating the key in Google AI Studio</li>
+<li>Storing the key</li>
+<li>How the backend uses the key</li>
+<li>Limits and quotas</li>
+<li>Testing: AI diagnostic and a real photo</li>
+<li>Error codes you may see</li>
+<li>Replacing, rotating or removing the key</li>
+<li>Privacy notes</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Rules: free tier only</h2>
+<ul>
+<li>Create the key in Google AI Studio <b>without</b> clicking "Set up billing". The backend comment states that a key without billing can only use the free tier and cannot be charged.</li>
+<li>Only free Flash models are allowed (<code>AI_FREE_MODELS</code> in <code>apps-script/Code.gs</code>): <code>gemini-3.8-flash</code> → <code>gemini-3.6-flash</code> → <code>gemini-3.5-flash-lite</code>. No paid model and no other provider is ever called.</li>
+<li>When the free quota is used up, Google answers 429 and the app shows a message (the daily quota resets at midnight Pacific time); nothing is retried elsewhere.</li>
+</ul>
+
+<h2>2. Creating the key in Google AI Studio</h2>
+<ol>
+<li>Open <code>https://aistudio.google.com/apikey</code> and sign in with the owner's Google account.</li>
+<li>Accept Google's terms if asked. Click <b>Create API key</b>.</li>
+<li><b>Do not click "Set up billing".</b></li>
+<li>Copy the key. Both formats are accepted: classic keys starting with <code>AIza</code> and Google's newer keys starting with <code>AQ.</code>. Never paste it into a chat, e-mail or document.</li>
+</ol>
+
+<h2>3. Storing the key</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Way</th><th>Steps</th></tr>
+<tr><td>A. During laptop setup</td><td><code>node scripts/laptop-setup.mjs</code> opens the AI Studio page and asks you to paste the key (Enter = skip)</td></tr>
+<tr><td>B. From the clipboard (recommended)</td><td>Copy the key, then run <code>node scripts/laptop-setup.mjs --test --ai-key-from-clipboard</code>. The script reads the clipboard (Windows: PowerShell <code>Get-Clipboard</code>), so the key is never typed or shown</td></tr>
+<tr><td>C. In the app (owner device connected to the Hub)</td><td>Settings → <b>AI meal scanner</b> → paste the key → <b>Check &amp; save key in my backend</b></td></tr>
+</table>
+<p>In every case the backend action <code>setAiKey</code> checks the key with Google first (a model metadata request, not a generation) and only then saves it as <code>GEMINI_API_KEY</code> in Script Properties. The laptop script prints "Gemini key accepted by Google and stored only in Script Properties" with ✅. Signed-in Firebase users do not need a key of their own: their scans go through the owner's backend (<code>aiBackendUrl</code> in the public config) with their Firebase sign-in token.</p>
+
+<h2>4. How the backend uses the key</h2>
+<ul>
+<li>The app sends a downscaled JPEG (location data removed), the list of food names (short key, names, state, category) and an optional note. The model identifies foods and estimates grams; the app computes nutrition from the database. Nothing is auto-saved.</li>
+<li>Model chain (introduced in SCRIPT_VERSION 7, unchanged in 8): the configured model (optional Script Property <code>AI_MODEL</code>, default <code>gemini-3.8-flash</code>) first, then the other free models. A 503 "overloaded" moves at once to the next model; 500/504 are retried on the same model after 2 s and 4 s; quota, key and configuration errors are never retried.</li>
+<li>The phone client also retries temporary errors automatically after 3 s and 8 s, keeps the image for a manual retry and sends one request at a time.</li>
+</ul>
+
+<h2>5. Limits and quotas</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Limit</th><th>Value</th><th>Source</th></tr>
+<tr><td>Google free-tier quota (per minute / per day)</td><td>Set by Google; not stated in the repository</td><td>Not verified</td></tr>
+<tr><td>MEGO overall daily cap</td><td><code>AI_DAILY_LIMIT</code>, default 40; set to 200 by <code>laptop-setup --cloud</code></td><td>Code.gs, laptop-setup.mjs</td></tr>
+<tr><td>Per signed-in user</td><td><code>AI_USER_DAILY_LIMIT</code>, default 10 per day</td><td>Code.gs</td></tr>
+<tr><td>Counting</td><td>Only successful analyses count; a failed request is refunded</td><td>Code.gs</td></tr>
+<tr><td>Image size</td><td>≈ 2 MB JPEG (2,800,000 base64 characters)</td><td>Code.gs</td></tr>
+<tr><td>Food list</td><td>up to 800 rows per request</td><td>Code.gs</td></tr>
+<tr><td>Region</td><td>Public accounts whose country is in the EU/EEA, UK or Switzerland list receive <code>AI_REGION_RESTRICTED</code></td><td>Code.gs (AI_RESTRICTED)</td></tr>
+</table>
+
+<h2>6. Testing: AI diagnostic and a real photo</h2>
+<ol>
+<li><b>Diagnostic:</b> <code>git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend</code> ends with a text-only check of every free model and prints the HTTP code and Google's message per model.</li>
+<li><b>Real photo:</b> <code>node scripts/laptop-setup.mjs --test</code> analyses a public Wikimedia Commons meal photo (or yours with <code>--photo meal.jpg</code>) and prints the items, grams, confidence and database matches.</li>
+<li><b>In the app:</b> Home → camera → analyse → review → confirm.</li>
+</ol>
+<p>Live results: 7 Nov 2026 one photo analysis succeeded (6 items, ≈ 72 s); 10 Nov 2026 a real meal photo was analysed through the live app UI with a disposable account (≈ 64 s, 4 items). The free tier remains slow at peak times.</p>
+
+<h2>7. Error codes you may see</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Code</th><th>Meaning</th><th>Action</th></tr>
+<tr><td>AI_OVERLOADED (503)</td><td>Google model overloaded</td><td>Automatic: next free model; try again later</td></tr>
+<tr><td>AI_SERVER_ERROR (500) / AI_TIMEOUT (504)</td><td>Temporary Google error</td><td>Automatic retries; then retry manually</td></tr>
+<tr><td>AI_QUOTA_MINUTE / AI_QUOTA_DAY (429)</td><td>Free quota used up</td><td>Wait the shown time / until the daily reset</td></tr>
+<tr><td>AI_KEY_INVALID</td><td>Key rejected</td><td>Create a new key and store it again</td></tr>
+<tr><td>AI_REGION</td><td>Google service not available in the region</td><td>—</td></tr>
+<tr><td>AI_MODEL_UNAVAILABLE (404)</td><td>Model not available</td><td>Check with the AI diagnostic</td></tr>
+<tr><td>AI_BAD_IMAGE / AI_CONFIG (400)</td><td>Image or request problem</td><td>Use another photo; report if it persists</td></tr>
+<tr><td>AI_NOT_CONFIGURED</td><td>No key stored</td><td>Store a key (section 3)</td></tr>
+<tr><td>AI_DAILY_LIMIT / AI_USER_LIMIT</td><td>MEGO's own daily caps reached</td><td>Wait until the next day</td></tr>
+</table>
+
+<h2>8. Replacing, rotating or removing the key</h2>
+<ul>
+<li><b>Replace / rotate:</b> create a new key in AI Studio, store it with way B or C (the new key overwrites <code>GEMINI_API_KEY</code>), then delete the old key in AI Studio. Rotation is recommended now, because the owner's key was shown in a chat during setup.</li>
+<li><b>Remove:</b> app Settings → <b>Remove key</b> (deletes the Script Property).</li>
+</ul>
+
+<h2>9. Privacy notes</h2>
+<p>On the free tier Google may use requests to improve its products and human reviewers may see them (disconnected from the account). MEGO therefore sends only the meal photo (without location/EXIF) and food names — no diary, weight or profile data — and the backend stores nothing about the meal. Avoid people or documents in the photo.</p>
+
+<h2>10. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Key stored in Script Properties, real analyses</td><td>Verified live (7 and 10 Nov 2026)</td></tr>
+<tr><td>Error mapping, retries, model chain</td><td>Verified in code; unit tests with a scripted Gemini stand-in (tests/scanner.test.ts)</td></tr>
+<tr><td>"A key without billing cannot be charged"</td><td>Statement from Google's free-tier model as written in Code.gs — Not verified independently</td></tr>
+<tr><td>Google free-tier quota numbers</td><td>Not verified</td></tr>
+<tr><td>Key rotation after the chat exposure</td><td>Not done (recommended)</td></tr>
+</table>
+
+<h2>11. Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

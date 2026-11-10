@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_User_Management_Procedures_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — User Management Procedures</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-68</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>MEGO Project Owner, future administrators, support staff</td></tr>
+<tr><td>Related documents</td><td>MEGO_Admin_User_Manual, MEGO_Access_Control_and_Permissions, MEGO_Authentication_and_Session_Management, MEGO_Data_Retention_and_Deletion, MEGO_Support_and_Incident_Management, MEGO_Firebase_Setup_Guide</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document defines the step-by-step procedures for managing MEGO user accounts over their whole life cycle: creating the first administrator, reviewing accounts, suspending and reactivating them, handling password problems and processing account deletion. It explains which actions are self-service for the user, which are done by an administrator in the in-app dashboard (<code>#/admin</code>) and which can only be done by the Project Owner in the Firebase console. All behaviour described is taken from <code>src/pages/Account.tsx</code>, <code>src/lib/firebase.ts</code>, <code>src/lib/account.ts</code>, <code>firebase/firestore.rules</code>, <code>apps-script/Code.gs</code> and <code>scripts/laptop-setup.mjs</code>.</p>
+<p><b>Status note (10 November 2026):</b> <b>no administrator account exists yet.</b> The owner must first register a normal account in the live app and then run <code>node scripts/laptop-setup.mjs --cloud &lt;e-mail&gt;</code> (section 2). Until then, the administrator procedures in sections 4–6 cannot be carried out in production.</p>
+<p>Guest users (no sign-in) are outside the scope of user management: their data exists only in the browser database <code>mego-nutrition</code> on their own device and is invisible to administrators and to the cloud.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Where account data lives</li>
+<li>Prerequisite: creating the first administrator</li>
+<li>Account life cycle</li>
+<li>Procedure: reviewing accounts</li>
+<li>Procedure: suspending an account</li>
+<li>Procedure: reactivating an account</li>
+<li>Procedure: password problems</li>
+<li>Procedure: account deletion</li>
+<li>Owner-only actions in the Firebase console</li>
+<li>Requests that cannot be fulfilled</li>
+<li>Record keeping</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Where account data lives</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Location</th><th>Who can read / change it</th></tr>
+<tr><td>Login (e-mail + password)</td><td>Firebase Authentication, project <code>mego-473920</code></td><td>The user (sign-in, reset, delete own login); the owner in the Firebase console</td></tr>
+<tr><td>Account card</td><td>Firestore <code>profiles/{uid}</code>: <code>displayName, email, status, country, ageConfirmed, createdAt, lastActiveAt</code></td><td>User reads own card and may change <code>displayName</code>, <code>country</code>, <code>lastActiveAt</code>; admins read all cards and may change <b>only</b> <code>status</code> (to <code>active</code> or <code>suspended</code>)</td></tr>
+<tr><td>Private records</td><td>Firestore <code>users/{uid}/{table}/{key}</code> (tables: entries, body, days, recipes, templates, plans, plannedDays, fasts, kv, settings, foodChanges, foods)</td><td>Only the owner of the uid, and only while the account is active. Admins have <b>no</b> access</td></tr>
+<tr><td>Admin role</td><td>Firestore <code>admins/{uid}</code> (field <code>since</code>)</td><td>Readable only by that user; written by no app client (<code>allow write: if false</code>) — only by the setup script or the console with owner credentials</td></tr>
+<tr><td>Copy on the device</td><td>IndexedDB <code>mego-u-&lt;uid&gt;</code> in the user's browser</td><td>The user's device only</td></tr>
+<tr><td>Food suggestions</td><td>Firestore <code>foodSubmissions</code> (with <code>ownerUid</code>)</td><td>Submitter (own) and admins</td></tr>
+<tr><td>Error reports</td><td>Firestore <code>errorReports</code> (<code>at, kind, message, app</code> — no user id)</td><td>Any signed-in user can create; only admins read/delete</td></tr>
+</table>
+
+<h2>2. Prerequisite: creating the first administrator</h2>
+<p>The admin role cannot be requested or granted inside the app. Procedure (owner only):</p>
+<ol>
+<li>Open the live app <code>https://mego2012.github.io/Mego/</code> and register a normal account (3-step registration) with the e-mail address that should become administrator.</li>
+<li>On the owner's laptop, in the repository folder, run <code>node scripts/laptop-setup.mjs --cloud &lt;that e-mail&gt;</code>.</li>
+<li>The script looks the e-mail up in Firebase Authentication. If no account is found it prints "has no account yet: register in the app, then run again" and writes nothing.</li>
+<li>If found, it writes <code>admins/{uid}</code> with the owner's Google credentials and reports "administrator role for &lt;e-mail&gt;" with ✅ or ❌.</li>
+<li>Sign out and in again (or reload). The <b>Administration</b> button appears in the account card in Settings.</li>
+</ol>
+<p>To <b>remove</b> an administrator there is no script flag and no in-app button: the owner deletes the document <code>admins/{uid}</code> in the Firebase console (Firestore → Data). <i>Not verified</i> in production.</p>
+
+<h2>3. Account life cycle</h2>
+<pre>
+ [Guest]──register (3 steps)──►[ACTIVE]──admin: Suspend──►[SUSPENDED]
+                                  ▲                           │
+                                  └────admin: Reactivate──────┘
+ [ACTIVE]──user: Delete account (password)──►[DELETED]
+ [SUSPENDED]──cannot delete from the app (see 8.3)
+</pre>
+<p>At registration the app creates the Firebase login and the profile with <code>status: "active"</code>; the rules only accept a new profile whose status is <code>active</code>, whose <code>ageConfirmed</code> is <code>true</code> and whose e-mail equals the e-mail of the signed-in login. Administrators never create accounts.</p>
+
+<h2>4. Procedure: reviewing accounts</h2>
+<ol>
+<li>Sign in with the admin account → Settings → account card → <b>Administration</b> (or open <code>#/admin</code>).</li>
+<li>Read the KPI tiles: registered users (all profiles), active in the last 7 days (<code>lastActiveAt</code> ≥ now − 7 days), suspended, food submissions pending. The bar shows <code>round(active7d ÷ total × 100) %</code>.</li>
+<li>Scroll the <b>Accounts</b> card: the newest 100 profiles (ordered by <code>createdAt</code> descending), each with name, e-mail, country, registration date, last-active date and a status chip.</li>
+</ol>
+<p>Limitations: no search, filter or paging. Accounts beyond the newest 100 are not listed in the dashboard; they can only be found in the Firebase console.</p>
+
+<h2>5. Procedure: suspending an account</h2>
+<h3>5.1 When to suspend</h3>
+<p>Suspension is the only enforcement tool available in the app. The project has no approved policy yet that lists suspension grounds; the draft Acceptable Use Policy (MEGO_Acceptable_Use_Policy) is the intended reference once approved. Until then, the owner decides case by case and records the decision (section 11).</p>
+<h3>5.2 Steps</h3>
+<ol>
+<li>In the Accounts card find the row and press <b>Suspend</b>. (The button is hidden on the administrator's own row.)</li>
+<li>The app writes <code>status: "suspended"</code> to <code>profiles/{uid}</code>; the list and tiles reload and "Saved" is shown.</li>
+<li>Record the action (date, uid, reason) in the owner's log.</li>
+</ol>
+<h3>5.3 Effect</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Area</th><th>Effect of suspension</th></tr>
+<tr><td>Private cloud data</td><td>Kept unchanged. Every read and write under <code>users/{uid}</code> is refused by the server (<code>isActive()</code> is false)</td></tr>
+<tr><td>App screen</td><td>At the next start the app shows "Account suspended — This account has been suspended by the administrator. Your data is kept and nothing has been deleted." with only a Sign-out button; cloud sync is not started</td></tr>
+<tr><td>Shared foods, food suggestions</td><td>Refused (rules require an active account)</td></tr>
+<tr><td>AI meal scanner</td><td>The Apps Script proxy reads the profile with the user's own token and answers <code>unauthorized</code> when the status is not <code>active</code></td></tr>
+<tr><td>Firebase login</td><td><b>Not</b> disabled — the user can still sign in, but sees only the suspended screen</td></tr>
+<tr><td>Profile card</td><td>The user cannot change name/country while suspended (owner update requires status <code>active</code>)</td></tr>
+</table>
+
+<h2>6. Procedure: reactivating an account</h2>
+<ol>
+<li>In the Accounts card find the row with the "Suspended" chip and press <b>Reactivate</b>.</li>
+<li><code>status</code> returns to <code>active</code>. The user regains access the next time the app starts (reload or sign in again); private data was never touched.</li>
+<li>Record the action in the owner's log.</li>
+</ol>
+
+<h2>7. Procedure: password problems</h2>
+<p>Password reset is <b>self-service only</b>. On the sign-in screen the user chooses the reset option and enters the e-mail; the app calls Firebase <code>sendPasswordResetEmail</code>. Firebase sends the reset message. Administrators cannot see, set or reset passwords.</p>
+<ul>
+<li>If the user receives no message: ask them to check spam and the spelling of the address, and try again later. The Firebase Spark plan limits password-reset e-mails (150 per day according to <code>docs/ARCHITECTURE.md</code>).</li>
+<li>Live status: the reset request was accepted by Firebase (HTTP 200) in the live verification; <b>delivery to an inbox is not verified</b>.</li>
+</ul>
+
+<h2>8. Procedure: account deletion</h2>
+<h3>8.1 Self-service deletion (normal case)</h3>
+<ol>
+<li>The user exports their data first if they want to keep it (Settings → backup/export; see MEGO_Backup_and_Export_Guide).</li>
+<li>Settings → account card → <b>Delete account</b>. The warning reads: "This permanently deletes your account, your cloud data and this device's copy of it."</li>
+<li>The user enters the password and confirms <b>Delete permanently</b>.</li>
+</ol>
+<p>What the app then does, in this order (<code>deleteMyAccount</code>):</p>
+<ol>
+<li>Re-authenticates with the password (Google requires a recent sign-in) — nothing is removed if the password is wrong.</li>
+<li>Deletes every document in every synced table under <code>users/{uid}</code>.</li>
+<li>Deletes <code>profiles/{uid}</code>.</li>
+<li>Deletes the Firebase login.</li>
+<li>Deletes the local database <code>mego-u-&lt;uid&gt;</code> on this device and returns to the start screen.</li>
+</ol>
+<h3>8.2 What is NOT deleted</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Why it remains</th><th>Action if removal is requested</th></tr>
+<tr><td>Guest data on the device (<code>mego-nutrition</code>)</td><td>Deliberately untouched</td><td>User clears it on the device (browser site data)</td></tr>
+<tr><td>Copies on other devices (<code>mego-u-&lt;uid&gt;</code>)</td><td>Deletion only clears the device where it was done</td><td>User clears browser data on the other devices</td></tr>
+<tr><td>Food suggestions in <code>foodSubmissions</code> (carry <code>ownerUid</code>)</td><td>Not part of <code>deleteMyAccount</code></td><td>Owner/admin deletes them (rules allow admin delete; no dashboard button — Firebase console)</td></tr>
+<tr><td>Approved suggestions published in <code>foods/U-…</code></td><td>They became shared reference data (no owner field)</td><td>Owner decides; console deletion. Devices that already received the food keep their local copy</td></tr>
+<tr><td>Error reports</td><td>Contain no user id, so they cannot be linked to the account</td><td>None needed</td></tr>
+<tr><td>Exported files the user saved</td><td>Outside MEGO</td><td>User's responsibility</td></tr>
+</table>
+<h3>8.3 Suspended users</h3>
+<p>A suspended user cannot complete deletion in the app: the suspended screen offers only Sign-out, and the server refuses reads of <code>users/{uid}</code>, which the deletion needs. Procedure: reactivate the account (section 6), let the user delete it, or — if the user cannot or will not sign in — the owner deletes the data in the Firebase console (see 9). The console path is <i>Not verified</i>.</p>
+<h3>8.4 Deletion request from a user who cannot sign in</h3>
+<p>There is no in-app request form and no published contact address yet (the privacy policy contains the placeholder "[Operator name, country and contact email — to be completed by the owner before launch.]"). Until a contact exists, such requests cannot be received through the product. Before acting on any request received outside the app, the owner must confirm that it comes from the holder of the account e-mail. The verification method is not defined yet (<i>Not verified</i>).</p>
+
+<h2>9. Owner-only actions in the Firebase console</h2>
+<p>These actions are outside the app and are <b>not covered by tests</b>; use them with care and record each one.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Action</th><th>Where</th><th>Notes</th></tr>
+<tr><td>Grant admin</td><td>Prefer <code>laptop-setup.mjs --cloud &lt;e-mail&gt;</code></td><td>Tested only on emulators and in the setup script tests</td></tr>
+<tr><td>Remove admin</td><td>Firestore → <code>admins/{uid}</code> → delete</td><td>Not verified</td></tr>
+<tr><td>Disable a login</td><td>Authentication → user → Disable</td><td>The AI proxy refuses disabled users (<code>verifyFirebaseUser_</code> checks <code>disabled</code>). Effect on the app otherwise Not verified</td></tr>
+<tr><td>Delete a user's cloud data</td><td>Firestore → <code>users/{uid}</code> sub-collections, <code>profiles/{uid}</code>; Authentication → delete user</td><td>Irreversible; export first if needed. Not verified</td></tr>
+</table>
+<p>The owner's console access is not limited by the security rules. It must only be used for the purposes in this document (see MEGO_Access_Control_and_Permissions).</p>
+
+<h2>10. Requests that cannot be fulfilled</h2>
+<ul>
+<li>"Show me a user's diary / weight / photos" — admins have no access (rules); progress photos are never uploaded.</li>
+<li>"Change a user's name, e-mail or country" — admins may change only <code>status</code>; the user changes name/country in the account card. Changing the login e-mail is not offered in the app.</li>
+<li>"Reset my password for me" — self-service only (section 7).</li>
+<li>"Recover my guest data" — guest data exists only on the device; if the browser storage was cleared it cannot be restored from the cloud (local backups on the same device may help).</li>
+</ul>
+
+<h2>11. Record keeping</h2>
+<p>The app keeps no audit log of admin actions (the profile stores only the current status). Recommended practice for the owner: keep a private log with date, uid (not the e-mail), action (suspend / reactivate / grant / remove admin / console deletion), reason and who decided. Do not store diary content or other personal records in this log.</p>
+
+<h2>12. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Registration, sign-in/out, account deletion (both test accounts), password-reset request accepted</td><td>Verified live (<code>scripts/live-verify.mjs</code> against production, 7 Nov 2026)</td></tr>
+<tr><td>Regular account cannot list profiles, self-promote or suspend others (403)</td><td>Verified live</td></tr>
+<tr><td>Admin suspend/reactivate, status-only change, suspended screen</td><td>Tested on Firebase emulators (rules tests, multi-user tests)</td></tr>
+<tr><td>Real administrator in production</td><td>Not done — no admin account exists yet</td></tr>
+<tr><td>Password-reset e-mail delivery; all Firebase-console procedures (section 9); handling of deletion requests outside the app</td><td>Not verified</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

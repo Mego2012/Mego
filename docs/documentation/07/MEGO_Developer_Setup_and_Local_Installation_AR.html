@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="utf-8"><title>MEGO_Developer_Setup_and_Local_Installation_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — إعداد بيئة التطوير والتثبيت المحلي</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-50</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>المطورون، فريق الصيانة، ومالك المشروع عند تشغيل الإعداد على اللابتوب</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Developer_Setup_and_Local_Installation_EN، MEGO_Production_Deployment_Guide، MEGO_Firebase_Setup_Guide، MEGO_Apps_Script_Setup_Guide، MEGO_Build_and_Release_Procedures، MEGO_Configuration_and_Environment، MEGO_Testing_Strategy</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">يشرح هذا الدليل كيف تنقل الشيفرة المصدرية لتطبيق MEGO إلى جهاز كمبيوتر، وتثبّت الاعتماديات (Dependencies)، وتشغّل التطبيق محليًا، وتبنيه، وتعاين نسخة الإنتاج، وتشغّل جميع مجموعات الاختبارات الآلية بما فيها تلك التي تعتمد على محاكيات Firebase ‏(Firebase Emulators). ويتضمن ملاحظات عملية لنظام Windows مستخلصة من تشغيل المالك الفعلي على اللابتوب في 7 نوفمبر 2026. أما إعداد الخدمات السحابية (Firebase وApps Script وGemini) فمشروح في الأدلة ذات الصلة. هذه النسخة العربية تقابل النسخة الإنجليزية مع تحديث أعداد الاختبارات وفق حالة 10 نوفمبر 2026.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">المتطلبات المسبقة</li>
+<li dir="rtl">الحصول على الشيفرة</li>
+<li dir="rtl">تثبيت الاعتماديات</li>
+<li dir="rtl">التشغيل والبناء والمعاينة</li>
+<li dir="rtl">تشغيل مجموعات الاختبارات</li>
+<li dir="rtl">محاكيات Firebase</li>
+<li dir="rtl">ملاحظات Windows</li>
+<li dir="rtl">الملفات المحلية والحالة الخاصة</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. المتطلبات المسبقة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الأداة</th><th>الإصدار / ملاحظة</th><th>مصدر المعلومة</th></tr>
+<tr><td>Git</td><td>أي إصدار حديث</td><td>مطلوب لأمر <code dir="ltr">git clone</code>؛ كما أن سكربت الإعداد يحفظ (commit) ويرفع (push) الملف <code dir="ltr">public/firebase-config.json</code></td></tr>
+<tr><td>Node.js + npm</td><td>بيئة التكامل المستمر (CI) تستخدم Node 22؛ والملف docs/PHONE-SETUP.md يذكر Node.js 18 أو أحدث؛ وقد عمل لابتوب المالك بالإصدار Node 26.13</td><td><code dir="ltr">.github/workflows/deploy.yml</code> ‏(<code dir="ltr">node-version: 22</code>)، docs/PROGRESS-LOG.md</td></tr>
+<tr><td>Chromium عبر Playwright</td><td><code dir="ltr">playwright@1.63.0</code> (غير مدرج في package.json؛ يُثبَّت عند الحاجة)</td><td><code dir="ltr">scripts/live-verify.mjs</code>، <code dir="ltr">scripts/laptop-setup.mjs</code></td></tr>
+<tr><td>بيئة Java</td><td>يحتاجها محاكي Firestore ضمن firebase-tools؛ الإصدار المطلوب غير موثّق في المستودع</td><td>غير مُتحقَّق منه</td></tr>
+</table>
+<p dir="rtl">أدوات البناء المثبّتة بإصدارات محددة (devDependencies في package.json): TypeScript 5.6.3، وVite 5.4.11، وvite-plugin-pwa 0.21.1، وVitest 2.1.8، وfirebase-tools 15.34.1، و@firebase/rules-unit-testing 6.0.0، وfake-indexeddb 6.0.0.</p>
+
+<h2 dir="rtl">2. الحصول على الشيفرة</h2>
+<p dir="rtl">فرع العمل هو <code dir="ltr">claude/nutrition-tracking-app-989rku</code> في المستودع <code dir="ltr">https://github.com/Mego2012/Mego</code>:</p>
+<pre dir="ltr">git clone -b claude/nutrition-tracking-app-989rku https://github.com/Mego2012/Mego.git
+cd Mego</pre>
+
+<h2 dir="rtl">3. تثبيت الاعتماديات</h2>
+<p dir="rtl">استخدم <code dir="ltr">npm ci</code> (يثبّت الإصدارات الدقيقة من <code dir="ltr">package-lock.json</code>، وهو الأمر نفسه الذي يشغّله CI):</p>
+<pre dir="ltr">npm ci</pre>
+<p dir="rtl">تحتاج مجموعات اختبارات المتصفح وأداة التحقق الحي إلى Playwright، وهي ليست اعتمادية للمشروع عن قصد. ثبّتها دون تعديل package.json:</p>
+<pre dir="ltr">npm install --no-save playwright@1.63.0
+npx playwright install chromium</pre>
+<p dir="rtl">الأمر <code dir="ltr">npm install</code> (المذكور في README.md) يعمل أيضًا لكنه قد يعدّل ملف القفل؛ لذا يُفضَّل <code dir="ltr">npm ci</code>.</p>
+
+<h2 dir="rtl">4. التشغيل والبناء والمعاينة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الأمر</th><th>ما يشغّله (package.json)</th><th>النتيجة</th></tr>
+<tr><td><code dir="ltr">npm run dev</code></td><td><code dir="ltr">vite</code></td><td>خادم التطوير على <code dir="ltr">http://localhost:5173</code> (README.md)</td></tr>
+<tr><td><code dir="ltr">npm run typecheck</code></td><td><code dir="ltr">tsc -b</code></td><td>فحص أنواع TypeScript فقط</td></tr>
+<tr><td><code dir="ltr">npm run build</code></td><td><code dir="ltr">tsc -b &amp;&amp; vite build</code></td><td>حزمة الإنتاج في <code dir="ltr">dist/</code> متضمنة عامل الخدمة <code dir="ltr">sw.js</code> والملف <code dir="ltr">manifest.webmanifest</code></td></tr>
+<tr><td><code dir="ltr">npm run preview</code></td><td><code dir="ltr">vite preview --port 4173</code></td><td>يقدّم محتوى <code dir="ltr">dist/</code> على <code dir="ltr">http://localhost:4173/</code></td></tr>
+</table>
+<p dir="rtl">محليًا لا يُضبط المتغير <code dir="ltr">BASE_PATH</code>، فيُبنى التطبيق للمسار <code dir="ltr">/</code>. أما CI فيضبط <code dir="ltr">BASE_PATH=/Mego/</code> (انظر MEGO_Production_Deployment_Guide). لإعادة إنتاج مسار الإنتاج محليًا:</p>
+<pre dir="ltr">BASE_PATH=/Mego/ npm run build</pre>
+<p dir="rtl"><b>الحسابات:</b> يقرأ التطبيق الملف <code dir="ltr">./firebase-config.json</code> أثناء التشغيل (<code dir="ltr">src/lib/firebase.ts</code>). إذا لم يوجد الملف يعمل التطبيق في وضع الضيف فقط. يحتوي المستودع على إعداد الإنتاج العام في <code dir="ltr">public/firebase-config.json</code>، لذلك فإن خادم التطوير المحلي يتصل بمشروع Firebase الإنتاجي عند التسجيل أو تسجيل الدخول — استخدم حسابات تجريبية مؤقتة أو المحاكيات للتجارب.</p>
+
+<h2 dir="rtl">5. تشغيل مجموعات الاختبارات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>المجموعة</th><th>الأمر</th><th>المتطلبات</th><th>آخر نتيجة</th></tr>
+<tr><td>اختبارات الوحدة (Vitest، المجلد tests/، 14 ملفًا)</td><td><code dir="ltr">npm test</code></td><td>لا شيء إضافي</td><td>199/199 (تشغيل 10 نوفمبر 2026 بعد إضافة اختبارات أطعمة المكتبة)</td></tr>
+<tr><td>قواعد Firestore + السحابة (tests-rules/)</td><td><code dir="ltr">npm run test:rules</code></td><td>المحاكيات (Java)</td><td>14/14</td></tr>
+<tr><td>اختبارات المتصفح الشاملة (e2e)</td><td><code dir="ltr">npm run build &amp;&amp; npm run e2e</code></td><td>Playwright؛ يشغّل <code dir="ltr">vite preview</code> على المنفذ 4173</td><td>57/57</td></tr>
+<tr><td>اللمس والتمرير</td><td><code dir="ltr">npm run build &amp;&amp; npm run e2e:scroll</code></td><td>Playwright؛ معاينة على المنفذ 4190</td><td>103/103</td></tr>
+<tr><td>تعدد المستخدمين</td><td><code dir="ltr">npm run build &amp;&amp; npm run e2e:multi</code></td><td>Playwright + المحاكيات</td><td>8/8</td></tr>
+<tr><td>سيناريو فقدان التخزين المحلي</td><td dir="ltr"><code>npx firebase emulators:exec --project demo-mego --only firestore,auth "node e2e/storage-loss.mjs"</code> (بعد البناء)</td><td>Playwright + المحاكيات؛ معاينة على المنفذ 4192</td><td>ناجح (حادثة 10 نوفمبر)</td></tr>
+<tr><td>إكمال أطعمة الـ Hub (<code dir="ltr">--hub-complete-foods</code>)</td><td><code dir="ltr">node e2e/hub-complete-test.mjs</code></td><td>يشغّل Code.gs الحقيقي على خادم خلفي محاكى</td><td>9/9</td></tr>
+<tr><td>سكربت إعداد اللابتوب</td><td><code dir="ltr">npm run e2e:laptop</code></td><td>يشغّل Code.gs الحقيقي على خادم خلفي محاكى</td><td>10/10</td></tr>
+<tr><td>التحقق الحي (الإنتاج)</td><td><code dir="ltr">node scripts/live-verify.mjs</code></td><td>Playwright؛ ينشئ حسابين تجريبيين على الإنتاج ثم يحذفهما</td><td>يعرّف السكربت حاليًا 17 فحصًا؛ آخر نتيجة إنتاج مسجلة 14/14 (7 نوفمبر)</td></tr>
+</table>
+<p dir="rtl">لتشغيل مجموعات المتصفح على الموقع الحي بدلًا من بناء محلي:</p>
+<pre dir="ltr">E2E_BASE=https://mego2012.github.io/Mego/ npm run e2e
+node e2e/scroll-test.mjs https://mego2012.github.io/Mego/</pre>
+<p dir="rtl">لاختبار أداة التحقق الحي نفسها على بناء محلي مع المحاكيات: <code dir="ltr">node scripts/live-verify.mjs --emulator</code>.</p>
+
+<h2 dir="rtl">6. محاكيات Firebase</h2>
+<p dir="rtl">الحزمة firebase-tools اعتمادية تطوير، فلا حاجة لتثبيتها عامًّا. يعرّف الملف <code dir="ltr">firebase.json</code> المحاكيات:</p>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>المحاكي</th><th>المنفذ</th></tr>
+<tr><td>المصادقة (Authentication)</td><td>9099</td></tr>
+<tr><td>Firestore</td><td>8080</td></tr>
+<tr><td>واجهة المحاكي (Emulator UI)</td><td>معطّلة</td></tr>
+</table>
+<p dir="rtl">تشغّل السكربتات المحاكيات وتوقفها تلقائيًا باستخدام المشروع التجريبي <code dir="ltr">demo-mego</code> (لا يتطلب حساب Google):</p>
+<pre dir="ltr">npx firebase emulators:exec --project demo-mego --only firestore,auth "vitest run --config vitest.rules.config.ts"</pre>
+<p dir="rtl">لإبقائها تعمل للعمل اليدوي: <code dir="ltr">npx firebase emulators:start --project demo-mego --only firestore,auth</code>.</p>
+
+<h2 dir="rtl">7. ملاحظات Windows</h2>
+<h3 dir="rtl">7.1 تثبيت Git وNode.js عبر winget</h3>
+<pre dir="ltr">winget install --id Git.Git -e
+winget install --id OpenJS.NodeJS.LTS -e</pre>
+<h3 dir="rtl">7.2 تحديث مسار البحث (PATH)</h3>
+<p dir="rtl">بعد التثبيت أغلق نافذة PowerShell وافتح نافذة جديدة حتى يُعثر على <code dir="ltr">git</code> و<code dir="ltr">node</code> و<code dir="ltr">npm</code>. تحقّق بالأمرين <code dir="ltr">git --version</code> و<code dir="ltr">node -v</code>.</p>
+<h3 dir="rtl">7.3 تجمّد PowerShell بسبب وضع QuickEdit</h3>
+<p dir="rtl">النقر داخل نافذة PowerShell أو الطرفية مع تفعيل وضع QuickEdit يبدأ تحديد نص ويوقف البرنامج الجاري مؤقتًا، فيبدو الإعداد متجمّدًا. اضغط <b>Enter</b> أو <b>Esc</b> للاستئناف، وتجنّب النقر داخل النافذة أثناء عمل السكربت (أو عطّل QuickEdit من خصائص النافذة).</p>
+<h3 dir="rtl">7.4 سياسة التنفيذ (Execution Policy)</h3>
+<p dir="rtl">إذا رفض PowerShell تشغيل <code dir="ltr">npm</code> أو <code dir="ltr">npx</code> برسالة «running scripts is disabled on this system»، اسمح بالسكربتات المحلية لمستخدمك فقط:</p>
+<pre dir="ltr">Set-ExecutionPolicy -Scope CurrentUser RemoteSigned</pre>
+<p dir="rtl">أو استدعِ <code dir="ltr">npm.cmd</code> / <code dir="ltr">npx.cmd</code>، أو شغّل الأوامر من موجّه الأوامر (Command Prompt).</p>
+<h3 dir="rtl">7.5 تشغيل npx.cmd (تمت معالجته في الشيفرة)</h3>
+<p dir="rtl">ترفض Node 18.20+ و20.12+ تشغيل <code dir="ltr">npx.cmd</code> أو <code dir="ltr">npm.cmd</code> دون صدفة (Shell) وتعيد الخطأ EINVAL. لذلك يشغّل <code dir="ltr">scripts/laptop-setup.mjs</code> أداة npm المرفقة مع Node مباشرةً عبر <code dir="ltr">node.exe</code> (الإيداع 65f86ad).</p>
+<h3 dir="rtl">7.6 هوية Git</h3>
+<p dir="rtl">تثبيت Git الجديد لا يحتوي اسم مستخدم ولا بريدًا. يحفظ سكربت الإعداد ملف إعداد Firebase بهوية محايدة (<code dir="ltr">MEGO setup</code> مع عنوان GitHub من نوع noreply)، ثم يتحقق من أن GitHub استلم التغيير فعلًا.</p>
+
+<h2 dir="rtl">8. الملفات المحلية والحالة الخاصة</h2>
+<ul dir="rtl">
+<li dir="rtl"><code dir="ltr">~/.mego-backend/</code> (أو المجلد المحدد في <code dir="ltr">MEGO_BACKEND_DIR</code>): الحالة الخاصة لسكربت الإعداد (معرّف السكربت، رابط تطبيق الويب، الرمز السري) بصلاحية ملف 600 وخارج المستودع. لا تحفظه في Git ولا تشاركه أبدًا.</li>
+<li dir="rtl">يتجاهلها Git ‏(.gitignore): <code dir="ltr">node_modules</code>، <code dir="ltr">dist</code>، <code dir="ltr">dev-dist</code>، <code dir="ltr">e2e/screens</code>، <code dir="ltr">*.log</code>، <code dir="ltr">tests/private/</code>.</li>
+<li dir="rtl">بعض اختبارات القيم في اختبارات الوحدة تستخدم ملف أطعمة حقيقيًا خاصًا في <code dir="ltr">tests/private/</code>؛ وبدونه تُتخطّى هذه الاختبارات (docs/TEST-REPORT.md).</li>
+</ul>
+
+<h2 dir="rtl">9. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>الأوامر والمنافذ في الأقسام 3–6</td><td>مُتحقَّق منها مقابل package.json وfirebase.json وسكربتات الاختبار</td></tr>
+<tr><td>أعداد الاختبارات</td><td>من آخر التشغيلات المُتحقَّق منها (حالة 10 نوفمبر 2026: وحدة 199 في 14 ملفًا، متصفح 57/57، لمس 103/103، إكمال أطعمة الـ Hub ‏9/9)</td></tr>
+<tr><td>نتيجة <code dir="ltr">live-verify.mjs</code> بعد إضافة فحوص الوصفات والكارديو والتمارين (17 فحصًا)</td><td>غير مُتحقَّق منه — لا توجد نتيجة إنتاج مسجلة في المستودع لهذا الإصدار من السكربت</td></tr>
+<tr><td>إصدار Java اللازم للمحاكيات</td><td>غير مُتحقَّق منه</td></tr>
+<tr><td>ملاحظات Windows ‏7.1–7.4</td><td>مستخلصة من تشغيل المالك الفعلي على Windows؛ غير مسجلة في المستودع ولم يُعَد اختبارها — غير مُتحقَّق منها</td></tr>
+<tr><td>ملاحظات Windows ‏7.5–7.6</td><td>مُتحقَّق منها في الشيفرة (scripts/laptop-setup.mjs) وفي docs/PROGRESS-LOG.md</td></tr>
+<tr><td>تشغيل laptop-setup على macOS أو Linux مكتبي</td><td>غير مُتحقَّق منه (بيئة CI على Linux تشغّل البناء واختبارات الوحدة فقط)</td></tr>
+</table>
+
+<h2 dir="rtl">10. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول للنسخة العربية (مقابل النسخة الإنجليزية مع تحديث أعداد الاختبارات وإضافة سيناريو فقدان التخزين)</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body>
+</html>

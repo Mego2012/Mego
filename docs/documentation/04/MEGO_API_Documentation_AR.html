@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_API_Documentation_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — توثيق واجهة البرمجة (تطبيق ويب Apps Script)</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-37</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>المطورون، فريق الصيانة، مراجعو الأمان</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Backend_Architecture، MEGO_Google_Sheets_Integration_and_Sync، MEGO_Gemini_AI_Integration، MEGO_Firebase_Integration، MEGO_Error_Handling_and_Logging، MEGO_Apps_Script_Setup_Guide، MEGO_Security_Architecture</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">هذه هي المرجعية لواجهة HTTP الخاصة بخادم MEGO: تطبيق الويب المبني على Google Apps Script في <code dir="ltr">apps-script/Code.gs</code> ‏(<code dir="ltr">SCRIPT_VERSION = 8</code>). وتسرد كل إجراء (action) في <code dir="ltr">doPost</code> مع حقول الطلب والرد كما هي منفّذة بالضبط. واجهة بيانات Firestore التي تستخدمها الحسابات المسجلة ليست واجهة HTTP خاصة بـ MEGO، وهي موثقة في MEGO_Firebase_Integration. <b>لا يظهر في هذه الوثيقة أي رابط نشر حقيقي أو رمز سري أو مفتاح أو رمز اتصال</b>؛ وتُستخدم بدلًا منها عناصر نائبة مثل <code dir="ltr">&lt;WEB_APP_URL&gt;</code> و<code dir="ltr">&lt;APP_TOKEN&gt;</code>.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">النقل وغلاف الرسائل</li>
+<li dir="rtl">المصادقة وترتيب التوجيه</li>
+<li dir="rtl">ملخص الإجراءات</li>
+<li dir="rtl">إجراءات المالك (رمز التطبيق)</li>
+<li dir="rtl">إجراءات الذكاء الاصطناعي</li>
+<li dir="rtl">إجراءات الحسابات العامة (رمز هوية Firebase)</li>
+<li dir="rtl">إجراء الإعداد (bootstrap)</li>
+<li dir="rtl">نقطة GET والدوال الخاصة بالمحرر</li>
+<li dir="rtl">مرجع الأخطاء</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. النقل وغلاف الرسائل</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>الطريقة:</b> <code dir="ltr">POST &lt;WEB_APP_URL&gt;</code> (النشر: التنفيذ بصلاحية المالك والوصول «لأي أحد»؛ انظر appsscript.json: <code dir="ltr">executeAs: USER_DEPLOYING</code> و<code dir="ltr">access: ANYONE_ANONYMOUS</code>).</li>
+<li dir="rtl"><b>الترويسات:</b> <code dir="ltr">Content-Type: text/plain;charset=utf-8</code> — طلب «بسيط» فلا يرسل المتصفح طلب CORS تمهيديًا. ويتبع العميل إعادة التوجيه (<code dir="ltr">redirect: 'follow'</code>).</li>
+<li dir="rtl"><b>الجسم:</b> كائن JSON فيه <code dir="ltr">action</code> وحقول الإجراء. تضيف طلبات المالك <code dir="ltr">token</code>، وتضيف الطلبات العامة <code dir="ltr">idToken</code>.</li>
+<li dir="rtl"><b>الرد:</b> JSON. النجاح: <code dir="ltr">{ "ok": true, … }</code>. الإخفاق: <code dir="ltr">{ "ok": false, "error": "&lt;code or message&gt;", … }</code>. وأي استثناء غير ملتقط يعود بالشكل <code dir="ltr">{ ok: false, error: &lt;exception message&gt; }</code>.</li>
+<li dir="rtl">غلاف العميل (<code dir="ltr">callScript</code> في src/lib/sync.ts): رمز HTTP غير ناجح ← الخطأ <code dir="ltr">"HTTP &lt;status&gt;"</code>؛ و<code dir="ltr">ok: false</code> ← خطأ بنص <code dir="ltr">error</code> مع إرفاق JSON كاملًا في <code dir="ltr">data</code>.</li>
+</ul>
+<pre dir="ltr">
+POST &lt;WEB_APP_URL&gt;
+Content-Type: text/plain;charset=utf-8
+
+{"action":"ping","token":"&lt;APP_TOKEN&gt;"}
+</pre>
+
+<h2 dir="rtl">2. المصادقة وترتيب التوجيه</h2>
+<p dir="rtl">تفحص <code dir="ltr">doPost</code> الطلب بهذا الترتيب بالضبط:</p>
+<ol dir="rtl">
+<li dir="rtl"><code dir="ltr">action == "bootstrap"</code> ← <code dir="ltr">bootstrap_</code> (سرّ لمرة واحدة، القسم 7).</li>
+<li dir="rtl">وجود <code dir="ltr">idToken</code> والإجراء أحد <code dir="ltr">analyzeMeal</code> أو <code dir="ltr">aiStats</code> أو <code dir="ltr">aiDiag</code> ← المسار العام (القسم 6).</li>
+<li dir="rtl">وإلا يجب أن يكون <code dir="ltr">token</code> نصًا مساويًا لخاصية السكربت <code dir="ltr">APP_TOKEN</code>؛ وإلا يعود <code dir="ltr">{ ok: false, error: "unauthorized" }</code>.</li>
+<li dir="rtl">خارج قفل السكربت: <code dir="ltr">analyzeMeal</code> و<code dir="ltr">aiDiag</code> و<code dir="ltr">setAiKey</code> و<code dir="ltr">setCloudConfig</code>.</li>
+<li dir="rtl">داخل قفل السكربت (<code dir="ltr">waitLock(25000)</code>): <code dir="ltr">ping</code> و<code dir="ltr">foods</code> و<code dir="ltr">push</code> و<code dir="ltr">pull</code> و<code dir="ltr">saveFoods</code> و<code dir="ltr">fillFoodNames</code> و<code dir="ltr">backup</code> و<code dir="ltr">meta</code>؛ وأي قيمة أخرى ← <code dir="ltr">{ ok: false, error: "unknown action" }</code>.</li>
+</ol>
+
+<h2 dir="rtl">3. ملخص الإجراءات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإجراء</th><th>المصادقة</th><th>القفل</th><th>الغرض</th><th>المستدعي في العميل</th></tr>
+<tr><td>ping</td><td>رمز التطبيق</td><td>نعم</td><td>هوية الـ Hub ووضعه وحالة الذكاء الاصطناعي</td><td dir="ltr">sync.ts testConnection / assertHub</td></tr>
+<tr><td>foods</td><td>رمز التطبيق</td><td>نعم</td><td>قراءة جدول الأطعمة</td><td dir="ltr">pullFoodsFromSheet, checkHubFoods</td></tr>
+<tr><td>push</td><td>رمز التطبيق</td><td>نعم</td><td>تطبيق تغييرات السجلات</td><td dir="ltr">pushNow</td></tr>
+<tr><td>pull</td><td>رمز التطبيق</td><td>نعم</td><td>قراءة كل السجلات</td><td dir="ltr">pullAll</td></tr>
+<tr><td>saveFoods</td><td>رمز التطبيق</td><td>نعم</td><td>الكتابة العكسية للأطعمة في Food_Database</td><td>pushNow (عند تفعيل الكتابة العكسية)</td></tr>
+<tr><td>fillFoodNames</td><td>رمز التطبيق</td><td>نعم</td><td>ملء الأسماء الإنجليزية الفارغة في Food_Database (منذ الإصدار 8)</td><td dir="ltr">scripts/laptop-setup.mjs (--hub-complete-foods)</td></tr>
+<tr><td>backup</td><td>رمز التطبيق</td><td>نعم</td><td>حفظ لقطة من التطبيق في Drive</td><td dir="ltr">backup.ts backupToDrive</td></tr>
+<tr><td>meta</td><td>رمز التطبيق</td><td>نعم</td><td>قراءة Sync_Metadata</td><td>— (لا مستدعي في src/)</td></tr>
+<tr><td>analyzeMeal</td><td>رمز التطبيق أو idToken</td><td>لا</td><td>تحليل صورة الوجبة بالذكاء الاصطناعي</td><td dir="ltr">mealScanner.ts requestAnalysis</td></tr>
+<tr><td>aiDiag</td><td>رمز التطبيق أو idToken</td><td>لا</td><td>فحص نصي لكل نموذج</td><td dir="ltr">scripts/laptop-setup.mjs (--update-backend)</td></tr>
+<tr><td>setAiKey</td><td>رمز التطبيق</td><td>لا</td><td>حفظ/إزالة مفتاح Gemini</td><td>sync.ts setAiKey (الإعدادات)</td></tr>
+<tr><td>setCloudConfig</td><td>رمز التطبيق</td><td>لا</td><td>حفظ معرّفات Firebase وحدود الذكاء الاصطناعي</td><td dir="ltr">scripts/laptop-setup.mjs (--cloud)</td></tr>
+<tr><td>aiStats</td><td>idToken (مشرف)</td><td>لا</td><td>أعداد استخدام الذكاء الاصطناعي لسبعة أيام</td><td>غير مُتحقَّق منه (لم يُعثر على مستدعٍ في src/)</td></tr>
+<tr><td>bootstrap</td><td>سرّ لمرة واحدة</td><td>قفل خاص</td><td>تشغيل installMego() آليًا</td><td dir="ltr">scripts/laptop-setup.mjs</td></tr>
+</table>
+
+<h2 dir="rtl">4. إجراءات المالك (رمز التطبيق)</h2>
+<h3 dir="rtl">4.1 ping</h3>
+<p dir="rtl"><b>الطلب:</b> <code dir="ltr">{ action: "ping", token }</code></p>
+<p dir="rtl"><b>الرد:</b> <code dir="ltr">ok</code>، و<code dir="ltr">spreadsheet</code> (اسم ملف الـ Hub)، و<code dir="ltr">spreadsheetId</code> (معرّف الـ Hub الحالي)، و<code dir="ltr">sourceId</code> (معرّف ملف Excel الأصلي)، و<code dir="ltr">verified</code> (نتيجة التحقق المخزنة أو null)، و<code dir="ltr">mode</code> ("native" | "xlsx")، و<code dir="ltr">writable</code> (الوضع أصلي)، و<code dir="ltr">scriptVersion</code>، و<code dir="ltr">aiScanner</code> (يوجد مفتاح Gemini مخزّن)، و<code dir="ltr">aiModel</code>، و<code dir="ltr">foodSheet</code> ("Food_Database" أو اسم تبويب الأطعمة الأصلي)، و<code dir="ltr">meta</code> (محتوى Sync_Metadata في الوضع الأصلي، وإلا {}).</p>
+<h3 dir="rtl">4.2 foods</h3>
+<p dir="rtl"><b>الطلب:</b> <code dir="ltr">{ action: "foods", token }</code></p>
+<p dir="rtl"><b>الرد (وضع أصلي وفي Food_Database صفوف):</b> <code dir="ltr">{ ok, sheet: "Food_Database", structured: true, rows }</code> — تشمل الصفوف صف العناوين، مقتطعة إلى الأعمدة المقروءة العشرين.<br>
+<b>وضع أصلي دون Food_Database:</b> <code dir="ltr">{ ok, sheet: &lt;original tab&gt;, structured: false, rows }</code>.<br>
+<b>وضع xlsx:</b> <code dir="ltr">{ ok, sheet, structured: false, readOnly: true, rows }</code> (تُقرأ عبر نسخة محوّلة مؤقتة تُنقل إلى سلة المهملات بعد ذلك).<br>
+<b>خطأ:</b> <code dir="ltr">"food sheet not found"</code>.</p>
+<h3 dir="rtl">4.3 push</h3>
+<p dir="rtl"><b>الطلب:</b> <code dir="ltr">{ action: "push", token, changes: Change[], clientSchema }</code></p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>حقل التغيير</th><th>القاعدة</th></tr>
+<tr><td><code dir="ltr">table</code></td><td>أحد: foods، entries، body، days، recipes، templates، plans، plannedDays، fasts، kv، settings، foodChanges</td></tr>
+<tr><td><code dir="ltr">key</code></td><td>نص غير فارغ، 200 حرف كحد أقصى</td></tr>
+<tr><td><code dir="ltr">op</code></td><td>"upsert" أو "delete"</td></tr>
+<tr><td><code dir="ltr">payload</code></td><td>في upsert فقط: كائن (ليس مصفوفة)، وطول JSON ≤ 45,000 حرف؛ في entries يلزم <code dir="ltr">date</code> بصيغة YYYY-MM-DD و<code dir="ltr">macros.kcal</code> رقمي؛ وفي body يجب أن يكون <code dir="ltr">weight</code>، إن وُجد، رقمًا بين 20 و400</td></tr>
+<tr><td><code dir="ltr">at</code></td><td>طابع زمني (مللي ثانية)؛ يُستخدم إذا خلت الحمولة من <code dir="ltr">updatedAt</code>/<code dir="ltr">at</code></td></tr>
+</table>
+<p dir="rtl"><b>الرد:</b> <code dir="ltr">{ ok: true, applied, conflicts: [{ table, key }], dataVersion }</code>.<br>
+<b>الأخطاء:</b> <code dir="ltr">"invalid changes"</code> (ليست مصفوفة)، و<code dir="ltr">"too many changes in one request"</code> (أكثر من 500)، و<code dir="ltr">"&lt;n&gt; invalid change(s) rejected"</code>، و<code dir="ltr">"HUB_IS_XLSX: …"</code> (الـ Hub لم يُحوَّل).</p>
+<h3 dir="rtl">4.4 pull</h3>
+<p dir="rtl"><b>الطلب:</b> <code dir="ltr">{ action: "pull", token, since? }</code> — يعيد <code dir="ltr">since</code> (بالمللي ثانية) الصفوف التي <code dir="ltr">updated_at</code> فيها أكبر منه فقط (والتطبيق لا يرسله).</p>
+<p dir="rtl"><b>الرد:</b> <code dir="ltr">{ ok: true, tables: { &lt;table&gt;: [record, …] }, meta }</code>، والسجلات محلَّلة من عمود json. وفي وضع xlsx: <code dir="ltr">{ ok: true, tables: {}, meta: {}, readOnly: true }</code>.</p>
+<h3 dir="rtl">4.5 saveFoods</h3>
+<p dir="rtl"><b>الطلب:</b> <code dir="ltr">{ action: "saveFoods", token, foods: [ … ] }</code> بحد أقصى 200. كل عنصر كما تنتجه <code dir="ltr">foodToSheetRow()</code>: <code dir="ltr">foodId, updatedAt, sheetKey, sheetRow, name, category, kcal, protein, carbs, fat, piece, state, prep, notes, archived</code> (ويُستخدم <code dir="ltr">record</code> الاختياري كحمولة إن وُجد). يجب أن يكون <code dir="ltr">name</code> نصًا غير فارغ، وقيم kcal/protein/carbs/fat أرقامًا من 0 إلى 1000.</p>
+<p dir="rtl"><b>الرد:</b> <code dir="ltr">{ ok: true, updated, conflicts }</code>. <b>الأخطاء:</b> <code dir="ltr">"invalid foods"</code>، و<code dir="ltr">"food without name"</code>، و<code dir="ltr">"invalid value for &lt;name&gt;"</code>. أثر جانبي: نسخة Drive احتياطية واحدة من الـ Hub يوميًا قبل أول كتابة عكسية.</p>
+<h3 dir="rtl">4.5أ fillFoodNames (منذ SCRIPT_VERSION 8)</h3>
+<p dir="rtl"><b>الطلب:</b> <code dir="ltr">{ action: "fillFoodNames", token, names }</code>، حيث <code dir="ltr">names</code> كائن يربط الاسم العربي بالاسم الإنجليزي (<code dir="ltr">{ "&lt;ar&gt;": "&lt;en&gt;" }</code>).</p>
+<p dir="rtl">لا تتغير إلا صفوف <code dir="ltr">Food_Database</code> التي فيها <code dir="ltr">name_ar</code> غير فارغ و<code dir="ltr">name_en</code> <b>فارغ</b>، ولاسمها العربي في الخريطة نص إنجليزي غير فارغ طوله 120 حرفًا كحد أقصى؛ ولا تُكتب إلا خلية <code dir="ltr">name_en</code>. تبقى كل الخلايا الأخرى وكل الأسماء غير الفارغة كما هي تمامًا. وإذا كانت ستُكتب خلية واحدة على الأقل تُؤخذ أولًا النسخة الاحتياطية اليومية للـ Hub في Drive (مشتركة مع saveFoods، مرة واحدة يوميًا).</p>
+<p dir="rtl"><b>الرد:</b> <code dir="ltr">{ ok: true, filled }</code> (عدد الخلايا المكتوبة). <b>الأخطاء:</b> <code dir="ltr">"invalid names"</code> (ليس كائنًا أو كان مصفوفة)، و<code dir="ltr">"Food_Database needs the native Google Sheet"</code> (وضع xlsx)، و<code dir="ltr">"Food_Database not found"</code>، و<code dir="ltr">"name columns not found"</code>.</p>
+<h3 dir="rtl">4.6 backup</h3>
+<p dir="rtl"><b>الطلب:</b> <code dir="ltr">{ action: "backup", token, snapshot }</code>، ويجب أن يكون <code dir="ltr">snapshot.format</code> مساويًا لـ <code dir="ltr">"mego-nutrition-backup"</code>.</p>
+<p dir="rtl"><b>الرد:</b> <code dir="ltr">{ ok: true, file, url }</code> — اسم الملف <code dir="ltr">mego-backup-YYYY-MM-DD_HHmmss.json</code> في مجلد Drive ‏«MEGO Nutrition Backups»، و<code dir="ltr">url</code> رابط ذلك الملف في Drive. <b>خطأ:</b> <code dir="ltr">"invalid backup"</code>.</p>
+<h3 dir="rtl">4.7 meta</h3>
+<p dir="rtl"><b>الطلب:</b> <code dir="ltr">{ action: "meta", token }</code>. <b>الرد:</b> <code dir="ltr">{ ok: true, meta }</code> — أزواج مفتاح/قيمة من Sync_Metadata (مثل schemaVersion وhubName وmigratedAt وdataVersion وlastWriteAt وappSchemaVersion وlastSyncAt وlastConflicts).</p>
+<h3 dir="rtl">4.8 setAiKey</h3>
+<p dir="rtl"><b>الطلب:</b> <code dir="ltr">{ action: "setAiKey", token, key }</code> أو <code dir="ltr">{ action: "setAiKey", token, remove: true }</code>.</p>
+<p dir="rtl">يجب أن يطابق المفتاح <code dir="ltr">^[A-Za-z0-9_.\-]{20,200}$</code> (صيغ مفاتيح Google القديمة والأحدث)، ثم يُفحص بطلب بيانات وصفية للنموذج لدى Google قبل حفظه باسم <code dir="ltr">GEMINI_API_KEY</code>.</p>
+<p dir="rtl"><b>الرد:</b> <code dir="ltr">{ ok: true, aiScanner: true, aiModel }</code>؛ وعند الإزالة <code dir="ltr">{ ok: true, aiScanner: false }</code>. <b>الأخطاء:</b> <code dir="ltr">AI_KEY_INVALID</code> أو <code dir="ltr">AI_NETWORK</code> أو خطأ Google مُحوَّل (القسم 9).</p>
+<h3 dir="rtl">4.9 setCloudConfig</h3>
+<p dir="rtl"><b>الطلب:</b> <code dir="ltr">{ action: "setCloudConfig", token, apiKey, projectId, userLimit?, globalLimit? }</code>. يجب أن يطابق apiKey النمط <code dir="ltr">^[A-Za-z0-9_\-]{20,100}$</code> وprojectId النمط <code dir="ltr">^[a-z0-9\-]{4,40}$</code>. يحفظ <code dir="ltr">FIREBASE_API_KEY</code> و<code dir="ltr">FIREBASE_PROJECT_ID</code>؛ ويُحصر <code dir="ltr">userLimit</code> بين 1 و50 ← <code dir="ltr">AI_USER_DAILY_LIMIT</code>؛ و<code dir="ltr">globalLimit</code> بين 1 و1500 ← <code dir="ltr">AI_DAILY_LIMIT</code>.</p>
+<p dir="rtl"><b>الرد:</b> <code dir="ltr">{ ok: true }</code>. <b>خطأ:</b> <code dir="ltr">"invalid config"</code>.</p>
+
+<h2 dir="rtl">5. إجراءات الذكاء الاصطناعي</h2>
+<h3 dir="rtl">5.1 analyzeMeal</h3>
+<p dir="rtl"><b>الطلب:</b> <code dir="ltr">{ action: "analyzeMeal", token | idToken, image, mediaType, foods, lang, note }</code></p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القاعدة</th></tr>
+<tr><td><code dir="ltr">image</code></td><td>base64 (الأحرف A–Z a–z 0–9 + / =)، بحد أقصى 2,800,000 حرف</td></tr>
+<tr><td><code dir="ltr">mediaType</code></td><td>image/png أو image/webp؛ وأي قيمة أخرى تُعامل كـ image/jpeg (والتطبيق يرسل JPEG)</td></tr>
+<tr><td><code dir="ltr">foods</code></td><td>مصفوفة، يُستخدم أول 800 عنصر؛ كل عنصر <code dir="ltr">{ k, ar, en, s, c }</code> = المفتاح، الاسم العربي، الاسم الإنجليزي، الحالة، الفئة (كل منها مقتطع إلى 120 حرفًا)</td></tr>
+<tr><td><code dir="ltr">lang</code></td><td>"en" ← الإنجليزية، وإلا العربية</td></tr>
+<tr><td><code dir="ltr">note</code></td><td>اختياري، سطر واحد، 300 حرف كحد أقصى</td></tr>
+</table>
+<p dir="rtl"><b>الرد:</b> <code dir="ltr">{ ok: true, model, result, tried }</code>. يتبع <code dir="ltr">result</code> مخطط JSON ‏<code dir="ltr">AI_SCHEMA</code>: <code dir="ltr">is_food</code>، <code dir="ltr">meal_name_ar</code>، <code dir="ltr">meal_name_en</code>، <code dir="ltr">notes</code>، و<code dir="ltr">items[]</code> بالحقول <code dir="ltr">name_ar, name_en, food_key, grams, grams_low, grams_high, state</code> (raw/cooked/other)، و<code dir="ltr">cooking_method</code>، و<code dir="ltr">kind</code> (food/oil_or_fat/sauce_or_dressing/drink)، و<code dir="ltr">confidence</code> (0–1)، و<code dir="ltr">reason</code>، و<code dir="ltr">est_per100 { kcal, protein, carbs, fat }</code>. وتسرد <code dir="ltr">tried</code> محاولات النماذج الفاشلة (مثل "model:503").</p>
+<p dir="rtl"><b>الأخطاء:</b> <code dir="ltr">AI_NOT_CONFIGURED</code>، <code dir="ltr">AI_BAD_IMAGE</code>، <code dir="ltr">AI_DAILY_LIMIT</code> (السقف العام <code dir="ltr">AI_DAILY_LIMIT</code>، الافتراضي 40)، <code dir="ltr">AI_REFUSED</code>، <code dir="ltr">AI_BAD_OUTPUT</code>، <code dir="ltr">AI_TRUNCATED</code>، وأخطاء Google المحوَّلة (القسم 9) مع <code dir="ltr">google: { http, status, message }</code> و<code dir="ltr">tried</code>. لا يزداد العداد اليومي العام إلا عند النجاح. سلسلة النماذج وإعادة المحاولة: MEGO_Gemini_AI_Integration.</p>
+<h3 dir="rtl">5.2 aiDiag</h3>
+<p dir="rtl"><b>الطلب:</b> <code dir="ltr">{ action: "aiDiag", token | idToken }</code>. يرسل «Reply with the single word OK.» إلى كل نموذج مجاني (دون صورة).</p>
+<p dir="rtl"><b>الرد:</b> <code dir="ltr">{ ok: true, scriptVersion, configuredModel, models: [{ model, http, error, google, ms }] }</code>. <b>خطأ:</b> <code dir="ltr">AI_NOT_CONFIGURED</code>.</p>
+
+<h2 dir="rtl">6. إجراءات الحسابات العامة (رمز هوية Firebase)</h2>
+<p dir="rtl">تستخدمها الحسابات المسجلة (الرابط من <code dir="ltr">aiBackendUrl</code> في firebase-config.json). الخطوات المشتركة: يُتحقق من رمز الهوية عبر Google Identity Toolkit ‏(<code dir="ltr">accounts:lookup</code>) باستخدام <code dir="ltr">FIREBASE_API_KEY</code> المخزّن؛ وتُقرأ مستندات Firestore <b>برمز المستخدم نفسه</b> فتنطبق قواعد الأمان.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإجراء</th><th>فحوص إضافية</th><th>الرد</th></tr>
+<tr><td>analyzeMeal</td><td>يجب وجود ملف شخصي بحالة "active" (وإلا <code dir="ltr">unauthorized</code>)؛ الدولة ضمن القائمة المقيّدة ← <code dir="ltr">AI_REGION_RESTRICTED</code>؛ عدّاد يومي لكل مستخدم <code dir="ltr">AI_U_&lt;date&gt;_&lt;uid&gt;</code> تحت قفل، بحد <code dir="ltr">AI_USER_DAILY_LIMIT</code> (الافتراضي 10) ← <code dir="ltr">{ ok: false, error: "AI_USER_LIMIT", limit }</code>؛ والتحليل الفاشل يُستردّ من العدّاد</td><td>كما في 5.1</td></tr>
+<tr><td>aiStats</td><td>يجب أن يكون <code dir="ltr">admins/{uid}</code> مقروءًا برمز المستخدم (وإلا <code dir="ltr">unauthorized</code>)</td><td><code dir="ltr">{ ok, model, configured, globalLimit, userLimit, days: [{ date, scans, users }] }</code> لآخر 7 أيام — أعداد فقط</td></tr>
+<tr><td>aiDiag</td><td>يجب أن يكون الملف الشخصي مقروءًا</td><td>كما في 5.2</td></tr>
+</table>
+<p dir="rtl">أخطاء خاصة بهذا المسار: <code dir="ltr">CLOUD_NOT_CONFIGURED</code> (لا يوجد FIREBASE_API_KEY مخزّن)، و<code dir="ltr">unauthorized</code> (رمز غير صالح أو معطّل، أو ملف شخصي مفقود أو غير نشط).</p>
+
+<h2 dir="rtl">7. إجراء الإعداد (bootstrap)</h2>
+<p dir="rtl"><b>الطلب:</b> <code dir="ltr">{ action: "bootstrap", secret }</code>. يعمل فقط إذا احتوت النسخة الخاصة من السكربت على <code dir="ltr">BOOTSTRAP_HASH</code> غير فارغ (وهو فارغ في المستودع العام) ولم تُضبط <code dir="ltr">BOOTSTRAP_DONE</code>. يجب أن يساوي SHA-256 للقيمة <code dir="ltr">secret</code> تلك البصمة. يشغّل <code dir="ltr">installMego()</code> مرة واحدة ثم يضبط <code dir="ltr">BOOTSTRAP_DONE</code>.</p>
+<p dir="rtl"><b>الرد:</b> <code dir="ltr">{ ok: true, token, nativeId, sourceId, verified, log }</code> — <code dir="ltr">token</code> هو رمز التطبيق السري ويجب التعامل معه كسرّ. <b>الأخطاء:</b> <code dir="ltr">unauthorized</code> أو رسالة استثناء installMego (مثل <code dir="ltr">VERIFY_FAILED: …</code>).</p>
+
+<h2 dir="rtl">8. نقطة GET والدوال الخاصة بالمحرر</h2>
+<p dir="rtl"><code dir="ltr">GET &lt;WEB_APP_URL&gt;</code> ← <code dir="ltr">{ ok: true, app: "mego-nutrition", version: 8 }</code> (دون مصادقة ودون بيانات).</p>
+<p dir="rtl">دوال تُشغَّل من محرر Apps Script أو بالمشغّلات الزمنية (غير متاحة عبر HTTP): <code dir="ltr">setup()</code>، <code dir="ltr">rotateToken()</code>، <code dir="ltr">installMego()</code>، <code dir="ltr">migrateHub()</code>، <code dir="ltr">convertHubToGoogleSheets()</code>، <code dir="ltr">authorize()</code>، <code dir="ltr">cleanupAiCounters()</code> (تحذف عدادات الذكاء الاصطناعي الأقدم من 8 أيام؛ مشغّل زمني اختياري).</p>
+
+<h2 dir="rtl">9. مرجع الأخطاء</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>error</th><th>المعنى</th></tr>
+<tr><td dir="ltr">unauthorized</td><td>رمز خاطئ أو مفقود، رمز هوية غير صالح، ملف شخصي غير نشط، رفض bootstrap</td></tr>
+<tr><td dir="ltr">unknown action</td><td>إجراء غير منفّذ (يعرض التطبيق AI_OLD_BACKEND في الماسح)</td></tr>
+<tr><td dir="ltr">HUB_IS_XLSX: …</td><td>محاولة كتابة والـ Hub ما زال ملف Excel</td></tr>
+<tr><td dir="ltr">AI_OVERLOADED / AI_SERVER_ERROR / AI_TIMEOUT / AI_NETWORK</td><td>Google ‏503 / أخطاء 5xx أخرى / 504 / فشل الشبكة — مؤقتة</td></tr>
+<tr><td dir="ltr">AI_QUOTA_MINUTE (+ retryAfter) / AI_QUOTA_DAY</td><td>Google ‏429 للدقيقة (مع <code dir="ltr">retryAfter</code> بالثواني، الافتراضي 60) / لليوم</td></tr>
+<tr><td dir="ltr">AI_KEY_INVALID</td><td>401/403 أو رفض المفتاح</td></tr>
+<tr><td dir="ltr">AI_REGION</td><td>Gemini غير متاح في الموقع</td></tr>
+<tr><td dir="ltr">AI_MODEL_UNAVAILABLE</td><td>404</td></tr>
+<tr><td dir="ltr">AI_BAD_IMAGE / AI_CONFIG</td><td>400 بسبب الصورة / 400 لسبب آخر</td></tr>
+<tr><td dir="ltr">AI_HTTP_&lt;code&gt;</td><td>أي رمز HTTP آخر</td></tr>
+<tr><td dir="ltr">AI_NOT_CONFIGURED, AI_DAILY_LIMIT, AI_USER_LIMIT, AI_REGION_RESTRICTED, AI_REFUSED, AI_BAD_OUTPUT, AI_TRUNCATED, CLOUD_NOT_CONFIGURED</td><td>انظر القسمين 5 و6</td></tr>
+</table>
+<p dir="rtl">لا يحتوي الكائن <code dir="ltr">google</code> على المفتاح أبدًا. طريقة عرض التطبيق لهذه الرموز: MEGO_Error_Handling_and_Logging.</p>
+
+<h2 dir="rtl">10. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>قائمة الإجراءات والحقول والحدود ونصوص الأخطاء</td><td>مُتحقَّق منها بقراءة <code dir="ltr">apps-script/Code.gs</code> (doPost والمعالِجات) و<code dir="ltr">apps-script/appsscript.json</code> و<code dir="ltr">src/lib/sync.ts</code> و<code dir="ltr">src/lib/mealScanner.ts</code></td></tr>
+<tr><td>ping وpush وpull وfoods ورفض الرمز الخاطئ على الخادم الحي</td><td>مُتحقَّق منها مباشرة (اختبارات إعداد الحاسوب، 7 نوفمبر 2026)</td></tr>
+<tr><td>analyzeMeal على الخادم الحي</td><td>مُتحقَّق منه مباشرة (10 نوفمبر 2026: صورة حقيقية واحدة، ≈ 64 ث، 4 عناصر)</td></tr>
+<tr><td>معالِجات الخادم</td><td>مختبرة بوحدات على محاكي Apps Script ‏(<code dir="ltr">tests/v2.test.ts</code>، <code dir="ltr">tests/scanner.test.ts</code>)</td></tr>
+<tr><td>aiStats وmeta وbackup على الخادم الحي</td><td>غير مُتحقَّق منها</td></tr>
+<tr><td>fillFoodNames (الإصدار 8)</td><td>مختبر على محاكي Apps Script ‏(<code dir="ltr">tests/v2.test.ts</code>، <code dir="ltr">e2e/hub-complete-test.mjs</code>)؛ وتشغيله على الـ Hub الحي غير مُتحقَّق منه</td></tr>
+<tr><td>القيم الحية الحالية لـ AI_DAILY_LIMIT وAI_USER_DAILY_LIMIT</td><td>غير مُتحقَّق منها (يرسل إعداد الحاسوب userLimit ‏10 وglobalLimit ‏200؛ والقيم الافتراضية في الكود 10 و40)</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

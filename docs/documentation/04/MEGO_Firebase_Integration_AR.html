@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Firebase_Integration_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — التكامل مع Firebase</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-34</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>المطورون، فريق الصيانة، مراجعو الأمان</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Technical_Architecture، MEGO_Backend_Architecture، MEGO_Firebase_Setup_Guide، MEGO_Authentication_and_Authorization_Architecture، MEGO_Authentication_and_Session_Management، MEGO_Access_Control_and_Permissions، MEGO_State_Management، MEGO_Error_Handling_and_Logging، MEGO_Data_Backup_and_Recovery</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">توضح هذه الوثيقة كيف يستخدم MEGO منصة Firebase — أي المصادقة (Firebase Authentication) وقاعدة البيانات السحابية (Cloud Firestore) على الخطة المجانية (Spark) — لتشغيل الحسابات العامة متعددة المستخدمين. وتغطي الوحدات <code dir="ltr">src/lib/firebase.ts</code> و<code dir="ltr">src/lib/account.ts</code> و<code dir="ltr">src/lib/cloudSync.ts</code>، وقواعد الأمان في <code dir="ltr">firebase/firestore.rules</code>، وإصلاح الاسترداد الخاص بحادثة فقدان التخزين في 10 نوفمبر 2026 (مؤشرات <code dir="ltr">mego.cloud2.</code>). خطوات الإعداد موجودة في MEGO_Firebase_Setup_Guide، أما مزامنة جدول Google ‏(Hub) لأجهزة الضيف/المالك فموضحة في MEGO_Google_Sheets_Integration_and_Sync.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">نظرة عامة وأوضاع التشغيل</li>
+<li dir="rtl">تحميل الإعدادات والتهيئة (firebase.ts)</li>
+<li dir="rtl">دوال الحساب (firebase.ts)</li>
+<li dir="rtl">الجلسة وقاعدة البيانات المحلية لكل حساب (account.ts)</li>
+<li dir="rtl">المزامنة السحابية (cloudSync.ts)</li>
+<li dir="rtl">إصلاح الاسترداد: مؤشرات cloud2 وفقدان التخزين</li>
+<li dir="rtl">نموذج بيانات Firestore</li>
+<li dir="rtl">قواعد الأمان (firestore.rules)</li>
+<li dir="rtl">دوال المشرف والأطعمة المشتركة</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. نظرة عامة وأوضاع التشغيل</h2>
+<p dir="rtl">Firebase اختياري وقت التشغيل. عند الإقلاع تجلب الدالة <code dir="ltr">bootAccount()</code> الملف <code dir="ltr">firebase-config.json</code> من المسار الأساسي للتطبيق. إذا لم يوجد الملف أو خلا من <code dir="ltr">apiKey</code>/<code dir="ltr">projectId</code> يعمل التطبيق في <b>وضع الضيف</b> (على هذا الجهاز فقط) كما كان قبل الحسابات. وإذا وُجد فهناك ثلاثة أوضاع (<code dir="ltr">AccountState.mode</code>):</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الوضع</th><th>متى</th><th>قاعدة البيانات المحلية</th><th>المزامنة</th></tr>
+<tr><td><code dir="ltr">welcome</code></td><td>السحابة مهيأة، ولا حساب نشط، ولم يُختر وضع الضيف</td><td>لا شيء (شاشات الترحيب/الدخول)</td><td>—</td></tr>
+<tr><td><code dir="ltr">guest</code></td><td>لا إعدادات سحابية، أو اختار المستخدم «المتابعة كضيف» (<code dir="ltr">mego.guest</code>)</td><td><code dir="ltr">mego-nutrition</code></td><td>اختيارية مع Hub جداول Google ‏(<code dir="ltr">startAutoSync</code>)</td></tr>
+<tr><td><code dir="ltr">account</code></td><td>المفتاح <code dir="ltr">mego.activeUid</code> موجود في localStorage</td><td><code dir="ltr">mego-u-&lt;uid&gt;</code></td><td>Firestore ‏(<code dir="ltr">startCloudSync</code>)</td></tr>
+</table>
+<p dir="rtl">حقائق الإنتاج (من ملخص المشروع، مُتحقَّق منها في 7 نوفمبر 2026): معرّف المشروع <code dir="ltr">mego-473920</code>، وقاعدة Firestore ‏<code dir="ltr">(default)</code> في المنطقة <code dir="ltr">me-central2</code> (الدمام)، وتسجيل الدخول بالبريد وكلمة المرور مفعّل، والقواعد من <code dir="ltr">firebase/firestore.rules</code> منشورة، والإعدادات العامة متاحة على <code dir="ltr">/firebase-config.json</code>. حزمة SDK هي <code dir="ltr">firebase</code> بالإصدار 13.1.0 (package.json).</p>
+<pre dir="ltr">
+ Browser (PWA)                                   Google (Firebase, Spark plan)
+ ┌───────────────────────────┐                   ┌────────────────────────────┐
+ │ account.ts  bootAccount() │──fetch config────▶│ GitHub Pages: firebase-    │
+ │                           │                   │ config.json (public ids)   │
+ │ firebase.ts  Auth + FS    │──sign-in─────────▶│ Firebase Authentication    │
+ │ cloudSync.ts push/listen  │──setDoc/onSnapshot▶ Cloud Firestore + rules    │
+ │ Dexie: mego-u-&lt;uid&gt;       │                   │ users/{uid}/{table}/{key}  │
+ └───────────────────────────┘                   └────────────────────────────┘
+</pre>
+
+<h2 dir="rtl">2. تحميل الإعدادات والتهيئة (firebase.ts)</h2>
+<h3 dir="rtl">2.1 بنية CloudConfig</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>إلزامي</th><th>المعنى</th></tr>
+<tr><td><code dir="ltr">apiKey</code></td><td>نعم</td><td>مفتاح الويب لـ Firebase (معرّف عام وليس سرًّا؛ الحماية تفرضها القواعد). لا تُنسخ قيمته في أي وثيقة.</td></tr>
+<tr><td><code dir="ltr">authDomain</code></td><td>نعم (مستخدم)</td><td>نطاق المصادقة للمشروع</td></tr>
+<tr><td><code dir="ltr">projectId</code></td><td>نعم</td><td>معرّف مشروع Firebase</td></tr>
+<tr><td><code dir="ltr">appId</code></td><td>اختياري</td><td>معرّف تطبيق الويب</td></tr>
+<tr><td><code dir="ltr">aiBackendUrl</code></td><td>اختياري</td><td>تطبيق ويب Apps Script الذي يمرّر طلبات Gemini المجانية للمستخدمين المسجلين</td></tr>
+<tr><td><code dir="ltr">emulator</code></td><td>اختياري</td><td><code dir="ltr">{ authUrl, firestoreHost, firestorePort }</code> — للاختبارات والتطوير المحلي فقط</td></tr>
+</table>
+<p dir="rtl">تقرأ <code dir="ltr">loadCloudConfig()</code> الملف <code dir="ltr">BASE_URL + 'firebase-config.json'</code> مع <code dir="ltr">cache: 'no-cache'</code> مرة واحدة في الجلسة؛ وأي خطأ يعيد <code dir="ltr">null</code> (وضع الضيف).</p>
+<h3 dir="rtl">2.2 الدالة initCloud()</h3>
+<ul dir="rtl">
+<li dir="rtl">تهيّئ تطبيق Firebase بالقيم apiKey وauthDomain وprojectId وappId.</li>
+<li dir="rtl">في الإنتاج تُنشأ Firestore بخيار <code dir="ltr">experimentalAutoDetectLongPolling: true</code> ومهلة كشف 10 ثوانٍ، لأن بعض الشبكات تحجز قناة البث، فيتحول العميل تلقائيًا إلى الاستطلاع الطويل (long polling).</li>
+<li dir="rtl">عند وجود كتلة <code dir="ltr">emulator</code> يتصل التطبيق بمحاكيات المصادقة وFirestore (المنافذ في <code dir="ltr">firebase.json</code>: ‏auth 9099، ‏firestore 8080).</li>
+<li dir="rtl">ترمي <code dir="ltr">cloud()</code> الخطأ <code dir="ltr">CLOUD_NOT_CONFIGURED</code> إذا استُدعيت قبل التهيئة.</li>
+</ul>
+
+<h2 dir="rtl">3. دوال الحساب (firebase.ts)</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الدالة</th><th>السلوك</th></tr>
+<tr><td><code dir="ltr">register(email, password, displayName, country, ageConfirmed)</code></td><td>ترمي <code dir="ltr">AGE_REQUIRED</code> إن لم يُؤكَّد العمر. تنشئ المستخدم، وتضبط اسم العرض (بحد أقصى 40 حرفًا)، وتكتب <code dir="ltr">profiles/{uid}</code> بالحالة <code dir="ltr">'active'</code> والدولة (حرفان كبيران) و<code dir="ltr">ageConfirmed: true</code> و<code dir="ltr">createdAt</code> و<code dir="ltr">lastActiveAt</code>. ترسل بريد التحقق (ويُتجاهل فشله).</td></tr>
+<tr><td><code dir="ltr">login</code> / <code dir="ltr">logout</code></td><td>الدخول بالبريد وكلمة المرور؛ الخروج.</td></tr>
+<tr><td><code dir="ltr">resetPassword(email)</code></td><td>بريد إعادة تعيين كلمة المرور من Firebase.</td></tr>
+<tr><td><code dir="ltr">getProfile</code>، <code dir="ltr">touchProfile</code>، <code dir="ltr">updateMyProfile</code></td><td>قراءة الملف الشخصي؛ تحديث <code dir="ltr">lastActiveAt</code> (تُتجاهل الأخطاء دون اتصال أو عند الإيقاف)؛ تعديل الاسم/الدولة.</td></tr>
+<tr><td><code dir="ltr">isAdmin(uid)</code></td><td>صحيحة إذا وُجد المستند <code dir="ltr">admins/{uid}</code> (لا يقرؤه إلا صاحبه).</td></tr>
+<tr><td><code dir="ltr">deleteAccountAuth(password)</code></td><td>إعادة مصادقة بكلمة المرور (تشترط Google دخولًا حديثًا) ثم حذف المستخدم.</td></tr>
+<tr><td><code dir="ltr">reportError(kind, message)</code></td><td>تكتب تقرير خطأ صغيرًا؛ انظر MEGO_Error_Handling_and_Logging.</td></tr>
+</table>
+<p dir="rtl">تضم <code dir="ltr">AI_RESTRICTED_COUNTRIES</code> ‏32 رمز دولة (الاتحاد الأوروبي/المنطقة الاقتصادية الأوروبية وسويسرا والمملكة المتحدة) لا يُعرض فيها الماسح الذكي للحسابات العامة؛ والقائمة نفسها موجودة في الخادم (<code dir="ltr">AI_RESTRICTED</code> في Code.gs).</p>
+
+<h2 dir="rtl">4. الجلسة وقاعدة البيانات المحلية لكل حساب (account.ts)</h2>
+<h3 dir="rtl">4.1 تسلسل الإقلاع</h3>
+<ol dir="rtl">
+<li dir="rtl"><code dir="ltr">loadCloudConfig()</code>؛ بلا إعدادات ← وضع الضيف.</li>
+<li dir="rtl"><code dir="ltr">initCloud(cfg)</code>.</li>
+<li dir="rtl">إذا وُجد <code dir="ltr">mego.activeUid</code>: يُتحقق عبر <code dir="ltr">Dexie.exists('mego-u-&lt;uid&gt;')</code> من بقاء قاعدة البيانات المحلية. إن كانت مفقودة تُستدعى <code dir="ltr">resetCloudMarkers(uid)</code> ليُعاد تنزيل كل شيء من السحابة (القسم 6).</li>
+<li dir="rtl">اختيار <code dir="ltr">mego-u-&lt;uid&gt;</code> وفتحها؛ ونسخ بيانات الضيف مرة واحدة إذا كان <code dir="ltr">mego.importGuestFor</code> يساوي هذا المعرّف؛ وتطبيق إجابات التسجيل المعلّقة (<code dir="ltr">mego.pendingSetup.&lt;uid&gt;</code>) مرة واحدة.</li>
+<li dir="rtl">وإلا يكون الوضع <code dir="ltr">guest</code> (إذا وُجد <code dir="ltr">mego.guest</code>) أو <code dir="ltr">welcome</code>.</li>
+</ol>
+<h3 dir="rtl">4.2 الدالة watchSession()</h3>
+<p dir="rtl">في وضع الحساب تؤكد <code dir="ltr">onAuthStateChanged</code> جلسة Firebase. إذا خرج المستخدم أو اختلف المعرّف يُحذف <code dir="ltr">mego.activeUid</code> وتُعاد تحميل الصفحة. وإلا يُحمَّل الملف الشخصي وعلامة المشرف، وتُضبط حالة الإيقاف عند <code dir="ltr">status === 'suspended'</code>، ويُحدَّث <code dir="ltr">lastActiveAt</code>، وتبدأ المزامنة السحابية مرة واحدة (ولا تبدأ أبدًا لحساب موقوف).</p>
+<h3 dir="rtl">4.3 تبديل الحسابات</h3>
+<ul dir="rtl">
+<li dir="rtl"><code dir="ltr">enterAccount(uid, importGuest)</code> تضبط <code dir="ltr">mego.activeUid</code> وتحذف <code dir="ltr">mego.guest</code> وتضبط اختياريًا <code dir="ltr">mego.importGuestFor</code> ثم تعيد التحميل لاختيار القاعدة الصحيحة قبل أي عرض.</li>
+<li dir="rtl"><code dir="ltr">copyGuestData()</code> تنسخ كل جداول المزامنة من <code dir="ltr">mego-nutrition</code> إلى قاعدة الحساب (تبقى بيانات الضيف كما هي، ويُحتفظ بإعداد <code dir="ltr">sync</code> المحلي للحساب)، وتضع كل سجل منسوخ في صندوق الصادر (outbox) للرفع، وتنسخ صور التقدم (محلية فقط).</li>
+<li dir="rtl"><code dir="ltr">chooseGuest()</code> و<code dir="ltr">leaveAccount()</code> تعيدان التحميل أيضًا.</li>
+</ul>
+
+<h2 dir="rtl">5. المزامنة السحابية (cloudSync.ts)</h2>
+<h3 dir="rtl">5.1 الرفع (Push)</h3>
+<ul dir="rtl">
+<li dir="rtl">يستخدم صندوق الصادر نفسه في Dexie الذي تستخدمه مزامنة الجداول، مع دمج التغييرات (آخر تغيير لكل جدول+مفتاح).</li>
+<li dir="rtl">يُكتب كل سجل بـ <code dir="ltr">setDoc</code> إلى <code dir="ltr">users/{uid}/{table}/{key}</code> بالشكل <code dir="ltr">{ data: JSON string, updatedAt, deleted? }</code>. الحذف يُكتب كعلامة حذف <code dir="ltr">{ data: '{}', updatedAt, deleted: true }</code> لا كحذف مستند. في <code dir="ltr">settings</code> تُزال كتلة <code dir="ltr">sync</code> المحلية قبل الرفع.</li>
+<li dir="rtl">لا تُرفع الأطعمة المشتركة الموثقة (<code dir="ltr">source: 'sheet'</code>)؛ أما الأطعمة الشخصية فتُرفع.</li>
+<li dir="rtl">رد <code dir="ltr">permission-denied</code> يُعدّ تعارضًا (الخادم يملك نسخة أحدث، أو الحساب موقوف)؛ يُحذف السجل من الصادر وتصل النسخة الأحدث عبر المستمع. أي خطأ آخر يوقف الدورة ويضبط الحالة <code dir="ltr">error</code> ويستدعي <code dir="ltr">reportError('sync', …)</code>.</li>
+<li dir="rtl">الجدولة: بعد 1.5 ث من أي تغيير محلي، و300 مللي ث بعد عودة الاتصال، و500 مللي ث عند البدء. عند انقطاع الاتصال تصبح الحالة <code dir="ltr">offline</code> ولا يُرسل شيء.</li>
+</ul>
+<h3 dir="rtl">5.2 الاستقبال (مستمعات حية)</h3>
+<ul dir="rtl">
+<li dir="rtl">مستمع <code dir="ltr">onSnapshot</code> لكل جدول مزامنة بشرط <code dir="ltr">where('updatedAt', '&gt;', from)</code>، وتحدد <code dir="ltr">startFrom()</code> قيمة <code dir="ltr">from</code> (القسم 6).</li>
+<li dir="rtl"><code dir="ltr">applyRemote()</code> تحتفظ بالنسخة الأحدث: إذا كان <code dir="ltr">updatedAt</code> (أو <code dir="ltr">at</code>) المحلي أحدث تُتجاهل النسخة البعيدة (وستُرفع المحلية). علامات الحذف تحذف السجل المحلي.</li>
+<li dir="rtl">كل سجل مطبَّق يرفع مؤشر «آخر ما شوهد» للجدول (<code dir="ltr">setLast</code>، صعودًا فقط).</li>
+<li dir="rtl">السجل الذي يتعذر تطبيقه يُبلَّغ عنه عبر <code dir="ltr">reportError('sync-apply', …)</code> ولا يوقف بقية التنزيل.</li>
+<li dir="rtl">مستمع إضافي على <code dir="ltr">/foods</code> يستورد قاعدة الأطعمة المشتركة الموثقة إلى قائمة الأطعمة المحلية بمصدر <code dir="ltr">sheet</code>؛ ودون اتصال تبقى النسخة المحلية تعمل.</li>
+</ul>
+
+<h2 dir="rtl">6. إصلاح الاسترداد: مؤشرات cloud2 وفقدان التخزين</h2>
+<p dir="rtl"><b>الحادثة (10 نوفمبر 2026):</b> على هاتف أندرويد فقد المتصفح بيانات IndexedDB (السجلات وجلسة Firebase) بينما بقي localStorage. ظهر للمستخدم شاشة الترحيب، وبعد تسجيل الدخول مجددًا ظل الحساب فارغًا، لأن المستمع بدأ من مؤشرات «آخر ما شوهد» المحفوظة في localStorage، ولأن سجل إعدادات افتراضيًا جديدًا تقدّم على الإعدادات المحفوظة. وقد حدث ذلك مرة سابقة. الإصلاح منشور حاليًا، وقد أعيد إنتاج المشكلة والتحقق من الحل على المحاكيات (<code dir="ltr">e2e/storage-loss.mjs</code>)، وأكد المالك عودة بياناته.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصلاح</th><th>الموضع</th><th>الأثر</th></tr>
+<tr><td>إعادة تسمية المؤشرات إلى <code dir="ltr">mego.cloud2.&lt;uid&gt;.&lt;table&gt;</code></td><td>cloudSync.ts ‏(<code dir="ltr">MARK</code>)</td><td>تُتجاهل مؤشرات الإصدار الأول مرة واحدة، فيعيد كل جهاز تنزيل حسابه كاملًا مرة واحدة؛ وتبقى النسخ المحلية الأحدث.</td></tr>
+<tr><td>فقدان القاعدة المحلية يصفّر المؤشرات</td><td>account.ts ← <code dir="ltr">resetCloudMarkers(uid)</code></td><td>إذا لم تعد <code dir="ltr">mego-u-&lt;uid&gt;</code> موجودة تُحذف كل مؤشرات الحساب (دون حذف بيانات).</td></tr>
+<tr><td>الجدول الفارغ يُنزَّل كاملًا</td><td><code dir="ltr">startFrom()</code></td><td>إذا كان الجدول المحلي بلا سجلات يبدأ المستمع من 0 مهما كان المؤشر.</td></tr>
+<tr><td>الإعدادات تُقرأ دائمًا من جديد</td><td><code dir="ltr">startFrom()</code></td><td>جدول <code dir="ltr">settings</code> (مستند واحد) يبدأ دائمًا من 0.</td></tr>
+<tr><td>الإعدادات الافتراضية غير المعدلة لا تتقدم على نسخة السحابة</td><td>repo.ts ‏<code dir="ltr">getSettings()</code> ينشئ الافتراضي بـ <code dir="ltr">updatedAt: 0</code>؛ و<code dir="ltr">isPristineDefault()</code></td><td>سجل الإعدادات المطابق للافتراضي (مع تجاهل المعرّف والطوابع الزمنية وsync) يُستبدل دائمًا بإعدادات الحساب.</td></tr>
+<tr><td>سجل تالف واحد لا يوقف التنزيل</td><td>try/catch في المستمع</td><td>يُبلَّغ عنه بنوع <code dir="ltr">sync-apply</code> ويستمر الباقي.</td></tr>
+<tr><td>قياسات الوزن في التاريخ نفسه تحتفظ بالأحدث</td><td><code dir="ltr">applyRemote()</code> لجدول <code dir="ltr">body</code></td><td>الفهرس المحلي الفريد يسمح بقياس واحد لكل تاريخ؛ إذا وُجد معرّف آخر للتاريخ نفسه يُعرض الأحدث على الجهاز ويبقى الآخر في السحابة دون تغيير.</td></tr>
+</table>
+<p dir="rtl"><b>الدرس للمستخدمين:</b> بيانات الحسابات المسجلة قابلة للاسترداد بتسجيل الدخول مجددًا؛ أما بيانات الضيف فتعيش على الجهاز فقط.</p>
+
+<h2 dir="rtl">7. نموذج بيانات Firestore</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المسار</th><th>المحتوى</th><th>من يكتب</th></tr>
+<tr><td><code dir="ltr">users/{uid}/{table}/{key}</code></td><td><code dir="ltr">{ data: string (&lt; 300,000 chars), updatedAt: int, deleted?: bool }</code>؛ الجداول: entries، body، days، recipes، templates، plans، plannedDays، fasts، kv، settings، foodChanges، foods</td><td>المالك</td></tr>
+<tr><td><code dir="ltr">profiles/{uid}</code></td><td>displayName، email، status، country، ageConfirmed، createdAt، lastActiveAt</td><td>المالك (إنشاء/تعديل محدود)؛ المشرفون (الحالة فقط)</td></tr>
+<tr><td><code dir="ltr">admins/{uid}</code></td><td>وجود المستند = مشرف</td><td>من وحدة تحكم Firebase أو سكربت الإعداد فقط</td></tr>
+<tr><td><code dir="ltr">foods/{id}</code></td><td>قاعدة الأطعمة المشتركة الموثقة</td><td>المشرفون</td></tr>
+<tr><td><code dir="ltr">foodSubmissions/{id}</code></td><td>ownerUid، status (pending/approved/rejected)، at، food</td><td>ينشئها المستخدمون ويراجعها المشرفون</td></tr>
+<tr><td><code dir="ltr">errorReports/{id}</code></td><td>at، kind، message، app</td><td>ينشئها المستخدمون المسجلون ويقرؤها المشرفون</td></tr>
+</table>
+<p dir="rtl">لا يعرّف الملف <code dir="ltr">firebase/firestore.indexes.json</code> أي فهارس مركّبة.</p>
+
+<h2 dir="rtl">8. قواعد الأمان (firestore.rules)</h2>
+<p dir="rtl">الدوال المساعدة: <code dir="ltr">signedIn()</code>، و<code dir="ltr">isAdmin()</code> (وجود المستند <code dir="ltr">admins/{uid}</code>)، و<code dir="ltr">isActive()</code> (الملف الشخصي موجود و<code dir="ltr">status == 'active'</code>)، و<code dir="ltr">isOwner(uid)</code>.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المسار</th><th>القراءة</th><th>الكتابة</th></tr>
+<tr><td dir="ltr">users/{uid}/{table}/{key}</td><td>المالك وهو نشط</td><td>الإنشاء: المالك النشط بسجل صالح؛ التحديث: كذلك مع عدم رجوع <code dir="ltr">updatedAt</code> للخلف؛ الحذف: المالك النشط. <b>لا وصول للمشرفين.</b> السجل الصالح: المفاتيح data/updatedAt/deleted فقط، وupdatedAt عدد صحيح، وdata نص أقل من 300,000 حرف، وdeleted منطقي إن وُجد، والجدول ضمن القائمة المسموحة.</td></tr>
+<tr><td dir="ltr">profiles/{uid}</td><td>المالك أو المشرف</td><td>الإنشاء: المالك بمجموعة مفاتيح ثابتة والحالة 'active' وageConfirmed صحيح والبريد مطابق لبريد الرمز؛ التحديث: المالك النشط (displayName وcountry وlastActiveAt فقط) أو المشرف (status فقط إلى 'active'/'suspended')؛ الحذف: المالك</td></tr>
+<tr><td dir="ltr">admins/{uid}</td><td>صاحبه فقط</td><td>ممنوعة دائمًا</td></tr>
+<tr><td dir="ltr">foods/{id}</td><td>أي مستخدم نشط</td><td>المشرفون</td></tr>
+<tr><td dir="ltr">foodSubmissions/{id}</td><td>المشرفون أو المالك النشط</td><td>الإنشاء: المالك النشط بحالة 'pending'؛ التحديث: المشرفون؛ الحذف: المشرفون أو المالك النشط ما دام الطلب معلقًا</td></tr>
+<tr><td dir="ltr">errorReports/{id}</td><td>المشرفون (قراءة وحذف)</td><td>الإنشاء: أي مستخدم مسجل، بالمفاتيح at/kind/message/app فقط، والرسالة نص أقل من 500 حرف</td></tr>
+</table>
+<p dir="rtl">لأن خوادم Google هي التي تفرض القواعد، يفقد الحساب الموقوف فورًا صلاحية قراءة سجلاته الخاصة وكتابتها حتى لو بقي التطبيق يعمل.</p>
+
+<h2 dir="rtl">9. دوال المشرف والأطعمة المشتركة</h2>
+<ul dir="rtl">
+<li dir="rtl"><code dir="ltr">adminStats()</code>: أعداد إجمالية عبر <code dir="ltr">getCountFromServer</code> — مجموع الحسابات، والنشطون خلال 7 أيام، والموقوفون، وطلبات الأطعمة المعلقة.</li>
+<li dir="rtl"><code dir="ltr">adminListProfiles(max = 100)</code>، و<code dir="ltr">adminSetStatus(uid, status)</code>، و<code dir="ltr">adminListErrors(max = 50)</code> (الأحدث أولًا).</li>
+<li dir="rtl"><code dir="ltr">submitFood()</code>: يقترح المستخدم أحد أطعمته (لا يُنشر تلقائيًا أبدًا). <code dir="ltr">adminReview()</code>: الموافقة تنسخ الطعام إلى <code dir="ltr">foods/U-&lt;submission id&gt;</code> مع ملاحظة «user submission reviewed by admin»؛ والموافقة والرفض كلاهما يحدّثان حالة الطلب.</li>
+<li dir="rtl"><code dir="ltr">publishSharedFoods(foods)</code> (في cloudSync.ts، شاشة المشرف): تكتب الأطعمة الموثقة إلى <code dir="ltr">/foods</code> باستخدام مفتاح الجدول (بصيغة <code dir="ltr">F0001</code>) إن وُجد؛ ويرفضها الخادم لغير المشرفين.</li>
+</ul>
+<p dir="rtl">لا يرى المشرفون أبدًا سجلات اليوميات أو الوزن أو الإعدادات الخاصة (القواعد، القسم 8). إجراءات الإدارة في MEGO_Admin_User_Manual.</p>
+
+<h2 dir="rtl">10. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>العبارات البرمجية في هذه الوثيقة</td><td>مُتحقَّق منها في <code dir="ltr">src/lib/firebase.ts, account.ts, cloudSync.ts, repo.ts, firebase/firestore.rules, firebase.json</code></td></tr>
+<tr><td>Firebase في الإنتاج (التسجيل، قراءة الملف الشخصي 200 / ملف غيره 403، السجلات للمالك فقط، المزامنة الحية لجهاز ثانٍ، قيود المشرف، قبول طلب إعادة التعيين، حذف الحساب)</td><td>مُتحقَّق منه مباشرة في 7 نوفمبر 2026 (<code dir="ltr">scripts/live-verify.mjs</code>، ‏14/14)</td></tr>
+<tr><td>القواعد وسلوك السحابة</td><td>مختبرة على المحاكيات (<code dir="ltr">tests-rules/rules.test.ts</code>، <code dir="ltr">tests-rules/cloud.test.ts</code>)؛ واختبار تعدد المستخدمين (<code dir="ltr">e2e/multiuser-test.mjs</code>) على المحاكيات</td></tr>
+<tr><td>استرداد فقدان التخزين</td><td>أعيد إنتاجه وتحقق منه على المحاكيات (<code dir="ltr">e2e/storage-loss.mjs</code>)؛ واختبارات وحدة في <code dir="ltr">tests/cloud-recovery.test.ts</code>؛ وأكد المالك استرداد البيانات على الهاتف الحقيقي</td></tr>
+<tr><td>حساب المشرف في الإنتاج</td><td>غير مُتحقَّق منه — لم يكن هناك مشرف حتى 7 نوفمبر 2026 (على المالك التسجيل وتشغيل سكربت الإعداد مع <code dir="ltr">--cloud</code>)</td></tr>
+<tr><td>وصول رسائل التحقق/إعادة التعيين إلى البريد</td><td>غير مُتحقَّق منه (قُبل الطلب برمز HTTP 200 فقط)</td></tr>
+<tr><td>السلوك على جهاز أندرويد حقيقي خارج الحادثة</td><td>غير مُتحقَّق منه — الاختبار على أجهزة محاكاة فقط</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

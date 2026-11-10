@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Integration_Testing_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Integration Testing</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-60</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Developers, testers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Testing_Strategy, MEGO_Unit_Testing, MEGO_Multi_User_Testing, MEGO_Firebase_Integration, MEGO_Google_Sheets_Integration_and_Sync, MEGO_Data_Backup_and_Recovery, MEGO_Known_Bugs_and_Limitations</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes how MEGO's components are tested together: the app with Firebase (Auth, Firestore and the security rules) on the official emulators, the app with the Apps Script backend through an emulated Google environment, the laptop-setup script against the real backend code, the v1→v2 upgrade and the storage-loss recovery scenario (<code>e2e/storage-loss.mjs</code>) that reproduces the incident of 10 November 2026. The multi-user browser suite is described in MEGO_Multi_User_Testing.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Integration points and how each is tested</li>
+<li>Firestore rules and cloud sync (tests-rules/)</li>
+<li>Emulator environment</li>
+<li>Storage-loss recovery scenario (e2e/storage-loss.mjs)</li>
+<li>Apps Script backend integration (gas-mock)</li>
+<li>Laptop setup and upgrade scenarios</li>
+<li>Running the integration tests</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Integration points and how each is tested</h2>
+<pre>
+ ┌──────────── PWA (React + Dexie) ────────────┐
+ │ src/lib/cloudSync.ts   src/lib/sync.ts      │
+ └───────┬─────────────────────────┬───────────┘
+         │ Firebase SDK            │ HTTPS POST (token)
+         ▼                         ▼
+ ┌───────────────────┐     ┌─────────────────────────┐
+ │ Firebase Auth +   │     │ Apps Script Code.gs     │
+ │ Firestore + rules │     │ → Google Sheet Hub      │
+ │ (emulators 9099 / │     │ → Gemini (AI scanner)   │
+ │  8080 in tests)   │     │ (gas-mock.mjs in tests) │
+ └───────────────────┘     └─────────────────────────┘
+</pre>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Integration</th><th>Test</th><th>Environment</th><th>Result (latest recorded)</th></tr>
+<tr><td>App ↔ Firestore rules</td><td><code>tests-rules/rules.test.ts</code></td><td>Firestore emulator, real <code>firebase/firestore.rules</code></td><td>10 tests (part of 14/14)</td></tr>
+<tr><td>App sync code ↔ Firebase SDK ↔ rules</td><td><code>tests-rules/cloud.test.ts</code></td><td>Auth + Firestore emulators</td><td>4 tests (part of 14/14)</td></tr>
+<tr><td>Browser app ↔ Firebase after local data loss</td><td><code>e2e/storage-loss.mjs</code></td><td>Chromium (Pixel 7) + emulators</td><td>Scenario passes after the 10 Nov fix (data recovered)</td></tr>
+<tr><td>App ↔ Apps Script ↔ Hub / Gemini</td><td><code>tests/v2.test.ts</code>, <code>tests/scanner.test.ts</code>, <code>e2e/run-e2e.mjs</code> (SETUP, SYNC2, HUBINFO, SCAN)</td><td>Real <code>Code.gs</code> in <code>e2e/gas-mock.mjs</code></td><td>Included in unit 199/199 and e2e 57/57</td></tr>
+<tr><td>Laptop setup script ↔ Apps Script</td><td><code>e2e/laptop-setup-test.mjs</code></td><td>Real Code.gs over local HTTP</td><td>10/10</td></tr>
+<tr><td>Laptop command <code>--hub-complete-foods</code> ↔ Apps Script ↔ Hub Food_Database</td><td><code>e2e/hub-complete-test.mjs</code></td><td>Real Code.gs (backend v8) over local HTTP</td><td>9/9</td></tr>
+<tr><td>Old build → new build</td><td><code>e2e/migration-test.mjs</code></td><td>Two local builds, same origin</td><td>1 scenario, JSON report</td></tr>
+<tr><td>Everything against production</td><td><code>scripts/live-verify.mjs</code></td><td>Live site + Firebase project</td><td>14/14 (7 Nov 2026)</td></tr>
+</table>
+
+<h2>2. Firestore rules and cloud sync (tests-rules/)</h2>
+<p>Run with <code>npm run test:rules</code>, which executes <code>firebase emulators:exec --project demo-mego --only firestore,auth "vitest run --config vitest.rules.config.ts"</code>. The config runs files one after another (<code>fileParallelism: false</code>) with 30-second timeouts and reuses <code>tests/setup.ts</code>.</p>
+<h3>2.1 rules.test.ts — 10 tests (uses @firebase/rules-unit-testing)</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Group</th><th>Test</th></tr>
+<tr><td rowspan="3">Private data isolation (3 users)</td><td>Each user reads and writes only their own records</td></tr>
+<tr><td>Changing the user id in the path does not help; signed-out requests are refused</td></tr>
+<tr><td>An older copy never overwrites a newer one; record shape is validated</td></tr>
+<tr><td rowspan="4">Administrator</td><td>Sees account cards and counts, never private records</td></tr>
+<tr><td>Can suspend / reactivate but change nothing else in a profile</td></tr>
+<tr><td>A suspended user is blocked by the server</td></tr>
+<tr><td>Nobody can make themselves admin; regular users cannot list profiles</td></tr>
+<tr><td>Shared food database</td><td>Everyone reads, only admins write; submissions are reviewed</td></tr>
+<tr><td rowspan="2">Registration &amp; error reports</td><td>A new user creates only their own active profile with age confirmation and their real e-mail</td></tr>
+<tr><td>Error reports: users write small reports, only admins read</td></tr>
+</table>
+<h3>2.2 cloud.test.ts — 4 tests (real app sync code + Firebase SDK)</h3>
+<ul>
+<li>Registration creates an active profile; age confirmation is required.</li>
+<li>Each user logs on their own device database; records land only under their own uid.</li>
+<li>A second device of the same user receives the data live; other users' data never appears.</li>
+<li>An older copy from an offline device does not overwrite the newer one.</li>
+</ul>
+
+<h2>3. Emulator environment</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Setting</th><th>Value (firebase.json / tests)</th></tr>
+<tr><td>Project id</td><td><code>demo-mego</code> (a demo project — no real Google project is contacted)</td></tr>
+<tr><td>Auth emulator</td><td>port 9099</td></tr>
+<tr><td>Firestore emulator</td><td>port 8080, rules from <code>firebase/firestore.rules</code></td></tr>
+<tr><td>Emulator UI</td><td>disabled; <code>singleProjectMode: true</code></td></tr>
+<tr><td>Tooling</td><td><code>firebase-tools</code> 15.34.1 and <code>@firebase/rules-unit-testing</code> 6.0.0 (devDependencies)</td></tr>
+<tr><td>App config in browser tests</td><td>The tests intercept <code>/firebase-config.json</code> and serve a demo config with an <code>emulator</code> block, so the built app talks to the emulators</td></tr>
+</table>
+
+<h2>4. Storage-loss recovery scenario (e2e/storage-loss.mjs)</h2>
+<p><b>Background:</b> on 10 November 2026 an Android phone lost its IndexedDB (records and Firebase session) while <code>localStorage</code> survived. After signing in again the app stayed empty because the cloud listener resumed from "last seen" markers kept in <code>localStorage</code>, and a fresh default settings record outranked the saved settings. It had happened once before. Fixes are in <code>src/lib/cloudSync.ts</code>, <code>account.ts</code> and <code>repo.ts</code> (see MEGO_Known_Bugs_and_Limitations).</p>
+<h3>4.1 Steps performed by the script</h3>
+<ol>
+<li>Starts <code>vite preview</code> on port 4192 and a Chromium context emulating a Pixel 7 (English).</li>
+<li>Registers a disposable account (country, age 18+ and terms confirmed, weight 80, calorie target 2110).</li>
+<li>Creates a custom food from the search box, logs 200 g of it for lunch and waits for the outbox to reach the cloud.</li>
+<li>Seeds the cloud directly (as a user who re-entered data after an earlier loss): an old diary entry and two weigh-ins for the same date with different <code>updatedAt</code> (80.4 older, 80.1 newer).</li>
+<li><b>Simulates the incident:</b> deletes every IndexedDB database in the page; <code>localStorage</code> is kept.</li>
+<li>Reloads: the welcome screen must appear. Signs in with the same account.</li>
+<li>Checks after 8 s: at least 2 diary entries, calorie target still 2110, the custom food visible in the diary, and the weigh-in for that date = the newer copy (80.1).</li>
+<li>Prints <code>RESULT: data recovered</code> and exits 0, otherwise exits 1 and saves <code>e2e/storage-loss-fail.png</code>.</li>
+</ol>
+<h3>4.2 Expected behaviour verified</h3>
+<ul>
+<li>Markers renamed to <code>mego.cloud2.</code> — every device re-downloads its account once.</li>
+<li>A missing local database resets the markers; an empty table downloads in full; settings are always re-read.</li>
+<li>Untouched defaults (<code>updatedAt</code> 0) never outrank the cloud copy (also unit-tested in <code>tests/cloud-recovery.test.ts</code>).</li>
+<li>One bad record never stops the download; same-date weigh-ins keep the newer one.</li>
+</ul>
+<p>Run (after <code>npm run build</code>): <code>firebase emulators:exec --project demo-mego --only firestore,auth "node e2e/storage-loss.mjs"</code>. There is no npm script for it.</p>
+
+<h2>5. Apps Script backend integration (gas-mock)</h2>
+<p><code>e2e/gas-mock.mjs</code> loads the real <code>apps-script/Code.gs</code> and provides in-memory versions of SpreadsheetApp, DriveApp, PropertiesService, LockService, UrlFetchApp and Utilities. It is used by the unit suite (Hub and scanner tests), the browser suite (requests to the backend URL are routed to it) and the multi-user suite (AI proxy). It covers authorization by token, Hub ID pinning, Excel→native conversion with the original untouched, push/pull, conflicts, soft delete into Deleted_Records, and the Gemini call path with scripted responses. Google's real services are not contacted.</p>
+
+<h2>6. Laptop setup and upgrade scenarios</h2>
+<h3>6.1 e2e/laptop-setup-test.mjs — 10 checks</h3>
+<p>Runs the real <code>scripts/laptop-setup.mjs</code> against Code.gs served over local HTTP. Checks: script exit code 0; bootstrap converted and switched to the native Hub; original Excel untouched; all live checks passed; 160 foods reported; AI photo analysis went through the backend to the Gemini endpoint only; the MEGO-TEST record cleaned up; state file private (mode 600) and outside the repository; connect link printed; bootstrap cannot run twice. It uses the private 160-food table when present, otherwise the synthetic fixture.</p>
+<h3>6.2 e2e/hub-complete-test.mjs — 9 checks</h3>
+<p>Runs <code>scripts/laptop-setup.mjs --hub-complete-foods</code> twice against the real Code.gs on an emulated native Hub. Checks: both runs exit 0; ready meals added (all recipes whose ingredients have values); every existing cell unchanged except empty English names; existing English names never replaced; English names present for all original foods; meal rows have positive values and a serving weight; the second run adds nothing; a daily Drive backup is taken before writing; the first meal is the recipe library's first recipe.</p>
+<h3>6.3 e2e/migration-test.mjs — upgrade v1 → v2</h3>
+<p>Serves a v1 build, imports the sample sheet and logs 200 g raw chicken; then serves the v2 build on the same origin and profile. It prints a JSON report (calories shown before/after, new UI present, pre-migration backup database <code>mego-nutrition-premigration</code> with entry/food counts). Requires the global <code>http-server</code>; the report is read by a person (no automatic pass/fail).</p>
+
+<h2>7. Running the integration tests</h2>
+<pre>
+npm run build
+npm run test:rules        # 14 — needs firebase-tools (emulators)
+firebase emulators:exec --project demo-mego --only firestore,auth "node e2e/storage-loss.mjs"
+npm run e2e:laptop        # 10
+node e2e/hub-complete-test.mjs   # 9
+node e2e/migration-test.mjs &lt;dir&gt;   # &lt;dir&gt;/dist-v1 and &lt;dir&gt;/dist-v2
+</pre>
+
+<h2>8. Verification status</h2>
+<ul>
+<li><b>Tested on emulators:</b> rules + cloud 14/14; storage-loss scenario (passes after the fix; the owner confirmed on the real phone that the data came back); laptop-setup 10/10; hub-complete 9/9; backend integration via gas-mock.</li>
+<li><b>Verified live:</b> the same rules and sync paths through <code>scripts/live-verify.mjs</code> 14/14 on 7 Nov 2026; the 10 Nov fix is deployed on the live site.</li>
+<li><b>Not verified:</b> these integration suites were not re-run while writing this document (only the unit suite was); counts are the latest recorded results. Behaviour on Firebase Spark quota limits under load is not tested.</li>
+</ul>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

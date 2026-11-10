@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Food_Database_Administration_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Food Database Administration</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-69</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>MEGO Project Owner and future administrators</td></tr>
+<tr><td>Related documents</td><td>MEGO_Admin_User_Manual, MEGO_Food_Database_Documentation, MEGO_Food_Database_Import_and_Update_Procedures, MEGO_Food_Data_Validation_and_Quality_Control, MEGO_Missing_and_Duplicate_Foods_Management, MEGO_Google_Sheets_Integration_and_Sync</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes how the food data that MEGO offers to <b>all</b> users is administered: the owner's Google Sheets Hub (<code>Food_Database</code> tab), the shared Firestore collection <code>/foods</code> that every signed-in user receives, the review of user food suggestions and the built-in USDA reference database. It gives the procedures, preconditions and known limitations for each. Personal foods that a user creates for themself are not administered centrally and are out of scope. Sources: <code>apps-script/Code.gs</code>, <code>src/lib/sync.ts</code>, <code>src/lib/sheetImport.ts</code>, <code>src/lib/cloudSync.ts</code>, <code>src/lib/firebase.ts</code>, <code>src/pages/Account.tsx</code>, <code>src/pages/Settings.tsx</code>, <code>scripts/build-food-db.mjs</code>, <code>firebase/firestore.rules</code>.</p>
+<p><b>Status note:</b> no administrator account exists yet (10 November 2026), so publishing to <code>/foods</code> and reviewing submissions have <b>not</b> been carried out in production.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Food data layers</li>
+<li>The Hub Food_Database (owner's Google Sheet)</li>
+<li>Procedure: changing foods in the Hub</li>
+<li>Procedure: checking the Hub against a device</li>
+<li>Procedure: publishing verified foods to the shared /foods database</li>
+<li>Procedure: reviewing user food suggestions</li>
+<li>Removing or correcting a shared food</li>
+<li>The built-in USDA reference database</li>
+<li>Quality checklist before publishing</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Food data layers</h2>
+<pre>
+ USDA FoodData Central ──build-food-db.mjs──► public/fooddb/usda.json + usda-extra.json
+                                              (shipped with every app release, read-only)
+
+ Owner's Hub (Google Sheet) "Food_Database"  ──Apps Script action "foods"──► owner/guest device
+        F0001, F0002 …  (160 foods)                                         (local foods, source "sheet")
+                                                                                  │ admin presses
+                                                                                  ▼ "Publish verified foods"
+ User suggestion ──foodSubmissions (pending)──admin Approve──►  Firestore /foods/{id}
+                                                                      │ live listener
+                                                                      ▼
+                                              every signed-in, active user's device (source "sheet")
+</pre>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Layer</th><th>Where</th><th>Who changes it</th><th>Who sees it</th></tr>
+<tr><td>USDA reference (12,879 foods, SR Legacy + FNDDS)</td><td><code>public/fooddb/usda.json</code>, <code>usda-extra.json</code></td><td>Developer, by rebuilding and releasing</td><td>Everyone, including guests</td></tr>
+<tr><td>Hub Food_Database (160 foods)</td><td>Owner's Google Sheet "MEGO Nutrition Hub"</td><td>Owner, in the sheet</td><td>Devices connected to the Hub with the owner's connection code</td></tr>
+<tr><td>Shared verified foods</td><td>Firestore <code>/foods</code></td><td>Administrators only (rule <code>allow write: if isAdmin()</code>)</td><td>Every signed-in user whose account is active</td></tr>
+<tr><td>User suggestions</td><td>Firestore <code>/foodSubmissions</code></td><td>Created by users; reviewed by admins</td><td>Submitter and admins</td></tr>
+</table>
+
+<h2>2. The Hub Food_Database (owner's Google Sheet)</h2>
+<p>The Hub was converted once from the original Excel file into a native Google Sheet; the original Excel file and the original food tab «قاعدة بيانات الأطعمة» are never modified. <code>migrateHub()</code> copied the original tab into <code>Food_Database</code> with stable IDs <code>F0001…</code>; the live check on 7 Nov 2026 reported 160 foods and 0 unreadable values.</p>
+<h3>2.1 Columns</h3>
+<p><code>food_id, name_ar, name_en, category, kcal_100g, protein_100g, carbs_100g, fat_100g, fiber_100g, sugar_100g, sodium_mg_100g, piece_g, state, state_label, prep, source, verification, barcode, notes, active</code>, followed by two technical columns <code>updated_at</code> and <code>json</code>.</p>
+<h3>2.2 Rules applied when a device reads the tab</h3>
+<ul>
+<li>Required columns: <code>food_id, name_ar, kcal_100g, protein_100g, carbs_100g, fat_100g</code>; if one is missing the import stops with "missingColumns".</li>
+<li>Rows without <code>food_id</code> or with <code>active</code> = <code>no</code> are skipped.</li>
+<li>A missing or negative kcal/protein/carbs/fat value marks the food <b>incomplete</b> (it is imported but flagged); all-zero macros are reported as "zeroValues".</li>
+<li>Values are per 100 g of the food in the stated state (raw / cooked / other).</li>
+</ul>
+<h3>2.3 Ownership and safety</h3>
+<ul>
+<li><code>Food_Database</code> is owned by the <b>sheet</b>: the owner manages values there; devices pull them.</li>
+<li>Edits made in the app to Hub foods are written back <b>only</b> if "Write food edits back to the Google Sheet" is enabled on that device (<code>saveFoods</code>). The backend rejects a batch of more than 200 foods, a food without a name and any kcal/protein/carbs/fat value outside 0–1000, and makes a full Drive backup copy of the Hub once per day before the first write-back.</li>
+<li>Every write is timestamp-checked: an older copy never overwrites a newer row (conflict). Deleted rows are copied to <code>Deleted_Records</code> first.</li>
+</ul>
+
+<h2>3. Procedure: changing foods in the Hub</h2>
+<ol>
+<li>Open the Hub in Google Sheets → tab <code>Food_Database</code>. Do not edit the original Arabic tab or the <code>json</code> / <code>updated_at</code> columns.</li>
+<li><b>Correct a value:</b> edit the readable cells of the row (e.g. <code>kcal_100g</code>), keep <code>food_id</code> unchanged.</li>
+<li><b>Add a food:</b> append a row with a new unique <code>food_id</code> in the same pattern (next free <code>F####</code>), Arabic name, state and the four main values per 100 g; fill <code>notes</code>/<code>verification</code> with the source.</li>
+<li><b>Retire a food:</b> set <code>active</code> to <code>no</code>. (Devices that already have the food keep their local copy — the import never deletes local records.)</li>
+<li>On the owner's device: Settings → card "MEGO Nutrition Hub — sync &amp; backup" → <b>Import foods from sheet</b>. The result shows how many foods were added, updated and unchanged.</li>
+<li>If the change must reach signed-in users, continue with section 5.</li>
+</ol>
+<p>Note: the steps for hand-editing rows follow from the import code; editing rows directly in the sheet has not been exercised by an automated test (<i>Not verified</i>).</p>
+
+<h3>3.1 Bulk completion of the Hub: <code>--hub-complete-foods</code> (backend v8)</h3>
+<p>Since 10 Nov 2026 the owner can add the foods that the recipe library needs to the Hub in one command: <code>node scripts/laptop-setup.mjs --hub-complete-foods</code>. It first uploads and redeploys the current backend (same URL), then:</p>
+<ol>
+<li>Checks that the backend is version 8 or newer and that the Hub uses the structured <code>Food_Database</code> tab; otherwise it stops without writing.</li>
+<li><b>Ingredients:</b> for each of the 69 recipe-library ingredients (<code>public/fooddb/library-recipes.json</code>) whose Arabic name is not yet an active Hub row, it adds a row with id <code>LIB-ING-&lt;hash&gt;</code>, category «مكوّنات الوصفات», source <code>usda</code> and the hand-checked USDA FoodData Central values. An ingredient without a verified reference (currently labneh, «لبنة») is <b>never estimated</b>; it is listed as a warning.</li>
+<li><b>Ready meals:</b> for each of the 101 library recipes not yet in the Hub, it adds a row with id <code>LIB-&lt;recipe id&gt;</code>, category «وجبات (مكتبة الوصفات)», state cooked, computed from the Hub's own per-100 g values of the ingredients (USDA only where the Hub had nothing): per 100 g of raw ingredients, piece weight = 1 serving = total grams ÷ servings. A meal with any ingredient lacking usable values is skipped and listed.</li>
+<li>Rows are sent through <code>saveFoods</code> in batches of 100 (daily Drive backup of the Hub before the first write of the day).</li>
+<li><b>English names:</b> the new action <code>fillFoodNames</code> writes <code>name_en</code> only where that cell is empty, using the hand-translated dictionary <code>public/fooddb/food-names.json</code> (160 names) plus the recipe names; every other cell and every existing name stays unchanged. The result reports "English names filled: N".</li>
+</ol>
+<p>Existing rows and values are never changed and a second run adds nothing (tested 9/9 in <code>e2e/hub-complete-test.mjs</code> against the real <code>Code.gs</code> on an emulated Google backend). A live run on the owner's Hub is <i>Not verified</i>. After the run, import the foods on the owner's device (step 5 above).</p>
+<p>The app offers the same completion for a user's own food list (Foods page: "Complete my food database" with a preview, local backup first, adds only, and "Arabic &amp; English names", which fills only missing names, never changing an existing one); those foods are personal, not shared.</p>
+
+<h2>4. Procedure: checking the Hub against a device</h2>
+<p>When a device connects to the Hub (Settings → Hub sync card → Save + test connection), the app first runs a <b>read-only</b> comparison (<code>checkHubFoods</code>) of Hub foods with the device's sheet foods, matched by Arabic name + state:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Result</th><th>Meaning</th><th>Action</th></tr>
+<tr><td>identical</td><td>kcal, protein, carbs, fat and piece weight equal</td><td>None</td></tr>
+<tr><td>different</td><td>At least one value differs; the first 10 are listed as local → Hub</td><td>The flow stops. Decide which is right; to take the Hub values press "Use the Hub values (backup first; past diary entries keep their values)" — a local backup "pre-import" is saved first</td></tr>
+<tr><td>only in Hub</td><td>Food not yet on the device</td><td>Imported on accept</td></tr>
+<tr><td>only on phone</td><td>Device food not in the Hub</td><td>Kept; investigate (renamed or deleted in the Hub?)</td></tr>
+</table>
+
+<h2>5. Procedure: publishing verified foods to the shared /foods database</h2>
+<h3>5.1 What the button does</h3>
+<p>Administration → card <b>Shared food database</b> → <b>Publish verified foods</b>. The app takes the foods <b>in the local database of the device it runs on</b> that have <code>source = "sheet"</code>, are not archived and are not incomplete, and writes each one to <code>foods/{id}</code> with the fields <code>row, sheetKey, nameAr, nameEn, category, per100, pieceGrams, state, stateLabel, prep, notes</code>. The id is the Hub key when it has the form <code>F</code> + digits, otherwise the local food id. The message "Published N foods." confirms the count. USDA foods are built in and are not published.</p>
+<h3>5.2 Preconditions</h3>
+<ol>
+<li>The person is signed in with an admin account (otherwise the server refuses every write).</li>
+<li>The device's <b>account</b> database contains the Hub foods. On a signed-in device the Hub sync does not start automatically (only Firestore sync runs), but the sync card stays in Settings; the admin must connect it with the owner's connection code and press <b>Import foods from sheet</b> first. This sequence on a signed-in admin device is <i>Not verified</i>.</li>
+<li>Run the quality checklist (section 9) and the Hub check (section 4) first.</li>
+</ol>
+<h3>5.3 Steps</h3>
+<ol>
+<li>Sign in as admin on the device that holds the current Hub foods.</li>
+<li>Settings → Hub sync card → Import foods from sheet; confirm the counts.</li>
+<li>Settings → account card → Administration → Publish verified foods.</li>
+<li>Note N from "Published N foods." in the owner's log.</li>
+<li>Check on a second, non-admin test account that a changed food shows the new values.</li>
+</ol>
+<h3>5.4 What happens on users' devices</h3>
+<p>Every signed-in device keeps a live listener on <code>/foods</code>. When the collection changes, all documents are merged into the local food list as source "sheet" (matched by key; changed values update the local copy). The merge never deletes local foods.</p>
+<h3>5.5 Cost</h3>
+<p>Each publish writes one document per food (≈ 160 writes for the current Hub) and every signed-in device re-reads the collection. This counts against the Firestore Spark daily limits (see MEGO_Monitoring_and_Maintenance). Publish only after real changes.</p>
+<h3>5.6 Caution: republishing approved suggestions</h3>
+<p>A device that received an approved suggestion (<code>foods/U-…</code>) holds it locally as a "sheet" food with key <code>U-…</code>. Because publishing uses the Hub key only when it looks like <code>F####</code>, pressing Publish on such a device writes that food a second time under its <b>local</b> id, creating a duplicate shared document. This follows from the code (<code>publishSharedFoods</code>) and has not been observed in production. The same applies to Hub foods whose id is not of the form <code>F####</code>, such as the <code>LIB-ING-…</code> and <code>LIB-…</code> rows added by <code>--hub-complete-foods</code> (3.1): they are published under each device's local id, so publishing them from two different devices creates two shared copies. Until it is fixed, publish from a single device whose sheet foods come from the Hub, or remove the duplicate afterwards in the Firebase console.</p>
+
+<h2>6. Procedure: reviewing user food suggestions</h2>
+<ol>
+<li>A signed-in user presses "Suggest for the shared database" in the editor of one of their own foods; a <code>foodSubmissions</code> document with <code>status: "pending"</code> is created. Nothing is published automatically.</li>
+<li>Administration → <b>Food submissions to review</b> lists up to 100 pending items (name, state, kcal, P, C, F per 100 g, source reference, notes).</li>
+<li>Check the values against the label or another reliable source (section 9).</li>
+<li><b>Approve</b> → copied to <code>foods/U-&lt;submissionId&gt;</code> with the note "user submission reviewed by admin"; the submission becomes <code>approved</code>. <b>Reject</b> → only marked <code>rejected</code>.</li>
+</ol>
+<p>Values cannot be edited in the dashboard, and the submitter is not notified in the app.</p>
+
+<h2>7. Removing or correcting a shared food</h2>
+<ul>
+<li><b>Correct:</b> fix the value in the Hub and republish (section 5) — the document with the same <code>F####</code> id is overwritten and devices update their copy.</li>
+<li><b>Remove:</b> there is no unpublish button. The owner can delete the document in the Firebase console, but devices that already received it <b>keep</b> their local copy, because the listener merges and never deletes. To neutralise a wrong food on all devices, publish corrected values instead of deleting.</li>
+<li>An approved suggestion with wrong values can be corrected only in the console (<code>foods/U-…</code>); <i>Not verified</i>.</li>
+</ul>
+
+<h2>8. The built-in USDA reference database</h2>
+<p>Built by <code>node scripts/build-food-db.mjs &lt;directory with the unzipped USDA CSV folders&gt;</code> from USDA FoodData Central (public domain): SR Legacy (2018-04) and FNDDS (2024-10-31). Values are copied exactly per 100 g edible portion; foods without a published energy value are skipped; each row keeps its FDC ID; Atwater mismatches are flagged, not changed. Output: <code>public/fooddb/usda.json</code> and <code>public/fooddb/usda-extra.json</code>. A rebuilt file reaches users only through a normal release (commit → GitHub Actions tests → deploy; see MEGO_Build_and_Release_Procedures). Administrators cannot change USDA values in the app.</p>
+
+<h2>9. Quality checklist before publishing</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Check</th><th>How</th></tr>
+<tr><td>Energy matches macros</td><td>Atwater: <code>4×protein + 4×carbs + 9×fat</code> ≈ kcal. The app computes the deviation <code>(kcal − calc) ÷ kcal</code> (<code>atwaterDeviation</code> in <code>src/lib/nutrition.ts</code>). Example: P 31, C 0, F 3.6 → 156.4 kcal; a stated 165 kcal deviates ≈ 5 %. Large deviations need a source check</td></tr>
+<tr><td>Per 100 g, not per serving</td><td>Settings → Data check lists foods that look like per-serving values</td></tr>
+<tr><td>Correct state</td><td>Raw vs cooked values differ widely (e.g. dry vs cooked rice); state must match the values</td></tr>
+<tr><td>No duplicates</td><td>Same Arabic name + state should exist once (Data check lists possible duplicates)</td></tr>
+<tr><td>Source recorded</td><td><code>notes</code>/<code>verification</code> name the label or reference</td></tr>
+<tr><td>Complete</td><td>All four main values present (incomplete foods are not published)</td></tr>
+</table>
+
+<h2>10. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Hub native + writable, Food_Database 160 foods / 0 unreadable, write/read/conflict/soft delete</td><td>Verified live (laptop-setup live tests, 7 Nov 2026)</td></tr>
+<tr><td>Admin-only write to <code>/foods</code>, submissions rules</td><td>Tested on Firebase emulators</td></tr>
+<tr><td>Publishing and review by a real admin in production</td><td>Not done — no admin account yet</td></tr>
+<tr><td>Pulling Hub foods on a signed-in admin device; hand-edited Hub rows; console deletion of shared foods</td><td>Not verified</td></tr>
+<tr><td>Duplicate on republishing approved suggestions (5.6)</td><td>Derived from code reading; not observed live</td></tr>
+<tr><td>Hub completion (<code>--hub-complete-foods</code>, <code>fillFoodNames</code>)</td><td>Tested 9/9 on an emulated backend; live run Not verified</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

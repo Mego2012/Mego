@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Features_and_Capabilities_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Features and Capabilities</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-04</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Project owner, stakeholders, testers, support, new team members</td></tr>
+<tr><td>Related documents</td><td>MEGO_Product_Overview, MEGO_Product_Requirements_PRD, MEGO_Platforms_and_System_Requirements, MEGO_Workflow_and_User_Journey, MEGO_User_Manual, MEGO_Known_Bugs_and_Limitations</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document is the complete inventory of what MEGO can do on 10 November 2026: every screen, every major capability, the module that implements it and its verification level. It describes the product as built — not plans. Future work is in MEGO_Product_Roadmap and MEGO_Future_Development_Recommendations. Step-by-step instructions are in the user guides (folder 02).</p>
+<p><b>Note on earlier documents:</b> older repository notes (README.md, docs/FEATURES.md) and the PRD of 7 November describe MEGO as "nutrition only, no workouts". Since then, cardio, workouts and a training coach have been added (verified 10 Nov 2026). This document reflects the current code.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Capability map</li>
+<li>Screens and navigation</li>
+<li>Nutrition logging and food data</li>
+<li>AI meal scanner</li>
+<li>Goals, targets and energy adjustment</li>
+<li>Training: cardio, workouts and the training coach</li>
+<li>Coach, food intelligence and education</li>
+<li>Recipes and meal planning</li>
+<li>Body, habits and reports</li>
+<li>Accounts, sync, backup and administration</li>
+<li>Cross-cutting qualities</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Capability map</h2>
+<pre>
+                         MEGO (PWA, Arabic RTL / English LTR)
+ +-----------------+-----------------+------------------+-------------------+
+ | NUTRITION       | TRAINING        | INSIGHT          | DATA &amp; ACCOUNTS   |
+ | Diary           | Cardio          | Coach (5 tabs)   | Guest / account   |
+ | Foods &amp; search  | Workouts        | Rankings/compare | Cloud sync        |
+ | AI scanner      | Exercise guide  | Weekly/monthly   | Owner Hub sync    |
+ | Recipes/planner | Training coach  |  reports         | Backups/export    |
+ | Goals/targets   | Energy card     | Insights         | Admin dashboard   |
+ +-----------------+-----------------+------------------+-------------------+
+</pre>
+
+<h2>2. Screens and navigation</h2>
+<p>Routes are defined in <code>src/App.tsx</code> (HashRouter, so URLs look like <code>#/diary</code>). The bottom bar shows Dashboard, Diary, My Recipes and Progress plus a "More" sheet (<code>src/components/Layout.tsx</code>); on wide screens a side navigation lists all items.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Route</th><th>Screen</th><th>Main content</th></tr>
+<tr><td><code>#/</code></td><td>Dashboard</td><td>Calorie ring (Goal − Food = Remaining), macro bars, meals, water, weight, energy card, today's training card, photo scan buttons, insights</td></tr>
+<tr><td><code>#/diary</code></td><td>Diary</td><td>Week strip, meals, add/edit/copy/undo, day status, per-day targets</td></tr>
+<tr><td><code>#/foods</code></td><td>Foods</td><td>Food database, filters, editor, import/export, data-quality tiles</td></tr>
+<tr><td><code>#/recipes</code></td><td>My Recipes</td><td>Tabs: Library, Suggestions, Cook, My recipes, Saved meals</td></tr>
+<tr><td><code>#/planner</code></td><td>Meal Planner</td><td>Week plan, automatic plan, shopping list, planned vs actual</td></tr>
+<tr><td><code>#/coach</code></td><td>Coach</td><td>Tabs: Today, Week, Month, Foods (rankings/compare), Learn</td></tr>
+<tr><td><code>#/progress</code></td><td>Progress</td><td>Weight, waist, measurements, photos (device only), trends</td></tr>
+<tr><td><code>#/goals</code></td><td>Goals</td><td>This week, Recommendations, Nutrition/Fitness goals, Body progress, Weekly check-in</td></tr>
+<tr><td><code>#/workouts</code></td><td>Workouts</td><td>Tabs: Overview, Today, Program, Exercises, Progress, Coach</td></tr>
+<tr><td><code>#/exercise/:id</code></td><td>Exercise guide</td><td>Animated drawing, technique, muscle chart</td></tr>
+<tr><td><code>#/cardio</code></td><td>Cardio</td><td>My routine, week and month charts, trends, history</td></tr>
+<tr><td><code>#/habits</code></td><td>Water &amp; habits</td><td>Water, habits, fasting timer, reminders</td></tr>
+<tr><td><code>#/reports/week</code>, <code>#/reports/month</code></td><td>Reports</td><td>Weekly / monthly report and export</td></tr>
+<tr><td><code>#/settings</code></td><td>Settings</td><td>Language/theme, profile, targets, sync, AI scanner, food preferences, data &amp; backups, data check, local backups, photo credits</td></tr>
+<tr><td><code>#/admin</code>, <code>#/privacy</code>, <code>#/terms</code></td><td>Admin, legal</td><td>Admin dashboard; privacy policy and terms (drafts)</td></tr>
+</table>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/home-en-light.png" width="300" alt="Dashboard"> <img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/diary-en-light.png" width="300" alt="Diary"></p>
+
+<h2>3. Nutrition logging and food data</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Capability</th><th>Details</th><th>Code</th></tr>
+<tr><td>Per-100 g basis</td><td>Every food stores kcal, protein, carbs and fat per 100 g; raw, cooked and ready-to-eat records are separate and never converted</td><td><code>src/lib/nutrition.ts</code>, <code>types.ts</code></td></tr>
+<tr><td>Units</td><td>g, kg, ml, L, cup (240 ml), tbsp (15 ml), tsp (5 ml), piece, slice, custom servings; each unit shows its gram weight; density per food for volume units</td><td><code>nutrition.ts</code></td></tr>
+<tr><td>Meals</td><td>Breakfast, lunch, dinner, snacks on any date</td><td><code>src/pages/Diary.tsx</code></td></tr>
+<tr><td>Snapshot</td><td>Each entry keeps the values used when it was logged; later food edits never change past days</td><td><code>db.ts</code>, <code>repo.ts</code></td></tr>
+<tr><td>Editing</td><td>Edit quantity/unit/meal/date, duplicate, copy to another date, delete with confirmation, undo; copy meal / day / yesterday with a warning before adding to a non-empty day; saved meals</td><td><code>Diary.tsx</code></td></tr>
+<tr><td>Day status</td><td>Fully / partially logged; automatic rule at ≥ 60 % of the calorie target (configurable); training vs rest day; per-day target override</td><td><code>reports.ts</code>, <code>targets.ts</code></td></tr>
+<tr><td>Reference database</td><td>12,879 USDA FoodData Central foods (<code>public/fooddb/usda.json</code>) plus <code>usda-extra.json</code>, available offline</td><td><code>refFoods.ts</code></td></tr>
+<tr><td>Search</td><td>Arabic + English, tolerant of Arabic letter variants and typos; favourites, recent, frequent, history</td><td><code>foodSearch.ts</code>, <code>normalize.ts</code></td></tr>
+<tr><td>Barcode</td><td>Camera scan (BarcodeDetector API: EAN-13, EAN-8, UPC-A, UPC-E) and manual entry; lookup in Open Food Facts, labelled as external data</td><td><code>barcode.ts</code>, <code>BarcodeSheet.tsx</code></td></tr>
+<tr><td>Custom foods</td><td>Create from a nutrition label, edit with version history, archive instead of delete, JSON export/import, CSV/Excel import with audit preview</td><td><code>customFoods.ts</code>, <code>sheetImport.ts</code></td></tr>
+<tr><td>Food photos</td><td>74 freely licensed Wikimedia Commons photos; other foods show a drawn placeholder</td><td><code>foodPhotos.ts</code></td></tr>
+<tr><td>Data quality</td><td>Calories-vs-macros (Atwater) check with explanations; blank values block logging; decimal commas and duplicates flagged</td><td><code>nutrition.ts</code>, <code>sheetImport.ts</code></td></tr>
+</table>
+
+<h2>4. AI meal scanner</h2>
+<ul>
+<li>Take a photo or pick one from the gallery (Dashboard, Diary, Add-food sheet). The image is validated and compressed on the phone before sending (<code>src/lib/mealScanner.ts</code>).</li>
+<li>The photo goes to the private Apps Script backend, which calls the Gemini API free tier. The key is stored only in Apps Script Script Properties. Model chain (free tier only): gemini-3.8-flash → gemini-3.6-flash → gemini-3.5-flash-lite (backend <code>SCRIPT_VERSION 7</code>).</li>
+<li>The AI identifies items, estimates grams (with a range), raw/cooked state and cooking method, and picks the matching food. <b>Nutrition is always computed by the app's engine from the database.</b> Items not in the database are marked as AI estimates.</li>
+<li><b>Nothing is saved until the user confirms</b> on the review sheet. Uncertain items must be ticked as checked.</li>
+<li>Errors are mapped to precise codes (for example AI_OVERLOADED, AI_TIMEOUT, AI_QUOTA_MINUTE/DAY, AI_KEY_INVALID, AI_REGION). The client retries temporary errors automatically after 3 s and 8 s and keeps the image for a manual retry; one request at a time.</li>
+<li>Limits: own daily cap <code>AI_DAILY_LIMIT</code> (default 40) and per-user <code>AI_USER_DAILY_LIMIT</code> (default 10) in <code>apps-script/Code.gs</code>; Google's free quota also applies. Free tier can be slow at peak times (live run on 10 Nov: ≈ 64 s, 4 items).</li>
+</ul>
+
+<h2>5. Goals, targets and energy adjustment</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Capability</th><th>Details</th></tr>
+<tr><td>Goal types</td><td>9: fat loss, fat loss preserving muscle (default), recomposition, lean bulk, bulk, maintain, healthy eating, performance, custom (<code>src/lib/types.ts</code>)</td></tr>
+<tr><td>Target recommendation</td><td>Mifflin-St Jeor BMR × activity; kcal = max(BMR, round(TDEE × (1 + adjust)/10) × 10); protein = weight × g/kg; fat = max(0.8 g/kg, 25 % kcal ÷ 9); carbs = remainder ÷ 4 (<code>goals.ts</code>). Applied only after confirmation.</td></tr>
+<tr><td>Training / rest targets</td><td>Separate targets, training weekdays, per-day overrides, tolerances (<code>targets.ts</code>, Settings)</td></tr>
+<tr><td>Goals advisor</td><td>Reviews 7-day weight averages, 28-day regression, waist, 14-day adherence, weekly cardio and the weekly check-in; produces suggestions only, never auto-applied; no surplus for loss goals (<code>goalAdvisor.ts</code>)</td></tr>
+<tr><td>Smart energy adjustment</td><td>Home shows Base target, Cardio (estimate), Extra allowed, Adjusted target, Remaining. Planned cardio counts as already covered; only extra net energy is added back × 50 % (fat loss) / 75 % (maintain) / 100 % (gain), capped at 400 kcal; fat-loss ceiling 0.9 × (TDEE + extra). Saved targets are never changed (<code>energy.ts</code>).</td></tr>
+</table>
+
+<h2>6. Training: cardio, workouts and the training coach</h2>
+<ul>
+<li><b>Cardio</b> (<code>src/lib/cardio.ts</code>, <code>#/cardio</code>): 10 activity types (walking, treadmill walk, running, cycling, stationary bike, elliptical, stair climber, swimming, rowing, other). Energy is a MET-based <b>estimate</b> (ACSM equations for walking/running with speed and grade), labelled as such. Saved routine default: treadmill 10 min, 3.5 km/h, 13 % incline; default plan 6 sessions × 10 min per week. Week/month charts and history.</li>
+<li><b>Workouts</b> (<code>workouts.ts</code>, <code>#/workouts</code>): program generator that keeps the user's split, session logging (weight, reps, RIR, optional RPE, rest timer), strength analytics (Epley e1RM, volume, personal records, trends), double-progression advice.</li>
+<li><b>Exercise library and guide</b>: 54 built-in exercises (<code>exercises.ts</code>) in Arabic and English, custom exercises, original pose drawings with start/finish frames and animation (<code>exerciseVisuals.ts</code>), technique text (<code>src/lib/technique/</code>) and a front/back muscle chart (<code>MuscleChart.tsx</code>). No photos or videos.</li>
+<li><b>Training coach</b> (<code>trainingCoach.ts</code>): local, rule-based logic on the device — <b>not an AI service</b>. Every answer names its data and confidence; nothing changes without approval. Weekly and monthly reports include a Workouts card.</li>
+</ul>
+<p>Training data is stored in the synced <code>kv</code> table (keys <code>cardio:</code>, <code>cardioRoutine</code>, <code>checkin:</code>, <code>program:</code>, <code>activeProgram</code>, <code>workout:</code>, <code>exercise:</code>, <code>recovery:</code>, <code>preferredExercises</code>); the database schema is unchanged (v2).</p>
+
+<h2>7. Coach, food intelligence and education</h2>
+<ul>
+<li>Coach tabs Today / Week / Month: messages computed from the user's own logs; "data" messages are separated from labelled "general guidance" with a source (<code>coach.ts</code>).</li>
+<li>Food rankings (protein, carbs, fats, fibre, low calorie, protein per calorie, nutrient density, cutting, building) using the amino-acid score vs FAO/WHO 2007 and NRF9.3 with goal-dependent weights; fully measured foods are ranked before partial-data foods (<code>foodIntel.ts</code>, <code>intelCatalog.ts</code> with 83 foods). Comparison table.</li>
+<li>Education: 13 articles with cited sources (<code>education.ts</code>).</li>
+<li>Insights (<code>insights.ts</code>): only from saved data, need ≥ 3 fully logged days, weight trends from 7-day averages.</li>
+</ul>
+
+<h2>8. Recipes and meal planning</h2>
+<ul>
+<li>101 built-in recipes (<code>recipeLibraryData.ts</code> + <code>recipeLibraryData2.ts</code>) in Arabic and English. Nutrition is computed from the food database at runtime (<code>recipeEngine.ts</code>, <code>recipeRefMap.ts</code>); missing ingredients are shown as missing and never invented (example: labneh).</li>
+<li>Filters, ratings, favourites; add to diary or plan; save as editable recipe; suggestions that fit what is left today; "What can I cook today?" from selected ingredients.</li>
+<li>Planner: week view, reusable day plans, automatic week plan, copy last week, shopping list with check-off, planned vs actual.</li>
+</ul>
+
+<h2>9. Body, habits and reports</h2>
+<ul>
+<li>Progress: weight, waist and optional measurements (one record per date), 7-day average chart, weekly/monthly averages, rate of change, estimated target date, pace warning; progress photos stored on the device only.</li>
+<li>Water &amp; habits: water target and quick add, custom habits with streaks, fasting timer with history, reminders (fire only while the app is open or in the background — <code>reminders.ts</code>).</li>
+<li>Reports: weekly and monthly with day ledger, averages over fully logged days, consistency, weight, macro split, water, fibre, top foods, previous-period comparison, Workouts card; export CSV, Excel (XLSX) or print-to-PDF (<code>reports.ts</code>, <code>exporters.ts</code>).</li>
+</ul>
+
+<h2>10. Accounts, sync, backup and administration</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Capability</th><th>Details</th></tr>
+<tr><td>Modes</td><td>Welcome, Guest (local DB <code>mego-nutrition</code>), Account (local DB <code>mego-u-&lt;uid&gt;</code>) — <code>account.ts</code></td></tr>
+<tr><td>Accounts</td><td>3-step registration (account; body and goal; targets), sign-in, sign-out, password reset, optional import of guest data, export, account deletion — Firebase Authentication (Email/Password)</td></tr>
+<tr><td>Cloud sync</td><td>Live Cloud Firestore listeners; older copies never overwrite newer; per-user isolation enforced by <code>firebase/firestore.rules</code></td></tr>
+<tr><td>Owner Hub sync</td><td>Guest/owner device ↔ Apps Script ↔ Google Sheet "MEGO Nutrition Hub": outbox, retry 5 s → 5 min, sync every minute, conflict detection, soft delete (<code>sync.ts</code>)</td></tr>
+<tr><td>Backups</td><td>On-device snapshots (last 10), pre-update backup once per release (<code>APP_RELEASE '1.3-training'</code>), backup file download / merge-only restore, CSV/XLSX/JSON export</td></tr>
+<tr><td>Data check</td><td>Settings: record counts vs pre-update backup, per-serving suspect foods, possible duplicate entries — read-only (<code>dataCheck.ts</code>)</td></tr>
+<tr><td>Administration</td><td>Admin dashboard: counts, account list, suspend/reactivate, food submission review, error reports — no access to private records. No admin account exists yet.</td></tr>
+</table>
+
+<h2>11. Cross-cutting qualities</h2>
+<ul>
+<li>Bilingual: full Arabic RTL and English LTR (<code>src/lib/i18n*.ts</code>); themes light, dark, system.</li>
+<li>Offline-first: IndexedDB (Dexie) plus a Workbox service worker that precaches the app shell and the USDA database.</li>
+<li>Zero cost: GitHub Pages, Firebase Spark, Apps Script, Gemini free tier — no billing account.</li>
+<li>Honesty rules: empty days are never zero; estimates are labelled; recommendations are never auto-applied.</li>
+</ul>
+
+<h2>12. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Inventory of screens, modules and counts (101 recipes, 54 exercises, 12,879 USDA foods, 74 photos, 13 articles, 83 intelligence foods, 9 goals, 10 cardio activities)</td><td>Verified in the code on 10 Nov 2026</td></tr>
+<tr><td>Accounts, isolation, sync, reports on production</td><td>Verified live (<code>scripts/live-verify.mjs</code>)</td></tr>
+<tr><td>AI meal scanner</td><td>Verified live on 10 Nov 2026 (one meal, ≈ 64 s, 4 items); free tier slow at peak times</td></tr>
+<tr><td>Exercise pages</td><td>54/54 checked on the live site</td></tr>
+<tr><td>All screens, touch scrolling</td><td>Emulated devices only (browser e2e 57/57, touch 103/103); unit tests 195</td></tr>
+<tr><td>Barcode camera, reminders when closed, real Android phone, PDF printing on a phone</td><td>Not verified</td></tr>
+<tr><td>Admin dashboard in production</td><td>Not verified — no admin account yet (emulator tests only)</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

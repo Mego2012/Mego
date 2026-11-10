@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Unit_Testing_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — اختبارات الوحدة</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-59</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>المطورون، المختبِرون</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Testing_Strategy، MEGO_Integration_Testing، MEGO_Nutrition_Calculation_Accuracy_Tests، MEGO_Release_Readiness_Checklist، MEGO_Build_and_Release_Procedures</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تصف هذه الوثيقة مجموعة اختبارات الوحدة (Unit Tests) في MEGO: الأداة وإعداداتها، وكل ملف اختبار في المجلد <code dir="ltr">tests/</code> مع عدد اختباراته وما يغطيه، والبيانات التجريبية (Fixtures) المستخدمة، وطريقة تشغيلها في التكامل المستمر (CI)، وكيفية إضافة اختبار جديد. تستند إلى تشغيل فعلي للأمر <code dir="ltr">npx vitest run</code> في 10 نوفمبر 2026: <b>14 ملف اختبار، 199 اختبارًا، جميعها ناجحة</b>.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">الأداة والإعدادات</li>
+<li dir="rtl">ملفات الاختبار وما تغطيه</li>
+<li dir="rtl">البيانات التجريبية والبيانات الخاصة</li>
+<li dir="rtl">أساليب الاختبار المستخدمة</li>
+<li dir="rtl">تشغيل المجموعة وقراءة النتائج</li>
+<li dir="rtl">كتابة اختبار وحدة جديد</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. الأداة والإعدادات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>القيمة (مُتحقَّق منها في المستودع)</th></tr>
+<tr><td>أداة التشغيل</td><td>Vitest 2.1.8 (ضمن devDependencies في <code dir="ltr">package.json</code>)</td></tr>
+<tr><td>الإعداد</td><td><code dir="ltr">vite.config.ts</code> ← <code dir="ltr">test.include: ['tests/**/*.test.ts']</code> و<code dir="ltr">setupFiles: ['tests/setup.ts']</code></td></tr>
+<tr><td>التهيئة</td><td>يستورد <code dir="ltr">tests/setup.ts</code> الحزمة <code dir="ltr">fake-indexeddb/auto</code>، فيعمل كود قاعدة البيانات الحقيقي Dexie ‏(<code dir="ltr">src/lib/db.ts</code>) داخل Node على قاعدة IndexedDB في الذاكرة</td></tr>
+<tr><td>الأوامر</td><td><code dir="ltr">npm test</code> (أي <code dir="ltr">vitest run</code>) أو <code dir="ltr">npx vitest run</code></td></tr>
+<tr><td>العزل</td><td>تستدعي معظم الملفات <code dir="ltr">useDatabase('&lt;اسم فريد&gt;')</code> قبل كل اختبار، فيبدأ كل اختبار بقاعدة بيانات فارغة خاصة به</td></tr>
+<tr><td>المستثنى</td><td><code dir="ltr">tests-rules/</code> (يحتاج محاكيات Firebase؛ له إعداد مستقل <code dir="ltr">vitest.rules.config.ts</code> — انظر MEGO_Integration_Testing)</td></tr>
+</table>
+
+<h2 dir="rtl">2. ملفات الاختبار وما تغطيه</h2>
+<p dir="rtl">الأعداد مأخوذة من تشغيل 10 نوفمبر 2026.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الملف</th><th>الاختبارات</th><th>الوحدات المختبَرة</th><th>ما يغطيه</th></tr>
+<tr><td><code dir="ltr">tests/core.test.ts</code></td><td>21</td><td>nutrition، repo، reports، insights، sheetImport، backup</td><td>استيراد الجدول وتدقيقه (اكتشاف صف العناوين تحت صف العنوان، الإبقاء على صفوف 0/0/0/0 مع منع تسجيلها، إعادة الاستيراد دون تكرار)؛ اختبارات القبول TEST 1–11 على مستوى الكود (صدر دجاج نيء/مطبوخ، البيض، التوست، تحويل كغ/ملعقة كبيرة/صغيرة، الأرز النيء مقابل المطبوخ، منع التكرار عند النقر المزدوج، إجمالي الوصفة ولكل حصة، تعديل الأهداف 2000←2200 و160←170، أهداف يوم الراحة، التسجيل في تاريخ سابق، تصنيف الأيام في التقرير الأسبوعي والشهري، ثبات السجل التاريخي بعد تعديل الطعام)؛ الوجبات المحفوظة، شروط التحليلات، قياسات الجسم (قياس واحد لكل تاريخ)، النسخ الاحتياطي والاستعادة</td></tr>
+<tr><td><code dir="ltr">tests/v2.test.ts</code></td><td>33</td><td>nutrition، repo، reports، sheetImport، sync، recipeEngine، goals، backup، barcode، Code.gs</td><td>استيراد الأطعمة الـ 160 دون تغيير؛ تفسيرات فحص الطاقة؛ دقة التخزين؛ 200 غ أرز نيء مقابل مطبوخ؛ وحدات الكوب واللتر؛ التراجع (Undo)؛ غرامات الوصفة؛ التحقق عند الاستيراد (خلايا فارغة، الفاصلة العشرية)؛ مكتبة وصفات ≥ 50 وصفة قابلة للحساب، الاقتراحات، خطة الأسبوع، قائمة التسوق؛ الأهداف لا تُستبدَل تلقائيًا؛ الماء والعادات والصيام؛ استعادة نسخة احتياطية بعد التحقق منها؛ أرقام التحقق في الباركود وتحويل بيانات Open Food Facts (شبكة محاكاة)؛ خادم Hub ‏(Code.gs الحقيقي v3 على Hub محاكى: التفويض، تثبيت معرّف Hub، <code dir="ltr">migrateHub</code>، الدفع والسحب والتعارض والحذف المرن، <code dir="ltr">installMego</code>، bootstrap؛ يبلغ الخادم الآن عن <code dir="ltr">scriptVersion: 8</code>؛ والإجراء <code dir="ltr">fillFoodNames</code> يكتب خلايا الأسماء الإنجليزية الفارغة فقط بعد نسخة احتياطية يومية ولا يكرر عمله)؛ الانتقال إلى معرّفات F الثابتة دون تكرار</td></tr>
+<tr><td><code dir="ltr">tests/fooddb.test.ts</code></td><td>13</td><td>refFoods، foodSearch، nutrition، repo، customFoods</td><td>سلامة قاعدة USDA المرجعية (12,879 طعامًا، مصادر ملكية عامة، لا معرّفات مكررة، أرقام صالحة)؛ مطابقة قيم USDA بدقة؛ البحث ثنائي اللغة («صدور فراخ» باللهجة المصرية، كلمات الحالة، المفرد والجمع، الأخطاء الإملائية، العلامات التجارية، فلاتر التغذية)؛ استنتاج نيء/مطبوخ من اسم USDA؛ تسجيل طعام مرجعي؛ إنشاء طعام مفقود من الملصق؛ تصدير واستيراد JSON دون تكرار</td></tr>
+<tr><td><code dir="ltr">tests/intel.test.ts</code></td><td>10</td><td>foodIntel، intelCatalog، education</td><td>أطعمة الكتالوج موجودة في USDA بقيمها؛ درجات الأحماض الأمينية تعيد إنتاج الأحماض المحدِّدة المعروفة؛ الترتيب حسب الهدف؛ المصدر (حيواني/نباتي) لا يغير الدرجة؛ NRF9.3؛ الأطعمة كاملة القياس تسبق ناقصة البيانات؛ بيانات الأحماض الأمينية الناقصة لا تُملأ؛ مصادر مركز التثقيف تشير إلى وثائق محددة</td></tr>
+<tr><td><code dir="ltr">tests/coach.test.ts</code></td><td>7</td><td>coach، foodIntel</td><td>خيارات سد نقص البروتين ضمن السعرات المتبقية؛ احترام النظام النباتي والحساسية؛ اقتراحات حسب الهدف؛ «أكمل الماكروز»؛ لا تحليل دون تسجيلات (المراجعة الأسبوعية تحتاج ≥ 3 أيام مكتملة)؛ نتائج المراجعة الأسبوعية؛ نصيحة اليوم بترتيب ثابت</td></tr>
+<tr><td><code dir="ltr">tests/scanner.test.ts</code></td><td>30</td><td>mealScanner (العميل) + الملف الحقيقي <code dir="ltr">apps-script/Code.gs</code> على gas-mock مع بديل مبرمج لـ Gemini</td><td>شكل الطلب (نموذج Gemini مجاني فقط، المفتاح في الترويسة، الصورة أولًا، مخطط JSON، لا بيانات شخصية، المفتاح لا يُعاد أبدًا)؛ رفض النماذج المدفوعة أو المجهولة؛ <code dir="ltr">setAiKey</code>؛ رسائل الحصة المجانية وموعد إعادة التعيين عند منتصف ليل المحيط الهادئ؛ سيناريوهات الوجبات (أرز ودجاج، بيض، ساندويتش، سلطة، مطعم، وصفة منزلية، وجبة مختلطة، صورة ليست طعامًا)؛ تحويل الأخطاء؛ التحقق من مخرجات الذكاء الاصطناعي المشوهة؛ وسيط الذكاء الاصطناعي للحسابات العامة (حد لكل مستخدم، رمز غير صالح، حساب موقوف، المنطقة، الحد العام، إحصاءات للمشرفين فقط)؛ <code dir="ltr">setCloudConfig</code>؛ سلوك الخادم v7 (إعادة محاولة 500، الانتقال فورًا إلى النموذج المجاني التالي عند 503، أكواد AI_SERVER_ERROR/AI_TIMEOUT/AI_CONFIG، الإخفاقات لا تُحتسب من الحصة، أخطاء الحصة والمفتاح لا تُعاد)؛ إعادة المحاولة في العميل مع تباعد زمني، طلب واحد في كل مرة، المهلة، التحقق من الصورة</td></tr>
+<tr><td><code dir="ltr">tests/photos.test.ts</code></td><td>4</td><td>foodPhotos</td><td>مطابقة الصور بالعربية والإنجليزية، لا صورة للأطباق أو الأسماء المتشابهة، الربط بمعرّف FDC أولًا، لكل صورة ملف ونسبة كاملة (المؤلف، الترخيص، المصدر)</td></tr>
+<tr><td><code dir="ltr">tests/cardio-goals.test.ts</code></td><td>36</td><td>cardio، energy، goalAdvisor، goals، recipeEngine، recipeRefMap، localBackup</td><td>تقدير MET للكارديو (معادلات ACSM للمشي والجري، شرائح سرعة الدراجة، شدّات Compendium، السعرات اليدوية)، التحقق من المدخلات، الوزن المعتمد لكل تاريخ؛ تسجيل الجلسات وتعديلها وحذفها؛ الإحصاءات اليومية والأسبوعية والشهرية؛ التعديل الذكي للطاقة (الكارديو المخطط محسوب مسبقًا، صافي الطاقة × نسبة الهدف، حد 400 سعرة، وضع الإيقاف، سقف خسارة الدهون)؛ توصيات الأهداف اقتراحات فقط؛ تغذية الوصفات المرتبطة بـ USDA (اللبنة «مفقودة»، طعام المستخدم له الأولوية)؛ نسخة احتياطية قبل التحديث مرة لكل إصدار، والحفاظ على السجلات الحالية</td></tr>
+<tr><td><code dir="ltr">tests/workouts.test.ts</code></td><td>33</td><td>exercises، workouts، trainingCoach، energy، goalAdvisor، dataCheck، backup</td><td>مكتبة التمارين (54 تمرينًا، الاسمان، العضلات، البدائل)؛ مولّد البرنامج يحافظ على تقسيم المالك لستة أيام؛ e1RM ‏(Epley)، الاتجاهات، المجموعات الأسبوعية لكل عضلة؛ نصائح التدرّج المزدوج؛ الجلسات والاستشفاء وإجابات المدرب مع مستوى الثقة؛ التمارين لا تحتسب السعرات مرتين ولا تغيّر الهدف المحفوظ؛ قابلية استعادة النسخة الاحتياطية؛ «فحص البيانات» للقراءة فقط (اكتشاف الأطعمة المسجلة لكل سكوب)</td></tr>
+<tr><td><code dir="ltr">tests/exercise-guide.test.ts</code></td><td>4</td><td>exercises، exerciseVisuals، technique</td><td>لكل تمرين من الـ 54 رسم توضيحي وتقنية كاملة؛ الرسوم فيها حركة حقيقية وإحداثيات محدودة؛ نص التقنية كامل بالعربية والإنجليزية؛ لا ادعاءات طبية غير مدعومة</td></tr>
+<tr><td><code dir="ltr">tests/cloud-recovery.test.ts</code></td><td>3</td><td>cloudSync، repo، dataCheck</td><td>الإعدادات الافتراضية غير المعدَّلة لا تتقدم على إعدادات السحابة بعد فقدان قاعدة البيانات المحلية؛ الإعدادات التي غيّرها المستخدم لا تُعامل كافتراضية؛ عناصر اليوميات والأطعمة المكررة يُبلَّغ عنها ولا تُحذف (حادثة 10 نوفمبر 2026)</td></tr>
+<tr><td><code dir="ltr">tests/library-foods.test.ts</code></td><td>3</td><td>libraryFoods، foodNames</td><td>«أكمل قاعدة أطعمتي»: كل مكوّن في مكتبة الوصفات إما يُضاف من قيم USDA المراجَعة يدويًا أو يُبلَّغ عنه كمفقود (اللبنة) دون تقدير أبدًا؛ التطبيق يضيف المكونات والوجبات الجاهزة فقط، ولا يمس الأطعمة الموجودة، ولا يكرر الإضافة؛ الأسماء العربية/الإنجليزية تملأ الفارغ فقط في الاتجاهين وتسرد ما تبقى</td></tr>
+<tr><td><code dir="ltr">tests/i18n-keys.test.ts</code></td><td>1</td><td>i18n + جميع ملفات المصدر</td><td>كل مفتاح ترجمة مستخدم في الكود موجود بالعربية والإنجليزية</td></tr>
+<tr><td><code dir="ltr">tests/i18n-parity.test.ts</code></td><td>1</td><td>i18n</td><td>لكل نص عربي مقابل إنجليزي والعكس</td></tr>
+<tr style="background:#e8f3ef"><td><b>الإجمالي</b></td><td><b>199</b></td><td colspan="2">14 ملفًا</td></tr>
+</table>
+
+<h2 dir="rtl">3. البيانات التجريبية والبيانات الخاصة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الملف</th><th>الاستخدام</th><th>في Git؟</th></tr>
+<tr><td><code dir="ltr">tests/fixtures/food-sheet-sample.csv</code></td><td>عينة صغيرة بتنسيق جدول المالك (صف عنوان وصف عناوين أعمدة) بالقيم المستخدمة في اختبارات القبول</td><td>نعم</td></tr>
+<tr><td><code dir="ltr">tests/fixtures/foods-synthetic.csv</code></td><td>الأسماء والفئات والحالات نفسها لجدول الـ 160 طعامًا لكن بقيم مصطنعة</td><td>نعم</td></tr>
+<tr><td><code dir="ltr">tests/private/foods-160.csv</code></td><td>جدول الأطعمة الحقيقي للمالك (160 طعامًا)</td><td><b>لا</b> (مستثنى من Git)</td></tr>
+<tr><td><code dir="ltr">public/fooddb/usda.json</code></td><td>قاعدة USDA المرجعية المرفقة بالتطبيق، تقرؤها الاختبارات مباشرة</td><td>نعم</td></tr>
+</table>
+<p dir="rtl">يعرّف <code dir="ltr">tests/v2.test.ts</code> الدالة <code dir="ltr">itReal = it.skipIf(!REAL)</code>: هناك <b>11 اختبارًا</b> تتحقق من قيم الجدول الحقيقي ولا تعمل إلا عند وجود <code dir="ltr">tests/private/foods-160.csv</code>. على جهاز التطوير في 10 نوفمبر نُفِّذت (199/199 دون تخطٍّ)، أما في GitHub Actions فتُتخطّى.</p>
+
+<h2 dir="rtl">4. أساليب الاختبار المستخدمة</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>وحدات حقيقية وقاعدة بيانات في الذاكرة:</b> دوال المستودع (<code dir="ltr">addFoodEntry</code> و<code dir="ltr">saveSettings</code>…) تكتب في Dexie على fake-indexeddb تمامًا كما في المتصفح.</li>
+<li dir="rtl"><b>خادم حقيقي داخل محاكٍ:</b> يحمّل <code dir="ltr">e2e/gas-mock.mjs</code> الملف <code dir="ltr">apps-script/Code.gs</code> ويحاكي SpreadsheetApp وDriveApp وPropertiesService وLockService وUrlFetchApp.</li>
+<li dir="rtl"><b>خدمات خارجية مبرمجة:</b> استجابات Gemini وأخطاؤه (500، 503، 504، 400، 429) مبرمجة مسبقًا؛ وOpen Food Facts محاكى؛ ولا يتصل أي اختبار بخدمة خارجية.</li>
+<li dir="rtl"><b>أرقام دقيقة:</b> مثلًا يجب أن تساوي <code dir="ltr">roundMacros(e.macros)</code> القيمة <code dir="ltr">{ kcal: 120, protein: 23, carbs: 0, fat: 2.6 }</code>.</li>
+<li dir="rtl"><b>اختبارات سلبية:</b> ما يجب ألا يحدث أبدًا (تطبيق التوصيات تلقائيًا، ملء البيانات الناقصة، نماذج ذكاء اصطناعي مدفوعة، حذف المكررات تلقائيًا).</li>
+</ul>
+
+<h2 dir="rtl">5. تشغيل المجموعة وقراءة النتائج</h2>
+<pre dir="ltr">
+npm test                     # whole suite
+npx vitest run tests/core.test.ts          # one file
+npx vitest run -t "TEST 1"                 # tests whose name matches
+</pre>
+<p dir="rtl">الملخص المتوقع: <code dir="ltr">Test Files 14 passed (14)</code> و<code dir="ltr">Tests 199 passed (199)</code>. تطبع اختبارات الماسح عمدًا أسطرًا مثل <code dir="ltr">Gemini gemini-3.8-flash → 503 …</code> في مخرج الأخطاء — وهي سيناريوهات الأخطاء المبرمجة وليست إخفاقات. استغرق التشغيل الكامل نحو 7 ثوانٍ.</p>
+
+<h2 dir="rtl">6. كتابة اختبار وحدة جديد</h2>
+<ol dir="rtl">
+<li dir="rtl">ضع الملف في <code dir="ltr">tests/</code> بلاحقة <code dir="ltr">.test.ts</code>.</li>
+<li dir="rtl">استدعِ <code dir="ltr">useDatabase('اسم-فريد')</code> في <code dir="ltr">beforeEach</code> إذا كان الاختبار يستخدم قاعدة البيانات.</li>
+<li dir="rtl">استخدم البيانات من <code dir="ltr">tests/fixtures/</code>، ولا تُدرج أي بيانات شخصية أبدًا. احمِ الاختبارات التي تحتاج الجدول الخاص بـ <code dir="ltr">it.skipIf</code>.</li>
+<li dir="rtl">تحقق من قيم دقيقة، وأضف تأكيدًا واحدًا على الأقل لما «يجب ألا يحدث».</li>
+<li dir="rtl">شغّل <code dir="ltr">npm test</code> و<code dir="ltr">npx tsc -b</code> قبل الإيداع؛ إذ يمنع CI النشر عند فشل أي اختبار.</li>
+</ol>
+
+<h2 dir="rtl">7. حالة التحقق</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>مُتحقَّق منه (نُفِّذ لهذه الوثيقة):</b> <code dir="ltr">npx vitest run</code> في 10 نوفمبر 2026 ← 14 ملفًا و199 اختبارًا ناجحًا؛ الأعداد لكل ملف أعلاه من ذلك التشغيل.</li>
+<li dir="rtl"><b>مُتحقَّق منه في الكود:</b> الإعدادات، البيانات التجريبية، منطق التخطّي، خطوة CI ‏(<code dir="ltr">.github/workflows/deploy.yml</code> يشغّل <code dir="ltr">npm test</code> قبل البناء).</li>
+<li dir="rtl"><b>الحدود:</b> لا تشغّل اختبارات الوحدة متصفحًا حقيقيًا ولا Firebase حقيقيًا ولا خدمات Google حقيقية ولا هاتفًا فعليًا؛ انظر MEGO_Integration_Testing وMEGO_Acceptance_Testing. نسبة تغطية الكود (Code Coverage) غير مقيسة (لا توجد أداة تغطية مهيأة) — غير مُتحقَّق منه.</li>
+</ul>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

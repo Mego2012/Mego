@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Calorie_and_Macronutrient_Calculation_Methodology_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — منهجية حساب السعرات والمغذيات الكبرى</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-24</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>مالك المنتج، المطورون، مراجعو التغذية، المختبِرون</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Daily_Calorie_Target_Calculation، MEGO_Nutritional_Values_and_Units_Reference، MEGO_Portion_and_Measurement_Conversion_Rules، MEGO_Food_Data_Validation_and_Quality_Control، MEGO_Nutrition_Calculation_Accuracy_Tests</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">توضح هذه الوثيقة بدقة كيف يحوّل MEGO الكمية المسجّلة من الطعام إلى سعرات حرارية (kcal) وبروتين وكربوهيدرات ودهون، وكيف تُجمع إجماليات اليوم، وكيف يعمل فحص معقولية الطاقة (Atwater)، وكيف تُشتق <b>أهداف</b> البروتين والكربوهيدرات والدهون من هدف السعرات. وتشمل أيضًا الموضوع المدمج «حساب البروتين والكربوهيدرات والدهون». كل معادلة مأخوذة من الشيفرة المصدرية (<code dir="ltr">src/lib/nutrition.ts</code>، <code dir="ltr">src/lib/goals.ts</code>، <code dir="ltr">src/lib/targets.ts</code>، <code dir="ltr">src/lib/recipeEngine.ts</code>)، وكل مثال محلول حُسب بتشغيل هذه الشيفرة فعليًا بتاريخ 10 نوفمبر 2026.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">مبادئ الحساب</li>
+<li dir="rtl">من الكمية إلى الغرامات</li>
+<li dir="rtl">من الغرامات إلى العناصر الغذائية</li>
+<li dir="rtl">الدقة والتقريب</li>
+<li dir="rtl">إجماليات اليوم والعناصر الاختيارية</li>
+<li dir="rtl">فحص معقولية الطاقة (Atwater)</li>
+<li dir="rtl">أهداف البروتين والكربوهيدرات والدهون</li>
+<li dir="rtl">الوصفات</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. مبادئ الحساب</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>الأساس لكل 100 غ.</b> يخزّن كل طعام قيمه الغذائية لكل 100 غ من الطعام في حالته المذكورة (نيء أو مطبوخ أو غير ذلك). أما الأطعمة التي لا تملك إلا قيمًا لكل حصة (مثل وجبة مُدخلة بالحصة) فتستخدم أساسًا لكل حصة.</li>
+<li dir="rtl"><b>لا تحويل بين النيء والمطبوخ.</b> الدالة <code dir="ltr">toGrams()</code> لا تحوّل إلا بالقيم المخزّنة على الطعام (وزن الحبة، الكثافة، الحصص)، ولا تحوّل أبدًا وزنًا نيئًا إلى مطبوخ أو العكس؛ على المستخدم اختيار السجل المطابق لما وزنه.</li>
+<li dir="rtl"><b>اللقطات (Snapshots).</b> عند تسجيل طعام تُحفظ نسخة من أساسه (قيم 100 غ، وزن الحبة، الكثافة، الحصص) داخل سجل اليوميات (<code dir="ltr">basisFromFood</code>)، لذا لا يغيّر تعديلُ الطعام لاحقًا الأيامَ السابقة.</li>
+<li dir="rtl"><b>الطاقة تؤخذ من سجل الطعام</b> ولا يُعاد حسابها من المغذيات الكبرى؛ معادلة 4/4/9 تُستخدم فقط للفحص (القسم 6) ولحساب الأهداف (القسم 7).</li>
+</ul>
+
+<h2 dir="rtl">2. من الكمية إلى الغرامات</h2>
+<p dir="rtl">ترفض <code dir="ltr">toGrams(basis, quantity, unit)</code> أي كمية ليست رقمًا محدودًا أكبر من صفر (الخطأ <code dir="ltr">invalidQuantity</code>). الكثافة الافتراضية 1 غ/مل إن لم يكن للطعام قيمة <code dir="ltr">gramsPerMl</code>.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الوحدة</th><th>الغرامات</th><th>الخطأ عند التعذّر</th></tr>
+<tr><td>غ / كغ</td><td>الكمية / الكمية × 1000</td><td>—</td></tr>
+<tr><td>مل / لتر</td><td>الكمية × الكثافة / الكمية × 1000 × الكثافة</td><td>—</td></tr>
+<tr><td>كوب / ملعقة كبيرة / ملعقة صغيرة</td><td>الكمية × 240 / 15 / 5 مل × الكثافة</td><td>—</td></tr>
+<tr><td>حبة / شريحة</td><td>الكمية × وزن الحبة (pieceGrams)</td><td><code dir="ltr">needsPieceWeight</code></td></tr>
+<tr><td>حصة</td><td>الكمية × غرامات الحصة المختارة (أو أول حصة)</td><td><code dir="ltr">needsServing</code></td></tr>
+</table>
+<p dir="rtl">الوحدات المعروضة لكل طعام (<code dir="ltr">availableUnits</code>): غ، كغ، مل، لتر، كوب، ملعقة كبيرة وصغيرة دائمًا؛ والحبة والشريحة فقط عند وجود وزن الحبة؛ والحصة فقط عند وجود حصص؛ والطعام ذو الأساس «لكل حصة» فقط لا يعرض إلا «حصة». التفاصيل في MEGO_Portion_and_Measurement_Conversion_Rules.</p>
+
+<h2 dir="rtl">3. من الغرامات إلى العناصر الغذائية</h2>
+<pre dir="ltr">
+nutrient(entry) = nutrient per 100 g × grams ÷ 100        (kcal, protein, carbs, fat + optional nutrients)
+per-serving basis: nutrient(entry) = nutrient per serving × quantity   (grams stored as 0)
+</pre>
+<h3 dir="rtl">3.1 مثال محلول — صدر دجاج</h3>
+<p dir="rtl">سجل USDA رقم 171477 «صدر دجاج مشوي بدون جلد»: 165 سعرة، 31.02 غ بروتين، 0 غ كربوهيدرات، 3.57 غ دهون لكل 100 غ. عند تسجيل 150 غ:</p>
+<pre dir="ltr">
+kcal    = 165   × 150/100 = 247.5
+protein = 31.02 × 1.5     = 46.53 g
+carbs   = 0
+fat     = 3.57  × 1.5     = 5.355 → stored 5.36 g
+Displayed: 248 kcal · P 46.5 g · C 0 g · F 5.4 g
+</pre>
+<h3 dir="rtl">3.2 مثال محلول — كوب عدس مطبوخ</h3>
+<p dir="rtl">سجل USDA رقم 172421 «عدس مسلوق بدون ملح»: 116 سعرة، 9.02 غ بروتين، 20.13 غ كربوهيدرات، 0.38 غ دهون، 7.9 غ ألياف لكل 100 غ. «الكوب» العام في التطبيق 240 مل، ولا كثافة لهذا الطعام فتُستخدم 1 غ/مل ← 240 غ.</p>
+<pre dir="ltr">
+kcal = 116 × 2.4 = 278.4   protein = 21.65 g   carbs = 48.31 g   fat = 0.91 g   fibre = 18.96 g
+</pre>
+<p dir="rtl">ملاحظة: قائمة حصص USDA لهذا الطعام تذكر «1 كوب = 198 غ». إذا اختار المستخدم حصة USDA هذه بدل وحدة الكوب العامة فالنتيجة 198 غ (229.7 سعرة). لهذا يعرض التطبيق بجانب الوحدة تسمية مثل «1 كوب = 240 غ» (<code dir="ltr">gramsPerUnit</code>) ليعرف المستخدم الوزن المستخدم.</p>
+
+<h2 dir="rtl">4. الدقة والتقريب</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المرحلة</th><th>القاعدة (الدالة)</th></tr>
+<tr><td>غرامات السجل</td><td>تقريب إلى 0.1 غ</td></tr>
+<tr><td>القيم المخزّنة للسجل</td><td>تقريب إلى 0.01 (<code dir="ltr">preciseMacros</code>) كي لا ينحرف مجموع سجلات صغيرة كثيرة</td></tr>
+<tr><td>العرض</td><td>سعرات بأعداد صحيحة، و0.1 غ للمغذيات (<code dir="ltr">roundMacros</code>)</td></tr>
+<tr><td>طريقة التقريب</td><td><code dir="ltr">Math.round((n + Number.EPSILON) × 10^d) ÷ 10^d</code> (النصف يُقرَّب للأعلى)</td></tr>
+</table>
+
+<h2 dir="rtl">5. إجماليات اليوم والعناصر الاختيارية</h2>
+<p dir="rtl">إجمالي اليوم هو مجموع القيم المخزّنة للسجلات (<code dir="ltr">sumMacros</code>). العناصر الاختيارية (المفاتيح الأربعة في <code dir="ltr">OPTIONAL_NUTRIENTS</code>: الألياف والسكر والصوديوم والدهون المشبعة) لا تُجمع إلا إذا ذكرها أحد الطرفين على الأقل؛ والطعام الذي لا يذكر الألياف <b>لا</b> يُحسب على أنه 0 غ ألياف. لذلك لا يعلّق المدرب على الألياف إلا إذا كان لكل سجلات اليوم قيمة ألياف (انظر MEGO_Food_Rankings_and_Coach_Methodology).</p>
+<p dir="rtl"><b>مثال:</b> 150 غ من طعام شخصي أُدخل بالسعرات والمغذيات الكبرى فقط (دون ألياف)، مثلًا 247.5 سعرة و46.53 غ بروتين، + كوب عدس (278.4 سعرة، 21.65 غ بروتين، 18.96 غ ألياف) ← الإجمالي 525.9 سعرة (يُعرض 526)، بروتين 68.18 غ، ألياف 18.96 غ مع تغطية ألياف لسجل واحد من اثنين. (أطعمة USDA مثل صدر الدجاج المشوي تذكر الألياف بقيمة 0 غ فتُعد «معروفة».)</p>
+
+<h2 dir="rtl">6. فحص معقولية الطاقة (Atwater)</h2>
+<pre dir="ltr">
+calc  = 4 × protein + 4 × carbs + 9 × fat
+diff  = kcal − calc            pct = diff ÷ kcal
+consistent (no message) when |pct| &lt; 5 %  OR  |diff| &lt; 8 kcal
+</pre>
+<p dir="rtl">إذا لم تكن القيم متسقة تعطي <code dir="ltr">explainEnergy()</code> سببًا بدل افتراض وجود خطأ:</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>السبب</th><th>الشرط</th><th>المعنى</th></tr>
+<tr><td>fiber (ألياف)</td><td>diff &lt; 0، وخضار/فاكهة (حسب الفئة أو كربوهيدرات &gt; بروتين ودهون &lt; 2 غ وسعرات &lt; 120) وpct &gt; −35 %</td><td>الألياف تعطي أقل من 4 سعرات/غ</td></tr>
+<tr><td>nuts (مكسرات)</td><td>diff &lt; 0، ودهون &gt; 25 غ وpct &gt; −12 %</td><td>معاملات Atwater الخاصة بالمكسرات أقل</td></tr>
+<tr><td>animal (حيواني)</td><td>diff &gt; 0، وكربوهيدرات &lt; 2 غ وpct &lt; 10 %</td><td>معاملات اللحوم والأسماك الخاصة أعلى من 4/9</td></tr>
+<tr><td>review (مراجعة)</td><td>أي حالة أخرى</td><td>يجب التحقق من القيمة</td></tr>
+</table>
+<p dir="rtl">يُعد الطعام «مشبوهًا» (<code dir="ltr">isEnergySuspicious</code>) فقط إذا كان السبب <i>review</i> و|pct| ≥ 10 % و|diff| ≥ 10 سعرات.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الطعام (لكل 100 غ)</th><th>calc</th><th>diff / pct</th><th>النتيجة</th></tr>
+<tr><td>صدر دجاج مشوي 165 / 31.02 / 0 / 3.57</td><td>156.2</td><td>+8.8 / +5.3 %</td><td>مُفسَّر: حيواني</td></tr>
+<tr><td>عدس مطبوخ 116 / 9.02 / 20.13 / 0.38</td><td>120.0</td><td>−4.0 سعرة</td><td>متسق (|diff| &lt; 8)</td></tr>
+<tr><td>لوز 579 / 21.15 / 21.55 / 49.93</td><td>620.2</td><td>−41.2 / −7.1 %</td><td>مُفسَّر: مكسرات</td></tr>
+<tr><td>قيمة اختبارية 300 / 10 / 10 / 10</td><td>170</td><td>+130 / +43.3 %</td><td>مراجعة ← مشبوه</td></tr>
+</table>
+
+<h2 dir="rtl">7. أهداف البروتين والكربوهيدرات والدهون</h2>
+<p dir="rtl">عند حساب توصية الهدف (<code dir="ltr">recommend()</code> في <code dir="ltr">goals.ts</code>) يُحسب هدف السعرات أولًا (انظر MEGO_Daily_Calorie_Target_Calculation) ثم تُشتق منه المغذيات:</p>
+<pre dir="ltr">
+protein (g) = round(body weight kg × proteinPerKg of the goal)
+fat (g)     = round(max(0.8 × body weight, 25 % × kcal ÷ 9))
+carbs (g)   = max(0, round((kcal − 4 × protein − 9 × fat) ÷ 4))     ← the remainder
+</pre>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الهدف</th><th>بروتين غ/كغ</th><th>الهدف</th><th>بروتين غ/كغ</th></tr>
+<tr><td>fat_loss (خسارة الدهون)</td><td>1.8</td><td>lean_bulk (زيادة نظيفة)</td><td>1.8</td></tr>
+<tr><td>fat_loss_preserve (خسارة دهون مع الحفاظ على العضل)</td><td>2.2</td><td>bulk (تضخيم)</td><td>1.6</td></tr>
+<tr><td>recomp (إعادة تركيب الجسم)</td><td>2.2</td><td>maintain (ثبات)</td><td>1.6</td></tr>
+<tr><td>performance (أداء)</td><td>1.8</td><td>healthy (صحة عامة)</td><td>1.4</td></tr>
+</table>
+<p dir="rtl">الهدف «custom» (مخصص) لا توصية له؛ تُدخل الأهداف يدويًا.</p>
+<h3 dir="rtl">7.1 مثال محلول</h3>
+<p dir="rtl">الملف الافتراضي (ذكر، 26 سنة، 170 سم، 72 كغ، نشاط «نشط»)، الهدف <i>fat_loss_preserve</i>، والسعرات الموصى بها 2,350:</p>
+<pre dir="ltr">
+protein = round(72 × 2.2)                   = round(158.4)  = 158 g   (632 kcal)
+fat     = round(max(72 × 0.8, 2350×0.25/9)) = round(max(57.6, 65.28)) = 65 g (585 kcal)
+carbs   = round((2350 − 632 − 585) ÷ 4)     = round(283.25) = 283 g   (1,132 kcal)
+check: 632 + 1,132 + 585 = 2,349 kcal ≈ 2,350
+</pre>
+<p dir="rtl">تعرض الإعدادات «سعرات المغذيات» لأي هدف (<code dir="ltr">macroCalories</code> = 4P + 4C + 9F) ليمكن فحص الهدف المُدخل يدويًا. الأهداف الافتراضية المرفقة (2,000 سعرة؛ بروتين 160 / كربوهيدرات 200 / دهون 62) تعطي 4×160 + 4×200 + 9×62 = 1,998 سعرة.</p>
+<h3 dir="rtl">7.2 اختيار هدف يوم معيّن</h3>
+<p dir="rtl"><code dir="ltr">targetsFor(date)</code>: الهدف الخاص بتاريخ معيّن المحدد من اليوميات له الأولوية؛ وإلا فهدف نوع اليوم (تمرين أو راحة). نوع اليوم هو المحدد لذلك اليوم، وإلا «تمرين» إذا كان اليوم ضمن <i>أيام التمرين</i> (افتراضيًا السبت–الخميس) و«راحة» في غير ذلك.</p>
+
+<h2 dir="rtl">8. الوصفات</h2>
+<pre dir="ltr">
+recipe totals      = Σ nutrients of every ingredient (each from its own per-100 g record)
+per serving        = totals ÷ number of servings      (stored at 0.01 precision)
+</pre>
+<p dir="rtl">في وصفات المكتبة يؤخذ كل مكوّن من طعام المستخدم الذي يحمل الاسم العربي نفسه، وإلا من مطابقة USDA مُراجَعة يدويًا (<code dir="ltr">recipeRefMap.ts</code>)، وإلا يُعلَن <b>ناقصًا</b> ولا يُضاف شيء — ولا يُقدَّر أبدًا (انظر MEGO_Missing_and_Duplicate_Foods_Management). التصنيفات مشتقة من القيم المحسوبة: <i>عالي البروتين</i> (≥ 25 غ بروتين و≥ 30 % من السعرات من البروتين للحصة)، <i>منخفض السعرات</i> (≤ 400 سعرة)، <i>منخفض الكربوهيدرات</i> (≤ 20 غ).</p>
+
+<h2 dir="rtl">9. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>المعادلات والحدود</td><td>مُتحقَّق منها بقراءة <code dir="ltr">nutrition.ts</code> و<code dir="ltr">goals.ts</code> و<code dir="ltr">targets.ts</code> و<code dir="ltr">recipeEngine.ts</code></td></tr>
+<tr><td>الأمثلة المحلولة</td><td>محسوبة بتشغيل شيفرة التطبيق في 10 نوفمبر 2026 بقيم USDA من <code dir="ltr">public/fooddb/usda.json</code></td></tr>
+<tr><td>الاختبارات الآلية</td><td>مغطاة باختبارات الوحدة (195 اختبارًا، vitest)، مثل <code dir="ltr">tests/v2.test.ts</code> (أسباب explainEnergy، الوحدات، التوصيات) و<code dir="ltr">tests/cardio-goals.test.ts</code> (إجمالي الوصفة = مجموع المكونات)</td></tr>
+<tr><td>الدقة مقارنة بالقيم المخبرية</td><td>غير مُتحقَّق منه — القيم كما نشرها المصدر (USDA أو Hub المالك أو Open Food Facts أو المستخدم)</td></tr>
+</table>
+
+<h2 dir="rtl">10. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

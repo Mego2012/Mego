@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Authentication_and_Authorization_Architecture_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — بنية المصادقة والتفويض</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-42</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع، المطوّرون، مراجعو الأمان</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Authentication_and_Session_Management، MEGO_Access_Control_and_Permissions، MEGO_Security_Architecture، MEGO_Database_Schema_and_Relationships، MEGO_Firebase_Integration، MEGO_Backend_Architecture، MEGO_Security_Audit_and_Known_Risks</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تشرح هذه الوثيقة البنية التي تحدّد <b>هوية الطرف المتصل</b> (المصادقة Authentication) و<b>ما يُسمح له بفعله</b> (التفويض Authorization) في MEGO. وهي تسمّي كل آلية هوية وكل نقطة إنفاذ وكل دور، وتوضّح أين يُتخذ كل قرار فعليًا. أما سلوك الجلسة خطوة بخطوة (شاشات التسجيل، وتسجيل الخروج، وإعادة تعيين كلمة المرور) فموثّق في MEGO_Authentication_and_Session_Management، وقواعد Firestore سطرًا بسطر في MEGO_Access_Control_and_Permissions. لا تتضمن الوثيقة أي قيمة سرية؛ تُذكر الأسرار بأسمائها فقط.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">نظرة عامة على البنية</li>
+<li dir="rtl">آليات الهوية</li>
+<li dir="rtl">الأدوار</li>
+<li dir="rtl">نقاط الإنفاذ</li>
+<li dir="rtl">مسارات التفويض</li>
+<li dir="rtl">تعيين المشرفين</li>
+<li dir="rtl">قرارات التصميم وحدودها</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. نظرة عامة على البنية</h2>
+<p dir="rtl">MEGO تطبيق ويب تقدّمي (PWA) ثابت يُستضاف على GitHub Pages، وليس له خادم تطبيق خاص به. لذلك تعتمد المصادقة والتفويض على خدمتين من Google تفرضان القواعد على خوادمهما، إضافةً إلى تطبيق ويب على Apps Script يشغّله المالك.</p>
+<pre dir="ltr">
+ Phone / browser (PWA, untrusted client)
+   │
+   ├── Firebase Authentication (Email/Password) ──► issues a short-lived ID token
+   │         │
+   │         ▼
+   ├── Cloud Firestore ──► firebase/firestore.rules evaluated by Google on every request
+   │                        (identity = request.auth.uid, role data = profiles/, admins/)
+   │
+   └── Apps Script web app (apps-script/Code.gs, runs as the owner)
+             ├─ owner/guest device: shared secret APP_TOKEN (Script Properties)
+             ├─ signed-in user (AI scanner only): Firebase ID token → verified with Google
+             │     Identity Toolkit, then profile read WITH THE USER'S TOKEN (rules apply)
+             └─ one-time install: bootstrap secret checked against a SHA-256 hash
+</pre>
+<p dir="rtl"><b>المبدأ:</b> لا يُوثق بالمتصفح أبدًا. إخفاء الأزرار في الواجهة (مثل لوحة المشرف) وسيلة راحة فقط؛ أما القرار الحقيقي فتتخذه قواعد Firestore أو معالج <code dir="ltr">doPost</code> في Apps Script.</p>
+
+<h2 dir="rtl">2. آليات الهوية</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الآلية</th><th>من يستخدمها</th><th>كيف يُتحقق منها</th><th>الشيفرة</th></tr>
+<tr><td>مصادقة Firebase بالبريد وكلمة المرور (Email/Password) على الخطة المجانية Spark</td><td>كل حساب عام</td><td>تصدر Google رمز هوية (ID token) بعد التحقق من كلمة المرور، ويصل إلى Firestore بوصفه <code dir="ltr">request.auth</code></td><td><code dir="ltr">src/lib/firebase.ts</code> (<code dir="ltr">register</code>، <code dir="ltr">login</code>، <code dir="ltr">logout</code>، <code dir="ltr">resetPassword</code>)</td></tr>
+<tr><td>رمز هوية Firebase يُمرَّر إلى Apps Script</td><td>المستخدمون المسجّلون عند استدعاء <code dir="ltr">analyzeMeal</code> و<code dir="ltr">aiStats</code> و<code dir="ltr">aiDiag</code></td><td>تستدعي <code dir="ltr">verifyFirebaseUser_</code> خدمة Identity Toolkit ‏(<code dir="ltr">accounts:lookup</code>)، ويُرفض المستخدم المعطَّل</td><td><code dir="ltr">apps-script/Code.gs</code> ‏(<code dir="ltr">publicAi_</code>)</td></tr>
+<tr><td>السر المشترك <code dir="ltr">APP_TOKEN</code> ‏(256 بت)</td><td>أجهزة المالك التي تتزامن مع ملف Google Sheets المركزي (Hub) في وضع الضيف/المالك</td><td>يقارن <code dir="ltr">doPost</code> رمز الطلب بالقيمة المحفوظة في خصائص السكربت (Script Properties)</td><td><code dir="ltr">apps-script/Code.gs</code>، <code dir="ltr">src/lib/sync.ts</code></td></tr>
+<tr><td>سر التهيئة لمرة واحدة (bootstrap)</td><td>سكربت إعداد الحاسوب، مرة واحدة</td><td>يجب أن تطابق بصمة SHA-256 للسر قيمة <code dir="ltr">BOOTSTRAP_HASH</code>، ثم يتعطل عبر <code dir="ltr">BOOTSTRAP_DONE</code>. القيمة فارغة في المستودع العام = معطَّل</td><td><code dir="ltr">bootstrap_</code> في <code dir="ltr">Code.gs</code>؛ <code dir="ltr">scripts/laptop-setup.mjs</code></td></tr>
+<tr><td>حساب Google الخاص بالمالك (OAuth)</td><td>المالك فقط أثناء الإعداد</td><td>تسجيل دخول Google؛ يُستخدم لنشر القواعد وكتابة <code dir="ltr">admins/{uid}</code></td><td><code dir="ltr">scripts/laptop-setup.mjs</code></td></tr>
+<tr><td>بلا هوية (وضع الضيف)</td><td>أي شخص يستخدم التطبيق دون حساب</td><td>لا ينطبق — لا تغادر البيانات الجهاز ما لم يضبط المالك اتصالًا بالـ Hub</td><td><code dir="ltr">src/lib/account.ts</code></td></tr>
+</table>
+<p dir="rtl">إعدادات الويب الخاصة بـ Firebase ‏(<code dir="ltr">public/firebase-config.json</code>) معرّف عام للمشروع وليست بيانات اعتماد. إذا غاب الملف يعمل التطبيق في وضع الضيف فقط.</p>
+
+<h2 dir="rtl">3. الأدوار</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الدور</th><th>كيف يحصل عليه المتصل</th><th>مكان التخزين</th></tr>
+<tr><td>مجهول (Anonymous)</td><td>دون تسجيل دخول إلى Firebase</td><td>—</td></tr>
+<tr><td>ضيف (Guest)</td><td>«المتابعة كضيف» في شاشة الترحيب</td><td>مفتاح localStorage ‏<code dir="ltr">mego.guest</code>؛ والبيانات في IndexedDB ‏<code dir="ltr">mego-nutrition</code></td></tr>
+<tr><td>مستخدم نشط</td><td>ينشئ التسجيلُ <code dir="ltr">profiles/{uid}</code> بقيمة <code dir="ltr">status = 'active'</code></td><td>Firestore ‏<code dir="ltr">profiles/{uid}.status</code></td></tr>
+<tr><td>مستخدم موقوف</td><td>يضبط المشرف <code dir="ltr">status = 'suspended'</code></td><td>Firestore ‏<code dir="ltr">profiles/{uid}.status</code></td></tr>
+<tr><td>مشرف (Administrator)</td><td>وجود مستند <code dir="ltr">admins/{uid}</code></td><td>Firestore ‏<code dir="ltr">admins/</code>؛ لا يُكتب إلا ببيانات اعتماد المالك</td></tr>
+<tr><td>مالك الـ Hub</td><td>حيازة <code dir="ltr">APP_TOKEN</code></td><td>خصائص السكربت؛ وسجل إعدادات الجهاز (<code dir="ltr">settings.sync</code>)</td></tr>
+</table>
+<p dir="rtl">الأدوار مستقلة: المشرف مستخدم عادي فيما يخص بياناته الخاصة، ودور المشرف <b>لا</b> يمنح أي وصول إلى السجلات الخاصة لأي شخص.</p>
+
+<h2 dir="rtl">4. نقاط الإنفاذ</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>نقطة الإنفاذ</th><th>ما تقرّره</th><th>موثوقة؟</th></tr>
+<tr><td>4.1</td><td>مصادقة Firebase</td><td>التحقق من كلمة المرور، وتفرّد الحساب، وإصدار الرموز، والحد من محاولات الدخول (<code dir="ltr">too-many-requests</code>)</td><td>نعم (Google)</td></tr>
+<tr><td>4.2</td><td>قواعد أمان Firestore ‏(<code dir="ltr">firebase/firestore.rules</code>)</td><td>كل قراءة/كتابة للملفات الشخصية والسجلات الخاصة والأطعمة المشتركة والمقترحات وتقارير الأخطاء</td><td>نعم (Google)</td></tr>
+<tr><td>4.3</td><td><code dir="ltr">doPost</code> في Apps Script</td><td>فحص الرمز لإجراءات الـ Hub؛ وفحص رمز الهوية والحساب النشط والدولة والحدود اليومية لوسيط الذكاء الاصطناعي؛ وفحص المشرف لـ <code dir="ltr">aiStats</code></td><td>نعم (يعمل داخل حساب Google الخاص بالمالك)</td></tr>
+<tr><td>4.4</td><td>العميل (<code dir="ltr">account.ts</code>، <code dir="ltr">Account.tsx</code>)</td><td>أي شاشة تظهر (ترحيب، إيقاف، مشرف)، وأي قاعدة بيانات محلية تُفتح</td><td>لا — للراحة فقط</td></tr>
+</table>
+<p dir="rtl">يقرأ وسيط الذكاء الاصطناعي في Apps Script المستندين <code dir="ltr">profiles/{uid}</code> و<code dir="ltr">admins/{uid}</code> عبر واجهة Firestore REST <b>برمز المستخدم نفسه</b>، فتنطبق عليه قواعد Firestore ذاتها التي تنطبق على التطبيق؛ ولا يملك الوسيط أي صلاحية مطلقة على Firestore.</p>
+
+<h2 dir="rtl">5. مسارات التفويض</h2>
+<h3 dir="rtl">5.1 مستخدم مسجّل يقرأ بياناته أو يكتبها</h3>
+<ol dir="rtl">
+<li dir="rtl">يكتب التطبيق <code dir="ltr">users/{uid}/{table}/{key}</code> عبر مكتبة Firebase، ويُرفق رمز الهوية تلقائيًا.</li>
+<li dir="rtl">يتحقق Firestore من: <code dir="ltr">request.auth.uid == uid</code>، ووجود ملف شخصي حالته <code dir="ltr">active</code>، وصحة شكل السجل، وأن <code dir="ltr">updatedAt</code> لا يرجع إلى الوراء عند التحديث.</li>
+<li dir="rtl">أي إخفاق يعيد <code dir="ltr">permission-denied</code>، وتعامله شيفرة المزامنة كتعارض (الخادم يحمل نسخة أحدث، أو الحساب موقوف).</li>
+</ol>
+<h3 dir="rtl">5.2 إجراءات المشرف</h3>
+<ol dir="rtl">
+<li dir="rtl">عند بدء التشغيل تستدعي <code dir="ltr">watchSession()</code> الدالة <code dir="ltr">isAdmin(uid)</code>: تكون صحيحة إذا أمكن قراءة <code dir="ltr">admins/{uid}</code> (ولا يقرؤه إلا صاحبه).</li>
+<li dir="rtl">تستدعي اللوحة <code dir="ltr">adminStats</code> (أعداد فقط) و<code dir="ltr">adminListProfiles</code> و<code dir="ltr">adminSetStatus</code> و<code dir="ltr">adminListErrors</code> و<code dir="ltr">adminListSubmissions</code> و<code dir="ltr">adminReview</code> و<code dir="ltr">publishSharedFoods</code>. تُفحص كل عملية مجددًا بالقواعد (<code dir="ltr">isAdmin()</code>)، ومن يفتح الشاشة قسرًا دون صلاحية يتلقى 403.</li>
+</ol>
+<h3 dir="rtl">5.3 ماسح الوجبات بالذكاء الاصطناعي لمستخدم مسجّل</h3>
+<pre dir="ltr">
+app ──(idToken, image)──► doPost ─► verifyFirebaseUser_ (Google Identity Toolkit)
+                               ─► read profiles/{uid} with the user's token
+                               ─► status must be 'active'; country not in the restricted list
+                               ─► per-user daily counter (AI_USER_DAILY_LIMIT, default 10)
+                               ─► global daily counter (AI_DAILY_LIMIT, default 40)
+                               ─► Gemini call with the key from Script Properties
+</pre>
+<p dir="rtl">إذا فشل التحليل يُعاد العدّاد اليومي للمستخدم. ولا يُرسل مفتاح Gemini إلى الجهاز إطلاقًا.</p>
+<h3 dir="rtl">5.4 مزامنة الـ Hub الخاصة بالمالك</h3>
+<p dir="rtl">كل إجراءات الـ Hub (<code dir="ltr">ping</code>، <code dir="ltr">foods</code>، <code dir="ltr">push</code>، <code dir="ltr">pull</code>، <code dir="ltr">saveFoods</code>، <code dir="ltr">backup</code>، <code dir="ltr">meta</code>، <code dir="ltr">analyzeMeal</code>، <code dir="ltr">aiDiag</code>، <code dir="ltr">setAiKey</code>، <code dir="ltr">setCloudConfig</code>) تتطلب <code dir="ltr">APP_TOKEN</code> مطابقًا تمامًا، وإلا كان الرد <code dir="ltr">unauthorized</code>. وتُفحص التغييرات أيضًا (جداول معروفة فقط، وطول المفتاح ≤ 200، والحمولة ≤ 45,000 حرف، و≤ 500 تغيير في الطلب الواحد).</p>
+
+<h2 dir="rtl">6. تعيين المشرفين</h2>
+<ul dir="rtl">
+<li dir="rtl">تنص القواعد على <code dir="ltr">allow write: if false</code> للمسار <code dir="ltr">admins/{uid}</code>: لا يستطيع أحد أن يصبح مشرفًا من داخل التطبيق، ولا حتى المشرفون الحاليون.</li>
+<li dir="rtl">ينشئ المالك مشرفًا بتشغيل <code dir="ltr">node scripts/laptop-setup.mjs --cloud &lt;e-mail&gt;</code> بعد التسجيل في التطبيق؛ فيكتب السكربت <code dir="ltr">admins/{uid}</code> عبر واجهة Firestore REST ببيانات اعتماد Google الخاصة بالمالك (أو يستخدم المالك وحدة تحكم Firebase).</li>
+<li dir="rtl">الوضع في 10 نوفمبر 2026: <b>لا يوجد مشرف بعد</b> — بانتظار تسجيل المالك وإعادة تشغيل الأمر.</li>
+<li dir="rtl">إزالة مشرف: حذف <code dir="ltr">admins/{uid}</code> من وحدة تحكم Firebase (لا توجد وظيفة لذلك داخل التطبيق).</li>
+</ul>
+
+<h2 dir="rtl">7. قرارات التصميم وحدودها</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>القرار</th><th>السبب / الأثر</th></tr>
+<tr><td>Firestore بدلًا من Google Sheets لبيانات المستخدمين المتعددين</td><td>لا توفر Sheets أمانًا على مستوى الصف، وكل طلب سيعمل بهوية المالك (<code dir="ltr">docs/ARCHITECTURE.md</code>)</td></tr>
+<tr><td>بيانات الأدوار في مستندات Firestore لا في المطالبات المخصصة (custom claims)</td><td>تعمل على خطة Spark المجانية دون شيفرة خادم؛ وكل تقييم للقواعد يجري عمليات بحث عن مستندات (<code dir="ltr">exists</code>/<code dir="ltr">get</code>) تُحتسب ضمن حصة القراءات</td></tr>
+<tr><td>فحص الحالة في كل قاعدة للبيانات الخاصة</td><td>يسري الإيقاف على الخادم فورًا؛ والأثر الجانبي: المستخدم الموقوف لا يستطيع أيضًا حذف سجلاته</td></tr>
+<tr><td>نشر Apps Script بإتاحة «لأي شخص»</td><td>لا يستطيع تطبيق PWA إرسال ملفات تعريف دخول Google؛ وتعتمد الحماية على فحص الرمز ورمز الهوية</td></tr>
+<tr><td>عدم فرض التحقق من البريد</td><td>تُرسل رسالة تحقق لكن لا التطبيق ولا القواعد تفحص <code dir="ltr">email_verified</code> (انظر MEGO_Security_Audit_and_Known_Risks)</td></tr>
+<tr><td>لا مصادقة متعددة العوامل (MFA)</td><td>غير منفذة في الشيفرة</td></tr>
+</table>
+
+<h2 dir="rtl">8. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>الملف الشخصي للمستخدم نفسه 200 / لغيره 403؛ الكتابة لمستخدم آخر 403؛ المجهول 403؛ المستخدم العادي لا يسرد الملفات ولا يرقّي نفسه ولا يوقف غيره</td><td>مُتحقَّق منه مباشرة على الإنتاج (<code dir="ltr">scripts/live-verify.mjs</code>، ‏14/14)</td></tr>
+<tr><td>القواعد: العزل، نطاق المشرف، الإيقاف، التعارضات</td><td>مختبرة على المحاكيات الرسمية (<code dir="ltr">tests-rules/</code>، 14 اختبارًا)</td></tr>
+<tr><td>قبول APP_TOKEN الصحيح ورفض الخاطئ</td><td>مُتحقَّق منه مباشرة (اختبارات إعداد الحاسوب الحية)</td></tr>
+<tr><td>لوحة المشرف على الإنتاج</td><td>غير مُتحقَّق منه — لا يوجد مشرف بعد</td></tr>
+<tr><td>الحد اليومي لكل مستخدم في وسيط الذكاء الاصطناعي</td><td>مختبر على المحاكيات (مجموعة تعدد المستخدمين، الحد = 1)؛ غير مُتحقَّق منه على الإنتاج</td></tr>
+<tr><td>رفض الدول المقيّدة في وسيط الذكاء الاصطناعي</td><td>مراجعة الشيفرة فقط — غير مُتحقَّق منه باختبار</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

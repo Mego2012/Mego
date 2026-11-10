@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="utf-8"><title>MEGO_Gemini_API_Setup_Guide_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — دليل إعداد Gemini API</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-54</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع وفريق الصيانة</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Gemini_AI_Integration، MEGO_Apps_Script_Setup_Guide، MEGO_Firebase_Setup_Guide، MEGO_Production_Verification_Checklist، MEGO_Troubleshooting_Manual، MEGO_Security_Audit_and_Known_Risks</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">يشرح هذا الدليل كيفية تشغيل ماسح الوجبات الذكي في MEGO بمفتاح Google Gemini API من <b>الفئة المجانية</b>، وأين يُحفظ المفتاح، وما الحدود والنماذج المطبّقة، وكيف يُختبر، وكيف يُستبدل أو يُحذف. يستخدم MEGO الفئة المجانية فقط: <b>لا تُضِف أبدًا حساب فوترة</b> إلى مشروع المفتاح. يُحفظ المفتاح فقط في خصائص السكربت (Script Properties) لخادم Apps Script — لا على الهاتف ولا في GitHub.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">القاعدة: الفئة المجانية فقط</li>
+<li dir="rtl">إنشاء المفتاح في Google AI Studio</li>
+<li dir="rtl">حفظ المفتاح</li>
+<li dir="rtl">كيف يستخدم الخادم المفتاح</li>
+<li dir="rtl">الحدود والحصص</li>
+<li dir="rtl">الاختبار: تشخيص الذكاء الاصطناعي وصورة حقيقية</li>
+<li dir="rtl">رموز الأخطاء المحتملة</li>
+<li dir="rtl">استبدال المفتاح أو تدويره أو حذفه</li>
+<li dir="rtl">ملاحظات الخصوصية</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. القاعدة: الفئة المجانية فقط</h2>
+<ul dir="rtl">
+<li dir="rtl">أنشئ المفتاح في Google AI Studio <b>دون</b> الضغط على «Set up billing». وينص تعليق الخادم على أن المفتاح بلا فوترة لا يعمل إلا على الفئة المجانية ولا يمكن أن يُحاسَب.</li>
+<li dir="rtl">لا يُسمح إلا بنماذج Flash المجانية (<code dir="ltr">AI_FREE_MODELS</code> في <code dir="ltr">apps-script/Code.gs</code>): <code dir="ltr">gemini-3.8-flash</code> ثم <code dir="ltr">gemini-3.6-flash</code> ثم <code dir="ltr">gemini-3.5-flash-lite</code>. لا يُستدعى أي نموذج مدفوع ولا أي مزوّد آخر إطلاقًا.</li>
+<li dir="rtl">عند نفاد الحصة المجانية ترد Google بالرمز 429 ويعرض التطبيق رسالة (تتجدد الحصة اليومية عند منتصف الليل بتوقيت المحيط الهادئ)؛ ولا يُعاد الطلب عبر خدمة أخرى.</li>
+</ul>
+
+<h2 dir="rtl">2. إنشاء المفتاح في Google AI Studio</h2>
+<ol dir="rtl">
+<li dir="rtl">افتح <code dir="ltr">https://aistudio.google.com/apikey</code> وسجّل الدخول بحساب Google الخاص بالمالك.</li>
+<li dir="rtl">اقبل شروط Google إن طُلب منك. اضغط <b>Create API key</b>.</li>
+<li dir="rtl"><b>لا تضغط «Set up billing».</b></li>
+<li dir="rtl">انسخ المفتاح. الصيغتان مقبولتان: المفاتيح التقليدية التي تبدأ بـ <code dir="ltr">AIza</code> ومفاتيح Google الأحدث التي تبدأ بـ <code dir="ltr">AQ.</code>. لا تلصقه أبدًا في محادثة أو بريد أو مستند.</li>
+</ol>
+
+<h2 dir="rtl">3. حفظ المفتاح</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الطريقة</th><th>الخطوات</th></tr>
+<tr><td>أ. أثناء إعداد اللابتوب</td><td>الأمر <code dir="ltr">node scripts/laptop-setup.mjs</code> يفتح صفحة AI Studio ويطلب لصق المفتاح (Enter = تخطٍّ)</td></tr>
+<tr><td>ب. من الحافظة (موصى بها)</td><td>انسخ المفتاح ثم شغّل <code dir="ltr">node scripts/laptop-setup.mjs --test --ai-key-from-clipboard</code>. يقرأ السكربت الحافظة (في Windows عبر الأمر <code dir="ltr">Get-Clipboard</code> في PowerShell)، فلا يُكتب المفتاح ولا يُعرض</td></tr>
+<tr><td>ج. من التطبيق (جهاز المالك المتصل بالـ Hub)</td><td>الإعدادات ← <b>ماسح الوجبات الذكي</b> ← الصق المفتاح ← <b>تحقق واحفظ المفتاح في خادمي</b></td></tr>
+</table>
+<p dir="rtl">في جميع الحالات يتحقق إجراء الخادم <code dir="ltr">setAiKey</code> من المفتاح لدى Google أولًا (طلب بيانات وصفية للنموذج وليس توليدًا)، ثم يحفظه باسم <code dir="ltr">GEMINI_API_KEY</code> في خصائص السكربت. ويطبع سكربت اللابتوب «Gemini key accepted by Google and stored only in Script Properties» مع ✅. ولا يحتاج مستخدمو Firebase المسجلون إلى مفتاح خاص بهم: تمر عمليات المسح الخاصة بهم عبر خادم المالك (<code dir="ltr">aiBackendUrl</code> في الإعداد العام) باستخدام رمز دخولهم في Firebase.</p>
+
+<h2 dir="rtl">4. كيف يستخدم الخادم المفتاح</h2>
+<ul dir="rtl">
+<li dir="rtl">يرسل التطبيق صورة JPEG مصغّرة (بعد إزالة بيانات الموقع)، وقائمة أسماء الأطعمة (مفتاح قصير، الأسماء، الحالة، الفئة) وملاحظة اختيارية. يتعرف النموذج على الأطعمة ويقدّر الغرامات؛ أما القيم الغذائية فيحسبها التطبيق من قاعدة البيانات. لا يُحفظ شيء تلقائيًا.</li>
+<li dir="rtl">سلسلة النماذج (منذ SCRIPT_VERSION 7، دون تغيير في 8): النموذج المضبوط أولًا (خاصية السكربت الاختيارية <code dir="ltr">AI_MODEL</code>، والافتراضي <code dir="ltr">gemini-3.8-flash</code>)، ثم بقية النماذج المجانية. الخطأ 503 «مثقل» ينقل فورًا إلى النموذج التالي؛ وتُعاد محاولة 500/504 على النموذج نفسه بعد ثانيتين ثم 4 ثوانٍ؛ أما أخطاء الحصة والمفتاح والإعداد فلا يُعاد فيها أبدًا.</li>
+<li dir="rtl">يعيد تطبيق الهاتف أيضًا المحاولة تلقائيًا للأخطاء المؤقتة بعد 3 ثوانٍ و8 ثوانٍ، ويحتفظ بالصورة لإعادة يدوية، ويرسل طلبًا واحدًا في كل مرة.</li>
+</ul>
+
+<h2 dir="rtl">5. الحدود والحصص</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الحد</th><th>القيمة</th><th>المصدر</th></tr>
+<tr><td>حصة Google المجانية (في الدقيقة / في اليوم)</td><td>تحددها Google؛ غير مذكورة في المستودع</td><td>غير مُتحقَّق منها</td></tr>
+<tr><td>السقف اليومي الإجمالي لـ MEGO</td><td><code dir="ltr">AI_DAILY_LIMIT</code>، الافتراضي 40؛ ويضبطه <code dir="ltr">laptop-setup --cloud</code> على 200</td><td>Code.gs وlaptop-setup.mjs</td></tr>
+<tr><td>لكل مستخدم مسجل</td><td><code dir="ltr">AI_USER_DAILY_LIMIT</code>، الافتراضي 10 يوميًا</td><td>Code.gs</td></tr>
+<tr><td>طريقة العدّ</td><td>تُحتسب التحليلات الناجحة فقط؛ والطلب الفاشل يُردّ للرصيد</td><td>Code.gs</td></tr>
+<tr><td>حجم الصورة</td><td>نحو 2 ميغابايت JPEG ‏(2,800,000 حرف base64)</td><td>Code.gs</td></tr>
+<tr><td>قائمة الأطعمة</td><td>حتى 800 صف لكل طلب</td><td>Code.gs</td></tr>
+<tr><td>المنطقة</td><td>الحسابات العامة التي تقع دولتها في قائمة الاتحاد الأوروبي/المنطقة الاقتصادية الأوروبية أو المملكة المتحدة أو سويسرا تتلقى <code dir="ltr">AI_REGION_RESTRICTED</code></td><td>Code.gs ‏(AI_RESTRICTED)</td></tr>
+</table>
+
+<h2 dir="rtl">6. الاختبار: تشخيص الذكاء الاصطناعي وصورة حقيقية</h2>
+<ol dir="rtl">
+<li dir="rtl"><b>التشخيص:</b> ينتهي الأمر <code dir="ltr">git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend</code> بفحص نصي لكل نموذج مجاني، ويطبع رمز HTTP ورسالة Google لكل نموذج.</li>
+<li dir="rtl"><b>صورة حقيقية:</b> الأمر <code dir="ltr">node scripts/laptop-setup.mjs --test</code> يحلل صورة وجبة عامة من Wikimedia Commons (أو صورتك عبر <code dir="ltr">--photo meal.jpg</code>) ويطبع العناصر والغرامات ودرجة الثقة والمطابقات في قاعدة البيانات.</li>
+<li dir="rtl"><b>في التطبيق:</b> الرئيسية ← الكاميرا ← حلّل ← راجع ← تأكيد.</li>
+</ol>
+<p dir="rtl">النتائج الحية: في 7 نوفمبر 2026 نجح تحليل صورة واحدة (6 عناصر، نحو 72 ثانية)؛ وفي 10 نوفمبر 2026 حُللت صورة وجبة حقيقية عبر واجهة التطبيق الحي بحساب مؤقت (نحو 64 ثانية، 4 عناصر). تبقى الفئة المجانية بطيئة في أوقات الذروة.</p>
+
+<h2 dir="rtl">7. رموز الأخطاء المحتملة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الرمز</th><th>المعنى</th><th>الإجراء</th></tr>
+<tr><td dir="ltr">AI_OVERLOADED (503)</td><td>نموذج Google مثقل</td><td>تلقائيًا: النموذج المجاني التالي؛ أعد المحاولة لاحقًا</td></tr>
+<tr><td dir="ltr">AI_SERVER_ERROR (500) / AI_TIMEOUT (504)</td><td>خطأ مؤقت لدى Google</td><td>إعادات تلقائية؛ ثم أعد يدويًا</td></tr>
+<tr><td dir="ltr">AI_QUOTA_MINUTE / AI_QUOTA_DAY (429)</td><td>نفدت الحصة المجانية</td><td>انتظر المدة المعروضة / حتى التجدد اليومي</td></tr>
+<tr><td dir="ltr">AI_KEY_INVALID</td><td>رُفض المفتاح</td><td>أنشئ مفتاحًا جديدًا واحفظه مجددًا</td></tr>
+<tr><td dir="ltr">AI_REGION</td><td>خدمة Google غير متاحة في المنطقة</td><td>—</td></tr>
+<tr><td dir="ltr">AI_MODEL_UNAVAILABLE (404)</td><td>النموذج غير متاح</td><td>افحص بتشخيص الذكاء الاصطناعي</td></tr>
+<tr><td dir="ltr">AI_BAD_IMAGE / AI_CONFIG (400)</td><td>مشكلة في الصورة أو الطلب</td><td>استخدم صورة أخرى؛ وأبلغ إن استمرت</td></tr>
+<tr><td dir="ltr">AI_NOT_CONFIGURED</td><td>لا يوجد مفتاح محفوظ</td><td>احفظ مفتاحًا (القسم 3)</td></tr>
+<tr><td dir="ltr">AI_DAILY_LIMIT / AI_USER_LIMIT</td><td>بلوغ الحدود اليومية الخاصة بـ MEGO</td><td>انتظر حتى اليوم التالي</td></tr>
+</table>
+
+<h2 dir="rtl">8. استبدال المفتاح أو تدويره أو حذفه</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>الاستبدال / التدوير:</b> أنشئ مفتاحًا جديدًا في AI Studio، واحفظه بالطريقة ب أو ج (المفتاح الجديد يحل محل <code dir="ltr">GEMINI_API_KEY</code>)، ثم احذف المفتاح القديم في AI Studio. يُوصى بالتدوير الآن لأن مفتاح المالك ظهر في محادثة أثناء الإعداد.</li>
+<li dir="rtl"><b>الحذف:</b> إعدادات التطبيق ← <b>حذف المفتاح</b> (يحذف خاصية السكربت).</li>
+</ul>
+
+<h2 dir="rtl">9. ملاحظات الخصوصية</h2>
+<p dir="rtl">في الفئة المجانية قد تستخدم Google الطلبات لتحسين منتجاتها وقد يراها مراجعون بشريون (بعد فصلها عن الحساب). لذلك يرسل MEGO صورة الوجبة فقط (دون الموقع/EXIF) وأسماء الأطعمة — دون يوميات أو وزن أو بيانات ملف شخصي — ولا يحفظ الخادم أي شيء عن الوجبة. تجنّب ظهور أشخاص أو مستندات في الصورة.</p>
+
+<h2 dir="rtl">10. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>حفظ المفتاح في خصائص السكربت، وتحليلات حقيقية</td><td>مُتحقَّق منها حيًّا (7 و10 نوفمبر 2026)</td></tr>
+<tr><td>تحويل الأخطاء، الإعادات، سلسلة النماذج</td><td>مُتحقَّق منها في الشيفرة؛ واختبارات وحدة مع بديل Gemini مبرمج (tests/scanner.test.ts)</td></tr>
+<tr><td>«المفتاح بلا فوترة لا يمكن أن يُحاسَب»</td><td>عبارة عن نموذج الفئة المجانية لدى Google كما وردت في Code.gs — غير مُتحقَّق منها بشكل مستقل</td></tr>
+<tr><td>أرقام حصص Google المجانية</td><td>غير مُتحقَّق منها</td></tr>
+<tr><td>تدوير المفتاح بعد ظهوره في المحادثة</td><td>لم يُنفَّذ (موصى به)</td></tr>
+</table>
+
+<h2 dir="rtl">11. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body>
+</html>

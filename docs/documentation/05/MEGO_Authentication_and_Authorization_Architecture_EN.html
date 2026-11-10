@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Authentication_and_Authorization_Architecture_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Authentication and Authorization Architecture</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-42</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Project owner, developers, security reviewers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Authentication_and_Session_Management, MEGO_Access_Control_and_Permissions, MEGO_Security_Architecture, MEGO_Database_Schema_and_Relationships, MEGO_Firebase_Integration, MEGO_Backend_Architecture, MEGO_Security_Audit_and_Known_Risks</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes the architecture behind <b>who a caller is</b> (authentication) and <b>what that caller may do</b> (authorization) in MEGO. It names every identity mechanism, every enforcement point and every role, and explains where each decision is actually made. Step-by-step session behaviour (registration screens, sign-out, password reset) is covered in MEGO_Authentication_and_Session_Management; the line-by-line Firestore rules are in MEGO_Access_Control_and_Permissions. No secret value appears in this document; secrets are named only.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Architecture overview</li>
+<li>Identity mechanisms</li>
+<li>Roles</li>
+<li>Enforcement points</li>
+<li>Authorization flows</li>
+<li>Administrator provisioning</li>
+<li>Design decisions and limits</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Architecture overview</h2>
+<p>MEGO is a static Progressive Web App served from GitHub Pages. It has no application server of its own. Authentication and authorization therefore rely on two Google services that enforce rules on their own servers, plus one owner-operated Apps Script web app.</p>
+<pre>
+ Phone / browser (PWA, untrusted client)
+   │
+   ├── Firebase Authentication (Email/Password) ──► issues a short-lived ID token
+   │         │
+   │         ▼
+   ├── Cloud Firestore ──► firebase/firestore.rules evaluated by Google on every request
+   │                        (identity = request.auth.uid, role data = profiles/, admins/)
+   │
+   └── Apps Script web app (apps-script/Code.gs, runs as the owner)
+             ├─ owner/guest device: shared secret APP_TOKEN (Script Properties)
+             ├─ signed-in user (AI scanner only): Firebase ID token → verified with Google
+             │     Identity Toolkit, then profile read WITH THE USER'S TOKEN (rules apply)
+             └─ one-time install: bootstrap secret checked against a SHA-256 hash
+</pre>
+<p><b>Principle:</b> the browser is never trusted. Buttons that are hidden in the user interface (for example the admin dashboard) are a convenience only; every real decision is taken by Firestore rules or by the Apps Script <code>doPost</code> handler.</p>
+
+<h2>2. Identity mechanisms</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Mechanism</th><th>Who uses it</th><th>How it is verified</th><th>Code</th></tr>
+<tr><td>Firebase Authentication, Email/Password (project on the free Spark plan)</td><td>Every public account</td><td>Google issues an ID token after password check; Firestore receives it as <code>request.auth</code></td><td><code>src/lib/firebase.ts</code> (<code>register</code>, <code>login</code>, <code>logout</code>, <code>resetPassword</code>)</td></tr>
+<tr><td>Firebase ID token forwarded to Apps Script</td><td>Signed-in users calling <code>analyzeMeal</code>, <code>aiStats</code>, <code>aiDiag</code></td><td><code>verifyFirebaseUser_</code> calls Identity Toolkit <code>accounts:lookup</code>; disabled users are refused</td><td><code>apps-script/Code.gs</code> (<code>publicAi_</code>)</td></tr>
+<tr><td>Shared secret <code>APP_TOKEN</code> (256 bits)</td><td>The owner's devices that sync with the Google Sheets Hub (guest/owner mode)</td><td><code>doPost</code> compares the request token with the value in Script Properties</td><td><code>apps-script/Code.gs</code>, <code>src/lib/sync.ts</code></td></tr>
+<tr><td>One-time bootstrap secret</td><td>The laptop setup script, once</td><td>SHA-256 of the secret must equal <code>BOOTSTRAP_HASH</code>; disabled afterwards by <code>BOOTSTRAP_DONE</code>. Empty hash in the public repository = disabled</td><td><code>bootstrap_</code> in <code>Code.gs</code>; <code>scripts/laptop-setup.mjs</code></td></tr>
+<tr><td>Owner Google account (OAuth)</td><td>The owner only, during setup</td><td>Google sign-in; used to deploy rules and write <code>admins/{uid}</code></td><td><code>scripts/laptop-setup.mjs</code></td></tr>
+<tr><td>No identity (guest mode)</td><td>Anyone using the app without an account</td><td>Not applicable — data never leaves the device unless the owner configured a Hub connection</td><td><code>src/lib/account.ts</code></td></tr>
+</table>
+<p>The Firebase web configuration (<code>public/firebase-config.json</code>) is a public project identifier, not a credential. If the file is absent the app runs in guest mode only.</p>
+
+<h2>3. Roles</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Role</th><th>How a caller obtains it</th><th>Stored where</th></tr>
+<tr><td>Anonymous</td><td>No Firebase sign-in</td><td>—</td></tr>
+<tr><td>Guest</td><td>"Continue as guest" on the welcome screen</td><td>localStorage key <code>mego.guest</code>; data in IndexedDB <code>mego-nutrition</code></td></tr>
+<tr><td>Active user</td><td>Registration creates <code>profiles/{uid}</code> with <code>status = 'active'</code></td><td>Firestore <code>profiles/{uid}.status</code></td></tr>
+<tr><td>Suspended user</td><td>An administrator sets <code>status = 'suspended'</code></td><td>Firestore <code>profiles/{uid}.status</code></td></tr>
+<tr><td>Administrator</td><td>A document <code>admins/{uid}</code> exists</td><td>Firestore <code>admins/</code>; written only with owner credentials</td></tr>
+<tr><td>Hub owner</td><td>Possession of <code>APP_TOKEN</code></td><td>Script Properties; device settings record (<code>settings.sync</code>)</td></tr>
+</table>
+<p>Roles are independent: an administrator is also a normal user for their own private data, and the administrator role gives <b>no</b> access to anyone's private records.</p>
+
+<h2>4. Enforcement points</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>Enforcement point</th><th>Decides</th><th>Trusted?</th></tr>
+<tr><td>4.1</td><td>Firebase Authentication</td><td>Password check, account uniqueness, token issuance, rate limiting of sign-in attempts (<code>too-many-requests</code>)</td><td>Yes (Google)</td></tr>
+<tr><td>4.2</td><td>Firestore security rules (<code>firebase/firestore.rules</code>)</td><td>Every read/write of profiles, private records, shared foods, submissions, error reports</td><td>Yes (Google)</td></tr>
+<tr><td>4.3</td><td>Apps Script <code>doPost</code></td><td>Token check for Hub actions; ID-token check, active-profile check, country check and daily limits for the AI proxy; admin check for <code>aiStats</code></td><td>Yes (runs in the owner's Google account)</td></tr>
+<tr><td>4.4</td><td>Client (<code>account.ts</code>, <code>Account.tsx</code>)</td><td>Which screen is shown (welcome, suspended, admin), which local database is opened</td><td>No — convenience only</td></tr>
+</table>
+<p>The Apps Script AI proxy reads <code>profiles/{uid}</code> and <code>admins/{uid}</code> through the Firestore REST API <b>with the user's own ID token</b>, so the same Firestore rules apply to the proxy as to the app; the proxy holds no Firestore super-user credential.</p>
+
+<h2>5. Authorization flows</h2>
+<h3>5.1 Signed-in user reads or writes own data</h3>
+<ol>
+<li>The app writes <code>users/{uid}/{table}/{key}</code> with the SDK; the ID token is attached automatically.</li>
+<li>Firestore checks: <code>request.auth.uid == uid</code>, a profile exists with status <code>active</code>, the record shape is valid, and for updates <code>updatedAt</code> does not go back.</li>
+<li>Any failure returns <code>permission-denied</code>. The sync code treats a denied write as a conflict (the server already holds a newer copy, or the account is suspended).</li>
+</ol>
+<h3>5.2 Administrator actions</h3>
+<ol>
+<li>At start-up <code>watchSession()</code> calls <code>isAdmin(uid)</code>: true if <code>admins/{uid}</code> can be read (only the user themself may read it).</li>
+<li>The dashboard calls <code>adminStats</code> (counts), <code>adminListProfiles</code>, <code>adminSetStatus</code>, <code>adminListErrors</code>, <code>adminListSubmissions</code>, <code>adminReview</code>, <code>publishSharedFoods</code>. Each call is checked again by the rules (<code>isAdmin()</code>); a non-admin who forces the screen open receives 403.</li>
+</ol>
+<h3>5.3 AI scanner for a signed-in user</h3>
+<pre>
+app ──(idToken, image)──► doPost ─► verifyFirebaseUser_ (Google Identity Toolkit)
+                               ─► read profiles/{uid} with the user's token
+                               ─► status must be 'active'; country not in the restricted list
+                               ─► per-user daily counter (AI_USER_DAILY_LIMIT, default 10)
+                               ─► global daily counter (AI_DAILY_LIMIT, default 40)
+                               ─► Gemini call with the key from Script Properties
+</pre>
+<p>A failed analysis refunds the per-user counter. The Gemini key is never sent to the device.</p>
+<h3>5.4 Owner Hub sync</h3>
+<p>Every Hub action (<code>ping</code>, <code>foods</code>, <code>push</code>, <code>pull</code>, <code>saveFoods</code>, <code>backup</code>, <code>meta</code>, <code>analyzeMeal</code>, <code>aiDiag</code>, <code>setAiKey</code>, <code>setCloudConfig</code>) requires the exact <code>APP_TOKEN</code>; otherwise the response is <code>unauthorized</code>. Changes are additionally validated (known tables only, key length ≤ 200, payload ≤ 45,000 characters, ≤ 500 changes per request).</p>
+
+<h2>6. Administrator provisioning</h2>
+<ul>
+<li>The rules contain <code>allow write: if false</code> for <code>admins/{uid}</code>: nobody can become administrator from the app, including existing administrators.</li>
+<li>The owner creates an administrator by running <code>node scripts/laptop-setup.mjs --cloud &lt;e-mail&gt;</code> after registering in the app; the script writes <code>admins/{uid}</code> through the Firestore REST API with the owner's Google credentials (or the owner uses the Firebase console).</li>
+<li>Status 10 Nov 2026: <b>no administrator exists yet</b> — waiting for the owner to register and re-run the command.</li>
+<li>Removing an administrator: delete <code>admins/{uid}</code> in the Firebase console (no in-app function).</li>
+</ul>
+
+<h2>7. Design decisions and limits</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Decision</th><th>Reason / consequence</th></tr>
+<tr><td>Firestore instead of Google Sheets for multi-user data</td><td>Sheets has no row-level security; every request would run as the owner (docs/ARCHITECTURE.md)</td></tr>
+<tr><td>Role data in Firestore documents, not custom claims</td><td>Works on the free Spark plan without server code; each rule evaluation performs document lookups (<code>exists</code>/<code>get</code>), which count toward Firestore read quotas</td></tr>
+<tr><td>Status check on every private-data rule</td><td>Suspension takes effect on the server immediately; consequence: a suspended user also cannot delete their own records</td></tr>
+<tr><td>Apps Script deployed "access: anyone"</td><td>A PWA cannot send Google login cookies; protection rests on the token / ID-token checks</td></tr>
+<tr><td>E-mail verification not enforced</td><td>A verification e-mail is sent but neither app nor rules check <code>email_verified</code> (see MEGO_Security_Audit_and_Known_Risks)</td></tr>
+<tr><td>No multi-factor authentication</td><td>Not implemented in the code</td></tr>
+</table>
+
+<h2>8. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Own profile 200 / other profile 403; cross-user write 403; anonymous 403; regular user cannot list profiles, self-promote or suspend others</td><td>Verified live in production (<code>scripts/live-verify.mjs</code>, 14/14)</td></tr>
+<tr><td>Rules: isolation, admin scope, suspension, conflicts</td><td>Tested on the official emulators (<code>tests-rules/</code>, 14 tests)</td></tr>
+<tr><td>APP_TOKEN accepted / wrong token refused</td><td>Verified live (laptop-setup live tests)</td></tr>
+<tr><td>Administrator dashboard against production</td><td>Not verified — no administrator exists yet</td></tr>
+<tr><td>AI proxy per-user daily limit</td><td>Tested on emulators (multi-user suite, limit set to 1); not verified live</td></tr>
+<tr><td>AI proxy country refusal</td><td>Code reviewed only — Not verified by a test</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

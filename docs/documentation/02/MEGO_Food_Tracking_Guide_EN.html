@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Food_Tracking_Guide_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Food Tracking Guide (Diary and AI Meal Scanner)</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-12</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>End users</td></tr>
+<tr><td>Related documents</td><td>MEGO_Food_Search_and_Database_Guide, MEGO_Recipes_and_Custom_Foods_Guide, MEGO_Meal_Planning_Guide, MEGO_Profile_and_Goals_Guide, MEGO_Reports_Guide, MEGO_Gemini_AI_Integration, MEGO_Troubleshooting_Manual</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This guide explains daily food logging in the <b>Diary</b> (<code>#/diary</code>): adding, editing, copying and deleting entries, day status and day type, water, per-day targets, and the <b>AI meal scanner</b> (photo → recognised foods → your database values → review → log), including what happens when the AI service is slow or busy and how automatic and manual retries work. Searching the food database and barcode scanning are covered in detail in MEGO_Food_Search_and_Database_Guide.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>The Diary screen</li>
+<li>Adding food</li>
+<li>Editing, copying and deleting entries</li>
+<li>Day status, day type and per-day targets</li>
+<li>Water</li>
+<li>AI meal scanner — taking and analysing a photo</li>
+<li>AI meal scanner — reviewing and saving</li>
+<li>Errors, automatic retry and manual retry</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. The Diary screen</h2>
+<p>Open the <b>Diary</b> from the bottom navigation. From top to bottom:</p>
+<ul>
+<li><b>Date navigation</b> and a <b>week strip</b>: seven days (starting on your configured week start) with a small ring for how much of the training-day calorie target was eaten; the ring turns to the warning colour above 105 %. Tap a day to open it.</li>
+<li><b>Day panel</b>: a calorie ring (eaten / target), "Remaining" or "Over" in kcal, the day status chip, the day-type selector, protein/carbs/fat bars, optional nutrients, and the water line.</li>
+<li><b>Scan strip</b>: buttons <b>Take a photo</b> and <b>Upload from gallery</b> for the AI meal scanner.</li>
+<li><b>Quick actions</b>: Copy yesterday, Copy day to…, Mark day complete / Mark day partial / Auto status, Targets for this day.</li>
+<li><b>Meals</b>: Breakfast, Lunch, Dinner, Snacks — each with its calories, entries and an <b>Add</b> button.</li>
+</ul>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/diary-en-light.png" width="300" alt="Diary"> <img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/add-food-en-light.png" width="300" alt="Add food"></p>
+
+<h2>2. Adding food</h2>
+<ol>
+<li>Tap <b>Add</b> on a meal (or "Add to Lunch" in an empty meal). The sheet "Add food — &lt;meal&gt;" opens; you can switch meal at the top.</li>
+<li>Choose a source from the tabs: <b>All</b> (search), <b>Recent</b> (last 30 used), <b>Frequent</b> (30 most used), <b>Favorites</b>, <b>History</b> (previous diary entries), <b>Saved meals</b>, <b>Recipes</b>. A raw / cooked / ready filter and a barcode button sit next to the search box.</li>
+<li>Pick a food, enter the quantity and unit (grams or the units the food supports, e.g. piece, slice, tbsp, serving) and tap <b>Log food</b>.</li>
+<li>For a recipe, enter the number of <b>Servings</b>; the kcal total is previewed before you log.</li>
+<li>Choosing a saved meal logs all its items at once ("Logged n item(s)"); items whose food or recipe no longer exists are skipped and counted.</li>
+</ol>
+<p>Every add shows a toast with <b>Undo</b>. Accidental double taps are blocked: the same food, quantity and unit cannot be added twice to the same meal within 1.5 seconds.</p>
+<p><b>Values are frozen per entry:</b> "Values are saved with this entry at logging time and do not change if the food is edited later." Raw and cooked foods are separate records; the app never converts between them automatically.</p>
+<h3>2.1 Making logging faster: completing your food database</h3>
+<p>The <b>Foods</b> page offers two one-time helpers that only add information (both save a local backup "Before import" first and never change an existing value):</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Card</th><th>What it does</th></tr>
+<tr><td><b>Complete my food database</b> → "Check what is missing" → "Add to my foods"</td><td>Adds every ingredient used by the recipe library as a food with USDA FoodData Central values, and every library recipe whose ingredients are all known as a <b>ready meal</b> (category "وجبات (مكتبة الوصفات)") with a portion "حصة (وصفة)" — 100 ready meals with the current library (all 101 recipes except the one that needs labneh). Log these by the serving portion: values per 100 g refer to the raw ingredient weight, so logging by serving is exact. Ingredients without a verified reference (for example labneh) are never estimated; they are listed as missing, and recipes that need them are skipped until you add that food yourself from its label. Foods that already exist are not duplicated.</td></tr>
+<tr><td><b>Arabic &amp; English names</b> → "Check what is missing" → "Add the missing names"</td><td>Fills only <b>empty</b> Arabic or English names from the hand-translated list <code>public/fooddb/food-names.json</code>. Existing names are never changed; foods still missing a name are listed so you can add it in the food editor.</td></tr>
+</table>
+<p>The added foods and names sync to a signed-in account like any other food. Details: MEGO_Food_Search_and_Database_Guide.</p>
+
+<h2>3. Editing, copying and deleting entries</h2>
+<p>Tap an entry to open its sheet:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Action</th><th>Result</th></tr>
+<tr><td>Change quantity, unit, meal or date → Save</td><td>Values are recalculated from the stored basis; a preview of kcal and macros is shown first. Toast with Undo.</td></tr>
+<tr><td>Duplicate</td><td>Adds a copy on the same date</td></tr>
+<tr><td>Copy to date…</td><td>Choose date and meal</td></tr>
+<tr><td>Delete</td><td>After confirmation; Undo restores it</td></tr>
+</table>
+<p>Meal and day copying: under each meal use <b>Copy meal to…</b> or <b>Save as saved meal</b>; in the quick actions use <b>Copy yesterday</b> or <b>Copy day to…</b>. If the destination day already has entries, MEGO asks: "{date} already has n item(s). Copy anyway? (they will be added, not replaced)". Every copy can be undone.</p>
+
+<h2>4. Day status, day type and per-day targets</h2>
+<ul>
+<li><b>Status</b>: No entries / Partially logged / Fully logged. An empty day shows "Nothing logged — not counted as a zero-calorie day". Use <b>Mark day complete</b> or <b>Mark day partial</b> to set it manually, or <b>Auto status</b> to return to the automatic rule (past days reaching the configured % of the calorie target count as complete; see MEGO_Reports_Guide).</li>
+<li><b>Day type</b>: the selector shows the default from your training weekdays; you can force Training day or Rest day for this date only.</li>
+<li><b>Targets for this day</b>: enter kcal, protein, carbs and fat for this date only, or tap <b>Use default</b> to remove the override.</li>
+</ul>
+
+<h2>5. Water</h2>
+<p>The water line shows ml drunk / water target (default 3,000 ml). Tap <b>+250</b> or <b>+500</b>. More water and habit tools are on the Water &amp; habits page.</p>
+
+<h2>6. AI meal scanner — taking and analysing a photo</h2>
+<p>The scanner recognises the foods in a photo, estimates grams, raw/cooked state and cooking method, and matches each item to <b>your</b> food database. All nutrition numbers are then calculated by the same engine as manual logging. <b>Nothing is saved until you press Confirm.</b></p>
+<h3>6.1 Requirements</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Mode</th><th>Backend used</th><th>Limits</th></tr>
+<tr><td>Signed-in account</td><td>The public AI backend named in the app's cloud configuration; your sign-in token is sent with the request</td><td>Per user per day (default 10, Script Property <code>AI_USER_DAILY_LIMIT</code>) and a global daily limit (default 40)</td></tr>
+<tr><td>Guest / owner device</td><td>Your private Apps Script backend connected in Settings → MEGO Nutrition Hub — sync &amp; backup</td><td>Daily limit <code>AI_DAILY_LIMIT</code> (default 40)</td></tr>
+</table>
+<p>The Gemini key is stored only in the backend's Script Properties; it never reaches the phone. Only free-tier Flash models are used (gemini-3.8-flash → gemini-3.6-flash → gemini-3.5-flash-lite); nothing is charged.</p>
+<h3>6.2 Steps</h3>
+<ol>
+<li>In the Diary (scan strip, or inside "Add food") tap <b>Take a photo</b> (opens the camera) or <b>Upload from gallery</b>.</li>
+<li>Optional: write a <b>Note for the AI</b> (max. 300 characters), e.g. "restaurant meal, cooked with oil, 2 eggs".</li>
+<li>Tap <b>Analyse photo</b>. Status: "Preparing photo…", then "Analysing your meal… (5–30 s)". You can <b>Cancel</b> at any time. With the free tier, analysis can take longer at peak times (a live test on 10 Nov 2026 took ≈ 64 s).</li>
+</ol>
+<h3>6.3 What is sent (privacy)</h3>
+<ul>
+<li>The photo is re-encoded as JPEG on the phone at max. 1,024 px (768 or 640 px if still too large). Re-encoding removes all EXIF metadata (GPS location, device, time).</li>
+<li>Accepted input: image files up to 30 MB (JPEG, PNG, WebP, GIF, AVIF; HEIC/HEIF only where the browser can decode it).</li>
+<li>Together with the photo, only your food names, state and category are sent (as short keys f1, f2…) — no personal data. Avoid people or documents in the photo.</li>
+</ul>
+
+<h2>7. AI meal scanner — reviewing and saving</h2>
+<p>The review sheet shows the <b>Detected meal</b> name, the reminder "Weights from a photo are estimates. Correct them if you weighed the food.", and one line per item:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Element</th><th>Meaning</th></tr>
+<tr><td>✓ From your database</td><td>Item matched to one of your foods; nutrition comes from that food</td></tr>
+<tr><td>⚠ AI estimate — not in your database</td><td>No match; the AI's per-100 g estimate can be used only if you approve adding it as a new food</td></tr>
+<tr><td>Confidence High / Medium / Low (%)</td><td>Below 60 % the item must be checked</td></tr>
+<tr><td>Grams, cooking method, state</td><td>Editable; "AI estimate lo–hi g — please correct if you know the weight" shows the range</td></tr>
+<tr><td>Warnings</td><td>raw/cooked mismatch (match rejected), hidden fat or sauce, unknown database row</td></tr>
+<tr><td>Choose from database / Change food, "Did you mean:"</td><td>Pick the right food yourself; suggestions are never applied automatically</td></tr>
+<tr><td>Add to my database as a new food</td><td>Creates a new food marked "AI photo estimate — unverified, please review" in category "تقدير من صورة"</td></tr>
+<tr><td>I checked this item</td><td>Required for low-confidence items, unmatched items and hidden fat/sauce</td></tr>
+</table>
+<p>You can remove items (✕), <b>Add ingredient</b> from the database, choose <b>Add to</b> meal and date (the meal is pre-selected from the time of day: 04–11 breakfast, 11–16 lunch, 18–23 dinner, otherwise snacks), and see the <b>Meal total</b> (with "Includes AI-estimated values (marked ⚠)" when relevant).</p>
+<p><b>Confirm &amp; add to diary</b> stays disabled until: at least one item exists, every weight is 1–3,000 g, every unmatched item is either matched, approved as new or removed, and every uncertain item is ticked. Saving is all-or-nothing; the same food detected twice is merged into one entry. The toast "Meal added: n item(s)" offers <b>Undo</b>, which deletes the entries and archives foods created by this scan.</p>
+
+<h2>8. Errors, automatic retry and manual retry</h2>
+<h3>8.1 Behaviour</h3>
+<pre>
+Phone (one request at a time)            Backend (Apps Script, SCRIPT_VERSION 7)
+  analyse ──────────────────────────────► model 1 ─ 503 overloaded ─► next free model at once
+     │                                       │  500 / 504 ─► retry after 2 s, then 4 s ─► next model
+     │ temporary error?                      ▼
+     ├─ yes ─► wait 3 s, retry ─► wait 8 s, retry (max 2 automatic retries)
+     └─ no  ─► show the error; photo is kept
+</pre>
+<ul>
+<li><b>Temporary errors</b> (retried automatically, max. 2 times, after 3 s and 8 s): AI overloaded, server error, slow response (timeout), connection problem, AI busy. While retrying the sheet shows "Retrying automatically (n/2) — reason…".</li>
+<li>A per-minute quota error is retried automatically only if Google asks to wait 20 seconds or less.</li>
+<li><b>Never retried automatically:</b> daily quota, invalid key, configuration, region, model unavailable, bad or unsupported image, per-user limit.</li>
+<li>No retry is attempted while the phone is offline ("You are offline … your photo is kept").</li>
+<li>The phone waits up to about 280 seconds for an answer, because the backend itself may try several models.</li>
+<li>The same image is never sent twice at the same time.</li>
+</ul>
+<h3>8.2 Manual retry</h3>
+<p>After an error the sheet shows the message, a short "Service response" detail when Google returned one, and the button <b>Try again</b>. For temporary errors it adds: "Your photo is kept — tap Retry, no need to choose it again." The prepared (compressed) image is reused; it is not re-encoded. <b>Change photo</b> lets you pick another one.</p>
+<h3>8.3 Common messages</h3>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Message (summary)</th><th>What to do</th></tr>
+<tr><td>Google's AI model is overloaded right now (temporary)</td><td>MEGO already retried; try again in a few minutes</td></tr>
+<tr><td>Free per-minute limit reached — wait n seconds</td><td>Wait, then Try again (no charge)</td></tr>
+<tr><td>Free daily AI quota used up — resets at hh:mm</td><td>Try after the reset time (midnight Pacific time, shown in your local time) or log manually</td></tr>
+<tr><td>You have used your n free scans for today</td><td>Per-user limit of a signed-in account; renews the next day</td></tr>
+<tr><td>The AI scanner needs your private backend</td><td>Guest/owner device: connect the Hub in Settings first</td></tr>
+<tr><td>Google rejected the Gemini key / configuration problem</td><td>Owner must fix the backend (see MEGO_Gemini_API_Setup_Guide)</td></tr>
+<tr><td>Image format can't be read / image too large</td><td>Use JPEG, PNG or WebP, or the camera button; choose a photo under 30 MB</td></tr>
+<tr><td>No food was recognised in this photo</td><td>Try another photo with the plate clearly visible, or add ingredients manually</td></tr>
+</table>
+
+<h2>9. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Diary functions (add, edit, copy, undo, status)</td><td>Verified in code (src/pages/Diary.tsx, src/lib/repo.ts); covered by unit tests and browser e2e on emulated devices (57/57); food logging for a cloud account verified live in production (scripts/live-verify.mjs)</td></tr>
+<tr><td>Scanner rules (validation, flags, blockers, retry 3 s / 8 s, merging)</td><td>Verified in code (src/lib/mealScanner.ts, src/components/MealScanner.tsx); covered by tests/scanner.test.ts</td></tr>
+<tr><td>Backend model chain and error mapping</td><td>Verified in apps-script/Code.gs (SCRIPT_VERSION 7)</td></tr>
+<tr><td>Real photo analysis through the live app</td><td>Verified live on 10 Nov 2026 with a disposable account: ≈ 64 s, 4 items recognised; the free tier stays slow at peak times</td></tr>
+<tr><td>Complete my food database / Arabic &amp; English names</td><td>Verified in code (src/lib/libraryFoods.ts, src/lib/foodNames.ts, src/pages/Foods.tsx); covered by tests/library-foods.test.ts (adds only, existing foods unchanged, idempotent, labneh reported missing, 100 ready meals, pre-import backup)</td></tr>
+<tr><td>Camera capture on a real Android phone</td><td>Not verified (only emulated devices)</td></tr>
+<tr><td>Accuracy of AI weight estimates</td><td>Not verified — photo weights are estimates and must be reviewed</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

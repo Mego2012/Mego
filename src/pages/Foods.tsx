@@ -115,6 +115,9 @@ export default function Foods() {
         </div>
       </Card>
 
+      <CompleteDbCard />
+      <NamesCard />
+
       <Card title={t('importExport')}>
         <div className="io-grid">
           <button className="btn" onClick={() => fileRef.current?.click()} data-testid="import-file"><Icon name="upload" /> {t('importFile')}</button>
@@ -333,5 +336,63 @@ function SubmitSharedButton({ food }: { food: Food }) {
       await submitFood({ nameAr: food.nameAr, nameEn: food.nameEn, category: food.category, per100: food.per100 as unknown as Record<string, number>, state: food.state, pieceGrams: food.pieceGrams, notes: food.notes, sourceRef: food.sourceRef });
       setDone(true);
     }, t('submittedShared'))}>{done ? '✓ ' + t('submittedShared') : t('submitShared')}</button>
+  );
+}
+
+/** Adds the recipe library's ingredients and ready meals to the user's foods (preview first, adds only). */
+function CompleteDbCard() {
+  const { t, n } = useApp();
+  const { run, busy } = useAsync();
+  const [plan, setPlan] = useState<import('../lib/libraryFoods').LibraryFoodsPlan | null>(null);
+  const [done, setDone] = useState<Awaited<ReturnType<typeof import('../lib/libraryFoods').completeFoodDatabase>> | null>(null);
+  const count = (xs: { status: string }[], s: string) => xs.filter((x) => x.status === s).length;
+  return (
+    <Card title={t('cdb_title')}>
+      <div className="tiny muted">{t('cdb_note')}</div>
+      {!plan && <button className="btn block" style={{ marginTop: 8 }} disabled={busy} data-testid="cdb-preview"
+        onClick={() => run(async () => setPlan(await (await import('../lib/libraryFoods')).previewLibraryFoods()))}>{t('cdb_preview')}</button>}
+      {plan && !done && (
+        <div className="stack" style={{ marginTop: 8 }} data-testid="cdb-plan">
+          <ul className="adherence">
+            <li><span>{t('cdb_ingAdd')}</span><b className="num" data-testid="cdb-ing-add">{n(count(plan.ingredients, 'add'))}</b></li>
+            <li><span>{t('cdb_ingExists')}</span><b className="num">{n(count(plan.ingredients, 'exists'))}</b></li>
+            <li><span>{t('cdb_recAdd')}</span><b className="num" data-testid="cdb-rec-add">{n(count(plan.recipes, 'add'))}</b></li>
+            <li><span>{t('cdb_recExists')}</span><b className="num">{n(count(plan.recipes, 'exists'))}</b></li>
+          </ul>
+          {count(plan.ingredients, 'missing') > 0 && <div className="banner info small" data-testid="cdb-missing">{t('cdb_missing', { names: plan.ingredients.filter((i) => i.status === 'missing').map((i) => i.name).join('، '), r: plan.recipes.filter((r) => r.status === 'incomplete').map((r) => r.nameAr).join('، ') })}</div>}
+          <button className="btn primary block" disabled={busy || (!count(plan.ingredients, 'add') && !count(plan.recipes, 'add'))} data-testid="cdb-apply"
+            onClick={() => run(async () => setDone(await (await import('../lib/libraryFoods')).completeFoodDatabase()))}>{t('cdb_apply')}</button>
+        </div>
+      )}
+      {done && <div className="banner info small" style={{ marginTop: 8 }} data-testid="cdb-done">{t('cdb_done', { i: done.ingredientsAdded, r: done.recipesAdded })}</div>}
+    </Card>
+  );
+}
+
+/** Fills empty Arabic / English food names from the bilingual dictionary (never changes an existing name). */
+function NamesCard() {
+  const { t, n } = useApp();
+  const { run, busy } = useAsync();
+  const [plan, setPlan] = useState<import('../lib/foodNames').NamesPlan | null>(null);
+  const [done, setDone] = useState<number | null>(null);
+  const check = () => run(async () => setPlan(await (await import('../lib/foodNames')).previewNames()));
+  return (
+    <Card title={t('fn_title')}>
+      <div className="tiny muted">{t('fn_note')}</div>
+      {!plan && <button className="btn block" style={{ marginTop: 8 }} disabled={busy} onClick={check} data-testid="fn-preview">{t('cdb_preview')}</button>}
+      {plan && (
+        <div className="stack" style={{ marginTop: 8 }} data-testid="fn-plan">
+          <ul className="adherence">
+            <li><span>{t('fn_complete')}</span><b className="num">{n(plan.complete)}</b></li>
+            <li><span>{t('fn_fixable')}</span><b className="num" data-testid="fn-fixable">{n(plan.fixes.length)}</b></li>
+            <li><span>{t('fn_left')}</span><b className="num" data-testid="fn-left">{n(plan.noEnglish.length + plan.noArabic.length)}</b></li>
+          </ul>
+          {plan.noEnglish.length + plan.noArabic.length > 0 && <div className="banner info small">{t('fn_leftNote')}: {[...plan.noEnglish.map((f) => f.nameAr), ...plan.noArabic.map((f) => f.nameEn)].slice(0, 25).join('، ')}</div>}
+          {done !== null ? <div className="banner info small" data-testid="fn-done">{t('fn_done', { n: done })}</div> :
+            <button className="btn primary block" disabled={busy || !plan.fixes.length} data-testid="fn-apply"
+              onClick={() => run(async () => { setDone(await (await import('../lib/foodNames')).fillMissingNames()); setPlan(await (await import('../lib/foodNames')).previewNames()); })}>{t('fn_apply')}</button>}
+        </div>
+      )}
+    </Card>
   );
 }

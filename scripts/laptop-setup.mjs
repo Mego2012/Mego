@@ -7,6 +7,9 @@
  *   node scripts/laptop-setup.mjs --photo meal.jpg   use your own photo for the real AI test
  *   node scripts/laptop-setup.mjs --ai-key-from-clipboard   read the Gemini key you copied (never typed into a chat)
  *   --auto   no keyboard prompts (also automatic when not run in a terminal): waits for Google screens by polling
+ *   --hub-complete-foods   update the backend, then ADD to the Hub's Food_Database every recipe-library ingredient
+ *            that is missing (USDA values) and every library meal as a ready food (computed from the Hub's own values),
+ *            and fill EMPTY English names. Adds only; existing rows and values are never changed; daily Drive backup first.
  *   --verify  re-run the live account verification (scripts/live-verify.mjs) against the deployed site
  *   --cloud [admin-email]   ALSO set up the public multi-user platform on Firebase's free Spark plan:
  *            project, web app, Firestore (security rules deployed), email sign-in, admin account, public config
@@ -41,7 +44,8 @@ const HUB_SOURCE_ID = '1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI';
 const args = process.argv.slice(2);
 const onlyTest = args.includes('--test');
 /** --update-backend: upload the latest Code.gs to the SAME deployment (same URL, data untouched) and run the AI diagnostic. */
-const updateOnly = args.includes('--update-backend');
+const hubComplete = args.includes('--hub-complete-foods');
+const updateOnly = args.includes('--update-backend') || hubComplete;
 const photoArg = args.includes('--photo') ? args[args.indexOf('--photo') + 1] : '';
 /** For automated testing of this script against an emulated backend (skips clasp/Google). */
 const FAKE_BACKEND = process.env.MEGO_FAKE_BACKEND || '';
@@ -476,6 +480,69 @@ async function liveVerify() {
   record('live verification with real accounts (see live-verify report)', v.status === 0, v.status === 0 ? '' : 'one or more live checks failed');
 }
 
+/* ------------------------------------------------------------------ Hub: complete the food database */
+
+async function hubCompleteFoods() {
+  step('Hub Food_Database — add recipe ingredients, ready meals and English names (adds only)');
+  const lib = JSON.parse(readFileSync(path.join(ROOT, 'public/fooddb/library-recipes.json'), 'utf8'));
+  const dict = JSON.parse(readFileSync(path.join(ROOT, 'public/fooddb/food-names.json'), 'utf8')).names;
+  const ping = await call(state.url, { action: 'ping', token: state.token });
+  if (!ping.ok || (ping.scriptVersion ?? 0) < 8) { log('  ❌ backend version 8 or newer is needed (got ' + (ping.scriptVersion ?? ping.error) + ')'); process.exit(1); }
+  const fr = await call(state.url, { action: 'foods', token: state.token });
+  if (!fr.ok || !fr.structured) { log('  ❌ Food_Database is not available: ' + (fr.error || 'the Hub still uses the original tab')); process.exit(1); }
+  const [hdr, ...rows] = fr.rows;
+  const col = (n) => hdr.indexOf(n);
+  const num = (v) => (v === '' || v === null || v === undefined ? undefined : Number(v));
+  const hub = new Map();
+  for (const r of rows) {
+    const name = String(r[col('name_ar')] || '').trim();
+    if (!name || String(r[col('active')]).toLowerCase() === 'no') continue;
+    const per100 = { kcal: num(r[col('kcal_100g')]), protein: num(r[col('protein_100g')]), carbs: num(r[col('carbs_100g')]), fat: num(r[col('fat_100g')]) };
+    hub.set(name, { per100, usable: [per100.kcal, per100.protein, per100.carbs, per100.fat].every((x) => Number.isFinite(x)) && per100.kcal > 0 });
+  }
+  log(`  Hub foods: ${hub.size}`);
+  const now = Date.now();
+  const r1 = (x) => Math.round(x * 10) / 10;
+  const toAdd = [];
+  // 1) ingredients the Hub does not have yet (USDA reference values; no reference → never estimated)
+  const missing = [];
+  for (const [name, ref] of Object.entries(lib.reference)) {
+    if (hub.has(name)) continue;
+    if (!ref) { missing.push(name); continue; }
+    const id = 'LIB-ING-' + createHash('sha1').update(name).digest('hex').slice(0, 8);
+    toAdd.push({ foodId: id, name, kcal: ref.per100.kcal, protein: ref.per100.protein, carbs: ref.per100.carbs, fat: ref.per100.fat, updatedAt: now,
+      record: { foodId: id, nameAr: name, nameEn: ref.nameEn, category: 'مكوّنات الوصفات', per100: ref.per100, state: ref.state, stateLabel: ref.state === 'raw' ? 'نيء' : ref.state === 'cooked' ? 'مطبوخ' : 'محضّر', prep: '', source: 'usda', notes: ref.source + ' · recipe library ingredient', updatedAt: now } });
+    hub.set(name, { per100: ref.per100, usable: true });
+  }
+  // 2) ready meals, computed from the Hub's own values (USDA only where the Hub had nothing)
+  const skipped = [];
+  for (const rc of lib.recipes) {
+    if (hub.has(rc.nameAr)) continue;
+    const parts = rc.ingredients.map(([n, g]) => { const f = hub.get(n); return f && f.usable ? { g, p: f.per100 } : null; });
+    if (parts.some((x) => !x)) { skipped.push(rc.nameAr); continue; }
+    const grams = parts.reduce((a, x) => a + x.g, 0);
+    const tot = ['kcal', 'protein', 'carbs', 'fat'].reduce((o, k) => ({ ...o, [k]: parts.reduce((a, x) => a + (x.p[k] * x.g) / 100, 0) }), {});
+    const per100 = { kcal: r1((tot.kcal * 100) / grams), protein: r1((tot.protein * 100) / grams), carbs: r1((tot.carbs * 100) / grams), fat: r1((tot.fat * 100) / grams) };
+    const serving = Math.round(grams / rc.servings);
+    const id = 'LIB-' + rc.id;
+    const notes = `Recipe library meal ${rc.id}: per 100 g of raw ingredients; 1 serving = ${serving} g (${r1(tot.kcal / rc.servings)} kcal).` + (rc.uncountedKcalPerServing ? ` Seasonings (~${rc.uncountedKcalPerServing} kcal/serving) not counted.` : '');
+    toAdd.push({ foodId: id, name: rc.nameAr, ...per100, piece: serving, updatedAt: now,
+      record: { foodId: id, nameAr: rc.nameAr, nameEn: rc.nameEn, category: 'وجبات (مكتبة الوصفات)', per100, pieceGrams: serving, state: 'cooked', stateLabel: 'وجبة', prep: '', source: 'custom', notes, updatedAt: now } });
+  }
+  log(`  to add: ${toAdd.filter((f) => f.foodId.startsWith('LIB-ING-')).length} ingredients, ${toAdd.filter((f) => !f.foodId.startsWith('LIB-ING-')).length} ready meals`);
+  for (let i = 0; i < toAdd.length; i += 100) {
+    const r = await call(state.url, { action: 'saveFoods', token: state.token, foods: toAdd.slice(i, i + 100) });
+    if (!r.ok) { log('  ❌ ' + r.error); process.exit(1); }
+    log(`  ✅ added ${r.updated} rows` + (r.conflicts?.length ? ` (${r.conflicts.length} conflicts left unchanged)` : ''));
+  }
+  const names = { ...dict };
+  for (const rc of lib.recipes) names[rc.nameAr] = rc.nameEn;
+  const fn = await call(state.url, { action: 'fillFoodNames', token: state.token, names });
+  log(fn.ok ? `  ✅ English names filled: ${fn.filled}` : '  ❌ names: ' + fn.error);
+  if (missing.length) log('  ⚠ no verified values (never estimated): ' + missing.join(', '));
+  if (skipped.length) log('  ⚠ meals skipped because an ingredient has no usable values: ' + skipped.join(', '));
+}
+
 /* ------------------------------------------------------------------ main */
 
 try {
@@ -483,6 +550,7 @@ try {
   if (FAKE_BACKEND) {
     state.url = FAKE_BACKEND;
     if (!state.token) await bootstrap(process.env.MEGO_FAKE_SECRET);
+    if (hubComplete) { await hubCompleteFoods(); process.exit(0); }
   } else if (!onlyTest) {
     await ensureLogin();
     await ensureProject();
@@ -491,6 +559,7 @@ try {
     pushCode(needsInstall ? createHash('sha256').update(secret).digest('hex') : '');
     deploy();
     if (needsInstall) await bootstrap(secret);
+    if (hubComplete) { await hubCompleteFoods(); process.exit(0); }
     if (updateOnly) {
       step('AI diagnostic — Google\'s exact answer for each free model (text only, no photo)');
       const d = await call(state.url, { action: 'aiDiag', token: state.token });

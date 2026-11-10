@@ -34,7 +34,7 @@
 /** The original Hub file (Excel). Kept untouched as the backup after conversion. */
 var SOURCE_ID = '1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI';
 var HUB_NAME = 'MEGO Nutrition Hub';
-var SCRIPT_VERSION = 7;
+var SCRIPT_VERSION = 8;
 /**
  * One-time automated install (scripts/laptop-setup.mjs). Empty in the public repository = disabled.
  * The laptop setup writes the SHA-256 of a random secret here only in YOUR private copy of the script; the
@@ -279,6 +279,7 @@ function doPost(e) {
         case 'push': return json_(push_(req.changes || [], req.clientSchema));
         case 'pull': return json_(pull_(req.since));
         case 'saveFoods': return json_(saveFoods_(req.foods || []));
+        case 'fillFoodNames': return json_(fillFoodNames_(req.names || {}));
         case 'backup': return json_(backup_(req.snapshot));
         case 'meta': return json_({ ok: true, meta: readMeta_() });
         default: return json_({ ok: false, error: 'unknown action' });
@@ -487,6 +488,29 @@ function saveFoods_(foods) {
   });
   var r = push_(changes, SCHEMA_VERSION);
   return { ok: true, updated: r.applied, conflicts: r.conflicts };
+}
+
+/**
+ * Fills EMPTY English names in Food_Database from an Arabic → English map. Only the name_en cell of rows whose
+ * name_en is empty is written; every other cell and every non-empty name stays exactly as it is.
+ */
+function fillFoodNames_(names) {
+  if (!names || typeof names !== 'object' || Array.isArray(names)) return { ok: false, error: 'invalid names' };
+  if (hubMode_() !== 'native') return { ok: false, error: 'Food_Database needs the native Google Sheet' };
+  var sh = SpreadsheetApp.openById(hubId_()).getSheetByName('Food_Database');
+  if (!sh || sh.getLastRow() < 2) return { ok: false, error: 'Food_Database not found' };
+  var vals = sh.getDataRange().getValues();
+  var ar = vals[0].indexOf('name_ar'), en = vals[0].indexOf('name_en');
+  if (ar < 0 || en < 0) return { ok: false, error: 'name columns not found' };
+  var todo = [];
+  for (var i = 1; i < vals.length; i++) {
+    var a = String(vals[i][ar] || '').trim(), e = String(vals[i][en] || '').trim();
+    var v = names[a];
+    if (a && !e && typeof v === 'string' && v.trim() && v.length <= 120) todo.push([i + 1, v.trim()]);
+  }
+  if (todo.length) backupOncePerDay_();
+  for (var j = 0; j < todo.length; j++) sh.getRange(todo[j][0], en + 1).setValue(todo[j][1]);
+  return { ok: true, filled: todo.length };
 }
 
 function backupOncePerDay_() {

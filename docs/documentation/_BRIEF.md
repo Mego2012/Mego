@@ -189,3 +189,43 @@ Legal documents (73–77) must say on top, in bold: "DRAFT — requires review b
 publication" / «مسودة — تتطلب مراجعة مختص قانوني مؤهل قبل النشر», must not invent operator identity, governing law or
 liability terms (leave the bracketed placeholders used in the app, see src/lib/i18n2.ts / i18n3.ts pp_*/tos_*), and must
 match what the app really does.
+
+## 7. Updates since 7 Nov 2026 (verified 10 Nov 2026) — these OVERRIDE section 1 where they differ
+Use Created/Last updated **2026-11-10** for new documents.
+* New modules (code + tests): Cardio tracking (src/lib/cardio.ts, docs/CARDIO-METHODOLOGY*.md; MET-based estimate,
+  labelled as an estimate; default plan 6 sessions × 10 min after training; saved routine treadmill 10 min, 3.5 km/h,
+  13 % incline), smart energy adjustment (src/lib/energy.ts: planned cardio already covered, extra net energy ×
+  replenish 50 % fat loss / 75 % maintain / 100 % gain, cap 400 kcal, fat-loss ceiling 0.9 × (TDEE + extra)),
+  Goals advisor (src/lib/goalAdvisor.ts, recommendations never auto-applied, no surplus for loss goals), recipe
+  nutrition linked to the food database (src/lib/recipeEngine.ts, recipeRefMap.ts; missing ingredients are never
+  invented, e.g. labneh = missing), Workouts & strength training + rule-based training coach (src/lib/workouts.ts,
+  trainingCoach.ts, exercises.ts — 54 exercises; docs/TRAINING-METHODOLOGY*.md; the coach is local rule-based logic,
+  NOT an AI service), Exercise guide (src/lib/exerciseVisuals.ts original pose drawings, src/lib/technique/*,
+  src/components/MuscleChart.tsx, page /exercise/:id; docs/EXERCISE-GUIDE-COVERAGE.md), Data check in Settings
+  (src/lib/dataCheck.ts: record counts vs pre-update backup, per-serving suspect foods, possible duplicates — read-only).
+* Storage: new data uses the synced `kv` table (keys cardio:, cardioRoutine, checkin:, program:, activeProgram,
+  workout:, exercise:, recovery:, preferredExercises). Dexie schema still v2. Pre-update backup once per release
+  (APP_RELEASE '1.3-training').
+* AI meal scanner — backend SCRIPT_VERSION 7 (apps-script/Code.gs): Google errors mapped to precise codes
+  (AI_OVERLOADED 503, AI_SERVER_ERROR 500, AI_TIMEOUT 504, AI_QUOTA_MINUTE/DAY 429, AI_KEY_INVALID, AI_REGION,
+  AI_MODEL_UNAVAILABLE, AI_BAD_IMAGE, AI_CONFIG); free model chain gemini-3.8-flash → gemini-3.6-flash →
+  gemini-3.5-flash-lite (free tier only, never paid); 503 overloaded moves at once to the next model, 500/504 retried
+  after 2 s and 4 s; daily quota counted only on success; `aiDiag` action (text-only per-model check). Client
+  (src/lib/mealScanner.ts): image validation + compression, automatic retry 3 s / 8 s for temporary errors, manual
+  retry keeps the image, one request at a time. Root cause of the old "AI is busy": Google 503 overload on the primary
+  model, which the old backend reported as busy without retry. LIVE verification 10 Nov: a real meal photo was
+  analysed through the live app UI (disposable account) in ≈ 64 s, 4 items recognised; free tier remains slow at peaks.
+  Deploy command for the owner: `git pull && node scripts/laptop-setup.mjs --update-backend`.
+* Incident 10 Nov (document it in Troubleshooting, Backup & Recovery, Known bugs, Support/Incident docs — no personal
+  data): an Android phone lost its IndexedDB (records + Firebase session) while localStorage survived; the app showed
+  the welcome screen and, after signing in again, stayed empty because the cloud listener started from "last seen"
+  markers kept in localStorage, and a fresh default settings record outranked the saved settings. It had happened once
+  before. FIXED and live (src/lib/cloudSync.ts, account.ts, repo.ts): markers renamed `mego.cloud2.` (every device
+  re-downloads once), missing local DB resets markers, empty table downloads in full, settings always re-read,
+  untouched defaults (updatedAt 0) never outrank cloud copies, one bad record never stops the download, same-date
+  weigh-ins keep the newer one. Reproduced and verified on emulators (e2e/storage-loss.mjs); the owner confirmed the
+  data came back. Lesson for users: signed-in accounts are recoverable by signing in again; guest data lives only on
+  the device.
+* Tests now: unit 195 (vitest, 13 files), browser e2e 57/57, touch/scroll 103/103, storage-loss emulator scenario,
+  live exercise pages 54/54 on the live site.
+* The owner does not use whey protein (the per-serving whey flag is informational only).

@@ -283,7 +283,7 @@ describe('MEGO Nutrition Hub backend (real Code.gs v3 on an emulated Hub)', () =
     expect(gas.post({ action: 'ping', token: 'bad' })).toEqual({ ok: false, error: 'unauthorized' });
     expect(gas.post({ action: 'ping' }).error).toBe('unauthorized');
     const ping = gas.post({ action: 'ping', token: 'tok' });
-    expect(ping).toMatchObject({ ok: true, spreadsheetId: HUB_ID, sourceId: HUB_ID, mode: 'xlsx', writable: false, scriptVersion: 7 });
+    expect(ping).toMatchObject({ ok: true, spreadsheetId: HUB_ID, sourceId: HUB_ID, mode: 'xlsx', writable: false, scriptVersion: 8 });
     const before = JSON.stringify(gas.sheet('قاعدة بيانات الأطعمة').data);
     const foods = gas.post({ action: 'foods', token: 'tok' });
     expect(foods).toMatchObject({ ok: true, structured: false, readOnly: true });
@@ -352,6 +352,24 @@ describe('MEGO Nutrition Hub backend (real Code.gs v3 on an emulated Hub)', () =
     expect(gas.drive.copies.length).toBe(2); // migration backup + daily write-back backup
     expect(JSON.stringify(gas.sheet('قاعدة بيانات الأطعمة').data)).toBe(before);
     expect(gas.post({ action: 'saveFoods', token: 'tok', foods: [{ name: 'x', kcal: -5, protein: 0, carbs: 0, fat: 0 }] }).ok).toBe(false);
+  });
+  itReal('fillFoodNames writes only empty English-name cells of Food_Database, after a daily backup', () => {
+    const gas = createGas({ foodRows: rows, token: 'tok', mode: 'native' });
+    gas.migrateHub();
+    const fdb = gas.sheet('Food_Database');
+    const hdr = fdb.data[0] as string[]; const ar = hdr.indexOf('name_ar'), en = hdr.indexOf('name_en');
+    const i = fdb.data.findIndex((r) => r[ar] === 'صدر دجاج');
+    fdb.data[i + 1 < fdb.data.length ? i + 1 : 1][en] = 'Kept English';
+    const keptRow = fdb.data.findIndex((r) => r[en] === 'Kept English');
+    const before = JSON.parse(JSON.stringify(fdb.data));
+    const r = gas.post({ action: 'fillFoodNames', token: 'tok', names: { 'صدر دجاج': 'Chicken breast, raw', [String(before[keptRow][ar])]: 'SHOULD NOT REPLACE' } });
+    expect(r).toMatchObject({ ok: true, filled: 1 });
+    expect(fdb.data[i][en]).toBe('Chicken breast, raw');
+    expect(fdb.data[keptRow][en]).toBe('Kept English');
+    for (let k = 0; k < before.length; k++) for (let c = 0; c < before[k].length; c++) if (!(k === i && c === en)) expect(fdb.data[k][c]).toEqual(before[k][c]);
+    expect(gas.drive.copies.length).toBe(2); // migration backup + daily backup before the first write
+    expect(gas.post({ action: 'fillFoodNames', token: 'tok', names: { 'صدر دجاج': 'x' } }).filled).toBe(0); // idempotent
+    expect(gas.post({ action: 'fillFoodNames', token: 'wrong', names: {} }).ok).toBe(false);
   });
   it('installMego: converts the Excel Hub once, verifies 160 foods, switches only after verification; .xlsx untouched', () => {
     const gas = createGas({ foodRows: rows, token: '', mode: 'xlsx', deployedUrl: 'https://script.google.com/macros/s/DEPLOY/exec' });

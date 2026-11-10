@@ -37,6 +37,7 @@ const sourceBefore = JSON.stringify(gas.source.sheets.map((s) => [s.name, s.data
 
 const server = createServer((req, res) => {
   let body = '';
+  req.setEncoding('utf8'); // Arabic text must not be split across chunks
   req.on('data', (c) => (body += c));
   req.on('end', () => {
     const out = gas.post(JSON.parse(body || '{}'));

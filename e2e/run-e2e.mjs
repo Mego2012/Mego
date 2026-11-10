@@ -762,9 +762,113 @@ await check('REPLACE', 'Replace a meal in the suggested week plan', async () => 
   await page.keyboard.press('Escape');
 });
 
+await check('CARDIO', 'Cardio: log the saved routine, add, edit and delete a session; daily/weekly/monthly totals', async () => {
+  await go(page, '/cardio');
+  await page.getByTestId('cardio-page').waitFor();
+  const line = await page.getByTestId('routine-line').innerText();
+  if (!/10/.test(line) || !/3[.,٫]5/.test(line) || !/13/.test(line)) throw new Error('routine line: ' + line);
+  const min = async (id) => Number(await page.getByTestId(id).getAttribute('data-min'));
+  const d0 = await min('cardio-today'), w0 = await min('cardio-week'), m0 = await min('cardio-month');
+  await page.getByTestId('routine-log').click();
+  await page.waitForFunction((v) => Number(document.querySelector('[data-testid=cardio-today]')?.getAttribute('data-min')) === v, d0 + 10);
+  // new running session with distance → speed derived
+  await page.getByTestId('cardio-add').click();
+  await page.getByTestId('cardio-activity').selectOption('running');
+  if (await page.getByTestId('cardio-incline').count()) throw new Error('incline shown for running');
+  await page.getByTestId('cardio-duration').fill('30');
+  await page.getByTestId('cardio-distance').fill('5');
+  await page.getByTestId('cardio-preview').waitFor();
+  await page.getByTestId('cardio-save').click();
+  await page.waitForFunction((v) => Number(document.querySelector('[data-testid=cardio-today]')?.getAttribute('data-min')) === v, d0 + 40);
+  if (await min('cardio-week') !== w0 + 40 || await min('cardio-month') !== m0 + 40) throw new Error('week/month totals not updated');
+  // edit: open the running session (newest first by time may differ) → change duration
+  const rows = page.getByTestId('cardio-row');
+  const n = await rows.count();
+  let idx = -1;
+  for (let i = 0; i < n; i++) if (/30/.test(await rows.nth(i).innerText()) && /5/.test(await rows.nth(i).innerText())) { idx = i; break; }
+  if (idx < 0) throw new Error('running session not listed');
+  await rows.nth(idx).getByTestId('cardio-open').click();
+  await page.getByTestId('cardio-duration').fill('25');
+  await page.getByTestId('cardio-save').click();
+  await page.waitForFunction((v) => Number(document.querySelector('[data-testid=cardio-today]')?.getAttribute('data-min')) === v, d0 + 35);
+  // delete it
+  await rows.nth(idx).getByTestId('cardio-delete').click();
+  await page.getByTestId('confirm-yes').click();
+  await page.waitForFunction((v) => Number(document.querySelector('[data-testid=cardio-today]')?.getAttribute('data-min')) === v, d0 + 10);
+  await shot(page, '20-cardio');
+  return `routine "${line}"`;
+});
+
+await check('ENERGY', 'Home: base → cardio → extra allowed → adjusted target; planned routine adds nothing', async () => {
+  await go(page, '/');
+  await page.getByTestId('energy-card').waitFor();
+  const v = async (id) => Number((await page.getByTestId(id).innerText()).replace(/[^\d٠-٩-]/g, '').replace(/[٠-٩]/g, (c) => c.charCodeAt(0) - 0x660));
+  const base = await v('en-base'), adj = await v('en-adjusted'), allowed = await v('en-allowed');
+  if (allowed !== 0 || base !== adj) throw new Error(`routine within plan must not add calories: base ${base}, allowed ${allowed}, adjusted ${adj}`);
+  const target = await v('kcal-target');
+  if (target !== base) throw new Error(`dial target ${target} ≠ base ${base}`);
+  await page.getByTestId('en-why').click();
+  await page.getByTestId('en-reasons').waitFor();
+  return `base ${base} = adjusted ${adj}`;
+});
+
+await check('GOALS', 'Goals: progress, recommendations (not applied), fitness goals and check-in save', async () => {
+  await go(page, '/goals');
+  await page.getByTestId('goal-progress').waitFor();
+  const adv = await page.getByTestId('advice').count();
+  if (!adv) throw new Error('no recommendations shown');
+  await page.getByTestId('goal-cardio-sessions').fill('4');
+  await page.waitForFunction(() => /40/.test(document.querySelector('[data-testid=goal-weekly-cardio]')?.textContent || ''));
+  await page.getByTestId('ci-save').click();
+  await page.getByTestId('toast').waitFor();
+  await page.getByTestId('goal-cardio-sessions').fill('3');
+  await shot(page, '21-goals');
+  return `${adv} recommendation(s)`;
+});
+
+await check('RECIPE-NUTRITION', 'Every library recipe card shows calories and macros per serving', async () => {
+  await go(page, '/recipes?tab=library');
+  await page.getByTestId('library-card').first().waitFor();
+  const cards = await page.getByTestId('library-card').count();
+  const withKcal = await page.getByTestId('card-kcal').count();
+  if (withKcal !== cards) throw new Error(`${withKcal} of ${cards} cards show nutrition`);
+  await page.getByTestId('library-card').first().click();
+  await page.getByTestId('detail-total').waitFor();
+  const srcs = await page.getByTestId('ingredient-row').evaluateAll((els) => els.map((e) => e.getAttribute('data-source')));
+  if (srcs.some((x) => !x)) throw new Error('ingredient without source');
+  await page.keyboard.press('Escape');
+  return `${cards} recipes, first: ${srcs.join('/')}`;
+});
+
+await check('REPORT-CARDIO', 'Weekly and monthly reports include cardio minutes, sessions, average and goal progress', async () => {
+  for (const h of ['/reports/week', '/reports/month']) {
+    await go(page, h);
+    await page.getByTestId('report-cardio').waitFor();
+    const m = await page.getByTestId('rc-minutes').innerText();
+    if (!/\d|[٠-٩]/.test(m)) throw new Error(h + ' minutes: ' + m);
+    await page.getByTestId('report-cardio-insights').waitFor();
+  }
+});
+
+await check('CARDIO-EN', 'Cardio, Goals and Home cards in English (ltr) and Arabic (rtl)', async () => {
+  await go(page, '/settings');
+  await page.getByRole('tab', { name: 'English' }).click();
+  await go(page, '/cardio');
+  await waitText(page.getByTestId('cardio-page'), /Log my routine/);
+  if (await page.evaluate(() => document.documentElement.dir) !== 'ltr') throw new Error('not ltr');
+  await go(page, '/goals');
+  await waitText(page.getByTestId('goals-page'), /Recommendations/);
+  await shot(page, '22-goals-en');
+  await go(page, '/settings');
+  await page.getByRole('tab', { name: 'العربية' }).click();
+  await go(page, '/cardio');
+  await waitText(page.getByTestId('cardio-page'), /سجّل روتيني/);
+  if (await page.evaluate(() => document.documentElement.dir) !== 'rtl') throw new Error('not rtl');
+});
+
 await check('LAYOUT', 'No horizontal overflow on any screen (phone width)', async () => {
   const bad = [];
-  for (const h of ['/', '/diary', '/recipes', '/recipes?tab=suggest', '/recipes?tab=cook', '/recipes?tab=recipes', '/foods', '/planner', '/progress', '/habits', '/reports/week', '/reports/month', '/settings']) {
+  for (const h of ['/', '/diary', '/recipes', '/recipes?tab=suggest', '/recipes?tab=cook', '/recipes?tab=recipes', '/foods', '/planner', '/progress', '/habits', '/reports/week', '/reports/month', '/settings', '/cardio', '/goals']) {
     await go(page, h);
     await page.waitForTimeout(300);
     const w = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth, wide: [...document.querySelectorAll('main *')].filter((e) => { const r = e.getBoundingClientRect(); return (r.right > window.innerWidth + 1 || r.left < -1) && getComputedStyle(e).position !== 'fixed' && !e.closest('.table-wrap,.segmented,.chart,.vchart,.tool-row'); }).map((e) => `${e.tagName.toLowerCase()}.${String(e.className).split(' ')[0]}${e.dataset.testid ? '#' + e.dataset.testid : ''}`) }));

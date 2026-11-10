@@ -244,9 +244,11 @@ export interface ProgressPhoto {
 export interface LocalBackup {
   id?: number;
   at: number;
-  reason: 'auto-daily' | 'manual' | 'pre-migration' | 'pre-restore' | 'pre-import' | 'pre-pull';
+  reason: 'auto-daily' | 'manual' | 'pre-migration' | 'pre-restore' | 'pre-import' | 'pre-pull' | 'pre-update';
   size: number;
   json: string;
+  /** App release a 'pre-update' backup was taken for. */
+  release?: string;
 }
 
 export type GoalType = 'fat_loss' | 'fat_loss_preserve' | 'recomp' | 'lean_bulk' | 'bulk' | 'maintain' | 'healthy' | 'performance' | 'custom';
@@ -308,7 +310,19 @@ export interface Settings {
   foodExclusions?: string[];
   /** Include progress photos in Google Drive backups (off by default — photos stay on the device). */
   backupPhotos: boolean;
+  /** Cardio → calorie target: 'smart' (only justified extra cardio, see energy.ts) or 'off'. Saved targets never change. */
+  cardioCalorieMode?: 'smart' | 'off';
+  /** Share of justified extra cardio energy added back (0–100 %). Empty = automatic by goal. */
+  cardioReplenishPct?: number | null;
+  /** Fitness goals (Goals screen). */
+  fitness?: FitnessGoals;
   updatedAt: number;
+}
+
+export interface FitnessGoals {
+  resistanceDaysPerWeek: number;
+  cardioSessionsPerWeek: number;
+  cardioMinPerSession: number;
 }
 
 export interface OutboxItem {

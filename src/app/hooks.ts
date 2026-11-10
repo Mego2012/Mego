@@ -27,3 +27,10 @@ export function useBundle(): DataBundle | null {
   if (!raw) return null;
   return { ...raw, settings };
 }
+
+/** All cardio sessions (kv records "cardio:<id>"), newest first. */
+export function useCardio(): import('../lib/cardio').CardioSession[] {
+  return useLiveQuery(async () => (await db.kv.where('key').startsWith('cardio:').toArray())
+    .map((r) => r.value as import('../lib/cardio').CardioSession).filter((s) => s && s.id && s.date)
+    .sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)), [], []);
+}

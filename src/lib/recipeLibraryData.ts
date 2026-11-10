@@ -450,7 +450,7 @@ export const LIBRARY: LibraryRecipe[] = [
   {
     id: 'lib-egg-fried-rice', nameAr: 'رز مقلي صحي بالبيض والخضار', nameEn: 'Healthy egg fried rice', emoji: '🍳', meals: ['lunch', 'dinner'], tags: ['eggs', 'rice', 'quick'],
     prepMin: 5, cookMin: 12, difficulty: 'easy', servings: 3, methods: ['pan'],
-    ingredients: [['أرز أبيض', 200, 'مطبوخ ومبرد مسبقاً', 'cooked & chilled'], ['بيض كامل', 220], ['بياض بيض', 99], ['خضار مشكلة بالذرة (مجمدة)', 300], ['زيت زيتون', 10]],
+    ingredients: [['أرز أبيض مطبوخ', 200, 'مطبوخ ومبرد مسبقاً', 'cooked & chilled'], ['بيض كامل', 220], ['بياض بيض', 99], ['خضار مشكلة بالذرة (مجمدة)', 300], ['زيت زيتون', 10]],
     uncounted: [S.garlic, S.soy, ['بصل أخضر', 'spring onion', 2]],
     stepsAr: ['اقلب الخضار في الزيت 4 دقائق.', 'أزحها جانباً واخفق البيض حتى ينضج.', 'أضف الأرز البارد والصويا والثوم وقلّب 4 دقائق على نار عالية.'],
     stepsEn: ['Stir-fry veg in oil 4 min.', 'Push aside; scramble the eggs.', 'Add cold rice, soy and garlic; toss 4 min on high heat.'],

@@ -114,7 +114,7 @@ export const LIBRARY_2: LibraryRecipe[] = [
     ['اطبخ الأرز.', 'اخلط التونة مع الزبادي والليمون.', 'رتب الأرز والتونة والخيار والذرة ورشة صويا.'],
     ['Cook the rice.', 'Mix tuna with yogurt and lemon.', 'Assemble rice, tuna, cucumber, corn and a dash of soy.']),
   R('lib-shrimp-fried-rice', 'رز مقلي بالروبيان والبيض', 'Shrimp & egg fried rice', '🍤', ['lunch', 'dinner'], ['fish', 'rice', 'eggs'], 10, 15, 'easy', 3, ['pan'],
-    [['روبيان (جمبري) نيء', 300], ['أرز أبيض', 200, 'مطبوخ ومبرد', 'cooked & chilled'], ['بيض كامل', 110], ['خضار مشكلة بالذرة (مجمدة)', 200], ['زيت زيتون', 10]], [U.garlic, U.soy],
+    [['روبيان (جمبري) نيء', 300], ['أرز أبيض مطبوخ', 200, 'مطبوخ ومبرد', 'cooked & chilled'], ['بيض كامل', 110], ['خضار مشكلة بالذرة (مجمدة)', 200], ['زيت زيتون', 10]], [U.garlic, U.soy],
     ['اطبخ الروبيان 3 دقائق وأخرجه.', 'اقلب الخضار ثم البيض.', 'أضف الأرز البارد والصويا والروبيان وقلّب على نار عالية.'],
     ['Cook shrimp 3 min; set aside.', 'Stir-fry veg, then scramble eggs.', 'Add cold rice, soy and shrimp; toss on high heat.']),
   R('lib-beef-kabsa', 'كبسة لحم قليل الدهن', 'Lean beef kabsa', '🍛', ['lunch', 'dinner'], ['meat', 'rice', 'meal-prep'], 15, 45, 'medium', 4, ['pot'],

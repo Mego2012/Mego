@@ -8,11 +8,12 @@ import { Card, MacroLine, NumField, Segmented, Sheet, StateChip, useAsync } from
 import { db } from '../lib/db';
 import { isValidISODate, today } from '../lib/dates';
 import { round, roundMacros, scaleMacros } from '../lib/nutrition';
-import { allLibraryIngredients, computeLibrary, findFood, indexFoods, materializeLibraryRecipe, recipeMeta, suggest, whatCanICook, type ComputedRecipe, type SuggestFilters, type Suggestion } from '../lib/recipeEngine';
+import { allLibraryIngredients, approveRecipeMatches, computeLibrary, materializeLibraryRecipe, recipeMeta, suggest, whatCanICook, type ComputedRecipe, type SuggestFilters, type Suggestion } from '../lib/recipeEngine';
 import { kvGet } from '../lib/repo';
 import { addRecipeEntry, deleteEntry, kvSet, setPlannedDay, uid } from '../lib/repo';
 import { summarizeDay } from '../lib/reports';
 import { normalizeText } from '../lib/search';
+import { FoodEditor } from './Foods';
 import { MEALS, type MealType } from '../lib/types';
 
 export function useLibrary() {
@@ -65,13 +66,13 @@ export function LibraryTab() {
           <div className="grow" style={{ minWidth: 0 }}>
             <div className="bold">{lang === 'ar' ? c.lib.nameAr : c.lib.nameEn}</div>
             <div className="tiny muted">{lang === 'ar' ? c.lib.nameEn : c.lib.nameAr}</div>
-            {c.ok ? (
-              <div className="small num" style={{ marginTop: 4 }}><b>{n(c.perServing.kcal)}</b> {t('kcalUnit')} · <MacroLine m={c.perServing} compact /></div>
-            ) : <div className="tiny delta pos">{t('missingIngredients', { list: c.missing.join('، ') })}</div>}
+            <div className="small num" style={{ marginTop: 4 }} data-testid="card-kcal"><b>{n(c.perServing.kcal)}</b> {t('kcalUnit')} · <MacroLine m={c.perServing} compact /> <span className="tiny muted">· {t('perServingG', { g: n(c.gramsPerServing) })}</span></div>
+            {!c.ok && <div className="tiny delta pos">{t('partialNutrition', { list: c.missing.join('، ') })}</div>}
             <div className="row wrap tiny muted" style={{ gap: 6, marginTop: 4 }}>
               <span className="row" style={{ gap: 3 }}><Icon name="history" /> {c.totalTime} {t('min')}</span>
               {c.derived.map((d) => <span key={d} className="chip good">{t('tag_' + d.replace(/-/g, '_'))}</span>)}
               {c.isEstimate && <span className="chip warn">{t('estimatedBadge')}</span>}
+              {c.usda.length > 0 && <span className="chip" data-testid="usda-chip">{t('usdaMatchedN', { n: c.usda.length })}</span>}
               {meta.favorites.has(c.lib.id) && <span className="fav-star"><Icon name="star" filled /></span>}
               {meta.ratings[c.lib.id] ? <span>{'★'.repeat(meta.ratings[c.lib.id])}</span> : null}
             </div>
@@ -86,9 +87,10 @@ export function LibraryTab() {
 
 export function RecipeDetail({ c, onClose, servingsHint = 1 }: { c: ComputedRecipe; onClose: () => void; servingsHint?: number }) {
   const { t, lang, n, toast } = useApp();
-  const { meta, foods } = useLibrary();
-  const index = useMemo(() => indexFoods(foods ?? []), [foods]);
+  const { meta } = useLibrary();
   const [action, setAction] = useState<'diary' | 'plan' | null>(null);
+  const [addFood, setAddFood] = useState<string | null>(null);
+  const [approved, setApproved] = useState(false);
   const { run } = useAsync();
   const fav = meta.favorites.has(c.lib.id);
   const rating = meta.ratings[c.lib.id] ?? 0;
@@ -107,13 +109,21 @@ export function RecipeDetail({ c, onClose, servingsHint = 1 }: { c: ComputedReci
           <span className="chip">{t('servingsN', { n: L.servings })}</span>
           {L.methods.map((m) => <span key={m} className="chip">{t('method_' + m.replace('-', '_'))}</span>)}
         </div>
-        {c.ok ? (
-          <div className="grid2" data-testid="detail-nutrition">
-            <div className="stat"><div className="k">{t('perServing')}</div><div className="v num" data-testid="detail-kcal">{n(c.perServing.kcal)} {t('kcalUnit')}</div><MacroLine m={c.perServing} />
-              <div className="tiny muted">{t('fiber')}: {c.perServing.fiber !== undefined ? `${n(c.perServing.fiber, 1)} ${t('g')}` : t('unknown')}</div></div>
-            <div className="stat"><div className="k">{t('total')}</div><div className="v num">{n(c.totals.kcal)} {t('kcalUnit')}</div><MacroLine m={c.totals} compact /></div>
+        <div className="grid2" data-testid="detail-nutrition">
+          <div className="stat"><div className="k">{t('perServing')} · {t('perServingG', { g: n(c.gramsPerServing) })}</div><div className="v num" data-testid="detail-kcal">{n(c.perServing.kcal)} {t('kcalUnit')}</div><MacroLine m={c.perServing} />
+            <div className="tiny muted">{t('fiber')}: {c.perServing.fiber !== undefined ? `${n(c.perServing.fiber, 1)} ${t('g')}` : t('unknown')}</div></div>
+          <div className="stat"><div className="k">{t('total')} · {t('servingsN', { n: L.servings })}</div><div className="v num" data-testid="detail-total">{n(c.totals.kcal)} {t('kcalUnit')}</div><MacroLine m={c.totals} compact />
+            <div className="tiny muted">{t('fiber')}: {c.totals.fiber !== undefined ? `${n(c.totals.fiber, 1)} ${t('g')}` : t('unknown')}</div></div>
+        </div>
+        {!c.ok && <div className="banner error small" data-testid="detail-missing">{t('partialNutrition', { list: c.missing.join('، ') })}</div>}
+        {c.usda.length > 0 && !approved && (
+          <div className="banner info small" data-testid="usda-approve">
+            <div>{t('usdaMatchesNote', { list: c.usda.join('، ') })}</div>
+            <button className="btn sm primary" style={{ marginTop: 6 }} data-testid="approve-matches"
+              onClick={async () => { const k = await run(() => approveRecipeMatches(c.usda)); if (k !== undefined) { setApproved(true); toast(t('usdaApproved', { n: k })); } }}>{t('approveMatches')}</button>
           </div>
-        ) : <div className="banner error small">{t('missingIngredients', { list: c.missing.join('، ') })}</div>}
+        )}
+        <div className="tiny muted">{t('recipeWeightsNote')}</div>
         <div className="tiny muted">{t('computedFromDb')}</div>
         {c.estimatedFoods.length > 0 && <div className="banner info tiny">{t('estimatedNote', { list: c.estimatedFoods.join('، ') })}</div>}
         {L.uncounted.length > 0 && <div className="tiny muted">{t('uncounted', { list: L.uncounted.map((u) => (lang === 'ar' ? u[0] : u[1])).join('، '), kcal: c.uncountedKcal })}</div>}
@@ -127,14 +137,17 @@ export function RecipeDetail({ c, onClose, servingsHint = 1 }: { c: ComputedReci
             onClick={() => { const f = new Set(meta.favorites); if (fav) f.delete(L.id); else f.add(L.id); kvSet('recipeFavorites', [...f]); }}><Icon name="star" filled={fav} /> {t('favorite')}</button>
         </div>
         <h3 className="small bold" style={{ margin: '6px 0 0' }}>{t('ingredients')}</h3>
-        <ul className="list">
-          {L.ingredients.map(([name, grams, noteAr, noteEn]) => {
-            const f = findFood(index, name);
+        <ul className="list" data-testid="ingredient-list">
+          {L.ingredients.map(([name, grams, noteAr, noteEn], i) => {
+            const it = c.items[i];
             return (
-              <li key={name}>
-                <div className="grow"><span className="small">{name}</span> {f && f.state !== 'other' && <StateChip state={f.state} />}
-                  {(noteAr || noteEn) && <div className="tiny muted">{lang === 'ar' ? noteAr : noteEn}</div>}</div>
-                <span className="num small bold">{n(grams)} {t('g')}</span>
+              <li key={name + i} data-testid="ingredient-row" data-source={it?.source}>
+                <div className="grow"><span className="small">{name}</span> {it?.state && it.state !== 'other' && <StateChip state={it.state as 'raw' | 'cooked'} />}
+                  <span className={`chip tiny ${it?.source === 'missing' ? 'warn' : it?.source === 'usda' ? '' : 'good'}`}>{t('src_' + (it?.source ?? 'missing'))}</span>
+                  {it?.source === 'usda' && <div className="tiny muted" dir="ltr">{it.foodName}</div>}
+                  {(noteAr || noteEn) && <div className="tiny muted">{lang === 'ar' ? noteAr : noteEn}</div>}
+                  {it?.source === 'missing' && <button className="btn sm" style={{ marginTop: 4 }} onClick={() => setAddFood(name)} data-testid="add-missing">{t('addMissingFood')}</button>}</div>
+                <span className="num small" style={{ textAlign: 'end' }}><b>{n(grams)} {t('g')}</b>{it?.macros && <div className="tiny muted">{n(it.macros.kcal)} {t('kcalUnit')}</div>}</span>
               </li>
             );
           })}
@@ -146,15 +159,17 @@ export function RecipeDetail({ c, onClose, servingsHint = 1 }: { c: ComputedReci
           <div className="row wrap">
             <button className="btn primary grow" onClick={() => setAction('diary')} data-testid="lib-add-diary">{t('addToDiary')}</button>
             <button className="btn grow" onClick={() => setAction('plan')} data-testid="lib-add-plan">{t('addToPlan')}</button>
-            <button className="btn block" data-testid="lib-save" onClick={() => run(() => materializeLibraryRecipe(L.id), t('saved'))}>{t('saveToMyRecipes')}</button>
+            <button className="btn block" data-testid="lib-save" onClick={() => run(() => materializeLibraryRecipe(L.id, { approveMatches: true }), t('saved'))}>{t('saveToMyRecipes')}</button>
+            {c.usda.length > 0 && !approved && <div className="tiny muted">{t('saveApprovesNote')}</div>}
           </div>
         )}
+        {addFood && <FoodEditor food={null} initialName={addFood} onClose={() => setAddFood(null)} onSaved={() => setAddFood(null)} />}
       </div>
       {action && (
         <DateMealServingsSheet title={action === 'diary' ? t('addToDiary') : t('addToPlan')} defaultMeal={L.meals[0]} servings={servingsHint} perServing={c.perServing}
           onClose={() => setAction(null)}
           onConfirm={async (date, meal, servings) => {
-            const r = await run(() => materializeLibraryRecipe(L.id));
+            const r = await run(() => materializeLibraryRecipe(L.id, { approveMatches: true }));
             if (!r) return;
             if (action === 'diary') {
               const e = await run(() => addRecipeEntry(date, meal, r, servings));
@@ -245,6 +260,7 @@ export function SuggestTab() {
           <div className="row" style={{ marginTop: 8 }}>
             {s.computed && <button className="btn sm" onClick={() => setOpen(s)}>{t('openRecipe')}</button>}
             <button className="btn sm primary grow" data-testid="suggestion-log" onClick={async () => {
+              if (!s.recipe && s.computed && s.computed.usda.length > 0) { setOpen(s); return; } // approval first
               const r = s.recipe ?? (await materializeLibraryRecipe(s.id));
               const e = await addRecipeEntry(today(), nextMeal, r, s.servings);
               toast(`${t('added')} → ${t(nextMeal)}`, { label: t('undo'), run: () => deleteEntry(e.id) });

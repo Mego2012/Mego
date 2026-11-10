@@ -6,11 +6,30 @@ import { LIBRARY_2 } from './recipeLibraryData2';
 
 export const LIBRARY: LibraryRecipe[] = [...LIB1, ...LIBRARY_2];
 import { normalizeText } from './search';
+import { RECIPE_REF } from './recipeRefMap';
+import { loadRefFoods, refById, type RefFood } from './refFoods';
+import { createFood } from './repo';
 import type { Food, Macros, MealType, PlanItem, Recipe } from './types';
+
+/** How one recipe ingredient was resolved: the user's own food, a verified USDA match, or missing. */
+export interface IngredientResolution {
+  name: string;
+  grams: number;
+  source: 'mine' | 'usda' | 'missing';
+  foodName?: string;
+  refId?: string;
+  state?: string;
+  macros?: Macros;
+}
 
 export interface ComputedRecipe {
   lib: LibraryRecipe;
   ok: boolean;
+  items: IngredientResolution[];
+  /** Ingredients computed from a USDA reference match that the user has not approved into their foods yet. */
+  usda: string[];
+  /** Raw ingredient weight per serving (as weighed in the recipe), g. */
+  gramsPerServing: number;
   /** Ingredient names not found in the user's food database. */
   missing: string[];
   /** Ingredients whose database record is estimated / unverified / incomplete. */
@@ -40,18 +59,34 @@ export function findFood(index: Map<string, Food>, name: string): Food | undefin
 
 const EST = /(⚠|غير محقق|تقريبي|تقديري|للمراجعة)/;
 
-export function computeLibraryRecipe(lib: LibraryRecipe, index: Map<string, Food>): ComputedRecipe {
+export type RefResolver = (id: string) => RefFood | undefined;
+
+export function computeLibraryRecipe(lib: LibraryRecipe, index: Map<string, Food>, ref: RefResolver = () => undefined): ComputedRecipe {
   const missing: string[] = [];
   const estimatedFoods: string[] = [];
+  const usda: string[] = [];
+  const items: IngredientResolution[] = [];
   const parts: Macros[] = [];
   for (const [name, grams] of lib.ingredients) {
     const f = findFood(index, name);
-    if (!f || f.incomplete) {
-      missing.push(name);
+    if (f && !f.incomplete) {
+      if (EST.test(f.notes)) estimatedFoods.push(name);
+      const m = macrosFor(basisFromFood(f), grams, 'g').macros;
+      parts.push(m);
+      items.push({ name, grams, source: 'mine', foodName: f.nameAr || f.nameEn, state: f.state, macros: m });
       continue;
     }
-    if (EST.test(f.notes)) estimatedFoods.push(name);
-    parts.push(macrosFor(basisFromFood(f), grams, 'g').macros);
+    const id = RECIPE_REF[name];
+    const rf = id ? ref(id) : undefined;
+    if (rf) {
+      const m = scaleMacros(rf.per100, grams / 100);
+      parts.push(m);
+      usda.push(name);
+      items.push({ name, grams, source: 'usda', foodName: rf.name, refId: rf.id, state: rf.state, macros: m });
+      continue;
+    }
+    missing.push(name);
+    items.push({ name, grams, source: 'missing' });
   }
   const totals = preciseMacros(sumMacros(parts));
   const perServing = preciseMacros(scaleMacros(totals, 1 / lib.servings));
@@ -61,22 +96,50 @@ export function computeLibraryRecipe(lib: LibraryRecipe, index: Map<string, Food
   if (perServing.kcal <= 400) derived.push('low-calorie');
   if (perServing.carbs <= 20) derived.push('low-carb');
   return {
-    lib, ok: missing.length === 0, missing, estimatedFoods, uncountedKcal: Math.round(uncountedKcal), totals, perServing,
+    lib, ok: missing.length === 0, items, usda, gramsPerServing: Math.round(lib.ingredients.reduce((a, i) => a + i[1], 0) / lib.servings), missing, estimatedFoods, uncountedKcal: Math.round(uncountedKcal), totals, perServing,
     totalTime: lib.prepMin + lib.cookMin, derived, isEstimate: estimatedFoods.length > 0 || uncountedKcal >= 5
   };
 }
 
 export async function computeLibrary(): Promise<ComputedRecipe[]> {
   const index = indexFoods(await db.foods.toArray());
-  return LIBRARY.map((l) => computeLibraryRecipe(l, index));
+  await loadRefFoods().catch(() => null); // offline without a cached copy: own foods only
+  return LIBRARY.map((l) => computeLibraryRecipe(l, index, refById));
+}
+
+/**
+ * Stores the USDA matches of a recipe in the user's own food list (only after the user approved them).
+ * Adds new foods only — existing foods are never changed. Returns the number of foods added.
+ */
+export async function approveRecipeMatches(names: string[]): Promise<number> {
+  const index = indexFoods(await db.foods.toArray());
+  let added = 0;
+  // only needed when an ingredient is not in the user's foods; offline/unavailable → nothing is added
+  if (names.some((n) => !findFood(index, n) && RECIPE_REF[n]) && !(await loadRefFoods().then(() => true, () => false))) return 0;
+  for (const name of [...new Set(names)]) {
+    if (findFood(index, name)) continue;
+    const id = RECIPE_REF[name];
+    const rf = id ? refById(id) : undefined;
+    if (!rf) continue;
+    const f = await createFood({
+      nameAr: name, nameEn: rf.name, category: rf.category, per100: { ...rf.per100 }, state: rf.state,
+      stateLabel: rf.state === 'raw' ? 'نيء' : rf.state === 'cooked' ? 'مطبوخ' : 'محضّر', prep: '',
+      notes: `${rf.source} · approved recipe match`, source: 'usda', sourceRef: rf.source,
+      servings: rf.portions.map((p, k) => ({ id: 'p' + k, name: p.label, grams: p.grams }))
+    }, { allowDuplicate: true });
+    index.set(name, f);
+    added++;
+  }
+  return added;
 }
 
 /** Creates (or reuses) an editable user Recipe from a library recipe, using the user's food records. */
-export async function materializeLibraryRecipe(libId: string): Promise<Recipe> {
+export async function materializeLibraryRecipe(libId: string, opts: { approveMatches?: boolean } = {}): Promise<Recipe> {
   const lib = LIBRARY.find((l) => l.id === libId);
   if (!lib) throw new Error('Recipe not found');
   const existing = (await db.recipes.toArray()).find((r) => r.libraryId === libId && !r.deleted);
   if (existing) return existing;
+  if (opts.approveMatches) await approveRecipeMatches(lib.ingredients.map((i) => i[0]));
   const index = indexFoods(await db.foods.toArray());
   const ings = [];
   for (const [name, grams] of lib.ingredients) {
@@ -245,7 +308,7 @@ export async function applyGeneratedPlan(days: GeneratedDay[]) {
   for (const d of days) {
     const items: PlanItem[] = [];
     for (const p of d.picks) {
-      const r = await materializeLibraryRecipe(p.libId);
+      const r = await materializeLibraryRecipe(p.libId, { approveMatches: true });
       items.push({ id: uid(), meal: p.meal, recipeId: r.id, name: r.name, quantity: p.servings, unit: 'serving' });
     }
     await setPlannedDay(d.date, items);

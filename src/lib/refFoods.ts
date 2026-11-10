@@ -25,6 +25,7 @@ let loading: Promise<RefDb> | null = null;
 
 export function setRefData(d: RefDb) {
   data = d;
+  byId = null;
   index = new NameIndex(d.rows.map((r) => r[1]));
 }
 
@@ -41,6 +42,15 @@ export function loadRefFoods(): Promise<RefDb> {
   return loading;
 }
 export const refLoaded = () => !!data;
+
+let byId: Map<string, RefRow> | null = null;
+/** One reference food by its id (e.g. "S171077"); undefined until the database is loaded or if unknown. */
+export function refById(id: string): RefFood | undefined {
+  if (!data) return undefined;
+  if (!byId) byId = new Map(data.rows.map((r) => [r[0], r]));
+  const r = byId.get(id);
+  return r ? toRefFood(r) : undefined;
+}
 
 export interface RefFood {
   id: string; name: string; category: string; per100: Macros; portions: { label: string; grams: number }[];

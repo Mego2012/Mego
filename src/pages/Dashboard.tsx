@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
-import { useBundle } from '../app/hooks';
+import { useBundle, useCardio } from '../app/hooks';
+import { EnergyCard } from '../components/EnergyCard';
+import { energyFor } from '../lib/energy';
 import { CaloriesChart } from '../components/charts';
 import { InsightList } from '../components/Insights';
 import { Dial, greetingKey, MealGlyph, useCountUp } from '../components/instrument';
@@ -18,6 +20,7 @@ import { MEALS } from '../lib/types';
 export default function Dashboard() {
   const { t, n, d, settings } = useApp();
   const data = useBundle();
+  const cardio = useCardio();
   const { run } = useAsync();
   const date = today();
 
@@ -30,14 +33,17 @@ export default function Dashboard() {
     const latestWeight = [...data.body].reverse().find((b) => b.weight);
     return {
       day, week, last7, latestWeight, trend: weightTrend(data.body, date), insights: generateInsights(data, date),
-      coach: dailyCoach(data, date, [])[0], est: progressEstimate(data.body, settings.profile.targetWeight, date)
+      coach: dailyCoach(data, date, [])[0], est: progressEstimate(data.body, settings.profile.targetWeight, date),
+      energy: energyFor(date, day.target.kcal, day.totals.kcal, cardio, settings)
     };
-  }, [data, date, settings]);
+  }, [data, date, settings, cardio]);
 
   if (!view) return null;
-  const remaining = view.day.target.kcal - view.day.totals.kcal;
-  const { day, week, last7, latestWeight, trend, insights, coach, est } = view;
-  const pct = day.target.kcal ? Math.round((day.totals.kcal / day.target.kcal) * 100) : 0;
+  const { day, week, last7, latestWeight, trend, insights, coach, est, energy } = view;
+  // Dial and remaining use the adjusted target (= base target unless extra cardio justifies more; see energy.ts).
+  const target = energy.adjusted;
+  const remaining = target - day.totals.kcal;
+  const pct = target ? Math.round((day.totals.kcal / target) * 100) : 0;
   const water = day.waterMl, waterTarget = settings.waterTargetMl;
   const drops = Math.max(1, Math.round(waterTarget / 250));
   const p = settings.profile;
@@ -56,13 +62,13 @@ export default function Dashboard() {
             <span className="chip">{t(day.dayType)}</span>
           </div>
         </div>
-        <Dial value={day.totals.kcal} max={day.target.kcal} testId="calorie-dial">
+        <Dial value={day.totals.kcal} max={target} testId="calorie-dial">
           <CountUp value={Math.abs(remaining)} testId="kcal-remaining" />
           <div className="k">{remaining >= 0 ? t('remaining') : t('over')} · <span className="unit">{t('kcalUnit')}</span></div>
           <div className="tiny muted num" style={{ marginTop: 6 }}><span data-testid="kcal-pct">{n(pct)}%</span> {t('ofTarget')}</div>
         </Dial>
         <div className="balance" aria-label={t('goalMinusFood')}>
-          <div><div className="v num" data-testid="kcal-target">{n(day.target.kcal)}</div><div className="k">{t('goal_short')}</div></div>
+          <div><div className="v num" data-testid="kcal-target">{n(target)}</div><div className="k">{t('goal_short')}</div></div>
           <div><div className="v num" data-testid="kcal-consumed">{n(day.totals.kcal)}</div><div className="k">{t('food_')}</div></div>
           <div><div className="v num" style={{ color: remaining < 0 ? 'var(--warn)' : 'var(--primary)' }}>{n(remaining)}</div><div className="k">{remaining >= 0 ? t('remaining') : t('over')}</div></div>
         </div>
@@ -74,6 +80,8 @@ export default function Dashboard() {
           <span className="tiny muted" style={{ fontWeight: 400 }}>{t('remainingNow', { kcal: n(Math.max(0, day.remaining.kcal)), p: n(Math.max(0, day.remaining.protein)), c: n(Math.max(0, day.remaining.carbs)), f: n(Math.max(0, day.remaining.fat)) })}</span>
         </Link>
       </section>
+
+      <EnergyCard e={energy} />
 
       <nav className="quick" aria-label={t('quickActions')}>
         <Link to="/diary?add=1" data-testid="quick-add"><span className="q-ico"><Icon name="plus" /></span>{t('addFood')}</Link>

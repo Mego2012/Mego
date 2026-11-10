@@ -16,6 +16,8 @@ const Progress = lazy(() => import('./pages/Progress'));
 const Reports = lazy(() => import('./pages/Reports'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
 const Habits = lazy(() => import('./pages/Habits'));
+const Cardio = lazy(() => import('./pages/Cardio'));
+const Goals = lazy(() => import('./pages/Goals'));
 const Coach = lazy(() => import('./pages/Coach'));
 const AccountPages = lazy(() => import('./pages/Account').then((m) => ({ default: m.AccountRouter })));
 
@@ -51,6 +53,8 @@ function Routed() {
           <Route path="/reports/month" element={<Reports kind="month" />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/habits" element={<Habits />} />
+          <Route path="/cardio" element={<Cardio />} />
+          <Route path="/goals" element={<Goals />} />
           <Route path="/coach" element={<Coach />} />
           <Route path="/admin" element={<AccountPages view="admin" />} />
           <Route path="/privacy" element={<AccountPages view="privacy" />} />

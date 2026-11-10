@@ -3,7 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { registerSW } from 'virtual:pwa-register';
 import App from './App';
 import { preMigrationBackup, requestPersistentStorage } from './lib/db';
-import { autoDailyBackup } from './lib/localBackup';
+import { autoDailyBackup, preUpdateBackup } from './lib/localBackup';
 import { startReminders } from './lib/reminders';
 import { getSettings } from './lib/repo';
 import { refreshPending, startAutoSync } from './lib/sync';
@@ -21,6 +21,8 @@ async function boot() {
   }
   // Accounts: selects this account's own local database (or guest mode) before anything renders.
   const acc = await bootAccount().catch(() => ({ mode: 'guest' as const }));
+  // Full snapshot of this account's device data before the new release writes anything (once per release).
+  try { await preUpdateBackup(); } catch (e) { console.warn('pre-update backup failed', e); }
   await getSettings(); // creates the default profile on first run
   requestPersistentStorage();
   createRoot(document.getElementById('root')!).render(

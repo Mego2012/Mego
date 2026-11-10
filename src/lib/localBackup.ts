@@ -5,13 +5,32 @@ import type { LocalBackup } from './types';
 const KEEP = 10;
 
 /** Saves a full snapshot inside the device database (kept: last 10). */
-export async function saveLocalBackup(reason: LocalBackup['reason']): Promise<LocalBackup> {
+export async function saveLocalBackup(reason: LocalBackup['reason'], release?: string): Promise<LocalBackup> {
   const json = JSON.stringify(await snapshot());
-  const rec: LocalBackup = { at: Date.now(), reason, size: json.length, json };
+  const rec: LocalBackup = { at: Date.now(), reason, size: json.length, json, ...(release ? { release } : {}) };
   rec.id = await db.backups.add(rec);
+  // Rotation never removes the 3 most recent pre-update backups (taken before a new app release first runs).
   const all = await db.backups.orderBy('at').toArray();
-  if (all.length > KEEP) await db.backups.bulkDelete(all.slice(0, all.length - KEEP).map((b) => b.id!));
+  const protectedIds = new Set(all.filter((b) => b.reason === 'pre-update').slice(-3).map((b) => b.id));
+  const rotating = all.filter((b) => !protectedIds.has(b.id));
+  if (rotating.length > KEEP) await db.backups.bulkDelete(rotating.slice(0, rotating.length - KEEP).map((b) => b.id!));
   return rec;
+}
+
+/** App release identifier — changing it triggers one pre-update backup per device database. */
+export const APP_RELEASE = '1.2-cardio';
+
+/**
+ * Before a new release writes anything, save a full snapshot of this device database (once per release and
+ * database). Read-only on existing data: it only adds one backup record.
+ */
+export async function preUpdateBackup(release = APP_RELEASE): Promise<boolean> {
+  const done = await db.backups.where('reason').equals('pre-update').filter((b) => b.release === release).count();
+  if (done) return false;
+  const hasData = (await db.entries.count()) + (await db.body.count()) + (await db.days.count()) + (await db.foods.count()) > 0;
+  if (!hasData) return false;
+  await saveLocalBackup('pre-update', release);
+  return true;
 }
 
 /** Once per calendar day, on app start. */

@@ -14,6 +14,8 @@ const ALL: { to: string; key: string; icon: IconName }[] = [
   { to: '/progress', key: 'nav_progress', icon: 'progress' },
   { to: '/foods', key: 'nav_foods', icon: 'foods' },
   { to: '/planner', key: 'nav_planner', icon: 'planner' },
+  { to: '/goals', key: 'nav_goals', icon: 'target' },
+  { to: '/cardio', key: 'nav_cardio', icon: 'pulse' },
   { to: '/habits', key: 'nav_habits', icon: 'water' },
   { to: '/reports/week', key: 'nav_weekly', icon: 'weekly' },
   { to: '/reports/month', key: 'nav_monthly', icon: 'monthly' },

@@ -186,3 +186,46 @@ export function WeightChart({ points, avg, target }: { points: { date: string; w
     </div>
   );
 }
+
+/** Cardio minutes per day (bars). Same axis rules as the calorie chart; time follows reading direction. */
+export function MinutesChart({ days, label, testId }: { days: { date: string; minutes: number }[]; label: string; testId?: string }) {
+  const { d, n, dir } = useApp();
+  const mounted = useMounted();
+  const H = 150;
+  const ordered = dir === 'rtl' ? [...days].reverse() : days;
+  const { top, steps } = niceScale(Math.max(10, ...days.map((x) => x.minutes)) * 1.05);
+  const plotH = H - PAD_T - PAD_B;
+  const y = (v: number) => PAD_T + plotH * (1 - v / top);
+  const slot = (W - PAD_L - PAD_R) / Math.max(1, ordered.length);
+  const bw = Math.max(3, Math.min(24, slot * 0.6));
+  const xOf = (i: number) => (dir === 'rtl' ? PAD_R : PAD_L) + slot * i + slot / 2;
+  const last = days[days.length - 1]?.date;
+  const every = ordered.length > 10 ? 5 : 1;
+  return (
+    <div className="vchart" data-testid={testId}>
+      <svg viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label}>
+        {steps.map((v) => (
+          <g key={v}>
+            <line x1={dir === 'rtl' ? PAD_R : PAD_L} x2={dir === 'rtl' ? W - PAD_L : W - PAD_R} y1={y(v)} y2={y(v)} stroke="var(--hairline)" strokeWidth="1" />
+            <text className="lbl" x={dir === 'rtl' ? W - 2 : 2} y={y(v) + 3.5} textAnchor={dir === 'rtl' ? 'end' : 'start'}>{n(v)}</text>
+          </g>
+        ))}
+        {ordered.map((x, i) => {
+          const h = mounted ? plotH * (x.minutes / top) : 0;
+          const idx = dir === 'rtl' ? ordered.length - 1 - i : i;
+          const showLabel = ordered.length <= 10 || (ordered.length - 1 - idx) % every === 0;
+          return (
+            <g key={x.date}>
+              {x.minutes > 0
+                ? <rect className="bar-rect" x={xOf(i) - bw / 2} y={y(0) - h} width={bw} height={h} rx={Math.min(5, bw / 2)} fill="var(--info)" />
+                : <rect x={xOf(i) - bw / 2} y={y(0) - 2} width={bw} height="2" rx="1" fill="var(--surface-3)" />}
+              {showLabel && <text className="lbl" x={xOf(i)} y={H - 6} textAnchor="middle" style={x.date === last ? { fill: 'var(--text)', fontWeight: 600 } : undefined}>
+                {d(x.date, ordered.length <= 7 ? { weekday: 'narrow' } : { day: 'numeric' })}
+              </text>}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}

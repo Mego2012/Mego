@@ -50,6 +50,7 @@ const P = {
   filter: 'M4 5h16l-6 7v6l-4 2v-8z',
   grid: 'M4 4h7v7H4zM13 4h7v7h-7zM4 13h7v7H4zM13 13h7v7h-7z',
   cloud: 'M7 18a5 5 0 0 1-.6-10A6 6 0 0 1 18 9a4.5 4.5 0 0 1-.5 9z',
+  pulse: 'M3 12h4l2-5 4 10 2-5h6',
   heart: 'M12 20s-8-4.6-8-10.2A4.3 4.3 0 0 1 12 7a4.3 4.3 0 0 1 8 2.8C20 15.4 12 20 12 20z'
 } as const;
 

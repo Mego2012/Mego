@@ -65,7 +65,7 @@ export const en2: Record<string, string> = {
   dayTotal: 'Day total',
   // backups
   localBackups: 'Automatic backups on this phone', backupNow: 'Back up now', restore: 'Restore', backupReason_auto_daily: 'Daily', backupReason_manual: 'Manual',
-  backupReason_pre_migration: 'Before update', backupReason_pre_restore: 'Before restore', backupReason_pre_import: 'Before import', backupReason_pre_pull: 'Before sheet restore',
+  backupReason_pre_migration: 'Before update', backupReason_pre_restore: 'Before restore', backupReason_pre_import: 'Before import', backupReason_pre_pull: 'Before sheet restore', backupReason_pre_update: 'Before app update',
   confirmRestoreLocal: 'Restore this backup? Current data is backed up first and records are merged (newer wins).', preMigration: 'Pre-update snapshots',
   syncConflicts: 'Conflicts resolved (newer kept)', retryIn: 'retrying in {s}s', serverVersion: 'Data version',
   weeklySummary: 'This week', avgWater: 'Average water', macroSplit: 'Macro split (% of calories)', topFoods: 'Top foods (by calories)',
@@ -295,7 +295,7 @@ export const ar2: Record<string, string> = {
   shoppingList: 'قائمة التسوق', shoppingNote: 'من وجبات الأسبوع المخططة. الوزن حسب حالة الطعام في قاعدتك (اشترِ النيء بالوزن المذكور).', bought: 'تم الشراء',
   dayTotal: 'إجمالي اليوم',
   localBackups: 'نسخ احتياطية تلقائية على الهاتف', backupNow: 'نسخة الآن', restore: 'استعادة', backupReason_auto_daily: 'يومية', backupReason_manual: 'يدوية',
-  backupReason_pre_migration: 'قبل التحديث', backupReason_pre_restore: 'قبل الاستعادة', backupReason_pre_import: 'قبل الاستيراد', backupReason_pre_pull: 'قبل الاستعادة من الشيت',
+  backupReason_pre_migration: 'قبل التحديث', backupReason_pre_restore: 'قبل الاستعادة', backupReason_pre_import: 'قبل الاستيراد', backupReason_pre_pull: 'قبل الاستعادة من الشيت', backupReason_pre_update: 'قبل تحديث التطبيق',
   confirmRestoreLocal: 'استعادة هذه النسخة؟ تُحفظ نسخة من البيانات الحالية أولاً ويتم الدمج (الأحدث يبقى).', preMigration: 'نسخ ما قبل التحديث',
   syncConflicts: 'تعارضات تم حلها (بقي الأحدث)', retryIn: 'إعادة المحاولة خلال {s} ث', serverVersion: 'إصدار البيانات',
   weeklySummary: 'هذا الأسبوع', avgWater: 'متوسط الماء', macroSplit: 'توزيع الماكروز (% من السعرات)', topFoods: 'أكثر الأطعمة (بالسعرات)',

@@ -557,6 +557,12 @@ export async function kvSet(key: string, value: unknown) {
   await enqueue('kv', key, 'upsert', rec);
 }
 
+/** Removes one key/value record (used for single cardio sessions; never for bulk deletes). */
+export async function kvDelete(key: string) {
+  await db.kv.delete(key);
+  await enqueue('kv', key, 'delete');
+}
+
 /* ------------------------------------------------------------------ progress photos (local only) */
 
 export async function addPhoto(date: string, blob: Blob, note = '') {

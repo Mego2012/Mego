@@ -365,3 +365,17 @@ input.input:not([type="number"]):not([dir]) { unicode-bidi: plaintext; text-alig
 .food-row .row { flex-wrap: wrap; row-gap: 3px; }
 .food-thumb img { -webkit-user-drag: none; user-select: none; -webkit-touch-callout: none; pointer-events: none; }
 .kpi-share { grid-column: 1 / -1; display: grid; gap: 4px; }
+
+/* ---------------------------------------------------------------- cardio & goals (1.2) */
+.cardio-summary { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; }
+.cardio-summary .stat .v { font-size: 20px; }
+@media (max-width: 380px) { .cardio-summary { grid-template-columns: minmax(0, 1fr); } }
+.cardio-list li { align-items: center; gap: 8px; }
+.cardio-row-main { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; background: none; border: 0; padding: 0; color: inherit; text-align: start; font: inherit; cursor: pointer; min-width: 0; }
+.cardio-row-main > span { max-width: 100%; overflow-wrap: anywhere; }
+.cardio-preview { border: 1px solid var(--hairline); border-radius: 12px; padding: 10px 12px; background: var(--surface-2); }
+.energy-rows li.bold span, .energy-rows li.bold b { font-weight: 700; }
+.energy-why { padding-inline-start: 20px; margin: 6px 0 0; display: grid; gap: 4px; }
+.dot-mark { width: 8px; height: 8px; border-radius: 50%; flex: none; background: var(--info); }
+.dot-mark.good { background: var(--primary); }
+.dot-mark.warn { background: var(--warn); }

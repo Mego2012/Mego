@@ -1,7 +1,9 @@
 import { useMemo } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
-import { useBundle } from '../app/hooks';
+import { useBundle, useCardio } from '../app/hooks';
+import { cardioReport } from '../lib/cardio';
+import { fitnessOf } from '../lib/energy';
 import { CaloriesChart, MacrosChart, WeightChart } from '../components/charts';
 import { Icon } from '../components/icons';
 import { InsightList } from '../components/Insights';
@@ -16,6 +18,7 @@ export default function Reports({ kind }: { kind: 'week' | 'month' }) {
   const { t, n, d, lang } = useApp();
   const [params, setParams] = useSearchParams();
   const data = useBundle();
+  const cardio = useCardio();
   const anchorDate = isValidISODate(params.get('date') ?? '') ? params.get('date')! : today();
   const anchorMonth = /^\d{4}-\d{2}$/.test(params.get('month') ?? '') ? params.get('month')! : monthKey(today());
 
@@ -118,6 +121,8 @@ export default function Reports({ kind }: { kind: 'week' | 'month' }) {
         {weightPoints.length > 0 && <WeightChart points={weightPoints} avg />}
       </Card>
 
+      <CardioAndGoals sessions={cardio} dates={r.dates} prevDates={p.dates} completeDays={r.completeDays} inRange={r.caloriesInRangeDays} proteinDays={r.proteinHitDays} />
+
       <Card title={`${t('macroSplit')} · ${t('water')} · ${t('fiberIndicator')}`}>
         <div className="grid3 report-extra" data-testid="report-extra">
           <div className="stat"><div className="k">{t('macroSplit')}</div>{r.macroSplit && <span className="macro-split" style={{ width: '100%', height: 8 }}><i style={{ flexGrow: r.macroSplit.protein, background: 'var(--protein)' }} /><i style={{ flexGrow: r.macroSplit.carbs, background: 'var(--carbs)' }} /><i style={{ flexGrow: r.macroSplit.fat, background: 'var(--fat)' }} /></span>}<div className="small num">{r.macroSplit ? `${t('pShort')} ${r.macroSplit.protein}% · ${t('cShort')} ${r.macroSplit.carbs}% · ${t('fShort')} ${r.macroSplit.fat}%` : '—'}</div></div>
@@ -194,5 +199,37 @@ export default function Reports({ kind }: { kind: 'week' | 'month' }) {
         </div>
       </Card>
     </div>
+  );
+}
+
+/** Cardio statistics, goal progress and plain-language insights for the period (does not change nutrition figures). */
+function CardioAndGoals({ sessions, dates, prevDates, completeDays, inRange, proteinDays }: {
+  sessions: import('../lib/cardio').CardioSession[]; dates: string[]; prevDates: string[]; completeDays: number; inRange: number; proteinDays: number;
+}) {
+  const { t, n, settings } = useApp();
+  const fit = fitnessOf(settings);
+  const past = dates.filter((x) => x <= today());
+  const c = cardioReport(sessions, past, prevDates, fit.cardioSessionsPerWeek * fit.cardioMinPerSession);
+  const parts = [completeDays ? (inRange / completeDays) * 100 : null, completeDays ? (proteinDays / completeDays) * 100 : null, c.goalPct].filter((x): x is number => x !== null);
+  const completion = parts.length ? Math.round(parts.reduce((a, b) => a + b, 0) / parts.length) : null;
+  const insights: string[] = [];
+  if (!c.sessions) insights.push(t('ri_noCardio'));
+  else insights.push(c.minutesDelta > 5 ? t('ri_cardioUp', { n: n(c.minutesDelta) }) : c.minutesDelta < -5 ? t('ri_cardioDown', { n: n(-c.minutesDelta) }) : t('ri_cardioSame'));
+  if (c.goalPct !== null) insights.push(t('ri_cardioGoal', { done: n(c.minutes), goal: n(c.goalMin), pct: c.goalPct }));
+  return (
+    <Card title={`${t('reportCardio')} · ${t('rp_goals')}`}>
+      <div className="grid3" data-testid="report-cardio">
+        <div className="stat"><div className="k">{t('rcMinutes')}</div><div className="v num" data-testid="rc-minutes">{n(c.minutes)}</div><div className="tiny">{t('vsPrevious')}: <Delta value={c.minutesDelta} digits={0} invert /></div></div>
+        <div className="stat"><div className="k">{t('rcSessions')}</div><div className="v num" data-testid="rc-sessions">{n(c.sessions)}</div></div>
+        <div className="stat"><div className="k">{t('rcAvg')}</div><div className="v num" data-testid="rc-avg">{c.avgSessionMin === null ? '—' : t('cardioMinutes', { n: n(c.avgSessionMin) })}</div></div>
+        <div className="stat"><div className="k">{t('rcActiveDays')}</div><div className="v num">{n(c.activeDays)}</div></div>
+        <div className="stat"><div className="k">{t('rcKcal')}</div><div className="v num">≈ {n(c.kcal)}</div></div>
+        <div className="stat"><div className="k">{t('gp_cardio')}</div><div className="v num">{c.goalPct === null ? '—' : `${c.goalPct}%`}</div></div>
+      </div>
+      {completion !== null && <div className="small bold" style={{ marginTop: 8 }} data-testid="goal-completion-all">{t('rp_goalCompletion', { pct: completion })}</div>}
+      <div className="small bold" style={{ marginTop: 8 }}>{t('rp_insights')}</div>
+      <ul className="small" style={{ paddingInlineStart: 20, margin: '4px 0 0' }} data-testid="report-cardio-insights">{insights.map((x) => <li key={x}>{x}</li>)}</ul>
+      <div className="tiny muted" style={{ marginTop: 6 }}>{t('cardioEstimateNote')}</div>
+    </Card>
   );
 }

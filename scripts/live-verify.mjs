@@ -148,6 +148,17 @@ try {
     if (bText.includes(FOOD)) throw new Error("A's food visible in B's diary");
     return 'B → 403 · anonymous → 403 · B\'s diary does not contain A\'s food';
   });
+  await check('Cardio logging (account A): synced to the owner only, invisible to account B', async () => {
+    await A.page.goto(BASE + '#/cardio');
+    await A.page.getByTestId('routine-log').click();
+    await until(async () => { const r = await get(`users/${a.uid}/kv`, a.idToken); const j = await r.json(); return r.status === 200 && (j.documents ?? []).some((d) => d.name.includes('/kv/cardio%3A') || d.name.includes('/kv/cardio:')); });
+    const rb = await get(`users/${a.uid}/kv`, b.idToken);
+    if (rb.status !== 403) throw new Error("B reading A's cardio: HTTP " + rb.status);
+    await B.page.goto(BASE + '#/cardio');
+    await B.page.getByTestId('cardio-history').waitFor();
+    if (await B.page.getByTestId('cardio-row').count()) throw new Error("A's cardio visible to B");
+    return "routine session stored under A's account · B → 403 · B's history empty";
+  });
   await check('Cloud sync to a second device (account A signs in elsewhere)', async () => {
     const L = await device('en-US');
     try {

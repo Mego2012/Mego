@@ -1,5 +1,5 @@
 /**
- * MEGO Nutrition Hub — Google Apps Script backend (v5). Free to run: Google Apps Script + Google Sheets + (optional)
+ * MEGO Nutrition Hub — Google Apps Script backend (SCRIPT_VERSION below). Free to run: Google Apps Script + Google Sheets + (optional)
  * the Gemini API free tier. No paid service is used and no billing account is needed.
  *
  * ONE SOURCE OF TRUTH: the Hub is the file SOURCE_ID below («MEGO Nutrition Hub», originally an Excel .xlsx).

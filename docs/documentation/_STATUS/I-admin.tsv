@@ -1,0 +1,8 @@
+68	MEGO_User_Management_Procedures_EN.html	13rw1fGPrR19s-1eTf_I21lzeppQNHJje2sDZMtT91cw	1961	no admin yet; console procedures Not verified
+68	MEGO_User_Management_Procedures_AR.html	1vMlMrlk7-kKNyx-p14tmFT4riFclgrvZviO95QClRY4	1767	RTL; same content as EN
+69	MEGO_Food_Database_Administration_EN.html	1FI7UbyuDfv3tPODheSM77Fg6mzSNMURGRW9Xgm4KDMc	2356	includes --hub-complete-foods / fillFoodNames (v8, live run Not verified); publish duplicate-id caveat from code
+69	MEGO_Food_Database_Administration_AR.html	1n405Kac1mmXPiXSjehYaRxiT9UxxWPDMUuSy3BRCOlM	2161	RTL; same content as EN
+70	MEGO_Monitoring_and_Maintenance_EN.html	1WGeTH9WBOW3OWtoJL2vmqVENs-EaBOWSuRe3ZUzy-Z8	2105	repo backend v8, live deploy of v8 Not verified; Firebase limits from docs/ARCHITECTURE.md
+70	MEGO_Monitoring_and_Maintenance_AR.html	1Z5W-nkmAF_UiMsDk1kdApMuxhoYn3_PJbdXrntlYMwU	1995	RTL; same content as EN
+71	MEGO_Support_and_Incident_Management_EN.html	1Zt8BW1bWEjjT5Mrw7fcRwRqf1do5JmQery1jxDYHvrs	1781	two 10 Nov incidents as worked examples; severity process is a proposal
+71	MEGO_Support_and_Incident_Management_AR.html	1jHPzPfCnteByERedOW0VMTVTEWzHS2HFH7KpPxUk4Jk	1667	RTL; same content as EN

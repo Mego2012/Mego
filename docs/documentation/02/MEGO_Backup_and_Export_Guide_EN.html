@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Backup_and_Export_Guide_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Backup and Export Guide</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-18</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>End users (guest and signed-in), device owner</td></tr>
+<tr><td>Related documents</td><td>MEGO_Data_Backup_and_Recovery, MEGO_Reports_Guide, MEGO_Food_Search_and_Database_Guide, MEGO_Registration_and_Login_Guide, MEGO_Google_Sheets_Integration_and_Sync, MEGO_Troubleshooting_Manual</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This guide explains how your MEGO data is protected and how you can take it out of the app: automatic and manual <b>local backups</b>, the <b>backup file</b> (JSON) and restoring it, exports to <b>CSV / Excel (XLSX)</b>, the read-only <b>Data check</b>, the owner's Hub backups, and how a <b>signed-in account recovers its data from the cloud</b> after the phone's browser storage is lost. The technical and operational backup procedures for administrators are in MEGO_Data_Backup_and_Recovery.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Where your data lives</li>
+<li>The "Data &amp; backups" area in Settings</li>
+<li>Automatic local backups</li>
+<li>Backup file (JSON) and restore</li>
+<li>Exports: CSV and Excel</li>
+<li>Data check</li>
+<li>Owner device: Hub and Google Drive backups</li>
+<li>Recovering a signed-in account after storage loss</li>
+<li>Recommended routine</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Where your data lives</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Mode</th><th>Local database on the phone</th><th>Copy outside the phone</th></tr>
+<tr><td>Guest</td><td>IndexedDB <code>mego-nutrition</code></td><td><b>None automatically.</b> Data exists only on this device unless you download a backup file (or, on the owner's device, connect the Google Sheets Hub).</td></tr>
+<tr><td>Signed-in account</td><td>IndexedDB <code>mego-u-&lt;account id&gt;</code> (one per account)</td><td>Cloud Firestore under your account (owner-only access); every change is synced</td></tr>
+</table>
+<p>Synced and backed-up tables: foods, entries, recipes, templates, plans, plannedDays, body, days, settings, foodChanges, kv (cardio, check-ins, workouts, programs, shopping ticks …) and fasts. <b>Not included:</b> progress photos and the local backups themselves.</p>
+<p><b>Important:</b> the automatic local backups are stored inside the same browser database as your data. If the browser deletes the site's storage, those backups are lost too — that is why an external copy (cloud account or a downloaded file) matters.</p>
+
+<h2>2. The "Data &amp; backups" area in Settings</h2>
+<p>Settings → chip <b>Data &amp; backups</b> contains three cards:</p>
+<ol>
+<li><b>Data &amp; backups</b>: persistent-storage status, <b>Download backup file</b>, <b>Restore from backup file</b>, <b>Export full diary (CSV)</b>.</li>
+<li><b>Data check</b>: <b>Run check</b> (section 6).</li>
+<li><b>Automatic backups on this phone</b>: the list of local backups with <b>Restore</b> per row and <b>Back up now</b>.</li>
+</ol>
+<p>Persistent storage: the app asks the browser to keep its storage. The card shows "✓ Persistent storage granted" or "Persistent storage not granted by the browser (install the app to improve this)". Installing MEGO to the home screen can help; it is the browser's decision.</p>
+
+<h2>3. Automatic local backups</h2>
+<p>A local backup is a full snapshot of all synced tables stored in the device database.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Label in the list</th><th>When it is created</th></tr>
+<tr><td>Daily</td><td>Once per calendar day when the app starts and there is data</td></tr>
+<tr><td>Before app update</td><td>The first time a new app release opens with data (once per release and database; current release identifier <code>1.3-training</code>)</td></tr>
+<tr><td>Manual</td><td>When you tap <b>Back up now</b></td></tr>
+<tr><td>Before restore</td><td>Automatically before any restore (file or local backup)</td></tr>
+<tr><td>Before import</td><td>Before importing foods (file, Hub), "Complete my food database" and "Arabic &amp; English names"</td></tr>
+<tr><td>Before sheet restore</td><td>Before "Restore from sheet" on a Hub-connected device</td></tr>
+</table>
+<p><b>Retention:</b> the last 10 backups are kept, and in addition the 3 most recent "Before app update" backups are never rotated away. Each row shows date, time, reason and size (KB). A line "Pre-update snapshots" lists older pre-migration copies if the database schema was ever upgraded.</p>
+<p><b>Restoring a local backup:</b> tap <b>Restore</b> → confirm "Restore this backup? Current data is backed up first and records are merged (newer wins)." → the result says "Restored: n records merged."</p>
+
+<h2>4. Backup file (JSON) and restore</h2>
+<h3>4.1 Download</h3>
+<p><b>Download backup file</b> saves <code>mego-nutrition-backup-YYYY-MM-DD-HH-MM-SS.json</code> to the phone's downloads. It contains all synced tables (format <code>mego-nutrition-backup</code>, version 1). The sync connection settings (Hub URL and token) are removed from the file and never exported. Store the file somewhere safe (e.g. your own cloud drive); it contains your personal health data.</p>
+<h3>4.2 Restore</h3>
+<ol>
+<li>Tap <b>Restore from backup file</b> and choose the .json file.</li>
+<li>MEGO checks the file: it must be valid JSON in the MEGO backup format, every record must have its key, and diary entries must contain nutrition values. An invalid file is rejected without changing anything.</li>
+<li>A "Before restore" local backup is saved.</li>
+<li>Records are <b>merged</b>: a record from the file is written when it does not exist locally or when its <code>updatedAt</code> is the same or newer. Nothing is deleted. The settings record from the file replaces the local settings, but this device's sync connection is kept.</li>
+<li>The app reports "Restored: n records merged."</li>
+</ol>
+<p>For a signed-in account, restored records are synced to the cloud like any other change.</p>
+
+<h2>5. Exports: CSV and Excel</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Where</th><th>Button</th><th>File</th><th>Content</th></tr>
+<tr><td>Settings → Data &amp; backups</td><td>Export full diary (CSV)</td><td><code>food-diary-all.csv</code></td><td>Every diary entry: date, meal, food, state, quantity, unit, grams, kcal, protein, carbs, fat (sorted by date and order)</td></tr>
+<tr><td>Foods</td><td>Export CSV / Export Excel</td><td><code>food-database.csv</code> / <code>food-database.xlsx</code> (sheet "Foods")</td><td>Your active foods in the same column layout as the Google Sheet food tab (re-importable): Arabic name, category, kcal/protein/carbs/fat per 100 g, piece/serving grams, state, preparation, notes, English name</td></tr>
+<tr><td>Weekly / Monthly report</td><td>Export CSV / Export Excel / Print</td><td><code>nutrition-week-&lt;first date&gt;.csv/.xlsx</code>, <code>nutrition-month-…</code></td><td>Day table and summary; Excel adds the "Diary" sheet. See MEGO_Reports_Guide</td></tr>
+</table>
+<p>CSV files are UTF-8 with a byte-order mark so Excel shows Arabic text correctly. Column headers follow the app language. All exports are created on the phone; nothing is sent to a server. Exports are for reading and analysis — only the JSON backup file can be restored into MEGO (food CSV/XLSX can be imported back as foods).</p>
+
+<h2>6. Data check</h2>
+<p>Settings → <b>Data check</b> → <b>Run check</b>. It is <b>read-only</b>: "Read-only check of the records on this device; nothing is changed."</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Line</th><th>Meaning</th></tr>
+<tr><td>Food log entries</td><td>Number of diary entries and of logged days</td></tr>
+<tr><td>First – last logged day</td><td>Date range of the diary</td></tr>
+<tr><td>Weigh-ins / waist measurements</td><td>Counts</td></tr>
+<tr><td>Foods / my recipes</td><td>Counts</td></tr>
+<tr><td>Calorie targets (training / rest)</td><td>Current targets</td></tr>
+<tr><td>Latest pre-update backup</td><td>Date, release and number of entries in it</td></tr>
+<tr><td>Status banner</td><td>"All records are intact" when entries, body, days and foods each have at least as many records as in the latest pre-update backup; otherwise a warning to review the local backups; or "No pre-update backup on this device yet"</td></tr>
+<tr><td>Possible duplicates</td><td>Diary items with the same day, meal, name and grams, and own foods with the same name — "Nothing was removed"; you decide what to delete</td></tr>
+<tr><td>Suspect per-serving foods</td><td>Protein-powder-type foods below 250 kcal per 100 g (likely per-scoop values), with how many diary entries and recipes are affected; nothing is changed</td></tr>
+</table>
+
+<h2>7. Owner device: Hub and Google Drive backups</h2>
+<p>On a device connected to the owner's Google Sheets Hub (Settings → MEGO Nutrition Hub — sync &amp; backup), additional buttons are available:</p>
+<ul>
+<li><b>Backup to Google Drive</b> — sends a snapshot to the owner's Apps Script, which saves <code>mego-backup-&lt;date_time&gt;.json</code> in the Drive folder "MEGO Nutrition Backups".</li>
+<li><b>Upload everything</b> — queues all records and pushes them to the Hub.</li>
+<li><b>Restore from sheet</b> — saves a "Before sheet restore" local backup, then pulls all records from the Hub and merges them.</li>
+</ul>
+<p>The backend also copies the Hub spreadsheet once per day before the first food write-back. Details: MEGO_Google_Sheets_Integration_and_Sync.</p>
+
+<h2>8. Recovering a signed-in account after storage loss</h2>
+<p>On 10 Nov 2026 an Android phone lost its browser database (records and sign-in session) while other browser storage survived. The app showed the welcome screen, and after signing in again it stayed empty, because the download started from "last seen" markers that had survived, and a fresh default settings record outranked the saved settings. This had happened once before. <b>It is fixed and live</b> (src/lib/cloudSync.ts, account.ts, repo.ts):</p>
+<ul>
+<li>The markers were renamed (<code>mego.cloud2.</code>), so every device re-downloads its account in full once.</li>
+<li>If the account's local database is missing at start-up, the markers are reset; an empty local table is always downloaded in full.</li>
+<li>Settings are always re-read from the cloud, and untouched default settings never outrank the account's saved settings.</li>
+<li>One unreadable record never stops the rest of the download.</li>
+<li>Two weigh-ins for the same date (e.g. re-entered after a loss) keep the newer one on the device; the other stays untouched in the cloud.</li>
+<li>Newer local copies are never overwritten by older cloud copies.</li>
+</ul>
+<h3>8.1 What to do if your data seems gone</h3>
+<pre>
+Signed-in account?
+ ├─ yes ─► open MEGO ─► Sign in with the same e-mail and password
+ │          └─► keep the app open and online ─► data downloads from the cloud
+ │               └─► Settings ─► Data check ─► review counts and "Possible duplicates"
+ └─ no (guest) ─► data existed only on this phone
+                  └─► Restore from backup file (if you downloaded one), or a local backup if the database still exists
+</pre>
+<ol>
+<li>Do <b>not</b> re-enter your old data before signing in — wait for the download first. If you already re-entered some, use Data check → Possible duplicates and delete extra copies yourself.</li>
+<li>If something is still missing after the download, check Settings → Automatic backups on this phone (only if the local database survived) or restore your latest backup file.</li>
+</ol>
+<p><b>Lesson:</b> signed-in accounts are recoverable by signing in again; guest data lives only on the device — download a backup file regularly or create an account.</p>
+
+<h2>9. Recommended routine</h2>
+<ul>
+<li>Use a signed-in account if you want an automatic copy outside the phone.</li>
+<li>Download a backup file at least once a week (more important for guests) and keep it outside the phone.</li>
+<li>Run Data check after an app update or after any suspected data loss.</li>
+<li>Keep your own copies of progress photos; they are not backed up.</li>
+</ul>
+
+<h2>10. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Backup reasons, rotation, file format, merge rules, exports, Data check</td><td>Verified in code: src/lib/localBackup.ts, backup.ts, exporters.ts, dataCheck.ts, src/pages/Settings.tsx, src/main.tsx; covered by unit tests (199 passing, re-run 10 Nov 2026)</td></tr>
+<tr><td>Cloud recovery after storage loss</td><td>Reproduced and verified on the Firebase emulators (e2e/storage-loss.mjs) and unit-tested (tests/cloud-recovery.test.ts); the fix is deployed and the owner confirmed the data came back</td></tr>
+<tr><td>Second-device live sync for an account</td><td>Verified live in production (scripts/live-verify.mjs)</td></tr>
+<tr><td>Browser granting persistent storage on a real Android phone</td><td>Not verified — browser-dependent</td></tr>
+<tr><td>Download/restore of files on a real Android phone</td><td>Not verified (emulated devices only)</td></tr>
+<tr><td>Backup to Google Drive (owner Hub)</td><td>Verified in code (apps-script/Code.gs backup_); a live run of this button is not recorded — Not verified</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

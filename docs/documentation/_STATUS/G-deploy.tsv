@@ -1,0 +1,15 @@
+50	MEGO_Developer_Setup_and_Local_Installation_AR.html	1AbD0dnKf7_MJqdzK0ar-5C_g5wMDObCfSPQrcyTtImw	1187	AR only (EN existed); test counts updated: unit 199/14 files, e2e 57, hub-complete 9/9, storage-loss; live-verify 17 checks not run live
+51	MEGO_Production_Deployment_Guide_EN.html	1BwkZfiaWtLCkTQOTvRX61B4n9aA--tjQ4NE4YQeZhcg	1044	deployed backend version not verified
+51	MEGO_Production_Deployment_Guide_AR.html	19Fe4eT1lzIx9RS04b__gsZaiIBJdBvExTYhznDjBTuY	1013	
+52	MEGO_Firebase_Setup_Guide_EN.html	1OJBtyXCEyCkXQsaIHZBf_mQyRXahe3GBDD6zWfxR5q0	1060	Spark quota numbers and admin role not verified
+52	MEGO_Firebase_Setup_Guide_AR.html	19PnNwl_82-97Suje7hzYAOb3B2-GwETdr6_HDUKmOv4	1007	
+53	MEGO_Apps_Script_Setup_Guide_EN.html	138T8SRF8RClMg_DXvW8XFIHKcVW2_TtTVNGg3ODh4pA	1353	SCRIPT_VERSION 8, --hub-complete-foods included; Windows steps not re-tested
+53	MEGO_Apps_Script_Setup_Guide_AR.html	1XqPLtbJwGUEJcIQzzwhKy_zKdjImpKOiboBBFh-Zjsg	1271	
+54	MEGO_Gemini_API_Setup_Guide_EN.html	1UwbRZC6Zn5Xp4HgpQOn1znOtC8tsGmH5cJj9ee_I07o	1159	Google free-tier quota numbers not verified
+54	MEGO_Gemini_API_Setup_Guide_AR.html	1r8JVHhq0cmS3_Sz5d0gPbNSKhMIyLoE31a-HHnZjTbU	1071	
+55	MEGO_Build_and_Release_Procedures_EN.html	11VMCIDns_ZQJ53Lcyw9WaYTJHM9HW98qicDIz6_kX0E	878	unit 199/199 re-run 10 Nov; e2e/scroll not re-run after a27c769
+55	MEGO_Build_and_Release_Procedures_AR.html	1ZYraijRxqghhRpkgYOgfykb3qrjudoswRu6Okejlh20	858	
+56	MEGO_Update_and_Rollback_Procedures_EN.html	1OmwH0w4Nj1rT15USyFV7Pt1aRmRgEr2lmuNdKQIwkr8	1065	rollback procedures never performed (Not verified)
+56	MEGO_Update_and_Rollback_Procedures_AR.html	1ALkVvRUai5jIsudF5OlyhfaXI6rMB5YPuKjs5m3gRF0	1028	
+57	MEGO_Production_Verification_Checklist_EN.html	1nPT4eWwRuvJ74-7gK8WxlUQ8YwxAq73qS57BdtpCaSY	1157	17-check live-verify not run live; v8 live not verified
+57	MEGO_Production_Verification_Checklist_AR.html	1zkuT8zwyFXK9rYPP2FCAMv8fWIFWMIeLCM9GrNC9UYc	1075	

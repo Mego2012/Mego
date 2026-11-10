@@ -66,7 +66,7 @@ export default function Settings() {
       <div id="s-diet"><DietForm /></div>
       <div id="s-sync"><SyncForm /></div>
       <div id="s-ai"><AiScannerCard /></div>
-      <div id="s-data"><DataSafety /><LocalBackups /></div>
+      <div id="s-data"><DataSafety /><DataCheckCard /><LocalBackups /></div>
       <PhotoCredits />
     </div>
   );
@@ -399,6 +399,36 @@ function DataSafety() {
           if (c) alertOk(t('restoreDone', { n: Object.values(c).reduce((a, b) => a + b, 0) }));
         }} />
       </div>
+    </Card>
+  );
+}
+
+function DataCheckCard() {
+  const { t, d, n } = useApp();
+  const [r, setR] = useState<import('../lib/dataCheck').DataCheck | null>(null);
+  const { run, busy } = useAsync();
+  return (
+    <Card title={<><Icon name="lock" />{t('dc_title')}</>} actions={<button className="btn sm" disabled={busy} onClick={() => run(async () => setR(await (await import('../lib/dataCheck')).runDataCheck()))} data-testid="dc-run">{t('dc_run')}</button>}>
+      <div className="tiny muted">{t('dc_note')}</div>
+      {r && (
+        <div className="stack" style={{ marginTop: 8 }} data-testid="dc-result">
+          <ul className="adherence">
+            <li><span>{t('dc_entries')}</span><b className="num" data-testid="dc-entries">{n(r.counts.entries)} · {n(r.counts.loggedDays)} {t('dc_daysWord')}</b></li>
+            <li><span>{t('dc_range')}</span><b className="num">{r.firstEntry ? `${d(r.firstEntry)} – ${d(r.lastEntry!)}` : '—'}</b></li>
+            <li><span>{t('dc_body')}</span><b className="num">{n(r.counts.weights)} / {n(r.counts.waists)}</b></li>
+            <li><span>{t('dc_foods')}</span><b className="num">{n(r.counts.foods)} · {n(r.counts.recipes)}</b></li>
+            <li><span>{t('dc_targets')}</span><b className="num">{r.targets ? `${n(r.targets.training)} / ${n(r.targets.rest)}` : '—'}</b></li>
+            <li><span>{t('dc_backup')}</span><b className="num">{r.preUpdate ? `${d(new Date(r.preUpdate.at).toISOString().slice(0, 10))} · ${r.preUpdate.release ?? ''} · ${n(r.preUpdate.entries)}` : '—'}</b></li>
+          </ul>
+          <div className={`banner small ${r.intact === false ? 'error' : 'info'}`} data-testid="dc-intact">{r.intact === null ? t('dc_noBackup') : r.intact ? t('dc_ok') : t('dc_fewer')}</div>
+          {r.suspectFoods.map((f) => (
+            <div key={f.id} className="banner error small" data-testid="dc-suspect">
+              {t('dc_suspect', { name: f.name, kcal: n(f.kcal), p: n(f.protein, 1) })}
+              <div className="tiny">{t('dc_affected', { e: f.diaryEntries, r: f.myRecipes.length + f.libraryRecipes.length })}{f.libraryRecipes.length ? ` — ${f.libraryRecipes.join('، ')}` : ''}</div>
+            </div>
+          ))}
+        </div>
+      )}
     </Card>
   );
 }

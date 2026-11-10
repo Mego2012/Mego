@@ -125,8 +125,11 @@ These are not a medical assessment, and nothing is diagnosed.
   nothing.
 * Only sessions beyond the plan in the last 7 days count: net energy (3.5 − 1 MET) × kg × duration. They are added
   back with the same goal-based share and the same 400 kcal/day cap as cardio, and each step is explained on Home.
-* For fat-loss goals, any suggested calorie increase is limited so the target stays at or below 90 % of TDEE, so the
-  app never suggests a surplus. If there is no room, it recommends recovery and protein instead.
+* For fat-loss goals:
+  * Any **suggested** calorie increase (Goals recommendations) is limited so the target stays at or below 90 % of
+    TDEE, so the app never suggests a surplus. If there is no room, it recommends recovery and protein instead.
+  * The **daily adjusted** target is limited to 90 % of that day's expenditure (TDEE + extra exercise), so exercise
+    never turns a day into maintenance or surplus.
 
 ## 9. Coach (rule-based, on the phone, free)
 

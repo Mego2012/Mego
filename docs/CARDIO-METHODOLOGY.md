@@ -16,6 +16,7 @@ GOALS, RECIPE-NUTRITION, REPORT-CARDIO, CARDIO-EN, plus a live check in `scripts
 * **Pre-update backup.** On the first start of release `1.2-cardio`, before anything else writes, a full snapshot of the
   device database is saved as a local backup (reason "Before app update"). It is taken once per release. Rotation never
   removes the 3 newest pre-update backups. This is in addition to the existing daily backups.
+* **Settings → Data check** (read-only) shows your record counts and compares them with the newest pre-update backup.
 * Tests confirm that record counts and contents of entries, foods, weights and days are identical before and after
   using cardio, goals and recipe approval. The only addition is one food per approved recipe match.
 
@@ -89,8 +90,10 @@ The base target (Settings or Goals) is never modified. The app shows these lines
 The "Why?" button lists the reasons behind each step.
 
 1. **No double counting.** For any activity level above *sedentary*, the TDEE behind the target already includes the
-   user's **planned weekly cardio** (Goals: sessions × minutes). The default plan is 3 × 10 min. Minutes of the last
-   7 days count against the plan first, in date order. Only minutes beyond it are "extra".
+   user's **planned weekly cardio** (Goals: sessions × minutes). The default plan matches the owner's routine: one
+   10-minute session after each training day, so 6 × 10 = 60 min per week. A value saved in Goals always takes
+   precedence; Goals shows whether the value is the default or saved. Minutes of the last 7 days count against the
+   plan first, in date order. Only minutes beyond it are "extra".
 2. **Resting energy removed.** Only the NET part ((MET − 1) × kg × h) of the extra minutes counts.
 3. **Partial add-back.** Estimates run high, and a fat-loss goal needs its deficit. The share added back is:
    * 50 % for fat loss, fat loss preserving muscle, recomposition or a custom goal
@@ -98,16 +101,19 @@ The "Why?" button lists the reasons behind each step.
    * 100 % for lean bulk, bulk or performance
 
    The share can be set to 0/25/50/75/100 % in Goals.
-4. **Cap.** At most 400 kcal is added per day. The result is rounded to 10 kcal.
+4. **Caps.** At most 400 kcal is added per day. The result is rounded to 10 kcal.
+   **Fat-loss safeguard:** for fat-loss and recomposition goals, the adjusted target is limited to 90 % of that day's
+   estimated expenditure (TDEE + the extra exercise). Exercise can therefore never move the day to maintenance or
+   surplus, and the saved target is never lowered either.
 5. **Mode Off** never adjusts. With no cardio, or cardio within the plan, the target is unchanged. Logging a session alone
    never raises calories.
 
 Reports, day status and adherence keep using the base target, so the nutrition calculations themselves are unchanged.
 
-**Example (fat loss, active, plan 3 × 10 min).**
-* Two 15-min sessions earlier in the week use up the plan.
-* Today's 40-min run has ≈ 300 kcal net, all of it extra.
-* Extra allowed: +150 kcal. Adjusted target: 2,150.
+**Example (owner: fat loss, active, 2,110 kcal, plan 6 × 10 min).**
+* The six 10-min routine sessions use up the plan: +0 kcal on every routine day.
+* An additional 30-min run that week has ≈ 300 kcal net, all of it extra.
+* Extra allowed: +150 kcal (50 %). Adjusted target: 2,260, well below the ceiling.
 
 ## 5. Goals
 
@@ -165,12 +171,16 @@ shown. Cooking oil and added fats are counted. Seasonings without data are liste
 when foods change, and user recipes recalculate when ingredients or quantities change. Every card shows kcal, protein,
 carbohydrates and fat per serving. The details page also shows the totals and fibre.
 
-**Corrected.** Both "egg fried rice" recipes weigh 200 g of *cooked & chilled* rice but referenced the *raw* rice record
+**Corrected.**
+* The canned-tuna reference now matches the owner's table (116 kcal per 100 g).
+* Both "egg fried rice" recipes weigh 200 g of *cooked & chilled* rice but referenced the *raw* rice record
 (≈ 2.8× too many calories). They now use "أرز أبيض مطبوخ". The user's saved recipes were not changed.
 
 **Needs the owner's approval (not changed).** In the owner's table, "واي بروتين (سكوب)" has 120 kcal / 24 g protein /
 3 g carbs / 1.5 g fat **per 100 g**. These look like per-scoop (30 g) values; per 100 g, whey is ≈ 350–400 kcal and
 ≈ 75–80 g protein. Recipes and diary entries with whey are therefore under-counted until the owner corrects the food.
+Five library recipes contain whey. **Settings → Data check** shows how many diary entries on the device are affected.
+The full audit is in `docs/RECIPE-AUDIT.md`.
 
 ## 7. Reports
 

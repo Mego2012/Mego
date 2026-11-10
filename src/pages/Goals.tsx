@@ -99,6 +99,7 @@ export default function Goals() {
             onChange={(v) => v !== '' && v >= 0 && v <= 300 && run(() => saveSettings((s) => { s.fitness = { ...fitnessOf(s), cardioMinPerSession: v }; }))} />
         </div>
         <div className="small bold" style={{ marginTop: 6 }} data-testid="goal-weekly-cardio">{t('weeklyCardioGoal', { n: n(goalMin) })}</div>
+        <div className="tiny muted" data-testid="goal-cardio-source">{settings.fitness?.cardioSessionsPerWeek === undefined ? t('fit_default', { min: fit.cardioMinPerSession, n: fit.resistanceDaysPerWeek }) : t('fit_saved', { s: fit.cardioSessionsPerWeek, min: fit.cardioMinPerSession })}</div>
         <div className="tiny muted">{t('stepsNotSupported')}</div>
         <div className="field" style={{ marginTop: 10 }}>
           <span>{t('en_mode')}</span>

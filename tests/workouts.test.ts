@@ -291,3 +291,24 @@ describe('data protection: backup is restorable; training never touches existing
     expect((await getSettings()).targets).toEqual(before.settings.targets);
   });
 });
+
+describe('data check (read-only) and per-serving detection', () => {
+  it('flags protein powder entered per scoop, lists affected diary entries and recipes, changes nothing', async () => {
+    const { runDataCheck, suspectPerServing } = await import('../src/lib/dataCheck');
+    expect(suspectPerServing({ nameAr: 'واي بروتين (سكوب)', nameEn: '', category: 'مكملات', per100: { kcal: 120, protein: 24, carbs: 3, fat: 1.5 } })).toBe(true);
+    expect(suspectPerServing({ nameAr: 'واي بروتين', nameEn: 'whey', category: 'مكملات', per100: { kcal: 400, protein: 80, carbs: 6, fat: 6 } })).toBe(false);
+    expect(suspectPerServing({ nameAr: 'زبادي', nameEn: 'yogurt', category: 'ألبان', per100: { kcal: 60, protein: 10, carbs: 4, fat: 0 } })).toBe(false);
+    const whey = await createFood({ nameAr: 'واي بروتين (سكوب)', nameEn: '', category: 'مكملات', per100: { kcal: 120, protein: 24, carbs: 3, fat: 1.5 }, state: 'other', stateLabel: 'مسحوق', prep: '', notes: '' });
+    await addFoodEntry(today(), 'snacks', whey, 30, 'g');
+    const before = await db.foods.get(whey.id);
+    const r = await runDataCheck();
+    expect(r.counts.entries).toBe(1);
+    expect(r.suspectFoods).toHaveLength(1);
+    expect(r.suspectFoods[0]).toMatchObject({ diaryEntries: 1, kcal: 120 });
+    expect(r.suspectFoods[0].libraryRecipes.length).toBe(5);
+    expect(await db.foods.get(whey.id)).toEqual(before);
+    expect(r.intact).toBeNull(); // no pre-update backup yet
+    await preUpdateBackup('t-check');
+    expect((await runDataCheck()).intact).toBe(true);
+  });
+});

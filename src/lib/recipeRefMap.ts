@@ -25,7 +25,7 @@ export const RECIPE_REF: Record<string, string | null> = {
   'لحم بقري قليل الدهن 90/10': 'S174030', // Beef, ground, 90% lean / 10% fat, raw
   'جبن موزاريلا قليلة الدسم': 'S170847', // Cheese, mozzarella, part skim milk
   'زبادي يوناني قليل الدسم': 'S170903', // Yogurt, Greek, plain, lowfat
-  'سمك تونة (معلب بالماء)': 'S173709', // Tuna, light, canned in water, drained solids
+  'سمك تونة (معلب بالماء)': 'S171986', // Tuna, light, canned in water, without salt, drained solids (matches the owner table)
   'تمر': 'S168191',                  // Dates, medjool
   'سبانخ': 'S168462',                // Spinach, raw
   'فراولة': 'S167762',               // Strawberries, raw

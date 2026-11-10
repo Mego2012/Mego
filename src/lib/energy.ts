@@ -13,6 +13,7 @@
  * Result: base target + allowed extra = adjusted target. Logging the planned routine never raises the target.
  */
 import { addDays } from './dates';
+import { tdeeOf } from './goals';
 import { type CardioSession } from './cardio';
 import type { FitnessGoals, GoalType, Settings } from './types';
 import { isCompleted, sessionMinutes, type WorkoutSession } from './workouts';
@@ -21,9 +22,12 @@ import { isCompleted, sessionMinutes, type WorkoutSession } from './workouts';
 export const RESISTANCE_MET = 3.5;
 
 export const MAX_DAILY_ADD = 400;
+export const LOSS_GOALS = new Set(['fat_loss', 'fat_loss_preserve', 'recomp']);
 
 export function defaultFitness(s: Pick<Settings, 'profile'>): FitnessGoals {
-  return { resistanceDaysPerWeek: s.profile.trainingDaysPerWeek ?? 3, cardioSessionsPerWeek: 3, cardioMinPerSession: 10, setsPerMuscle: 14, experience: 'intermediate', pullupsPerWeek: 2, dipsPerWeek: 2 };
+  // Owner routine: 10 min treadmill after every workout → one cardio session per training day.
+  const days = s.profile.trainingDaysPerWeek ?? 6;
+  return { resistanceDaysPerWeek: days, cardioSessionsPerWeek: days, cardioMinPerSession: 10, setsPerMuscle: 14, experience: 'intermediate', pullupsPerWeek: 2, dipsPerWeek: 2 };
 }
 export const fitnessOf = (s: Settings): FitnessGoals => ({ ...defaultFitness(s), ...(s.fitness ?? {}) });
 
@@ -103,6 +107,15 @@ export function energyFor(date: string, baseKcal: number, consumed: number, sess
       allowed = Math.min(MAX_DAILY_ADD, Math.round((extraNet * replenishPct) / 100 / 10) * 10);
       reasons.push({ key: 'en_extra', params: { extra: Math.round(extraNet), pct: replenishPct, allowed } });
       if (allowed === MAX_DAILY_ADD) reasons.push({ key: 'en_cap', params: { cap: MAX_DAILY_ADD } });
+      // Fat-loss goals: the adjusted target keeps ≥ 10 % deficit vs. the day's expenditure (TDEE + the extra exercise),
+      // so exercise can never move the day to maintenance or surplus.
+      if (LOSS_GOALS.has(settings.profile.goalType)) {
+        const ceiling = Math.floor((0.9 * (tdeeOf(settings.profile) + extraNet)) / 10) * 10;
+        if (baseKcal + allowed > ceiling) {
+          allowed = Math.max(0, ceiling - baseKcal);
+          reasons.push({ key: 'en_lossCeiling', params: { ceiling, allowed } });
+        }
+      }
     }
   }
   const adjusted = baseKcal + allowed;

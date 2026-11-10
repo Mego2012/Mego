@@ -966,6 +966,15 @@ await check('TRAIN-EN', 'Workouts in English (ltr)', async () => {
   await page.getByRole('tab', { name: 'العربية' }).click();
 });
 
+await check('DATACHECK', 'Settings → Data check: read-only record counts, pre-update backup comparison, per-scoop food detection', async () => {
+  await go(page, '/settings');
+  await page.getByTestId('dc-run').click();
+  await page.getByTestId('dc-result').waitFor();
+  const entries = await page.getByTestId('dc-entries').innerText();
+  const intact = await page.getByTestId('dc-intact').innerText();
+  return `${entries.replace(/\s+/g, ' ')} · ${intact.slice(0, 60)}`;
+});
+
 await check('LAYOUT', 'No horizontal overflow on any screen (phone width)', async () => {
   const bad = [];
   for (const h of ['/', '/diary', '/recipes', '/recipes?tab=suggest', '/recipes?tab=cook', '/recipes?tab=recipes', '/foods', '/planner', '/progress', '/habits', '/reports/week', '/reports/month', '/settings', '/cardio', '/goals', '/workouts?tab=overview', '/workouts?tab=today', '/workouts?tab=program', '/workouts?tab=library', '/workouts?tab=progress', '/workouts?tab=coach']) {

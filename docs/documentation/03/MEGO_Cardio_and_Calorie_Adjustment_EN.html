@@ -1,0 +1,301 @@
+<html lang="en"><head><meta charset="utf-8"><title>Cardio, smart calorie target, goals and recipe nutrition</title></head><body style="font-family:Arial"><h1>MEGO — Cardio, smart calorie target, goals and recipe nutrition</h1><table border="1" style="border-collapse:collapse"><tr><td style="background:#e8f3ef"><b>Document ID</b></td><td>MEGO-DOC-78</td></tr><tr><td style="background:#e8f3ef"><b>Version</b></td><td>1.0</td></tr><tr><td style="background:#e8f3ef"><b>Created</b></td><td>2026-11-10</td></tr><tr><td style="background:#e8f3ef"><b>Last updated</b></td><td>2026-11-10</td></tr><tr><td style="background:#e8f3ef"><b>Owner</b></td><td>MEGO Project Owner</td></tr><tr><td style="background:#e8f3ef"><b>Status</b></td><td>Approved for internal use</td></tr><tr><td style="background:#e8f3ef"><b>Audience</b></td><td>Owner, developers, advanced users</td></tr><tr><td style="background:#e8f3ef"><b>Related documents</b></td><td>MEGO_Calorie_and_Macronutrient_Calculation_Methodology, MEGO_Daily_Calorie_Target_Calculation, MEGO_User_Manual</td></tr></table><p>Version 1.0 · 10 November 2026 · Code: <code>src/lib/cardio.ts</code>, <code>src/lib/energy.ts</code>, <code>src/lib/goalAdvisor.ts</code>,
+<code>src/lib/recipeEngine.ts</code>, <code>src/lib/recipeRefMap.ts</code> · Tests: <code>tests/cardio-goals.test.ts</code> (33), e2e checks CARDIO, ENERGY,
+GOALS, RECIPE-NUTRITION, REPORT-CARDIO, CARDIO-EN, plus a live check in <code>scripts/live-verify.mjs</code>.</p>
+<h2>1. Data safety (how existing records are protected)</h2>
+<ul>
+<li><strong>No schema change.</strong> The device database stays at version 2. Nothing is migrated, recreated or rewritten.</li>
+<li>Cardio sessions are new records in the existing, already-synced key/value table: <code>kv</code> key <code>cardio:&lt;id&gt;</code>. The saved
+routine is <code>cardioRoutine</code>, and weekly check-ins are <code>checkin:&lt;week&gt;</code>. The live Firestore rules
+(<code>users/{uid}/kv/...</code>, owner only) and the Apps Script backend (<code>App_KeyValue</code>) already accept these. No backend
+redeploy is needed, and each account&#39;s data stays isolated.</li>
+<li>New settings fields are optional and merged with the old ones (<code>cardioCalorieMode</code>, <code>cardioReplenishPct</code>,
+<code>fitness</code>). Saved calorie and macro targets are never changed automatically.</li>
+<li><strong>Pre-update backup.</strong> On the first start of release <code>1.2-cardio</code>, before anything else writes, a full snapshot of the
+device database is saved as a local backup (reason &quot;Before app update&quot;). It is taken once per release. Rotation never
+removes the 3 newest pre-update backups. This is in addition to the existing daily backups.</li>
+<li><strong>Settings → Data check</strong> (read-only) shows your record counts and compares them with the newest pre-update backup.</li>
+<li>Tests confirm that record counts and contents of entries, foods, weights and days are identical before and after
+using cardio, goals and recipe approval. The only addition is one food per approved recipe match.</li>
+</ul>
+<h2>2. Cardio logging</h2>
+<p>Activities: treadmill, walking, running, cycling, stationary bike, elliptical, stair climber, swimming, rowing, other
+(named). Every session has a date, time, duration and intensity, plus optional notes. Only the relevant fields are
+shown:</p>
+<table border="1" style="border-collapse:collapse">
+<thead>
+<tr style="background:#e8f3ef">
+<th>Activity</th>
+<th>Extra fields</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Treadmill</td>
+<td>speed (km/h), incline (%), distance (km)</td>
+</tr>
+<tr>
+<td>Walking, running, cycling</td>
+<td>distance (km), speed (km/h); speed is derived from distance ÷ time if not entered</td>
+</tr>
+<tr>
+<td>Swimming, rowing</td>
+<td>distance (m)</td>
+</tr>
+<tr>
+<td>Stationary bike, elliptical, stair climber, other</td>
+<td>none</td>
+</tr>
+</tbody></table>
+<p><strong>Calories burned (optional).</strong> A value from a watch or machine replaces the estimate. Such sessions are marked &quot;entered
+by you&quot;.</p>
+<p><strong>Routine.</strong> Saved once, edited any time, logged with one tap. The default is the owner&#39;s routine: treadmill, 10 min,
+3.5 km/h, 13 % incline.</p>
+<h2>3. Calorie estimate (always shown as an estimate)</h2>
+<p><code>kcal = MET × body weight (kg) × hours</code> (1 MET ≈ 1 kcal/kg/h ≈ 3.5 ml O₂/kg/min).
+Net (above rest) <code>= (MET − 1) × kg × h</code>. Body weight = the latest weigh-in on or before the session date, else the
+profile weight.</p>
+<p>MET source, in order:</p>
+<ol>
+<li>Walking and treadmill below 7 km/h use the <strong>ACSM walking equation</strong>: VO₂ = 0.1·S + 1.8·S·G + 3.5 (S in m/min,
+G = grade).</li>
+<li>Running, and treadmill from 7 km/h, use the <strong>ACSM running equation</strong>: VO₂ = 0.2·S + 0.9·S·G + 3.5.</li>
+<li>Outdoor cycling with a speed uses <strong>Compendium</strong> speed bands (&lt;16 km/h 4.0 · 16–19 6.8 · 19–22.5 8.0 · 22.5–25.7 10.0 ·
+25.7–30.6 12.0 · faster 15.8).</li>
+<li>Everything else uses the <strong>Compendium of Physical Activities</strong> (Ainsworth 2011; Herrmann 2024) at the chosen
+intensity:</li>
+</ol>
+<table border="1" style="border-collapse:collapse">
+<thead>
+<tr style="background:#e8f3ef">
+<th>Activity</th>
+<th>light</th>
+<th>moderate</th>
+<th>vigorous</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Walking / treadmill (no speed)</td>
+<td>2.8</td>
+<td>3.5</td>
+<td>5.0</td>
+</tr>
+<tr>
+<td>Running (no speed)</td>
+<td>8.3</td>
+<td>9.8</td>
+<td>11.8</td>
+</tr>
+<tr>
+<td>Cycling (no speed)</td>
+<td>4.0</td>
+<td>6.8</td>
+<td>10.0</td>
+</tr>
+<tr>
+<td>Stationary bike</td>
+<td>3.5</td>
+<td>6.8</td>
+<td>8.8</td>
+</tr>
+<tr>
+<td>Elliptical</td>
+<td>4.0*</td>
+<td>5.0</td>
+<td>6.8*</td>
+</tr>
+<tr>
+<td>Stair climber</td>
+<td>6.8*</td>
+<td>9.0</td>
+<td>11.0*</td>
+</tr>
+<tr>
+<td>Swimming</td>
+<td>5.8</td>
+<td>7.0</td>
+<td>9.8</td>
+</tr>
+<tr>
+<td>Rowing machine</td>
+<td>4.8</td>
+<td>7.0</td>
+<td>8.5</td>
+</tr>
+<tr>
+<td>Other</td>
+<td>3.0</td>
+<td>5.0</td>
+<td>8.0 (generic light/moderate/vigorous bands)</td>
+</tr>
+</tbody></table>
+<p>* No separate Compendium entry exists, so the neighbouring value is used.</p>
+<p><strong>Example (owner routine).</strong> S = 58.3 m/min, G = 0.13 → VO₂ 23.0 → 6.57 MET → 72 kg × 10 min ≈ 79 kcal (67 kcal net).</p>
+<p><strong>Limitations.</strong></p>
+<ul>
+<li>Individual error is typically ±20–30 %. The estimate ignores fitness, efficiency, handrail use, terrain and wind.</li>
+<li>The ACSM equations are validated for steady-state walking (about 3–6 km/h) and running (above 8 km/h).</li>
+<li>Values are never presented as measurements.</li>
+</ul>
+<h2>4. Smart cardio → calorie target</h2>
+<p>The base target (Settings or Goals) is never modified. The app shows these lines on Home:</p>
+<ul>
+<li>Base target</li>
+<li>Cardio (estimate)</li>
+<li>Extra allowed</li>
+<li>Adjusted target</li>
+<li>Eaten</li>
+<li>Remaining</li>
+</ul>
+<p>The &quot;Why?&quot; button lists the reasons behind each step.</p>
+<ol>
+<li><p><strong>No double counting.</strong> For any activity level above <em>sedentary</em>, the TDEE behind the target already includes the
+user&#39;s <strong>planned weekly cardio</strong> (Goals: sessions × minutes). The default plan matches the owner&#39;s routine: one
+10-minute session after each training day, so 6 × 10 = 60 min per week. A value saved in Goals always takes
+precedence; Goals shows whether the value is the default or saved. Minutes of the last 7 days count against the
+plan first, in date order. Only minutes beyond it are &quot;extra&quot;.</p>
+</li>
+<li><p><strong>Resting energy removed.</strong> Only the NET part ((MET − 1) × kg × h) of the extra minutes counts.</p>
+</li>
+<li><p><strong>Partial add-back.</strong> Estimates run high, and a fat-loss goal needs its deficit. The share added back is:</p>
+<ul>
+<li>50 % for fat loss, fat loss preserving muscle, recomposition or a custom goal</li>
+<li>75 % for maintenance or healthy eating</li>
+<li>100 % for lean bulk, bulk or performance</li>
+</ul>
+<p>The share can be set to 0/25/50/75/100 % in Goals.</p>
+</li>
+<li><p><strong>Caps.</strong> At most 400 kcal is added per day. The result is rounded to 10 kcal.
+<strong>Fat-loss safeguard:</strong> for fat-loss and recomposition goals, the adjusted target is limited to 90 % of that day&#39;s
+estimated expenditure (TDEE + the extra exercise). Exercise can therefore never move the day to maintenance or
+surplus, and the saved target is never lowered either.</p>
+</li>
+<li><p><strong>Mode Off</strong> never adjusts. With no cardio, or cardio within the plan, the target is unchanged. Logging a session alone
+never raises calories.</p>
+</li>
+</ol>
+<p>Reports, day status and adherence keep using the base target, so the nutrition calculations themselves are unchanged.</p>
+<p><strong>Example (owner: fat loss, active, 2,110 kcal, plan 6 × 10 min).</strong></p>
+<ul>
+<li>The six 10-min routine sessions use up the plan: +0 kcal on every routine day.</li>
+<li>An additional 30-min run that week has ≈ 300 kcal net, all of it extra.</li>
+<li>Extra allowed: +150 kcal (50 %). Adjusted target: 2,260, well below the ceiling.</li>
+</ul>
+<h2>5. Goals</h2>
+<ul>
+<li><strong>Nutrition.</strong> Training-day and rest-day kcal, protein, carbohydrate and fat targets, weekly change target, target
+weight.</li>
+<li><strong>Fitness.</strong> Resistance days per week, cardio sessions per week, minutes per session, and the resulting weekly cardio
+minutes. Daily step goals are not supported, because MEGO has no step counter.</li>
+<li><strong>Body.</strong> Current weight (7-day average), target, waist and its change since the start, weight history chart with
+average, progress toward the target, and the estimated rate (28-day regression; needs ≥ 6 weigh-ins over ≥ 14 days).
+This is a weight trend, not a body-composition measurement.</li>
+<li><strong>This week.</strong> Progress bars for:<ul>
+<li>calories-in-range days</li>
+<li>protein days</li>
+<li>cardio minutes and sessions against the goal</li>
+<li>progress toward the target weight</li>
+</ul>
+</li>
+</ul>
+<h3>Recommendations (<code>goalAdvisor.ts</code>) — suggestions only</h3>
+<p>Nothing changes until the user taps <strong>Apply</strong> and confirms. The confirmation shows current → new values.</p>
+<table border="1" style="border-collapse:collapse">
+<thead>
+<tr style="background:#e8f3ef">
+<th>Signal</th>
+<th>Rule</th>
+<th>Suggestion</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>&lt; 6 weigh-ins / 2 weeks</td>
+<td>—</td>
+<td>wait, no calorie advice</td>
+</tr>
+<tr>
+<td>&lt; 8 complete days in 14</td>
+<td>—</td>
+<td>log complete days first</td>
+</tr>
+<tr>
+<td>calories in range &lt; 70 %</td>
+<td>—</td>
+<td>improve adherence before changing targets</td>
+</tr>
+<tr>
+<td>protein target &lt; 1.8 g/kg (loss) / 1.6 g/kg</td>
+<td>—</td>
+<td>raise to 2.0 / 1.8 g/kg; carbohydrates absorb the change (kcal unchanged)</td>
+</tr>
+<tr>
+<td>loss faster than 1 %/week or 1.5 × target, or strength ↓ with hunger ≥ 4, or recovery ≤ 2</td>
+<td>trend + check-in</td>
+<td>+150 kcal/day</td>
+</tr>
+<tr>
+<td>loss slower than ½ target, good adherence, waist not down</td>
+<td>trend + waist</td>
+<td>−150 kcal/day (or more cardio)</td>
+</tr>
+<tr>
+<td>weight steady, waist ↓ &gt; 0.5 cm</td>
+<td>waist</td>
+<td>keep targets (recomposition)</td>
+</tr>
+<tr>
+<td>gain goals: too slow / too fast</td>
+<td>trend</td>
+<td>+150 / −100 kcal/day</td>
+</tr>
+<tr>
+<td>maintenance drifting &gt; 0.25 kg/week</td>
+<td>trend</td>
+<td>±100 kcal/day</td>
+</tr>
+<tr>
+<td>cardio below goal / met; poor recovery with high cardio; resistance sessions below plan</td>
+<td>cardio + check-in</td>
+<td>informational</td>
+</tr>
+</tbody></table>
+<p>Calorie changes keep protein and fat. Carbohydrates take ±kcal/4 g. The weekly check-in records strength (down / same
+/ up), hunger 1–5, recovery 1–5 and resistance sessions done.</p>
+<h2>6. Recipe nutrition</h2>
+<p><strong>Cause of the missing values.</strong> Library recipes looked up each ingredient only by its exact Arabic name in the user&#39;s
+own food list. On a cloud account whose list does not contain those names, every recipe showed &quot;missing&quot; and no
+calories.</p>
+<p><strong>Fix.</strong> Each ingredient is resolved in this order:</p>
+<ol>
+<li><strong>The user&#39;s own food</strong> with that name. The owner&#39;s 160-food table contains all 68 names.</li>
+<li><strong>A hand-checked USDA FoodData Central reference</strong> (<code>recipeRefMap.ts</code>, 69 entries). The state is matched to the
+recipe weights: &quot;أرز أبيض&quot; is dry rice, as in the owner&#39;s table, while &quot;…مطبوخ&quot; and &quot;…مسلوق&quot; are cooked. The values
+are marked &quot;USDA&quot; and must be approved to be stored. Approval adds the food under the same Arabic name and never
+changes existing foods.</li>
+<li><strong>Missing.</strong> If no reliable reference exists (labneh), the ingredient is flagged, left out of the totals (never
+estimated) and offered as &quot;Add this food&quot;.</li>
+</ol>
+<p>The totals are the sum of the ingredients. Per serving = total ÷ servings, and the &quot;≈ g of ingredients per serving&quot; is
+shown. Cooking oil and added fats are counted. Seasonings without data are listed separately. Values recalculate live
+when foods change, and user recipes recalculate when ingredients or quantities change. Every card shows kcal, protein,
+carbohydrates and fat per serving. The details page also shows the totals and fibre.</p>
+<p><strong>Corrected.</strong></p>
+<ul>
+<li>The canned-tuna reference now matches the owner&#39;s table (116 kcal per 100 g).</li>
+<li>Both &quot;egg fried rice&quot; recipes weigh 200 g of <em>cooked &amp; chilled</em> rice but referenced the <em>raw</em> rice record
+(≈ 2.8× too many calories). They now use &quot;أرز أبيض مطبوخ&quot;. The user&#39;s saved recipes were not changed.</li>
+</ul>
+<p><strong>Needs the owner&#39;s approval (not changed).</strong> In the owner&#39;s table, &quot;واي بروتين (سكوب)&quot; has 120 kcal / 24 g protein /
+3 g carbs / 1.5 g fat <strong>per 100 g</strong>. These look like per-scoop (30 g) values; per 100 g, whey is ≈ 350–400 kcal and
+≈ 75–80 g protein. Recipes and diary entries with whey are therefore under-counted until the owner corrects the food.
+Five library recipes contain whey. <strong>Settings → Data check</strong> shows how many diary entries on the device are affected.
+The full audit is in <code>docs/RECIPE-AUDIT.md</code>.</p>
+<h2>7. Reports</h2>
+<p>The weekly and monthly reports add a <strong>Cardio · Goal progress</strong> card:</p>
+<ul>
+<li>total minutes and the change vs the previous period</li>
+<li>sessions, average session, active days, estimated kcal</li>
+<li>cardio goal % (weekly goal × days ÷ 7)</li>
+<li>overall goal completion: the mean of calories-in-range %, protein-days % and cardio-goal %</li>
+<li>plain-language insights</li>
+</ul>
+<p>The existing averages, weight and waist changes, adherence and goal completion are unchanged.</p>
+<h2>Revision history</h2><table border="1" style="border-collapse:collapse"><tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Description</th><th>By</th></tr><tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr></table></body></html>

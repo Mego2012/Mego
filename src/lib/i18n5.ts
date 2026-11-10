@@ -1,6 +1,14 @@
 /** Strings for workouts, training analytics and the rule-based coach (release 1.3). Parity test covers them. */
 export const en5: Record<string, string> = {
   nav_workouts: 'Workouts',
+  dc_title: 'Data check', dc_run: 'Run check', dc_note: 'Read-only check of the records on this device; nothing is changed.',
+  dc_entries: 'Food log entries', dc_daysWord: 'days', dc_range: 'First – last logged day', dc_body: 'Weigh-ins / waist measurements', dc_foods: 'Foods / my recipes',
+  dc_targets: 'Calorie targets (training / rest)', dc_backup: 'Latest pre-update backup',
+  dc_ok: 'All records are intact: every table has at least as many records as before the update.', dc_fewer: 'Some tables have fewer records than the pre-update backup — open Local backups to review; nothing was deleted by the app update.',
+  dc_noBackup: 'No pre-update backup on this device yet (it is created the first time a new version opens with data).',
+  dc_suspect: '“{name}” has {kcal} kcal and {p} g protein per 100 g — these look like per-scoop values (protein powder is usually 350–420 kcal per 100 g). Please check the label; nothing was changed.',
+  dc_affected: 'Affects {e} diary entries and {r} recipes',
+  fit_default: 'Default: one {min}-min cardio session after each of your {n} training days (not saved yet — saving any field stores it).', fit_saved: 'Saved by you: {s} sessions × {min} min.',
   rt_consistency: 'Consistency', rt_sets: 'Hard sets', rt_prs: 'New PRs', rt_trends: 'Strength trend',
   wt_overview: 'Overview', wt_today: 'Today', wt_program: 'Program', wt_library: 'Exercises', wt_progress: 'Progress', wt_coach: 'Coach', wt_recovery: 'Recovery',
   mus_chest: 'Chest', mus_back: 'Back', mus_shoulders: 'Shoulders', mus_biceps: 'Biceps', mus_triceps: 'Triceps', mus_quads: 'Quads', mus_hamstrings: 'Hamstrings', mus_glutes: 'Glutes', mus_calves: 'Calves', mus_abs: 'Abs', mus_forearms: 'Forearms',
@@ -88,6 +96,14 @@ export const en5: Record<string, string> = {
 
 export const ar5: Record<string, string> = {
   nav_workouts: 'التمارين',
+  dc_title: 'فحص البيانات', dc_run: 'تشغيل الفحص', dc_note: 'فحص للقراءة فقط للسجلات على هذا الجهاز؛ لا يغيّر أي شيء.',
+  dc_entries: 'سجلات الطعام', dc_daysWord: 'أيام', dc_range: 'أول – آخر يوم مسجّل', dc_body: 'الأوزان / قياسات الخصر', dc_foods: 'الأطعمة / وصفاتي',
+  dc_targets: 'أهداف السعرات (تمرين / راحة)', dc_backup: 'آخر نسخة قبل التحديث',
+  dc_ok: 'كل السجلات سليمة: كل جدول فيه عدد سجلات مساوٍ أو أكثر مما كان قبل التحديث.', dc_fewer: 'بعض الجداول فيها سجلات أقل من نسخة ما قبل التحديث — راجع النسخ الاحتياطية المحلية؛ تحديث التطبيق لم يحذف شيئاً.',
+  dc_noBackup: 'لا توجد نسخة قبل التحديث على هذا الجهاز بعد (تُنشأ عند أول فتح لإصدار جديد مع وجود بيانات).',
+  dc_suspect: '«{name}» قيمه {kcal} سعرة و{p} غ بروتين لكل 100 غ — تبدو قيماً لكل سكوب (البروتين المسحوق عادة 350–420 سعرة لكل 100 غ). يرجى مراجعة الملصق؛ لم يتغير شيء.',
+  dc_affected: 'يؤثر على {e} سجلات يوميات و{r} وصفات',
+  fit_default: 'الافتراضي: جلسة كارديو {min} دقائق بعد كل يوم من أيام تمرينك الـ{n} (غير محفوظ بعد — حفظ أي حقل يخزّنه).', fit_saved: 'محفوظ بواسطتك: {s} جلسات × {min} دقيقة.',
   rt_consistency: 'الالتزام', rt_sets: 'مجموعات فعلية', rt_prs: 'أرقام شخصية جديدة', rt_trends: 'اتجاه القوة',
   wt_overview: 'نظرة عامة', wt_today: 'اليوم', wt_program: 'البرنامج', wt_library: 'التمارين', wt_progress: 'التقدّم', wt_coach: 'المدرب', wt_recovery: 'الاستشفاء',
   mus_chest: 'الصدر', mus_back: 'الظهر', mus_shoulders: 'الأكتاف', mus_biceps: 'البايسبس', mus_triceps: 'الترايسبس', mus_quads: 'الفخذ الأمامي', mus_hamstrings: 'الفخذ الخلفي', mus_glutes: 'الأرداف', mus_calves: 'السمانة', mus_abs: 'البطن', mus_forearms: 'الساعد',

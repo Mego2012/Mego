@@ -1,0 +1,196 @@
+<html lang="en"><head><meta charset="utf-8"><title>Workouts, strength analytics and the training coach</title></head><body style="font-family:Arial"><h1>MEGO — Workouts, strength analytics and the training coach</h1><table border="1" style="border-collapse:collapse"><tr><td style="background:#e8f3ef"><b>Document ID</b></td><td>MEGO-DOC-79</td></tr><tr><td style="background:#e8f3ef"><b>Version</b></td><td>1.0</td></tr><tr><td style="background:#e8f3ef"><b>Created</b></td><td>2026-11-10</td></tr><tr><td style="background:#e8f3ef"><b>Last updated</b></td><td>2026-11-10</td></tr><tr><td style="background:#e8f3ef"><b>Owner</b></td><td>MEGO Project Owner</td></tr><tr><td style="background:#e8f3ef"><b>Status</b></td><td>Approved for internal use</td></tr><tr><td style="background:#e8f3ef"><b>Audience</b></td><td>Owner, developers, advanced users</td></tr><tr><td style="background:#e8f3ef"><b>Related documents</b></td><td>MEGO_Calorie_and_Macronutrient_Calculation_Methodology, MEGO_Daily_Calorie_Target_Calculation, MEGO_User_Manual</td></tr></table><p>Version 1.0 · 10 November 2026 · Code: <code>src/lib/exercises.ts</code>, <code>src/lib/workouts.ts</code>, <code>src/lib/trainingCoach.ts</code>,
+<code>src/lib/energy.ts</code>, <code>src/pages/Workouts.tsx</code> · Tests: <code>tests/workouts.test.ts</code> (32) · e2e: WORKOUT, PROGRAM-GEN,
+EX-LIB, COACH-TRAIN, TRAIN-EN · live: &quot;Workouts (account A)…&quot; in <code>scripts/live-verify.mjs</code>.</p>
+<h2>1. Data protection</h2>
+<ul>
+<li><p><strong>No schema change</strong> (database version 2). Training data is stored as new records in the existing synced key/value
+table:</p>
+<table border="1" style="border-collapse:collapse">
+<thead>
+<tr style="background:#e8f3ef">
+<th>Record key</th>
+<th>Contents</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>program:&lt;id&gt;</code></td>
+<td>a training program</td>
+</tr>
+<tr>
+<td><code>activeProgram</code></td>
+<td>which program is active</td>
+</tr>
+<tr>
+<td><code>workout:&lt;id&gt;</code></td>
+<td>one per session</td>
+</tr>
+<tr>
+<td><code>exercise:&lt;id&gt;</code></td>
+<td>a custom exercise</td>
+</tr>
+<tr>
+<td><code>recovery:&lt;date&gt;</code></td>
+<td>a daily recovery log</td>
+</tr>
+<tr>
+<td><code>preferredExercises</code></td>
+<td>exercises you marked as preferred</td>
+</tr>
+</tbody></table>
+<p>The live server rules already restrict these records to their owner. Tests confirm that account B gets 403 and sees
+an empty history.</p>
+</li>
+<li><p><strong>Pre-update backup.</strong> The first start of release <code>1.3-training</code> saves a full snapshot first, once per release.
+Rotation never removes it.</p>
+</li>
+<li><p><strong>The backup is restorable.</strong> A test restores a pre-update backup into an empty database and gets identical diary
+entries, foods and body records.</p>
+</li>
+<li><p>Deleting a workout removes only that session. Deleting a program never touches workout history, and the active
+program cannot be deleted. Editing a program never changes logged sessions.</p>
+</li>
+</ul>
+<h2>2. Exercise library</h2>
+<ul>
+<li>54 built-in exercises.</li>
+<li>Each has an Arabic and English name, primary and secondary muscles, equipment, a category (compound or isolation),
+a recommended sets × reps and rest, instructions in both languages, and alternatives.</li>
+<li>Alternatives are always filtered to the equipment you have.</li>
+<li>You can add custom exercises.</li>
+<li>No exercise photos: no freely licensed set of these movements was available. A drawn diagram highlights the
+target muscles instead.</li>
+</ul>
+<h2>3. Program generator (keeps your split)</h2>
+<p>The input is your split (default: the owner&#39;s 6 days plus rest, mapped to the training weekdays already in Settings:
+Saturday … Thursday, with Friday as rest), plus:</p>
+<ul>
+<li>experience</li>
+<li>available equipment</li>
+<li>weekly sets per muscle (beginner 10 / intermediate 14 / advanced 16)</li>
+<li>pull-ups and dips per week</li>
+<li>preferred exercises</li>
+<li>exercises logged in the last 6 weeks</li>
+</ul>
+<p>Rules:</p>
+<ul>
+<li><strong>The split is never changed.</strong> &quot;Keep my current split&quot; is the default.</li>
+<li><strong>Volume.</strong> Per muscle: sets per session = weekly target ÷ times trained per week, capped at 10 per session for a big
+muscle (8 when the day trains 3 or more muscles) and 6 for a small one. Each day is capped at 24 sets, trimming
+isolation sets first. The aim is roughly 10–20 hard sets per muscle per week.</li>
+<li><strong>Exercise choice.</strong> One compound first, chosen for strength retention in a deficit. Then a second compound angle
+or an isolation exercise. Near-duplicates of the same type are never put on the same day (for example two squat
+variants). A muscle&#39;s second day of the week prefers variations not yet used. Exercises you already train or marked
+as preferred are kept.</li>
+<li><strong>Pull-ups and dips</strong> go first on back and triceps days. Any extra weekly frequency goes on biceps days (pull-ups)
+and chest days (dips), at most once per day. With the owner&#39;s split, up to 3 dips per week fit.</li>
+<li><strong>Rep ranges and effort.</strong> Each exercise&#39;s recommended range (heavy compounds 5–10, isolation 10–20). Target RIR is
+2 for heavy compounds and 1 for isolation. Rest is 60–180 s.</li>
+<li>Every exercise shows why it was chosen. The result is saved only as a new program, and only if you choose to.</li>
+</ul>
+<h2>4. Session logging</h2>
+<p>Each set records weight, reps, RIR (0–5+), RPE (optional) and done. Each exercise can be marked skipped and have
+notes. Ticking a set starts its rest timer. Each exercise shows its last performance next to the current one. Weights
+are prefilled from the progression advice, and you can change everything.</p>
+<h2>5. Strength analytics</h2>
+<ul>
+<li><strong>e1RM (Epley):</strong> w × (1 + reps/30), using sets of 12 reps or fewer. For body-weight exercises the load is body
+weight plus added weight.</li>
+<li><strong>Volume:</strong> Σ load × reps.</li>
+<li><strong>Personal records:</strong> best e1RM, heaviest weight, most reps in a set, best session volume.</li>
+<li><strong>Trend:</strong> the mean e1RM of the last 3 sessions compared with the 3 before it.<ul>
+<li>more than +2 % → improving</li>
+<li>less than −2 % → declining</li>
+<li>otherwise stable</li>
+<li>fewer than 4 sessions → insufficient data</li>
+</ul>
+</li>
+<li><strong>Weekly sets per muscle:</strong> primary 1 set, secondary ½. The warning line is above max(20, goal + 6).</li>
+</ul>
+<h2>6. Progression (double progression)</h2>
+<p>All prescribed sets reach the top of the rep range:</p>
+<ul>
+<li><strong>RIR ≥ 1 on every set (or RPE ≤ 9):</strong> increase weight, high confidence. Step: +2.5 kg; +5 kg for lower-body
+compounds at 100 kg or more; +1 kg under 20 kg.</li>
+<li><strong>RIR/RPE not recorded:</strong> increase weight, medium confidence, and the app says why.</li>
+<li><strong>Reached at failure (RIR 0 / RPE 10):</strong> keep the weight.</li>
+</ul>
+<p>Otherwise:</p>
+<ul>
+<li><strong>All sets within the range:</strong> add reps at the same weight. Completing a workout alone never raises the weight.</li>
+<li><strong>Below the range once:</strong> keep the weight.</li>
+<li><strong>Below the range twice in a row:</strong> reduce by about 5 %.</li>
+<li><strong>Declining trend with poor recovery, or a drop of more than 5 %:</strong> reduce by about 10 %.</li>
+<li><strong>No new best in the last 3 of 6 or more sessions:</strong> consider replacing the exercise; alternatives are listed.</li>
+</ul>
+<p>Nothing changes the program automatically.</p>
+<h2>7. Recovery</h2>
+<p>The daily log is optional: sleep hours, plus soreness, energy and fatigue on a 1–5 scale. Warnings cover:</p>
+<ul>
+<li>average sleep under 6.5 h</li>
+<li>soreness of 4 or more</li>
+<li>energy of 2 or less</li>
+<li>fatigue of 4 or more</li>
+<li>7 or more training days in a row</li>
+<li>very high weekly volume</li>
+<li>2 or more exercises declining</li>
+<li>cardio above twice the plan while leg performance declines</li>
+</ul>
+<p>These are not a medical assessment, and nothing is diagnosed.</p>
+<h2>8. Calories (no double counting, no surplus on fat loss)</h2>
+<ul>
+<li>Saved targets (for example the owner&#39;s 2,110 kcal) are never changed. A test confirms this.</li>
+<li>Your planned resistance days per week are inside the TDEE through the activity level, so planned workouts add
+nothing.</li>
+<li>Only sessions beyond the plan in the last 7 days count: net energy (3.5 − 1 MET) × kg × duration. They are added
+back with the same goal-based share and the same 400 kcal/day cap as cardio, and each step is explained on Home.</li>
+<li>For fat-loss goals:<ul>
+<li>Any <strong>suggested</strong> calorie increase (Goals recommendations) is limited so the target stays at or below 90 % of
+TDEE, so the app never suggests a surplus. If there is no room, it recommends recovery and protein instead.</li>
+<li>The <strong>daily adjusted</strong> target is limited to 90 % of that day&#39;s expenditure (TDEE + extra exercise), so exercise
+never turns a day into maintenance or surplus.</li>
+</ul>
+</li>
+</ul>
+<h2>9. Coach (rule-based, on the phone, free)</h2>
+<p>The coach answers these questions from logged data only, each with a confidence level and the data it is based on:</p>
+<ul>
+<li>What should I train today?</li>
+<li>What weight should I use today?</li>
+<li>Am I progressing?</li>
+<li>Should I increase my weight?</li>
+<li>Why has my performance declined? It lists only factors present in the data.</li>
+<li>Am I doing too many sets?</li>
+<li>Is my weekly volume sufficient?</li>
+<li>Which muscles need more attention?</li>
+<li>Should I take an extra rest day?</li>
+</ul>
+<p>When data is missing, it says so. It uses no external AI service and has no cost.</p>
+<p><strong>Nutrition × training checks:</strong></p>
+<ul>
+<li>the deficit vs TDEE (10–25 % is appropriate)</li>
+<li>the loss rate (0.25–1 % per week)</li>
+<li>protein (1.8 g/kg or more)</li>
+<li>carbohydrates (under 2 g/kg → place carbohydrates around training, same calories)</li>
+</ul>
+<h2>10. Weekly review</h2>
+<p>The review covers last week, or this week so far. It has 8 <strong>observations</strong>:</p>
+<ol>
+<li>nutrition adherence</li>
+<li>weight trend</li>
+<li>waist</li>
+<li>strength (PRs, trends)</li>
+<li>workout consistency</li>
+<li>cardio</li>
+<li>recovery</li>
+<li>goal progress</li>
+</ol>
+<p><strong>Recommendations</strong> are listed separately, as suggestions only.</p>
+<h2>11. Reports and dashboards</h2>
+<ul>
+<li><strong>Weekly and monthly reports</strong> add a Workouts card: sessions vs planned, consistency, hard sets, volume, new PRs,
+strength trends and sets per muscle.</li>
+<li><strong>Home</strong> shows today&#39;s workout.</li>
+<li><strong>Workouts → Overview</strong> is the unified dashboard: body, today&#39;s nutrition, week, strength, muscle volume, recovery
+and what to focus on.</li>
+</ul>
+<h2>Revision history</h2><table border="1" style="border-collapse:collapse"><tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Description</th><th>By</th></tr><tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr></table></body></html>

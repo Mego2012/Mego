@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Food_Data_Validation_and_Quality_Control_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Food Data Validation and Quality Control</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-28</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Project owner, developers, nutrition reviewers, testers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Food_Database_Import_and_Update_Procedures, MEGO_Missing_and_Duplicate_Foods_Management, MEGO_Calorie_and_Macronutrient_Calculation_Methodology, MEGO_Food_Database_Administration, MEGO_Nutrition_Calculation_Accuracy_Tests</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document lists every quality-control layer that protects MEGO's food data: hard validation that rejects impossible values, the energy plausibility check, the import audit, flags carried from USDA, the Hub comparison, barcode validation, the read-only <b>Data check</b> in Settings (record counts, per-serving suspect foods, possible duplicates) and the recipe nutrition audit (<code>docs/RECIPE-AUDIT.md</code>). The guiding rule in all layers: <b>values are flagged, never silently changed or invented</b>. Sources: <code>src/lib/nutrition.ts</code>, <code>src/lib/repo.ts</code>, <code>src/lib/sheetImport.ts</code>, <code>scripts/build-food-db.mjs</code>, <code>src/lib/sync.ts</code>, <code>src/lib/barcode.ts</code>, <code>src/lib/dataCheck.ts</code>, <code>scripts/recipe-audit.mts</code>, <code>src/pages/Foods.tsx</code>, <code>src/pages/Settings.tsx</code>.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Overview of the control layers</li>
+<li>Hard validation (values that are rejected)</li>
+<li>Energy plausibility check</li>
+<li>Import audit (CSV, Excel, Hub)</li>
+<li>Incomplete foods</li>
+<li>Source flags (USDA, Open Food Facts, notes)</li>
+<li>Hub comparison and barcode validation</li>
+<li>Data check in Settings</li>
+<li>Recipe nutrition audit</li>
+<li>Owner's review procedure</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. Overview of the control layers</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Layer</th><th>When</th><th>Effect</th></tr>
+<tr><td>Hard validation (<code>validateMacros</code>)</td><td>create / update / JSON import</td><td>save refused</td></tr>
+<tr><td>Energy check (<code>explainEnergy</code>, <code>isEnergySuspicious</code>)</td><td>food editor, Foods page, import</td><td>explanation or flag; values kept</td></tr>
+<tr><td>Import audit (<code>auditFoods</code>)</td><td>before CSV/Excel import</td><td>preview with counts and rows</td></tr>
+<tr><td>Incomplete flag</td><td>missing or all-zero values</td><td>food cannot be logged</td></tr>
+<tr><td>USDA energy flag</td><td>database build</td><td>note on the food</td></tr>
+<tr><td>Hub comparison (<code>checkHubFoods</code>)</td><td>connecting the Hub</td><td>stop on differences</td></tr>
+<tr><td>Data check (<code>runDataCheck</code>)</td><td>on demand, Settings</td><td>read-only report</td></tr>
+<tr><td>Recipe audit (<code>recipe-audit.mts</code>)</td><td>developer run</td><td><code>docs/RECIPE-AUDIT.md</code></td></tr>
+</table>
+
+<h2>2. Hard validation (values that are rejected)</h2>
+<p><code>validateMacros()</code> runs in <code>createFood</code>, <code>updateFood</code> and the personal-foods JSON import. Any error refuses the save ("Invalid nutrition values: …").</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Code</th><th>Rule (per 100 g)</th></tr>
+<tr><td><code>&lt;key&gt;:nan</code></td><td>kcal, protein, carbs, fat missing or not a finite number (optional nutrients may be absent)</td></tr>
+<tr><td><code>&lt;key&gt;:negative</code></td><td>any value below 0</td></tr>
+<tr><td><code>macros:over100g</code></td><td>protein + carbs + fat &gt; 100.5 g</td></tr>
+<tr><td><code>fiber:overCarbs</code></td><td>fibre &gt; carbs + 0.5 (when carbs &gt; 0)</td></tr>
+<tr><td><code>sugar:overCarbs</code></td><td>sugar &gt; carbs + 0.5</td></tr>
+<tr><td><code>kcal:over900</code></td><td>kcal &gt; 900.5 (pure fat is ≈ 900 kcal/100 g)</td></tr>
+</table>
+<p><b>Example:</b> 950 kcal, P 60, C 30, F 20, fibre 40 → <code>macros:over100g</code> (110 g), <code>fiber:overCarbs</code>, <code>kcal:over900</code>. A name (Arabic or English) is also required.</p>
+
+<h2>3. Energy plausibility check</h2>
+<p>kcal is compared with 4P + 4C + 9F. Differences under 5 % or 8 kcal are ignored; larger ones are explained as fibre, nuts or animal food where the pattern fits; otherwise the food is "suspicious" when the reason is <i>review</i>, |pct| ≥ 10 % and |diff| ≥ 10 kcal. Full rules and worked examples: MEGO_Calorie_and_Macronutrient_Calculation_Methodology §6. The food editor shows the calculated value and the explanation live; the Foods page "Issues" card counts suspicious foods.</p>
+<p><b>Observation:</b> the issue label reads "Calories don't match macros (&gt;15%)", while the code threshold is ≥ 10 % (plus ≥ 10 kcal and no fibre/nuts/animal explanation). The label text is therefore stricter than the rule actually applied; recorded for the owner (no code change made).</p>
+
+<h2>4. Import audit (CSV, Excel, Hub)</h2>
+<p>Each parsed row gets a list of issues; the import preview shows the counts and up to 60 affected rows with their sheet row numbers. Issues never block the import.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Issue</th><th>Detected when</th></tr>
+<tr><td>zeroValues</td><td>kcal, protein, carbs and fat are all 0</td></tr>
+<tr><td>missingValues</td><td>a required value cell is empty, "—", "-", unreadable or negative</td></tr>
+<tr><td>decimalComma</td><td>a value like "2,6" was read as 2.6</td></tr>
+<tr><td>energyMismatch</td><td><code>isEnergySuspicious</code> is true (file import)</td></tr>
+<tr><td>over100g</td><td>P + C + F &gt; 100.5 g (file import)</td></tr>
+<tr><td>duplicateName</td><td>the same Arabic name appears more than once (all occurrences marked)</td></tr>
+<tr><td>flaggedInNotes</td><td>notes contain ⚠, «غير محقق», «تقريبي», «تقديري» or «للمراجعة»</td></tr>
+<tr><td>missingPieceWeight (count only)</td><td>no piece weight</td></tr>
+</table>
+<p>The audit also tallies states (raw / cooked / other), state labels and categories. Before every confirmed import a local <code>pre-import</code> backup is saved.</p>
+
+<h2>5. Incomplete foods</h2>
+<p>A food whose four main values are all 0 is <code>incomplete</code> (<code>isIncompleteMacros</code>); an imported food with missing values is also marked incomplete. Logging it throws <code>INCOMPLETE_FOOD</code>, recipes treat it as not available, and the Foods "Issues" card counts it. The fix is to edit the food and enter the label values.</p>
+
+<h2>6. Source flags (USDA, Open Food Facts, notes)</h2>
+<ul>
+<li><b>USDA:</b> the build script flags (does not change) rows where kcal &gt; 40 and |4P+4C+9F − kcal| ÷ kcal &gt; 25 % — 211 of 12,879 rows. When such a food is copied into a user's list, its note ends with "⚠ calories vs macros differ in the source data".</li>
+<li><b>Open Food Facts:</b> community data; saved with the note "Open Food Facts — external data, verify with label"; text-search results without kcal, protein, carbs and fat are dropped.</li>
+<li><b>Hub verification column:</b> Food_Database carries a verification value (verified-usda / estimated / unverified / user). Notes containing the markers in §4 are treated as estimated: recipes using such a food are labelled as estimates.</li>
+</ul>
+
+<h2>7. Hub comparison and barcode validation</h2>
+<p><b>Hub:</b> before importing the Hub's foods the app compares them with the phone (by Arabic name + state; kcal, protein, carbs, fat and piece weight). Any difference stops the flow until the owner accepts the Hub values; foods only in the Hub or only on the phone are listed.</p>
+<p><b>Barcode:</b> EAN-8, EAN-13 (also 12- and 14-digit) codes must pass the check digit. Example 4006381333931: weighted sum of the first 12 digits from the right (×3, ×1, …) = 89 → (10 − 9) mod 10 = 1 = last digit → valid.</p>
+
+<h2>8. Data check in Settings</h2>
+<p>Settings → <b>Data check</b> → <b>Run check</b> (<code>runDataCheck</code>). "Read-only check of the records on this device; nothing is changed." It reports:</p>
+<ol>
+<li><b>Record counts:</b> food log entries and logged days, first–last logged day, weigh-ins / waist measurements, foods / my recipes, calorie targets (training / rest), latest pre-update backup (date, release, entries).</li>
+<li><b>Integrity vs the pre-update backup</b> (one is saved per release, currently <code>1.3-training</code>): <i>intact</i> when entries, body records, day logs and foods are each ≥ the counts in that backup; otherwise "Some tables have fewer records than the pre-update backup — open Local backups to review". Without such a backup the result is "No pre-update backup on this device yet".</li>
+<li><b>Per-serving suspect foods</b> (<code>suspectPerServing</code>): name or category matches protein powder words (واي, whey, بروتين سكوب/مسحوق, protein powder, isolate, كازين, casein) AND 0 &lt; kcal per 100 g &lt; 250. A protein powder is about 350–420 kcal per 100 g, so a lower value almost certainly means per-scoop values were typed as per 100 g. The report names the food, its kcal and protein, and how many diary entries, own recipes and library recipes use it. Example: 120 kcal / 24 g protein → flagged; USDA whey powder 352 kcal / 78.13 g → not flagged. The owner does not use whey; the flag is informational only.</li>
+<li><b>Possible duplicates:</b> diary items with the same date, meal, name (case-insensitive) and rounded grams, and own foods with the same name — see MEGO_Missing_and_Duplicate_Foods_Management. Nothing is removed.</li>
+</ol>
+
+<h2>9. Recipe nutrition audit</h2>
+<p><code>scripts/recipe-audit.mts</code> (run with <code>npx tsx scripts/recipe-audit.mts</code>) computes all library recipes from USDA references only (what a new account sees) and, when the owner's private food table is present locally (<code>tests/private</code>, never committed), from the owner's values too. It writes <code>docs/RECIPE-AUDIT.md</code>. Checks per recipe: missing ingredients; per-serving kcal vs 4P+4C+9F differing by &gt; 15 %; kcal per serving &lt; 80 or &gt; 1,300; owner-table vs USDA result differing by &gt; 15 %; recipes containing whey.</p>
+<p><b>Audit of 2026-11-10:</b> 101 recipes, 100 fully resolved; unresolved ingredient: labneh (لبنة) — never estimated; 68 hand-checked USDA references; 6 flagged recipes:</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Recipe</th><th>Flag</th></tr>
+<tr><td>lib-protein-pancakes</td><td>owner table vs USDA −15 %; contains whey</td></tr>
+<tr><td>lib-labneh-plate</td><td>missing labneh; owner vs USDA 21 %</td></tr>
+<tr><td>lib-mango-protein-yogurt</td><td>owner vs USDA −15 %; contains whey</td></tr>
+<tr><td>lib-protein-shake</td><td>owner vs USDA −17 %; contains whey</td></tr>
+<tr><td>lib-protein-mousse</td><td>owner vs USDA −23 %; contains whey</td></tr>
+<tr><td>lib-date-tahini-bites</td><td>contains whey</td></tr>
+</table>
+<p>The owner's private food values are not published in the audit file.</p>
+
+<h2>10. Owner's review procedure</h2>
+<ol>
+<li>After each release: run <b>Data check</b> on the main device and confirm "All records are intact".</li>
+<li>Open any per-serving suspect food, compare with the package label, and correct the value per 100 g (the food editor can convert from "per serving").</li>
+<li>Review the Foods page "Issues" counts (no values, calorie mismatch, flagged in notes) and fix or confirm each food.</li>
+<li>Before a Hub import, resolve differences shown by the comparison.</li>
+<li>After changing recipe data or USDA references, re-run the recipe audit and review the flags.</li>
+</ol>
+
+<h2>11. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>All rules and thresholds</td><td>Verified in the source files listed in the scope</td></tr>
+<tr><td>Examples (validation, suspect food, barcode)</td><td>Computed by running the app functions on 10 Nov 2026</td></tr>
+<tr><td>Recipe audit figures</td><td>Taken from <code>docs/RECIPE-AUDIT.md</code> (generated 2026-11-10)</td></tr>
+<tr><td>Automated tests</td><td>Unit tests 199/199 (vitest, 14 files, run 10 Nov 2026), incl. import audit, energy reasons, data check and recipe resolution</td></tr>
+<tr><td>Data check on the owner's real Android phone</td><td>Not verified in this document</td></tr>
+</table>
+
+<h2>12. Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

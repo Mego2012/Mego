@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Data_Backup_and_Recovery_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Data Backup and Recovery (including operational procedures)</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-47</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Project owner, support, developers, advanced users</td></tr>
+<tr><td>Related documents</td><td>MEGO_Backup_and_Export_Guide, MEGO_Data_Retention_and_Deletion, MEGO_Security_Architecture, MEGO_Google_Sheets_Integration_and_Sync, MEGO_Troubleshooting_Manual, MEGO_Support_and_Incident_Management, MEGO_Known_Bugs_and_Limitations, MEGO_Update_and_Rollback_Procedures</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document describes every backup mechanism that exists in MEGO, what each one contains and where it lives, and gives step-by-step recovery procedures for the realistic failure scenarios — including the storage-loss incident of 10 November 2026 and the fix that is now live. It merges the "Data Backup and Recovery" and "Backup and Recovery Procedures" topics into one document. The end-user view of the buttons is in MEGO_Backup_and_Export_Guide.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Backup layers overview</li>
+<li>On-device automatic backups</li>
+<li>Backup files and exports</li>
+<li>Cloud copy (signed-in accounts)</li>
+<li>Owner Hub backups (Google Sheets / Drive)</li>
+<li>What is not backed up</li>
+<li>Restore behaviour</li>
+<li>Recovery procedures by scenario</li>
+<li>Incident 10 Nov 2026: storage loss on an Android phone</li>
+<li>Operational schedule and checks</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Backup layers overview</h2>
+<pre>
+ Layer                     Where                                Protects against
+ ───────────────────────── ──────────────────────────────────── ────────────────────────────────
+ 1 Local automatic backups  inside the device database (IndexedDB) bad import/restore, bad update
+ 2 Pre-migration snapshot   separate DB  mego-nutrition-premigration  schema upgrade problems
+ 3 Backup file (JSON)       user's Downloads / any storage       device loss (guest and account)
+ 4 Cloud sync (Firestore)   users/{uid}/... in me-central2       device loss (signed-in accounts)
+ 5 Hub + Drive copies       owner's Google Drive                 owner's data, Hub structure changes
+</pre>
+<p>Layers 1 and 2 live in the same browser storage as the data; they do <b>not</b> survive loss of that storage. Layers 3–5 do.</p>
+
+<h2>2. On-device automatic backups</h2>
+<p>Code: <code>src/lib/localBackup.ts</code>. A backup is a full JSON snapshot of all synced tables saved in the <code>backups</code> table of the current device database.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Reason</th><th>When</th></tr>
+<tr><td><code>auto-daily</code></td><td>Once per calendar day at app start, if there is data</td></tr>
+<tr><td><code>pre-update</code></td><td>Once per app release and database before the new release writes anything (current release id <code>APP_RELEASE = '1.3-training'</code>)</td></tr>
+<tr><td><code>pre-restore</code></td><td>Before restoring a local backup or a backup file</td></tr>
+<tr><td><code>pre-import</code></td><td>Before importing foods or data files</td></tr>
+<tr><td><code>pre-pull</code></td><td>Before "Restore from sheet" (Hub)</td></tr>
+<tr><td><code>manual</code></td><td>Settings → "Back up now"</td></tr>
+</table>
+<p><b>Rotation:</b> the 10 most recent backups are kept; the 3 most recent <code>pre-update</code> backups are protected and never rotated out. Each signed-in account has its own backups inside <code>mego-u-&lt;uid&gt;</code>.</p>
+<p><b>Pre-migration snapshot:</b> before Dexie upgrades the schema, <code>preMigrationBackup()</code> (<code>src/lib/db.ts</code>) copies the old database into <code>mego-nutrition-premigration</code>. Settings lists these snapshots. Dexie schema is still version 2.</p>
+<p><b>Data check:</b> Settings → Data check (<code>src/lib/dataCheck.ts</code>, read-only) compares current record counts with the latest pre-update backup and reports "All records are intact" or "Some tables have fewer records…".</p>
+
+<h2>3. Backup files and exports</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Action</th><th>Result</th></tr>
+<tr><td>Settings → Data &amp; backups → "Download backup file" (also account card → "Export my data")</td><td><code>mego-nutrition-backup-&lt;date-time&gt;.json</code>, format <code>mego-nutrition-backup</code> v1, all 12 synced tables; the sync token is removed</td></tr>
+<tr><td>"Export full diary (CSV)"; report exports CSV/XLSX</td><td>Readable exports; not restorable as a full backup</td></tr>
+<tr><td>"Backup to Google Drive" (owner devices with a Hub connection)</td><td>Apps Script saves the JSON snapshot in the Drive folder "MEGO Nutrition Backups" as <code>mego-backup-&lt;date_time&gt;.json</code></td></tr>
+</table>
+<p>Backup files are not encrypted. They contain personal data and should be stored privately.</p>
+
+<h2>4. Cloud copy (signed-in accounts)</h2>
+<ul>
+<li>Every local change goes through an outbox and is written to <code>users/{uid}/{table}/{key}</code> in Firestore; other devices receive it through live listeners (<code>src/lib/cloudSync.ts</code>).</li>
+<li>The cloud copy is a <b>synchronised copy</b>, not a versioned backup: a deletion or an edit is propagated to the cloud too. Deletions are stored as tombstones (<code>deleted: true</code>, empty data).</li>
+<li>No scheduled Firestore export or point-in-time recovery is configured in this repository. Whether such features are available on the free Spark plan was not checked (Not verified).</li>
+</ul>
+
+<h2>5. Owner Hub backups (Google Sheets / Drive)</h2>
+<ul>
+<li>The original Excel Hub file is kept unchanged as the original backup; a dated copy "BACKUP MEGO Nutrition Hub — before migrateHub — …" was created on 7 Nov 2026.</li>
+<li><code>backupHub_()</code> makes a full Drive copy named "BACKUP MEGO Nutrition Hub — &lt;reason&gt; — &lt;timestamp&gt;" before migrations and, through <code>backupOncePerDay_()</code>, once per day before the first food write-back (<code>saveFoods</code>). Each backup is logged in the <code>Backup_Log</code> tab.</li>
+<li>Deleted rows are copied into <code>Deleted_Records</code> (table, key, deleted_at, JSON, recovered) before removal — soft delete. Recovery from this tab is manual (copy the JSON back); there is no automatic undelete function.</li>
+<li>Older copies never overwrite newer ones (timestamp check; conflicts reported).</li>
+</ul>
+
+<h2>6. What is not backed up</h2>
+<ul>
+<li><b>Progress photos</b> (<code>photos</code> table): device only — not synced, not in backup files.</li>
+<li>Pending outbox items (not yet uploaded changes) are not in backup files.</li>
+<li>Guest data without a backup file or Hub connection: only on the device.</li>
+<li>Firebase accounts themselves (logins) cannot be restored after deletion.</li>
+</ul>
+
+<h2>7. Restore behaviour</h2>
+<ol>
+<li>The file is parsed; format must be <code>mego-nutrition-backup</code>; each table must be an array; every record must have its key; diary entries must have numeric calories. On any error nothing is written.</li>
+<li>A <code>pre-restore</code> backup of the current data is saved.</li>
+<li>Records are <b>merged</b> in one transaction: a backup record is written if it does not exist locally or its <code>updatedAt</code> is the same or newer. Nothing is deleted. Settings are replaced, but the device's sync configuration is kept.</li>
+<li>In account mode, restored records reach the cloud through the normal sync.</li>
+</ol>
+
+<h2>8. Recovery procedures by scenario</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Scenario</th><th>Procedure</th></tr>
+<tr><td>A. Signed-in user: phone lost, reset, new phone, or browser data cleared</td><td>Open the app → Sign in with the same e-mail and password → wait for the download (all synced tables return). Progress photos cannot be recovered.</td></tr>
+<tr><td>B. Signed-in user: app shows the welcome screen unexpectedly</td><td>Sign in again with the same account. Since the 10 Nov fix, a missing local database triggers a full download. If data is still missing after a few minutes online, see section 9 and contact support.</td></tr>
+<tr><td>C. Guest user: device data lost</td><td>Restore from the latest backup file (Settings → "Restore from backup file"). Without a backup file the data cannot be recovered. Owner device with Hub: "Restore from sheet".</td></tr>
+<tr><td>D. Wrong import or restore</td><td>Settings → Local backups → pick the <code>pre-import</code> / <code>pre-restore</code> backup → Restore. Note: restore merges, so records added by the wrong import remain and must be deleted manually.</td></tr>
+<tr><td>E. Problem after an app update</td><td>Settings → Data check. If it reports fewer records, restore the <code>pre-update</code> backup from Local backups.</td></tr>
+<tr><td>F. Problem after a schema upgrade</td><td>Pre-migration snapshot in <code>mego-nutrition-premigration</code> (listed in Settings). Restoring it requires developer help (Not verified as an in-app action).</td></tr>
+<tr><td>G. Hub sheet damaged</td><td>Open the latest "BACKUP MEGO Nutrition Hub — …" copy in Drive (File → Make a copy) or recover single rows from <code>Deleted_Records</code>. Then re-sync the owner device.</td></tr>
+<tr><td>H. Accidental account deletion</td><td>Not recoverable from the cloud; only from a backup file previously downloaded, imported into a new account.</td></tr>
+</table>
+
+<h2>9. Incident 10 Nov 2026: storage loss on an Android phone</h2>
+<h3>9.1 What happened</h3>
+<p>On an Android phone, the browser lost the app's IndexedDB storage (all local records and the Firebase session) while localStorage survived. The app showed the welcome screen. After the user signed in again, the app stayed empty. The same had happened once before.</p>
+<h3>9.2 Root cause</h3>
+<ul>
+<li>The cloud listener started each table from a "last seen" marker kept in localStorage. Because the markers survived but the records did not, the listener only asked for records newer than the marker, so the older records were never downloaded again.</li>
+<li>A fresh default settings record created on the empty device could outrank the saved settings in the cloud.</li>
+</ul>
+<h3>9.3 Fix (live; <code>src/lib/cloudSync.ts</code>, <code>account.ts</code>, <code>repo.ts</code>)</h3>
+<ul>
+<li>Markers renamed to <code>mego.cloud2.</code> — every device re-downloads its account in full once.</li>
+<li>At start-up, if the account's local database is missing, the markers are reset (<code>resetCloudMarkers</code>).</li>
+<li>An empty local table always downloads in full; settings are always re-read.</li>
+<li>Untouched default settings (never saved by the user) never outrank the cloud copy.</li>
+<li>One record that cannot be applied no longer stops the rest of the download (it is reported instead).</li>
+<li>Weigh-ins with the same date: the newer one is kept on the device; the other stays untouched in the cloud.</li>
+</ul>
+<h3>9.4 Verification and lesson</h3>
+<p>Reproduced and verified on the Firebase emulators (<code>e2e/storage-loss.mjs</code>); the owner confirmed the data came back. <b>Lesson for users:</b> signed-in accounts are recoverable by signing in again; guest data lives only on the device — download backup files regularly.</p>
+
+<h2>10. Operational schedule and checks</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Frequency</th><th>Task</th><th>Who</th></tr>
+<tr><td>Weekly (recommended)</td><td>Download a backup file; for guest users this is the only off-device copy</td><td>User</td></tr>
+<tr><td>After each release</td><td>Run Settings → Data check on the main device</td><td>Owner</td></tr>
+<tr><td>Monthly (recommended)</td><td>Check that "BACKUP MEGO Nutrition Hub" copies and <code>Backup_Log</code> entries exist in Drive</td><td>Owner</td></tr>
+<tr><td>Before rules or backend changes</td><td>Take a manual backup file; Hub changes create a Drive copy automatically</td><td>Owner</td></tr>
+<tr><td>Periodically</td><td>Test a restore of a backup file on a spare browser profile</td><td>Owner</td></tr>
+</table>
+<p>The frequencies above are recommendations, not automated jobs.</p>
+
+<h2>11. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Local backups, rotation, restore validation and merge</td><td>Unit tests (195 in total, vitest)</td></tr>
+<tr><td>Storage-loss recovery</td><td>Emulator scenario <code>e2e/storage-loss.mjs</code>; owner confirmed recovery on the real phone</td></tr>
+<tr><td>Hub backup before migrateHub, soft delete, older copy never overwrites newer</td><td>Verified live (laptop-setup live tests)</td></tr>
+<tr><td>Second-device live sync</td><td>Verified live (<code>scripts/live-verify.mjs</code>)</td></tr>
+<tr><td>"Backup to Google Drive" button against the live Hub</td><td>Not verified</td></tr>
+<tr><td>Restore of a pre-migration snapshot</td><td>Not verified</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

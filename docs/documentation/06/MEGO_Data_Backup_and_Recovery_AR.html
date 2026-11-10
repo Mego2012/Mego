@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Data_Backup_and_Recovery_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — النسخ الاحتياطي للبيانات واستعادتها (مع الإجراءات التشغيلية)</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-47</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع، الدعم، المطوّرون، المستخدمون المتقدمون</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Backup_and_Export_Guide، MEGO_Data_Retention_and_Deletion، MEGO_Security_Architecture، MEGO_Google_Sheets_Integration_and_Sync، MEGO_Troubleshooting_Manual، MEGO_Support_and_Incident_Management، MEGO_Known_Bugs_and_Limitations، MEGO_Update_and_Rollback_Procedures</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تصف هذه الوثيقة كل آليات النسخ الاحتياطي الموجودة في MEGO، ومحتوى كل منها ومكان حفظه، وتقدّم إجراءات استعادة خطوة بخطوة لسيناريوهات الأعطال الواقعية — ومنها حادثة فقدان التخزين في 10 نوفمبر 2026 والإصلاح المعمول به الآن. وهي تدمج موضوعي «النسخ الاحتياطي واستعادة البيانات» و«إجراءات النسخ والاستعادة» في وثيقة واحدة. أما شرح الأزرار من منظور المستخدم ففي MEGO_Backup_and_Export_Guide.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">نظرة عامة على طبقات النسخ الاحتياطي</li>
+<li dir="rtl">النسخ التلقائية على الجهاز</li>
+<li dir="rtl">ملفات النسخ الاحتياطي والتصدير</li>
+<li dir="rtl">النسخة السحابية (الحسابات المسجّلة)</li>
+<li dir="rtl">نسخ الـ Hub الخاصة بالمالك (Google Sheets / Drive)</li>
+<li dir="rtl">ما لا يُنسخ احتياطيًا</li>
+<li dir="rtl">سلوك الاستعادة</li>
+<li dir="rtl">إجراءات الاستعادة حسب السيناريو</li>
+<li dir="rtl">حادثة 10 نوفمبر 2026: فقدان التخزين على هاتف Android</li>
+<li dir="rtl">الجدول التشغيلي والفحوص</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. نظرة عامة على طبقات النسخ الاحتياطي</h2>
+<pre dir="ltr">
+ Layer                     Where                                Protects against
+ ───────────────────────── ──────────────────────────────────── ────────────────────────────────
+ 1 Local automatic backups  inside the device database (IndexedDB) bad import/restore, bad update
+ 2 Pre-migration snapshot   separate DB  mego-nutrition-premigration  schema upgrade problems
+ 3 Backup file (JSON)       user's Downloads / any storage       device loss (guest and account)
+ 4 Cloud sync (Firestore)   users/{uid}/... in me-central2       device loss (signed-in accounts)
+ 5 Hub + Drive copies       owner's Google Drive                 owner's data, Hub structure changes
+</pre>
+<p dir="rtl">الطبقتان 1 و2 موجودتان في تخزين المتصفح نفسه الذي يحوي البيانات، لذا <b>لا</b> تنجوان من فقدان ذلك التخزين. أما الطبقات 3–5 فتنجو.</p>
+
+<h2 dir="rtl">2. النسخ التلقائية على الجهاز</h2>
+<p dir="rtl">الشيفرة: <code dir="ltr">src/lib/localBackup.ts</code>. النسخة لقطة JSON كاملة لكل الجداول المتزامنة تُحفظ في جدول <code dir="ltr">backups</code> داخل قاعدة بيانات الجهاز الحالية.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>السبب</th><th>التوقيت</th></tr>
+<tr><td><code dir="ltr">auto-daily</code></td><td>مرة كل يوم تقويمي عند فتح التطبيق، إذا وُجدت بيانات</td></tr>
+<tr><td><code dir="ltr">pre-update</code></td><td>مرة لكل إصدار وقاعدة بيانات قبل أن يكتب الإصدار الجديد أي شيء (معرّف الإصدار الحالي <code dir="ltr">APP_RELEASE = '1.3-training'</code>)</td></tr>
+<tr><td><code dir="ltr">pre-restore</code></td><td>قبل استعادة نسخة محلية أو ملف نسخة احتياطية</td></tr>
+<tr><td><code dir="ltr">pre-import</code></td><td>قبل استيراد أطعمة أو ملفات بيانات</td></tr>
+<tr><td><code dir="ltr">pre-pull</code></td><td>قبل «استعادة من الشيت» (الـ Hub)</td></tr>
+<tr><td><code dir="ltr">manual</code></td><td>الإعدادات ← «نسخة الآن»</td></tr>
+</table>
+<p dir="rtl"><b>التدوير:</b> تُحفظ أحدث 10 نسخ، وتُحمى أحدث 3 نسخ من نوع <code dir="ltr">pre-update</code> فلا تُحذف بالتدوير أبدًا. ولكل حساب مسجّل نسخه الخاصة داخل <code dir="ltr">mego-u-&lt;uid&gt;</code>.</p>
+<p dir="rtl"><b>لقطة ما قبل الترحيل:</b> قبل أن يرقّي Dexie المخطط، تنسخ <code dir="ltr">preMigrationBackup()</code> ‏(<code dir="ltr">src/lib/db.ts</code>) القاعدة القديمة إلى <code dir="ltr">mego-nutrition-premigration</code>، وتعرض الإعدادات هذه اللقطات. ولا يزال إصدار مخطط Dexie هو 2.</p>
+<p dir="rtl"><b>فحص البيانات:</b> الإعدادات ← فحص البيانات (<code dir="ltr">src/lib/dataCheck.ts</code>، للقراءة فقط) يقارن أعداد السجلات الحالية بآخر نسخة pre-update ويعرض «كل السجلات سليمة» أو «بعض الجداول فيها سجلات أقل…».</p>
+
+<h2 dir="rtl">3. ملفات النسخ الاحتياطي والتصدير</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإجراء</th><th>النتيجة</th></tr>
+<tr><td>الإعدادات ← البيانات والنسخ الاحتياطي ← «تنزيل ملف نسخة احتياطية» (وكذلك بطاقة الحساب ← «تصدير بياناتي»)</td><td><code dir="ltr">mego-nutrition-backup-&lt;date-time&gt;.json</code> بتنسيق <code dir="ltr">mego-nutrition-backup</code> الإصدار 1، يضم الجداول المتزامنة الـ 12؛ ويُحذف منه رمز المزامنة</td></tr>
+<tr><td>«تصدير كل اليوميات (CSV)»؛ وتصدير التقارير CSV/XLSX</td><td>ملفات مقروءة؛ لا تصلح للاستعادة بوصفها نسخة كاملة</td></tr>
+<tr><td>«نسخة احتياطية في Google Drive» (أجهزة المالك المتصلة بالـ Hub)</td><td>يحفظ Apps Script لقطة JSON في مجلد Drive ‏"MEGO Nutrition Backups" باسم <code dir="ltr">mego-backup-&lt;date_time&gt;.json</code></td></tr>
+</table>
+<p dir="rtl">ملفات النسخ الاحتياطي غير مشفّرة، وتحتوي بيانات شخصية، فينبغي حفظها في مكان خاص.</p>
+
+<h2 dir="rtl">4. النسخة السحابية (الحسابات المسجّلة)</h2>
+<ul dir="rtl">
+<li dir="rtl">يمر كل تغيير محلي عبر صندوق صادر (outbox) ويُكتب في <code dir="ltr">users/{uid}/{table}/{key}</code> في Firestore، وتستقبله الأجهزة الأخرى عبر المستمعات الحية (<code dir="ltr">src/lib/cloudSync.ts</code>).</li>
+<li dir="rtl">النسخة السحابية <b>نسخة متزامنة</b> لا نسخة احتياطية ذات إصدارات: الحذف أو التعديل ينتقل إلى السحابة أيضًا. ويُخزَّن الحذف «شاهدَ حذف» (<code dir="ltr">deleted: true</code> مع بيانات فارغة).</li>
+<li dir="rtl">لا يوجد في هذا المستودع تصدير مجدول لـ Firestore أو استعادة إلى نقطة زمنية. ولم يُفحص توافر هذه الميزات على خطة Spark المجانية (غير مُتحقَّق منه).</li>
+</ul>
+
+<h2 dir="rtl">5. نسخ الـ Hub الخاصة بالمالك (Google Sheets / Drive)</h2>
+<ul dir="rtl">
+<li dir="rtl">يبقى ملف الـ Hub الأصلي بصيغة Excel دون تعديل بوصفه النسخة الأصلية؛ وأُنشئت نسخة مؤرّخة "BACKUP MEGO Nutrition Hub — before migrateHub — …" في 7 نوفمبر 2026.</li>
+<li dir="rtl">تنشئ <code dir="ltr">backupHub_()</code> نسخة Drive كاملة باسم "BACKUP MEGO Nutrition Hub — &lt;reason&gt; — &lt;timestamp&gt;" قبل الترحيلات، وعبر <code dir="ltr">backupOncePerDay_()</code> مرة يوميًا قبل أول كتابة للأطعمة (<code dir="ltr">saveFoods</code>). وتُسجَّل كل نسخة في تبويب <code dir="ltr">Backup_Log</code>.</li>
+<li dir="rtl">تُنسخ الصفوف المحذوفة إلى <code dir="ltr">Deleted_Records</code> ‏(الجدول، المفتاح، وقت الحذف، JSON، الاسترجاع) قبل إزالتها — حذف مرن. والاسترجاع من هذا التبويب يدوي (نسخ JSON وإعادته)؛ لا توجد وظيفة استرجاع تلقائية.</li>
+<li dir="rtl">لا تستبدل النسخ الأقدم النسخ الأحدث أبدًا (فحص الطابع الزمني والإبلاغ عن التعارضات).</li>
+</ul>
+
+<h2 dir="rtl">6. ما لا يُنسخ احتياطيًا</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>صور التقدّم</b> (جدول <code dir="ltr">photos</code>): على الجهاز فقط — لا تُزامَن ولا تدخل ملفات النسخ.</li>
+<li dir="rtl">عناصر الصندوق الصادر المعلّقة (تغييرات لم تُرفع بعد) لا تدخل ملفات النسخ.</li>
+<li dir="rtl">بيانات الضيف دون ملف نسخة أو اتصال بالـ Hub: على الجهاز فقط.</li>
+<li dir="rtl">حسابات Firebase ذاتها (تسجيلات الدخول) لا يمكن استعادتها بعد الحذف.</li>
+</ul>
+
+<h2 dir="rtl">7. سلوك الاستعادة</h2>
+<ol dir="rtl">
+<li dir="rtl">يُحلَّل الملف؛ ويجب أن يكون التنسيق <code dir="ltr">mego-nutrition-backup</code>، وكل جدول مصفوفة، ولكل سجل مفتاحه، ولإدخالات اليوميات سعرات رقمية. عند أي خطأ لا يُكتب شيء.</li>
+<li dir="rtl">تُحفظ نسخة <code dir="ltr">pre-restore</code> من البيانات الحالية.</li>
+<li dir="rtl">تُ<b>دمج</b> السجلات في معاملة واحدة: يُكتب سجل النسخة إذا لم يكن موجودًا محليًا أو كان <code dir="ltr">updatedAt</code> فيه مساويًا أو أحدث. لا يُحذف شيء. وتُستبدل الإعدادات مع الإبقاء على إعدادات المزامنة الخاصة بالجهاز.</li>
+<li dir="rtl">في وضع الحساب تصل السجلات المستعادة إلى السحابة عبر المزامنة العادية.</li>
+</ol>
+
+<h2 dir="rtl">8. إجراءات الاستعادة حسب السيناريو</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>السيناريو</th><th>الإجراء</th></tr>
+<tr><td>أ. مستخدم مسجّل: ضياع الهاتف أو إعادة ضبطه أو هاتف جديد أو مسح بيانات المتصفح</td><td>افتح التطبيق ← سجّل الدخول بالبريد وكلمة المرور نفسيهما ← انتظر التنزيل (تعود كل الجداول المتزامنة). لا يمكن استعادة صور التقدّم.</td></tr>
+<tr><td>ب. مستخدم مسجّل: يظهر شاشة الترحيب بشكل غير متوقع</td><td>سجّل الدخول مجددًا بالحساب نفسه. منذ إصلاح 10 نوفمبر يؤدي غياب القاعدة المحلية إلى تنزيل كامل. إن بقيت بيانات ناقصة بعد دقائق من الاتصال، فانظر القسم 9 وتواصل مع الدعم.</td></tr>
+<tr><td>ج. ضيف: فقدان بيانات الجهاز</td><td>استعد من أحدث ملف نسخة (الإعدادات ← «استعادة من ملف»). دون ملف نسخة لا يمكن استرجاع البيانات. وعلى جهاز المالك المتصل بالـ Hub: «استعادة من الشيت».</td></tr>
+<tr><td>د. استيراد أو استعادة خاطئة</td><td>الإعدادات ← النسخ المحلية ← اختر نسخة <code dir="ltr">pre-import</code> أو <code dir="ltr">pre-restore</code> ← استعادة. تنبيه: الاستعادة تدمج، فتبقى السجلات التي أضافها الاستيراد الخاطئ ويجب حذفها يدويًا.</td></tr>
+<tr><td>هـ. مشكلة بعد تحديث التطبيق</td><td>الإعدادات ← فحص البيانات. إذا أظهر سجلات أقل فاستعد نسخة <code dir="ltr">pre-update</code> من النسخ المحلية.</td></tr>
+<tr><td>و. مشكلة بعد ترقية المخطط</td><td>لقطة ما قبل الترحيل في <code dir="ltr">mego-nutrition-premigration</code> (تظهر في الإعدادات). استعادتها تحتاج مساعدة مطوّر (غير مُتحقَّق منه كإجراء داخل التطبيق).</td></tr>
+<tr><td>ز. تلف ملف الـ Hub</td><td>افتح أحدث نسخة "BACKUP MEGO Nutrition Hub — …" في Drive ‏(ملف ← إنشاء نسخة) أو استرجع صفوفًا مفردة من <code dir="ltr">Deleted_Records</code>، ثم أعد مزامنة جهاز المالك.</td></tr>
+<tr><td>ح. حذف الحساب بالخطأ</td><td>لا يمكن الاسترجاع من السحابة؛ فقط من ملف نسخة نُزّل سابقًا، يُستورد في حساب جديد.</td></tr>
+</table>
+
+<h2 dir="rtl">9. حادثة 10 نوفمبر 2026: فقدان التخزين على هاتف Android</h2>
+<h3 dir="rtl">9.1 ما حدث</h3>
+<p dir="rtl">على هاتف Android فقد المتصفح تخزين IndexedDB الخاص بالتطبيق (كل السجلات المحلية وجلسة Firebase) بينما بقي localStorage. فعرض التطبيق شاشة الترحيب، وبعد أن سجّل المستخدم الدخول مجددًا بقي التطبيق فارغًا. وكان ذلك قد حدث مرة من قبل.</p>
+<h3 dir="rtl">9.2 السبب الجذري</h3>
+<ul dir="rtl">
+<li dir="rtl">كان المستمع السحابي يبدأ كل جدول من علامة «آخر ما شوهد» المحفوظة في localStorage. ولأن العلامات بقيت والسجلات ضاعت، طلب المستمع السجلات الأحدث من العلامة فقط، فلم تُنزَّل السجلات الأقدم مجددًا.</li>
+<li dir="rtl">سجل إعدادات افتراضي جديد أُنشئ على الجهاز الفارغ كان يمكن أن يتقدّم على الإعدادات المحفوظة في السحابة.</li>
+</ul>
+<h3 dir="rtl">9.3 الإصلاح (معمول به؛ <code dir="ltr">src/lib/cloudSync.ts</code> و<code dir="ltr">account.ts</code> و<code dir="ltr">repo.ts</code>)</h3>
+<ul dir="rtl">
+<li dir="rtl">أُعيدت تسمية العلامات إلى <code dir="ltr">mego.cloud2.</code> — فيعيد كل جهاز تنزيل حسابه كاملًا مرة واحدة.</li>
+<li dir="rtl">عند بدء التشغيل، إذا كانت القاعدة المحلية للحساب مفقودة تُصفَّر العلامات (<code dir="ltr">resetCloudMarkers</code>).</li>
+<li dir="rtl">الجدول المحلي الفارغ يُنزَّل دائمًا كاملًا؛ والإعدادات تُعاد قراءتها دائمًا.</li>
+<li dir="rtl">الإعدادات الافتراضية التي لم يلمسها المستخدم لا تتقدّم أبدًا على النسخة السحابية.</li>
+<li dir="rtl">سجل واحد يتعذر تطبيقه لم يعد يوقف بقية التنزيل (يُبلَّغ عنه بدلًا من ذلك).</li>
+<li dir="rtl">وزنات بالتاريخ نفسه: يُحتفظ بالأحدث على الجهاز، ويبقى الآخر دون مساس في السحابة.</li>
+</ul>
+<h3 dir="rtl">9.4 التحقق والدرس المستفاد</h3>
+<p dir="rtl">أُعيد إنتاج الحادثة والتحقق من الإصلاح على محاكيات Firebase ‏(<code dir="ltr">e2e/storage-loss.mjs</code>)، وأكّد المالك عودة البيانات. <b>الدرس للمستخدمين:</b> الحسابات المسجّلة قابلة للاسترجاع بإعادة تسجيل الدخول؛ أما بيانات الضيف فتعيش على الجهاز فقط — فنزّل ملفات النسخ الاحتياطي بانتظام.</p>
+
+<h2 dir="rtl">10. الجدول التشغيلي والفحوص</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>التكرار</th><th>المهمة</th><th>المسؤول</th></tr>
+<tr><td>أسبوعيًا (موصى به)</td><td>تنزيل ملف نسخة احتياطية؛ وهو النسخة الوحيدة خارج الجهاز لمستخدمي وضع الضيف</td><td>المستخدم</td></tr>
+<tr><td>بعد كل إصدار</td><td>تشغيل الإعدادات ← فحص البيانات على الجهاز الرئيسي</td><td>المالك</td></tr>
+<tr><td>شهريًا (موصى به)</td><td>التأكد من وجود نسخ "BACKUP MEGO Nutrition Hub" ومدخلات <code dir="ltr">Backup_Log</code> في Drive</td><td>المالك</td></tr>
+<tr><td>قبل تغيير القواعد أو الخلفية</td><td>أخذ ملف نسخة يدوي؛ وتغييرات الـ Hub تنشئ نسخة Drive تلقائيًا</td><td>المالك</td></tr>
+<tr><td>دوريًا</td><td>تجربة استعادة ملف نسخة على ملف تعريف متصفح احتياطي</td><td>المالك</td></tr>
+</table>
+<p dir="rtl">التكرارات أعلاه توصيات، وليست مهام مؤتمتة.</p>
+
+<h2 dir="rtl">11. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>النسخ المحلية، والتدوير، وفحص ملف الاستعادة والدمج</td><td>اختبارات وحدات (195 إجمالًا، vitest)</td></tr>
+<tr><td>الاسترجاع بعد فقدان التخزين</td><td>سيناريو المحاكي <code dir="ltr">e2e/storage-loss.mjs</code>؛ وأكّد المالك الاسترجاع على الهاتف الحقيقي</td></tr>
+<tr><td>نسخة الـ Hub قبل migrateHub، والحذف المرن، وعدم استبدال الأحدث بالأقدم</td><td>مُتحقَّق منه مباشرة (اختبارات إعداد الحاسوب الحية)</td></tr>
+<tr><td>المزامنة الحية لجهاز ثانٍ</td><td>مُتحقَّق منه مباشرة (<code dir="ltr">scripts/live-verify.mjs</code>)</td></tr>
+<tr><td>زر «نسخة احتياطية في Google Drive» مع الـ Hub الحي</td><td>غير مُتحقَّق منه</td></tr>
+<tr><td>استعادة لقطة ما قبل الترحيل</td><td>غير مُتحقَّق منه</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

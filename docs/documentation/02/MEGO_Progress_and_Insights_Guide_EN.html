@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Progress_and_Insights_Guide_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Progress and Insights Guide</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-17</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>End users</td></tr>
+<tr><td>Related documents</td><td>MEGO_Profile_and_Goals_Guide, MEGO_Reports_Guide, MEGO_Food_Tracking_Guide, MEGO_Backup_and_Export_Guide, MEGO_Food_Rankings_and_Coach_Methodology</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This guide explains how MEGO shows your progress: weight and body measurements on the <b>Progress</b> page (<code>#/progress</code>), the rate and target-date estimate, progress photos, the automatically generated <b>smart insights</b>, cardio statistics on the <b>Cardio</b> page (<code>#/cardio</code>) and strength progress on <b>Workouts → Progress</b> (<code>#/workouts?tab=progress</code>). Weekly and monthly reports are described in MEGO_Reports_Guide; targets and the Goals advisor in MEGO_Profile_and_Goals_Guide.</p>
+<p>A general rule throughout MEGO: <b>trends are judged from averages, never from a single reading</b>. Daily weight fluctuates with water, salt and digestion.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Recording weight and body measurements</li>
+<li>The Progress page</li>
+<li>Rate of change and estimated target date</li>
+<li>Progress photos</li>
+<li>Smart insights</li>
+<li>Cardio progress</li>
+<li>Strength and workout progress</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Recording weight and body measurements</h2>
+<ol>
+<li>Open <b>Progress</b> and tap <b>Add measurement</b> (the round + button).</li>
+<li>Choose the date (today or earlier; future dates are not allowed).</li>
+<li>Fill in any of the fields — at least one is required:</li>
+</ol>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Unit</th><th>Accepted values</th></tr>
+<tr><td>Weight</td><td>kg</td><td>more than 20 and less than 400</td></tr>
+<tr><td>Waist, Chest, Hips, Arm, Thigh, Neck</td><td>cm</td><td>more than 5 and less than 300</td></tr>
+<tr><td>Body fat %</td><td>%</td><td>more than 1 and less than 70</td></tr>
+<tr><td>Notes</td><td>text</td><td>free text</td></tr>
+</table>
+<p>Tap <b>Save</b>. The message "Saved (one record per date — saving again updates it)" explains the rule: there is only one measurement record per date; saving the same date again merges the new values into it. Tap a row in <b>Weight history</b> to edit or delete it (deletion asks "Delete the measurement of &lt;date&gt;?").</p>
+<p>When the saved weigh-in is the most recent one, your profile's current weight is updated automatically.</p>
+
+<h2>2. The Progress page</h2>
+<p><img src="https://raw.githubusercontent.com/Mego2012/Mego/claude/nutrition-tracking-app-989rku/docs/screenshots/progress-en-light.png" width="300" alt="Progress page"></p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Section</th><th>Content</th></tr>
+<tr><td>Header</td><td>Current weight (latest weigh-in), Change from start (latest − start weight from the profile), rate per week, a goal line from start weight to target weight</td></tr>
+<tr><td>Estimate</td><td>Estimated target date (with "≈ n weeks"), Rate of change (kg/week and % per week), and a pace message (section 3)</td></tr>
+<tr><td>Mini statistics</td><td>Weekly average and Monthly average weight (with number of weigh-ins), Waist trend (latest waist and change since the starting waist)</td></tr>
+<tr><td>Weight trend chart</td><td>Range 30 / 90 / 365 days / All; daily points plus the 7-day average line and the target weight. Note: "Judge progress by the 7-day average line, not single readings."</td></tr>
+<tr><td>Waist trend chart</td><td>Shown when at least two waist values exist in the range</td></tr>
+<tr><td>Weekly average table</td><td>Last 8 weeks: week start, average weight, difference vs the previous week, number of weigh-ins</td></tr>
+<tr><td>Weight history</td><td>Up to 120 latest records with the other measurements, notes and the change vs the previous weigh-in</td></tr>
+<tr><td>Progress photos</td><td>Section 4</td></tr>
+</table>
+<p>The 7-day average for a date is the mean of all weigh-ins in that date and the 6 days before it.</p>
+
+<h2>3. Rate of change and estimated target date</h2>
+<p>MEGO uses an honest projection (<code>progressEstimate</code> in <code>src/lib/reports.ts</code>):</p>
+<ul>
+<li>It needs <b>at least 6 weigh-ins spread over at least 14 days</b> within the last 28 days. Otherwise it shows "Need ≥ 6 weigh-ins over ≥ 2 weeks for an estimate."</li>
+<li>Rate = slope of a least-squares line through those weigh-ins × 7 (kg/week); also shown as % of the current 7-day average.</li>
+<li>Target date = today + ⌈remaining kg ÷ rate⌉ weeks, shown only when the pace is healthy or fast, more than 0.2 kg remain, and the result is at most 156 weeks (3 years).</li>
+</ul>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Pace</th><th>Rule</th><th>Message</th></tr>
+<tr><td>Stable</td><td>|rate| &lt; 0.1 kg/week</td><td>Weight is stable</td></tr>
+<tr><td>Away</td><td>moving opposite to the target (more than 0.3 kg remaining)</td><td>Trend is moving away from the target weight</td></tr>
+<tr><td>Healthy</td><td>≤ 1 % of body weight per week</td><td>Healthy pace</td></tr>
+<tr><td>Fast</td><td>&gt; 1 % of body weight per week</td><td>Faster than 1 % … risk of muscle loss; consider eating a bit more</td></tr>
+</table>
+<p><b>Example:</b> 8 weigh-ins over 21 days whose regression slope is −0.05 kg/day → rate −0.35 kg/week; at a 7-day average of 80 kg that is −0.44 %/week (healthy). With 4 kg to go: ⌈4 / 0.35⌉ = 12 weeks → target date ≈ today + 84 days.</p>
+
+<h2>4. Progress photos</h2>
+<ul>
+<li>Tap <b>+ Add photo</b> (opens the camera or file picker). The photo is compressed on the phone and stored with today's date.</li>
+<li>Photos are shown in a grid with their dates; × deletes a photo after confirmation.</li>
+<li>Photos are kept in the device database only. They are <b>not</b> part of the sync tables, so they are not uploaded to the cloud or the Hub and are not included in backup files. Keep your own copy if they matter to you.</li>
+</ul>
+
+<h2>5. Smart insights</h2>
+<p>The Dashboard and the weekly report show <b>Smart insights</b> generated strictly from saved data (<code>src/lib/insights.ts</code>). Each insight states the numbers it is based on. Window: the last 7 days compared with the 7 days before.</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Topic</th><th>Rule</th></tr>
+<tr><td>Partial days</td><td>Reports how many partially logged days were excluded</td></tr>
+<tr><td>Not enough data</td><td>Fewer than 3 fully logged days → no nutrition conclusions</td></tr>
+<tr><td>Protein</td><td>Average below target × (1 − protein tolerance) → low (with the gap in g); otherwise OK</td></tr>
+<tr><td>Calories</td><td>Average above / below target ± calorie tolerance → high / low; otherwise OK</td></tr>
+<tr><td>Fat</td><td>Fat above target + 10 % on ≥ 60 % of complete days → high; within ± 10 % → OK</td></tr>
+<tr><td>Carbohydrates</td><td>Within ± 10 % → OK; otherwise above/below (informational)</td></tr>
+<tr><td>Consistency</td><td>Calorie consistency up or down by ≥ 10 points vs the previous 7 days</td></tr>
+<tr><td>Weight trend</td><td>Average of the last 7 days vs the 7 before (≥ 2 weigh-ins in each); change &lt; 0.2 kg = stable</td></tr>
+<tr><td>Plateau</td><td>Loss goal, two stable weeks in a row, consistency ≥ 70 % with ≥ 5 complete days → plateau suggestion</td></tr>
+<tr><td>Loss too fast</td><td>Weekly drop larger than twice your weekly goal and more than 1 kg</td></tr>
+<tr><td>Gain while cutting</td><td>Loss goal, weight up, good adherence</td></tr>
+<tr><td>Fluctuation</td><td>Latest weigh-in differs from the 7-day average by ≥ 0.8 kg → explained as normal fluctuation</td></tr>
+</table>
+<p>Insights never change your targets. Calorie-target suggestions come only from the Goals advisor and require your approval.</p>
+
+<h2>6. Cardio progress</h2>
+<p>On the <b>Cardio</b> page you log sessions (activity, duration, date/time, intensity, and depending on the activity distance, speed or incline; optional calories you measured yourself) or tap <b>Log my routine</b> (default routine: treadmill walk 10 min, 3.5 km/h, 13 % incline, moderate). The page shows:</p>
+<ul>
+<li><b>Last 7 days (minutes)</b> and <b>Last 30 days (minutes)</b> charts.</li>
+<li><b>Trends</b>: minutes of the last 7 days vs the previous 7 days, <b>Average session</b> length (30 days) and the <b>Most frequent</b> activity (30 days).</li>
+<li>A WHO marker: "WHO recommends at least 150 min of moderate activity per week" (informational only).</li>
+<li><b>Cardio history</b> with each session's estimated calories, the method used (ACSM walking/running equation, Compendium value for speed or intensity, or "Entered by you") and the body weight used (latest weigh-in on or before that date, otherwise the profile weight).</li>
+</ul>
+<p>Calories are estimates: gross kcal = MET × kg × hours; net kcal = (MET − 1) × kg × hours. They can differ from your real expenditure by 20–30 %. The weekly cardio goal and its progress appear on the Goals page and in the reports (minutes vs goal, change vs the previous period).</p>
+
+<h2>7. Strength and workout progress</h2>
+<p>Open <b>Workouts → Progress</b>:</p>
+<ul>
+<li><b>Strength progression</b>: one row per exercise you have logged, with "Last w kg × r · best e1RM e kg" and a trend chip: Improving / Stable / Declining with % change, or "Need 4+ sessions".</li>
+<li>Trend rule: average estimated 1RM of the last 3 sessions vs the 3 before; above +2 % improving, below −2 % declining.</li>
+<li>Estimated 1RM uses the Epley formula: weight × (1 + reps ÷ 30), for sets of ≤ 12 reps. It is a comparison tool between sessions, not a max to test.</li>
+<li>Tap an exercise for its detail sheet: personal records (best estimated 1RM, heaviest weight, most reps in a set, best session volume in kg), an e1RM chart of the last 20 sessions, the next-step recommendation with reasons and confidence, and the session table (sets as weight×reps@RIR, e1RM, volume).</li>
+<li>A weekly <b>sets per muscle</b> chart compared with your goal (default 14 sets per muscle) and the planned sets of the active program, plus a recovery card.</li>
+</ul>
+<p>The weekly and monthly reports include a <b>Workouts</b> card: workouts done vs planned, consistency %, hard sets, volume (kg), new PRs and strength trends (↑ improving · ↓ declining), each with the change vs the previous period. The training coach is local rule-based logic, not an AI service (see docs/TRAINING-METHODOLOGY.md).</p>
+
+<h2>8. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Measurement rules, estimate, insights</td><td>Verified in code: src/pages/Progress.tsx, src/lib/repo.ts (validateBody, saveBodyEntry), src/lib/reports.ts, src/lib/insights.ts; covered by unit tests</td></tr>
+<tr><td>Cardio statistics and estimates</td><td>Verified in code: src/lib/cardio.ts, src/pages/Cardio.tsx; covered by tests/cardio-goals.test.ts</td></tr>
+<tr><td>Strength progress, e1RM, trends</td><td>Verified in code: src/lib/trainingCoach.ts, src/pages/Workouts.tsx, src/components/TrainingReport.tsx; covered by tests/workouts.test.ts</td></tr>
+<tr><td>UI on phones</td><td>Browser e2e and touch/scroll tests on emulated devices only; not tested on a real Android phone</td></tr>
+<tr><td>Photos excluded from sync and backups</td><td>Verified in code (the photos table is not in SYNC_TABLES, src/lib/db.ts)</td></tr>
+<tr><td>Accuracy of calorie-burn estimates for an individual</td><td>Not verified — estimates (± 20–30 %)</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

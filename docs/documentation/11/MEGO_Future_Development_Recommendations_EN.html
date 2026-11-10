@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Future_Development_Recommendations_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Future Development Recommendations</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-72</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Project owner, developers, maintainers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Product_Roadmap, MEGO_Known_Bugs_and_Limitations, MEGO_Security_Audit_and_Known_Risks, MEGO_Testing_Strategy, MEGO_Monitoring_and_Maintenance, MEGO_Data_Backup_and_Recovery, MEGO_Technical_Architecture</td></tr>
+</table>
+
+<p><b>These are recommendations, not commitments.</b> Each one is based on a fact found in the repository on 10 November 2026 (cited). No dates or effort figures are given. The owner decides what to adopt; the product-level ordering is proposed in MEGO_Product_Roadmap.</p>
+
+<h2>Purpose and scope</h2>
+<p>This document gives maintainers and future developers a reasoned list of technical and operational improvements: security follow-ups, data protection, testing and CI, AI scanner resilience, data quality, documentation, and the rules any future change should respect. Each recommendation states the observed fact, the risk or benefit, and a suggested action.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Principles to keep</li>
+<li>Security and secrets</li>
+<li>Data protection and recovery</li>
+<li>Testing and continuous integration</li>
+<li>AI meal scanner</li>
+<li>Free-tier capacity and monitoring</li>
+<li>Food data and content quality</li>
+<li>Platform, accessibility and performance</li>
+<li>Documentation and code hygiene</li>
+<li>Summary table</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Principles to keep</h2>
+<p>Any future development should preserve the rules the current product is built on (verified in the code):</p>
+<ul>
+<li><b>Zero cost:</b> free tiers only; when a limit is reached the service stops instead of billing (no paid model, no billing account).</li>
+<li><b>User's numbers first:</b> nutrition always comes from the app's engine and the food database; AI and MET values are labelled estimates.</li>
+<li><b>Nothing applied without consent:</b> goals advisor, energy adjustment, training coach and meal scanner suggest; the user confirms.</li>
+<li><b>No silent data loss:</b> snapshots in diary entries, merge-only restore, older copies never overwrite newer, pre-update backup once per release.</li>
+<li><b>Server-side isolation:</b> <code>firebase/firestore.rules</code> restricts each user to their own records; admins never read private data.</li>
+<li><b>No schema change without a backup:</b> new data has been added to the synced <code>kv</code> table (Dexie schema still v2) rather than changing tables.</li>
+</ul>
+
+<h2>2. Security and secrets</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Observed fact</th><th>Recommendation</th></tr>
+<tr><td>FD-01</td><td>The Gemini key and the backend connection link were shown in a chat during setup (_BRIEF.md §1)</td><td>Rotate both: create a new key in Google AI Studio (never enable billing) and set it from the app; run <code>rotateToken()</code> in Apps Script (docs/HUB.md) and reconnect devices</td></tr>
+<tr><td>FD-02</td><td>Old public commits a7b5bbb and 3fb3c82 still expose a private food table</td><td>Send docs/GITHUB-SUPPORT-REQUEST.md; afterwards re-check that both SHAs return 404</td></tr>
+<tr><td>FD-03</td><td>No administrator exists yet</td><td>Create exactly one admin with the setup script; keep admin creation outside the app as designed</td></tr>
+<tr><td>FD-04</td><td>Secrets are kept out of the repository (keys in Script Properties, state in <code>~/.mego-backend/</code>)</td><td>Keep a secret scan as a release step before every push; never commit connection codes or tokens</td></tr>
+</table>
+
+<h2>3. Data protection and recovery</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Observed fact</th><th>Recommendation</th></tr>
+<tr><td>FD-10</td><td>10 Nov 2026 incident: an Android phone lost IndexedDB while localStorage survived; fixed in <code>cloudSync.ts</code>, <code>account.ts</code>, <code>repo.ts</code></td><td>Keep <code>e2e/storage-loss.mjs</code> in the regular test run; any future change to sync markers must be tested against "local DB missing"</td></tr>
+<tr><td>FD-11</td><td>Guest data lives only on the device</td><td>Consider a visible reminder for guests to download a backup file or create an account (proposal R-23 in the roadmap)</td></tr>
+<tr><td>FD-12</td><td>The app requests persistent storage, but the browser decides (<code>requestPersistentStorage</code>)</td><td>Show the persistence status more prominently when it is not granted; Settings already shows it</td></tr>
+<tr><td>FD-13</td><td>Pre-update backup is tied to <code>APP_RELEASE</code> ('1.3-training')</td><td>Bump <code>APP_RELEASE</code> in <code>src/lib/localBackup.ts</code> for every release that writes new data, so each device takes a fresh pre-update snapshot</td></tr>
+<tr><td>FD-14</td><td>Drive backup on the owner Hub is not verified in production</td><td>Run and document one end-to-end backup and restore test</td></tr>
+</table>
+
+<h2>4. Testing and continuous integration</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Observed fact</th><th>Recommendation</th></tr>
+<tr><td>FD-20</td><td>The deploy workflow (<code>.github/workflows/deploy.yml</code>) runs <code>npm test</code> (unit tests) and the build only</td><td>Consider adding the browser e2e suite and the Firestore rules tests (<code>npm run test:rules</code>) to CI so they guard every deploy; feasibility on GitHub's free runners is Not verified</td></tr>
+<tr><td>FD-21</td><td>All browser tests use Chromium with emulated Android devices</td><td>Run docs/ANDROID-TEST.md on a physical phone; add a small Firefox/WebKit smoke run if Playwright browsers are available</td></tr>
+<tr><td>FD-22</td><td>Live verification (<code>scripts/live-verify.mjs</code>) creates and deletes disposable accounts</td><td>Run it after every backend or rules change and after each release</td></tr>
+<tr><td>FD-23</td><td>Password-reset delivery and camera barcode are not verified</td><td>Add them to the manual release checklist (MEGO_Release_Readiness_Checklist)</td></tr>
+</table>
+
+<h2>5. AI meal scanner</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Observed fact</th><th>Recommendation</th></tr>
+<tr><td>FD-30</td><td>Free model chain gemini-3.8-flash → gemini-3.6-flash → gemini-3.5-flash-lite; error code AI_MODEL_UNAVAILABLE exists</td><td>Check periodically with the <code>aiDiag</code> action that the listed free models are still available; update the chain only to other free-tier models</td></tr>
+<tr><td>FD-31</td><td>Free tier is slow at peaks (≈ 64 s in the live test; earlier AI_BUSY)</td><td>Keep the client's automatic retry (3 s / 8 s) and manual retry; consider telling users the expected wait before sending</td></tr>
+<tr><td>FD-32</td><td>Backend updates are deployed with <code>--update-backend</code> to the same deployment</td><td>Bump <code>SCRIPT_VERSION</code> in <code>apps-script/Code.gs</code> with every backend change so the app and tests can tell versions apart</td></tr>
+</table>
+
+<h2>6. Free-tier capacity and monitoring</h2>
+<ul>
+<li><b>FD-40:</b> Firebase Spark limits (e.g. 50,000 Firestore reads and 20,000 writes per day; 150 password-reset e-mails per day) bound how many active users MEGO can serve. Recommendation: before opening registration widely, review usage in the Firebase console; no capacity estimate has been made — Not verified.</li>
+<li><b>FD-41:</b> The app writes short error reports to the <code>errorReports</code> collection (no personal data; e.g. sync failures). Recommendation: once an admin exists, review them regularly from the admin dashboard.</li>
+<li><b>FD-42:</b> AI caps are <code>AI_DAILY_LIMIT</code> 40 and <code>AI_USER_DAILY_LIMIT</code> 10 (code defaults). Adjust them in Script Properties according to real usage, staying within Google's free quota.</li>
+</ul>
+
+<h2>7. Food data and content quality</h2>
+<ul>
+<li><b>FD-50:</b> Use Settings → Data check (read-only) after each release to catch per-serving values entered as per-100 g, and possible duplicate entries.</li>
+<li><b>FD-51:</b> Recipe audit (docs/RECIPE-AUDIT.md): 100 of 101 recipes resolve from USDA references; "labneh" is unresolved and is never estimated; 6 recipes are flagged. Recommendation: add a verified labneh reference and re-run <code>scripts/recipe-audit.mts</code>.</li>
+<li><b>FD-52:</b> Food photos cover 74 foods; several common foods have no honestly matching freely licensed photo. Keep the rule "placeholder rather than a look-alike photo".</li>
+<li><b>FD-53:</b> Custom exercises have no illustration (built-in 54 are covered). Keep the muscle chart and the user's description as the fallback.</li>
+</ul>
+
+<h2>8. Platform, accessibility and performance</h2>
+<ul>
+<li><b>FD-60:</b> Reminders fire only while the app is open or in the background (<code>src/lib/reminders.ts</code>). Reliable closed-app reminders need a push service; evaluate only free options.</li>
+<li><b>FD-61:</b> Accessibility features exist (focus styles, tap sizes, reduced motion) but no formal audit has been done. Recommend an audit of both Arabic RTL and English LTR screens.</li>
+<li><b>FD-62:</b> Heavy pages are lazy-loaded and charts are split into a separate chunk; no performance budget is measured. Recommend measuring start-up time on a mid-range Android phone.</li>
+<li><b>FD-63:</b> Minimum supported browser versions are not defined. Recommend stating them once real-device tests exist.</li>
+</ul>
+
+<h2>9. Documentation and code hygiene</h2>
+<ul>
+<li><b>FD-70:</b> README.md still says "No workouts" and "60 built-in recipes"; the code has workouts and 101 recipes. docs/ARCHITECTURE.md states a global AI limit of 200/day; the code default is 40. Update these files so they match the official documentation set.</li>
+<li><b>FD-71:</b> Keep the rule that every new data type goes into the synced <code>kv</code> table or comes with a Dexie migration plus a pre-update backup and a restore test.</li>
+<li><b>FD-72:</b> Dependencies are pinned to exact versions in <code>package.json</code>. Review them periodically for security updates; no audit result is recorded — Not verified.</li>
+<li><b>FD-73:</b> When legal texts are finalised, update <code>src/lib/i18n2.ts</code> / <code>i18n3.ts</code> (placeholders and "Draft" labels) as listed in docs/LEGAL-REVIEW.md.</li>
+</ul>
+
+<h2>10. Summary table</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Area</th><th>Highest-value recommendation</th><th>Who</th></tr>
+<tr><td>Security</td><td>FD-01 rotate key and token; FD-02 GitHub Support request</td><td>Owner</td></tr>
+<tr><td>Data protection</td><td>FD-10 keep the storage-loss test; FD-13 bump APP_RELEASE per release</td><td>Developer</td></tr>
+<tr><td>Testing</td><td>FD-21 physical Android test; FD-20 more suites in CI</td><td>Owner / developer</td></tr>
+<tr><td>AI scanner</td><td>FD-30 periodic model availability check</td><td>Owner</td></tr>
+<tr><td>Operations</td><td>FD-40 capacity review before wide launch; FD-41 read error reports</td><td>Owner / admin</td></tr>
+<tr><td>Content</td><td>FD-51 labneh reference; FD-50 data check after releases</td><td>Owner</td></tr>
+<tr><td>Documentation</td><td>FD-70 refresh README and ARCHITECTURE notes</td><td>Developer</td></tr>
+</table>
+
+<h2>11. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Observed facts cited in sections 2–9</td><td>Verified in the repository on 10 Nov 2026</td></tr>
+<tr><td>Recommendations and their value</td><td>Proposal — requires owner approval</td></tr>
+<tr><td>Feasibility of e2e/rules tests in GitHub CI; free push service; capacity estimate; dependency vulnerabilities</td><td>Not verified</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

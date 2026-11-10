@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>MEGO_Build_and_Release_Procedures_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Build and Release Procedures</h1>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-55</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Developers, maintainers, project owner</td></tr>
+<tr><td>Related documents</td><td>MEGO_Developer_Setup_and_Local_Installation, MEGO_Production_Deployment_Guide, MEGO_Update_and_Rollback_Procedures, MEGO_Production_Verification_Checklist, MEGO_Testing_Strategy, MEGO_Release_Readiness_Checklist</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document defines how a MEGO release is built, which version identifiers exist and when they change, the checks that must pass before a release is pushed, and how the release reaches users (static app) and the owner's backend (Apps Script). It covers the frontend PWA, the generated data files and the backend script.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>What a release consists of</li>
+<li>Version identifiers</li>
+<li>The build</li>
+<li>Generated data files</li>
+<li>Pre-release checks</li>
+<li>Release procedure, step by step</li>
+<li>Backend release</li>
+<li>Release records</li>
+<li>Verification status</li>
+<li>Revision history</li>
+</ol>
+
+<h2>1. What a release consists of</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Part</th><th>Source</th><th>Delivered by</th></tr>
+<tr><td>PWA (HTML/JS/CSS, service worker, manifest, icons, photos, food database files)</td><td><code>src/</code>, <code>public/</code></td><td>GitHub Actions → GitHub Pages (automatic on push)</td></tr>
+<tr><td>Firestore security rules and indexes</td><td><code>firebase/firestore.rules</code>, <code>firebase/firestore.indexes.json</code></td><td><code>laptop-setup --cloud</code> (<code>firebase deploy --only firestore:rules,firestore:indexes</code>)</td></tr>
+<tr><td>Apps Script backend</td><td><code>apps-script/Code.gs</code>, <code>apps-script/appsscript.json</code></td><td><code>laptop-setup --update-backend</code> (or <code>--hub-complete-foods</code>)</td></tr>
+</table>
+<p>The three parts are released independently; the CI workflow publishes only the PWA.</p>
+
+<h2>2. Version identifiers</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Identifier</th><th>Where</th><th>Current value</th><th>When to change</th></tr>
+<tr><td><code>APP_RELEASE</code></td><td><code>src/lib/localBackup.ts</code></td><td><code>'1.3-training'</code></td><td>For every release that changes how data is written. A new value makes each device with data save one <b>pre-update backup</b> when the new version first opens. The 3 newest pre-update backups are never rotated away</td></tr>
+<tr><td>Dexie schema version</td><td><code>src/lib/db.ts</code></td><td>2</td><td>Only when tables/indexes change (new data currently goes into the synced <code>kv</code> table, so no schema change was needed)</td></tr>
+<tr><td><code>SCRIPT_VERSION</code></td><td><code>apps-script/Code.gs</code></td><td>8</td><td>Every backend change; the app and laptop-setup read it from <code>ping</code> (e.g. <code>--hub-complete-foods</code> requires ≥ 8)</td></tr>
+<tr><td><code>SCHEMA_VERSION</code> (Hub)</td><td><code>apps-script/Code.gs</code></td><td>3</td><td>When Hub tables change</td></tr>
+<tr><td>package.json <code>version</code></td><td><code>package.json</code></td><td>1.0.0</td><td>Not used by the build or the app (informational)</td></tr>
+<tr><td>Release labels in docs</td><td>commit messages / docs</td><td>e.g. release 1.2 (cardio), 1.3 (workouts)</td><td>Git tags are not used in this repository</td></tr>
+</table>
+
+<h2>3. The build</h2>
+<pre>npm ci
+npm run build          # = tsc -b &amp;&amp; vite build
+BASE_PATH=/Mego/ npm run build   # the production path, as CI builds it</pre>
+<ul>
+<li><code>tsc -b</code> type-checks first; any type error stops the build.</li>
+<li>Vite writes <code>dist/</code>; <code>vite-plugin-pwa</code> adds <code>sw.js</code> and <code>manifest.webmanifest</code> (name "MEGO — Nutrition", standalone, portrait, <code>start_url</code>/<code>scope</code> = base path).</li>
+<li>Pre-cached files: <code>**/*.{js,css,html,svg,png,woff2}</code> and <code>fooddb/usda.json</code> (cache limit 3 MB per file). Food photos, <code>usda-extra.json</code> and Google Fonts are cached at runtime. Apps Script calls are never cached.</li>
+<li>Recharts/d3 are split into a separate <code>charts</code> chunk.</li>
+</ul>
+
+<h2>4. Generated data files</h2>
+<p>These files are committed to the repository; regenerate them only when their source changes:</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>File</th><th>Generator</th></tr>
+<tr><td><code>public/fooddb/usda.json</code> (12,879 foods)</td><td><code>node scripts/build-food-db.mjs</code> (USDA SR Legacy + FNDDS)</td></tr>
+<tr><td><code>public/fooddb/library-recipes.json</code></td><td><code>npx tsx scripts/build-library-recipes.mts</code></td></tr>
+<tr><td><code>public/food-img/*</code></td><td><code>scripts/food-photos/*</code></td></tr>
+<tr><td><code>docs/EXERCISE-GUIDE-COVERAGE.md</code></td><td><code>npx tsx scripts/exercise-coverage.mts</code></td></tr>
+<tr><td><code>docs/screenshots/*</code></td><td><code>scripts/screenshots.mjs</code></td></tr>
+</table>
+
+<h2>5. Pre-release checks</h2>
+<p>CI runs only <code>npm test</code> and the build, so the remaining suites must be run locally before pushing:</p>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>#</th><th>Check</th><th>Command</th><th>Expected (10 Nov 2026)</th></tr>
+<tr><td>1</td><td>Unit tests</td><td><code>npm test</code></td><td>199/199 (14 files)</td></tr>
+<tr><td>2</td><td>Type check + build</td><td><code>npm run build</code></td><td>no errors</td></tr>
+<tr><td>3</td><td>Browser e2e</td><td><code>npm run e2e</code></td><td>57/57</td></tr>
+<tr><td>4</td><td>Touch / scroll</td><td><code>npm run e2e:scroll</code></td><td>103/103</td></tr>
+<tr><td>5</td><td>Firestore rules (if rules or cloud code changed)</td><td><code>npm run test:rules</code></td><td>14/14</td></tr>
+<tr><td>6</td><td>Multi-user (if account/sync code changed)</td><td><code>npm run e2e:multi</code></td><td>8/8</td></tr>
+<tr><td>7</td><td>Storage-loss scenario (if sync code changed)</td><td><code>npx firebase emulators:exec --project demo-mego --only firestore,auth "node e2e/storage-loss.mjs"</code></td><td>pass</td></tr>
+<tr><td>8</td><td>Laptop setup / backend (if Code.gs or laptop-setup changed)</td><td><code>npm run e2e:laptop</code>, <code>node e2e/hub-complete-test.mjs</code></td><td>10/10, 9/9</td></tr>
+<tr><td>9</td><td>Secrets</td><td>Review the diff: no keys, tokens, /exec URLs or personal data</td><td>none</td></tr>
+</table>
+
+<h2>6. Release procedure, step by step</h2>
+<ol>
+<li>Decide whether the release changes stored data; if so, change <code>APP_RELEASE</code> (pre-update backup on every device).</li>
+<li>Run the checks of section 5 that apply.</li>
+<li>Update docs (docs/PROGRESS-LOG.md, test counts, methodology docs where relevant).</li>
+<li>Commit and push to <code>claude/nutrition-tracking-app-989rku</code>.</li>
+<li>Wait for the "Test &amp; deploy to GitHub Pages" run to be green.</li>
+<li>Run the production checks (MEGO_Production_Verification_Checklist): live e2e and scroll suites, live verifier.</li>
+<li>If the backend changed, release it (section 7) and run the AI diagnostic.</li>
+<li>Users receive the new version automatically (service worker <code>autoUpdate</code>); Settings → Data check compares record counts with the pre-update backup.</li>
+</ol>
+
+<h2>7. Backend release</h2>
+<pre>git pull
+node scripts/laptop-setup.mjs --update-backend</pre>
+<p>Uploads <code>Code.gs</code> to the same deployment (URL and token unchanged), then prints the AI diagnostic including the backend version. Use <code>--hub-complete-foods</code> instead when the release should also add the recipe-library foods to the Hub (it implies <code>--update-backend</code>). The app reports an outdated backend ("unknown action" → AI_OLD_BACKEND) if a feature needs a newer script.</p>
+
+<h2>8. Release records</h2>
+<ul>
+<li>Git history (commit messages describe each release).</li>
+<li>docs/PROGRESS-LOG.md, docs/TEST-REPORT.md, docs/PRODUCTION-STATUS.md.</li>
+<li>Live reports on the laptop: <code>~/.mego-backend/report-*.md</code> and <code>live-verify-*.md</code> (private, not in the repository).</li>
+</ul>
+
+<h2>9. Verification status</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Build configuration, identifiers, commands</td><td>Verified in package.json, vite.config.ts, localBackup.ts, db.ts, Code.gs, deploy.yml</td></tr>
+<tr><td>Unit tests 199/199</td><td>Verified by a run on 10 Nov 2026 (after the library-foods commit)</td></tr>
+<tr><td>Browser 57/57, scroll 103/103</td><td>From the 10 Nov 2026 status facts; not re-run after the library-foods commit — Not verified for that commit</td></tr>
+<tr><td>Formal release approval process / sign-off</td><td>Not defined in the repository</td></tr>
+</table>
+
+<h2>10. Revision history</h2>
+<table border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body>
+</html>

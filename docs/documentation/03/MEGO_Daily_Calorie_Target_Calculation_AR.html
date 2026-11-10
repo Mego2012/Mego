@@ -151,7 +151,7 @@ if base + allowed &gt; ceiling:  allowed = max(0, ceiling − base)
 <tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
 <tr><td>المعادلات والمعاملات والقيم الافتراضية</td><td>مُتحقَّق منها في الشيفرة المذكورة أعلاه</td></tr>
 <tr><td>الأمثلة المحلولة</td><td>محسوبة بتشغيل <code dir="ltr">recommend()</code> و<code dir="ltr">acsmWalkMet()</code> و<code dir="ltr">estimateCalories()</code> و<code dir="ltr">energyFor()</code> في 10 نوفمبر 2026</td></tr>
-<tr><td>الاختبارات الآلية</td><td>اختبارات وحدة في <code dir="ltr">tests/cardio-goals.test.ts</code> («smart cardio → calorie target» و«fat-loss safeguard» و«goal recommendations») و<code dir="ltr">tests/v2.test.ts</code> (التوصية لا تستبدل الأهداف تلقائيًا)؛ 195 اختبار وحدة ناجحة</td></tr>
+<tr><td>الاختبارات الآلية</td><td>اختبارات وحدة في <code dir="ltr">tests/cardio-goals.test.ts</code> («smart cardio → calorie target» و«fat-loss safeguard» و«goal recommendations») و<code dir="ltr">tests/v2.test.ts</code> (التوصية لا تستبدل الأهداف تلقائيًا)؛ 199/199 اختبار وحدة ناجحة (تشغيل 10 نوفمبر 2026)</td></tr>
 <tr><td>الدقة الفسيولوجية لتقديرات BMR/TDEE/MET لفرد بعينه</td><td>غير مُتحقَّق منه — معادلات سكانية؛ وتقديرات MET عادة ±20–30 % (تعليق في <code dir="ltr">energy.ts</code>)</td></tr>
 </table>
 

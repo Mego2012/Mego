@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Food_Data_Validation_and_Quality_Control_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — التحقق من بيانات الأطعمة وضبط الجودة</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-28</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع، المطورون، مراجعو التغذية، المختبِرون</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Food_Database_Import_and_Update_Procedures، MEGO_Missing_and_Duplicate_Foods_Management، MEGO_Calorie_and_Macronutrient_Calculation_Methodology، MEGO_Food_Database_Administration، MEGO_Nutrition_Calculation_Accuracy_Tests</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تسرد هذه الوثيقة كل طبقة من طبقات ضبط الجودة التي تحمي بيانات الأطعمة في MEGO: التحقق الصارم الذي يرفض القيم المستحيلة، وفحص معقولية الطاقة، وتدقيق الاستيراد، والعلامات القادمة من USDA، ومقارنة الـ Hub، والتحقق من الباركود، و<b>فحص البيانات</b> للقراءة فقط في الإعدادات (أعداد السجلات، الأطعمة المشتبه في أنها مُدخلة لكل حصة، التكرارات المحتملة)، وتدقيق القيم الغذائية للوصفات (<code dir="ltr">docs/RECIPE-AUDIT.md</code>). القاعدة الحاكمة في كل الطبقات: <b>القيم تُوسَم ولا تُغيَّر بصمت ولا تُختلق</b>. المصادر: <code dir="ltr">src/lib/nutrition.ts</code>، <code dir="ltr">src/lib/repo.ts</code>، <code dir="ltr">src/lib/sheetImport.ts</code>، <code dir="ltr">scripts/build-food-db.mjs</code>، <code dir="ltr">src/lib/sync.ts</code>، <code dir="ltr">src/lib/barcode.ts</code>، <code dir="ltr">src/lib/dataCheck.ts</code>، <code dir="ltr">scripts/recipe-audit.mts</code>، <code dir="ltr">src/pages/Foods.tsx</code>، <code dir="ltr">src/pages/Settings.tsx</code>.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">نظرة عامة على طبقات الضبط</li>
+<li dir="rtl">التحقق الصارم (القيم المرفوضة)</li>
+<li dir="rtl">فحص معقولية الطاقة</li>
+<li dir="rtl">تدقيق الاستيراد (CSV وExcel والـ Hub)</li>
+<li dir="rtl">الأطعمة غير المكتملة</li>
+<li dir="rtl">علامات المصدر (USDA وOpen Food Facts والملاحظات)</li>
+<li dir="rtl">مقارنة الـ Hub والتحقق من الباركود</li>
+<li dir="rtl">فحص البيانات في الإعدادات</li>
+<li dir="rtl">تدقيق القيم الغذائية للوصفات</li>
+<li dir="rtl">إجراء المراجعة لدى المالك</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. نظرة عامة على طبقات الضبط</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الطبقة</th><th>متى</th><th>الأثر</th></tr>
+<tr><td>التحقق الصارم (<code dir="ltr">validateMacros</code>)</td><td>الإنشاء / التعديل / استيراد JSON</td><td>رفض الحفظ</td></tr>
+<tr><td>فحص الطاقة (<code dir="ltr">explainEnergy</code>، <code dir="ltr">isEnergySuspicious</code>)</td><td>محرر الطعام، صفحة الأطعمة، الاستيراد</td><td>تفسير أو علامة؛ تبقى القيم</td></tr>
+<tr><td>تدقيق الاستيراد (<code dir="ltr">auditFoods</code>)</td><td>قبل استيراد CSV/Excel</td><td>معاينة بالأعداد والصفوف</td></tr>
+<tr><td>علامة «غير مكتمل»</td><td>قيم ناقصة أو كلها صفر</td><td>لا يمكن تسجيل الطعام</td></tr>
+<tr><td>علامة الطاقة من USDA</td><td>بناء القاعدة</td><td>ملاحظة على الطعام</td></tr>
+<tr><td>مقارنة الـ Hub (<code dir="ltr">checkHubFoods</code>)</td><td>عند ربط الـ Hub</td><td>توقف عند وجود اختلافات</td></tr>
+<tr><td>فحص البيانات (<code dir="ltr">runDataCheck</code>)</td><td>عند الطلب من الإعدادات</td><td>تقرير للقراءة فقط</td></tr>
+<tr><td>تدقيق الوصفات (<code dir="ltr">recipe-audit.mts</code>)</td><td>يشغّله المطوّر</td><td><code dir="ltr">docs/RECIPE-AUDIT.md</code></td></tr>
+</table>
+
+<h2 dir="rtl">2. التحقق الصارم (القيم المرفوضة)</h2>
+<p dir="rtl">تعمل <code dir="ltr">validateMacros()</code> داخل <code dir="ltr">createFood</code> و<code dir="ltr">updateFood</code> واستيراد الأطعمة الشخصية JSON. أي خطأ يرفض الحفظ («Invalid nutrition values: …»).</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الرمز</th><th>القاعدة (لكل 100 غ)</th></tr>
+<tr><td><code dir="ltr">&lt;key&gt;:nan</code></td><td>السعرات أو البروتين أو الكربوهيدرات أو الدهون مفقودة أو ليست رقمًا محدودًا (يجوز غياب العناصر الاختيارية)</td></tr>
+<tr><td><code dir="ltr">&lt;key&gt;:negative</code></td><td>أي قيمة أقل من 0</td></tr>
+<tr><td><code dir="ltr">macros:over100g</code></td><td>بروتين + كربوهيدرات + دهون &gt; 100.5 غ</td></tr>
+<tr><td><code dir="ltr">fiber:overCarbs</code></td><td>الألياف &gt; الكربوهيدرات + 0.5 (عند كربوهيدرات &gt; 0)</td></tr>
+<tr><td><code dir="ltr">sugar:overCarbs</code></td><td>السكر &gt; الكربوهيدرات + 0.5</td></tr>
+<tr><td><code dir="ltr">kcal:over900</code></td><td>السعرات &gt; 900.5 (الدهن الخالص ≈ 900 سعرة/100 غ)</td></tr>
+</table>
+<p dir="rtl"><b>مثال:</b> 950 سعرة، بروتين 60، كربوهيدرات 30، دهون 20، ألياف 40 ← <code dir="ltr">macros:over100g</code> (110 غ) و<code dir="ltr">fiber:overCarbs</code> و<code dir="ltr">kcal:over900</code>. ويلزم أيضًا اسم (عربي أو إنجليزي).</p>
+
+<h2 dir="rtl">3. فحص معقولية الطاقة</h2>
+<p dir="rtl">تُقارن السعرات بـ 4P + 4C + 9F. الفروق الأقل من 5 % أو 8 سعرات تُهمل؛ والأكبر تُفسَّر بالألياف أو المكسرات أو الأغذية الحيوانية حيث ينطبق النمط؛ وإلا يُعد الطعام «مشبوهًا» إذا كان السبب <i>مراجعة</i> و|pct| ≥ 10 % و|diff| ≥ 10 سعرات. القواعد الكاملة والأمثلة في MEGO_Calorie_and_Macronutrient_Calculation_Methodology §6. يعرض محرر الطعام القيمة المحسوبة والتفسير مباشرة، وتعدّ بطاقة «المشكلات» في صفحة الأطعمة الأطعمة المشبوهة.</p>
+<p dir="rtl"><b>ملاحظة:</b> نص التسمية يقول «السعرات لا تطابق الماكروز (&gt;15%)» بينما حد الشيفرة ≥ 10 % (مع ≥ 10 سعرات وغياب تفسير الألياف/المكسرات/الحيواني). أي إن نص التسمية لا يطابق القاعدة المطبّقة فعليًا؛ سُجّل ذلك للمالك (دون تغيير في الشيفرة).</p>
+
+<h2 dir="rtl">4. تدقيق الاستيراد (CSV وExcel والـ Hub)</h2>
+<p dir="rtl">يحصل كل صف مُحلَّل على قائمة مشكلات؛ وتعرض معاينة الاستيراد الأعداد وحتى 60 صفًا متأثرًا مع أرقام صفوفها في الجدول. المشكلات لا تمنع الاستيراد أبدًا.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المشكلة</th><th>تُكتشف عندما</th></tr>
+<tr><td>zeroValues (بدون قيم)</td><td>السعرات والبروتين والكربوهيدرات والدهون كلها 0</td></tr>
+<tr><td>missingValues (قيم ناقصة)</td><td>خلية قيمة مطلوبة فارغة أو «—» أو «-» أو غير مقروءة أو سالبة</td></tr>
+<tr><td>decimalComma (فاصلة عشرية)</td><td>قيمة مثل «2,6» قُرئت 2.6</td></tr>
+<tr><td>energyMismatch (عدم تطابق الطاقة)</td><td><code dir="ltr">isEnergySuspicious</code> صحيحة (استيراد الملف)</td></tr>
+<tr><td>over100g (الماكروز أكثر من 100 غ)</td><td>P + C + F &gt; 100.5 غ (استيراد الملف)</td></tr>
+<tr><td>duplicateName (اسم مكرر)</td><td>الاسم العربي نفسه يظهر أكثر من مرة (تُوسَم كل التكرارات)</td></tr>
+<tr><td>flaggedInNotes (معلَّم في الملاحظات)</td><td>الملاحظات تحتوي ⚠ أو «غير محقق» أو «تقريبي» أو «تقديري» أو «للمراجعة»</td></tr>
+<tr><td>missingPieceWeight (عدد فقط)</td><td>لا وزن للحبة</td></tr>
+</table>
+<p dir="rtl">ويحصي التدقيق أيضًا الحالات (نيء / مطبوخ / أخرى) وتسميات الحالة والفئات. وقبل كل استيراد مؤكد تُحفظ نسخة احتياطية محلية <code dir="ltr">pre-import</code>.</p>
+
+<h2 dir="rtl">5. الأطعمة غير المكتملة</h2>
+<p dir="rtl">الطعام الذي قيمه الأربع الرئيسية كلها 0 يكون <code dir="ltr">incomplete</code> (<code dir="ltr">isIncompleteMacros</code>)، والطعام المستورد بقيم ناقصة يُعلَّم كذلك غير مكتمل. تسجيله يرمي الخطأ <code dir="ltr">INCOMPLETE_FOOD</code>، والوصفات تعامله كغير متاح، وتعدّه بطاقة «المشكلات». العلاج: تعديل الطعام وإدخال قيم الملصق.</p>
+
+<h2 dir="rtl">6. علامات المصدر (USDA وOpen Food Facts والملاحظات)</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>USDA:</b> يضع سكربت البناء علامة (دون تغيير) على الصفوف التي سعراتها &gt; 40 و|4P+4C+9F − kcal| ÷ kcal &gt; 25 % — 211 صفًا من 12,879. وعند نسخ طعام كهذا إلى قائمة المستخدم تنتهي ملاحظته بـ «⚠ calories vs macros differ in the source data».</li>
+<li dir="rtl"><b>Open Food Facts:</b> بيانات مجتمعية؛ تُحفظ مع ملاحظة «Open Food Facts — external data, verify with label»، وتُستبعد من البحث النصي النتائج التي تنقصها السعرات أو البروتين أو الكربوهيدرات أو الدهون.</li>
+<li dir="rtl"><b>عمود التحقق في الـ Hub:</b> يحمل Food_Database قيمة تحقق (verified-usda / estimated / unverified / user). والملاحظات التي فيها العلامات المذكورة في §4 تُعامل كتقديرية: فالوصفات التي تستخدم هذا الطعام تُوسَم بأنها تقديرية.</li>
+</ul>
+
+<h2 dir="rtl">7. مقارنة الـ Hub والتحقق من الباركود</h2>
+<p dir="rtl"><b>الـ Hub:</b> قبل استيراد أطعمة الـ Hub يقارنها التطبيق بما على الهاتف (بالاسم العربي + الحالة؛ السعرات والبروتين والكربوهيدرات والدهون ووزن الحبة). أي اختلاف يوقف المسار حتى يقبل المالك قيم الـ Hub؛ وتُسرد الأطعمة الموجودة في الـ Hub فقط أو على الهاتف فقط.</p>
+<p dir="rtl"><b>الباركود:</b> يجب أن تجتاز رموز EAN-8 وEAN-13 (وكذلك ذات 12 و14 رقمًا) رقم التحقق. مثال 4006381333931: المجموع الموزون لأول 12 رقمًا من اليمين (×3، ×1، …) = 89 ← (10 − 9) mod 10 = 1 = الرقم الأخير ← صالح.</p>
+
+<h2 dir="rtl">8. فحص البيانات في الإعدادات</h2>
+<p dir="rtl">الإعدادات ← <b>فحص البيانات</b> ← <b>تشغيل الفحص</b> (<code dir="ltr">runDataCheck</code>). «فحص للقراءة فقط للسجلات على هذا الجهاز؛ لا يغيّر أي شيء.» ويعرض:</p>
+<ol dir="rtl">
+<li dir="rtl"><b>أعداد السجلات:</b> سجلات الطعام وعدد الأيام المسجلة، أول–آخر يوم مسجل، الأوزان / قياسات الخصر، الأطعمة / وصفاتي، أهداف السعرات (تمرين / راحة)، آخر نسخة قبل التحديث (التاريخ، الإصدار، عدد السجلات).</li>
+<li dir="rtl"><b>السلامة مقارنة بنسخة ما قبل التحديث</b> (تُحفظ واحدة لكل إصدار، حاليًا <code dir="ltr">1.3-training</code>): <i>سليمة</i> إذا كان عدد سجلات الطعام والقياسات وسجلات الأيام والأطعمة كلٌّ منها ≥ ما في تلك النسخة؛ وإلا «بعض الجداول فيها سجلات أقل من نسخة ما قبل التحديث — راجع النسخ الاحتياطية المحلية». ومن دون هذه النسخة تكون النتيجة «لا توجد نسخة قبل التحديث على هذا الجهاز بعد».</li>
+<li dir="rtl"><b>الأطعمة المشتبه في أنها لكل حصة</b> (<code dir="ltr">suspectPerServing</code>): اسمها أو فئتها يطابق كلمات البروتين المسحوق (واي، whey، بروتين سكوب/مسحوق، protein powder، isolate، كازين، casein) و0 &lt; السعرات لكل 100 غ &lt; 250. البروتين المسحوق نحو 350–420 سعرة لكل 100 غ، فالقيمة الأقل تعني غالبًا أن قيم السكوب أُدخلت على أنها لكل 100 غ. يذكر التقرير اسم الطعام وسعراته وبروتينه، وعدد سجلات اليوميات والوصفات الخاصة ووصفات المكتبة التي تستخدمه. مثال: 120 سعرة / 24 غ بروتين ← يُوسَم؛ مسحوق الواي من USDA ‏352 سعرة / 78.13 غ ← لا يُوسَم. المالك لا يستخدم الواي؛ فالعلامة للمعلومية فقط.</li>
+<li dir="rtl"><b>التكرارات المحتملة:</b> عناصر اليوميات بالتاريخ والوجبة والاسم (دون تمييز حالة الأحرف) والغرامات المقرّبة نفسها، والأطعمة الخاصة بالاسم نفسه — انظر MEGO_Missing_and_Duplicate_Foods_Management. لا يُحذف شيء.</li>
+</ol>
+
+<h2 dir="rtl">9. تدقيق القيم الغذائية للوصفات</h2>
+<p dir="rtl">السكربت <code dir="ltr">scripts/recipe-audit.mts</code> (يُشغَّل بـ <code dir="ltr">npx tsx scripts/recipe-audit.mts</code>) يحسب كل وصفات المكتبة من مراجع USDA فقط (ما يراه حساب جديد)، ومن قيم المالك أيضًا عند وجود جدول أطعمته الخاص محليًا (<code dir="ltr">tests/private</code>، لا يُرفع إلى المستودع أبدًا). ويكتب <code dir="ltr">docs/RECIPE-AUDIT.md</code>. الفحوص لكل وصفة: المكونات الناقصة؛ اختلاف سعرات الحصة عن 4P+4C+9F بأكثر من 15 %؛ سعرات الحصة &lt; 80 أو &gt; 1,300؛ اختلاف نتيجة جدول المالك عن USDA بأكثر من 15 %؛ الوصفات المحتوية على الواي.</p>
+<p dir="rtl"><b>تدقيق 2026-11-10:</b> 101 وصفة، 100 منها محلولة بالكامل؛ المكوّن غير المحلول: اللبنة — لا تُقدَّر أبدًا؛ 68 مرجعًا من USDA مُراجَعًا يدويًا؛ 6 وصفات موسومة:</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الوصفة</th><th>العلامة</th></tr>
+<tr><td>lib-protein-pancakes</td><td>جدول المالك مقابل USDA ‏−15 %؛ تحتوي واي</td></tr>
+<tr><td>lib-labneh-plate</td><td>اللبنة ناقصة؛ المالك مقابل USDA ‏21 %</td></tr>
+<tr><td>lib-mango-protein-yogurt</td><td>المالك مقابل USDA ‏−15 %؛ تحتوي واي</td></tr>
+<tr><td>lib-protein-shake</td><td>المالك مقابل USDA ‏−17 %؛ تحتوي واي</td></tr>
+<tr><td>lib-protein-mousse</td><td>المالك مقابل USDA ‏−23 %؛ تحتوي واي</td></tr>
+<tr><td>lib-date-tahini-bites</td><td>تحتوي واي</td></tr>
+</table>
+<p dir="rtl">لا تُنشر قيم أطعمة المالك الخاصة في ملف التدقيق.</p>
+
+<h2 dir="rtl">10. إجراء المراجعة لدى المالك</h2>
+<ol dir="rtl">
+<li dir="rtl">بعد كل إصدار: شغّل <b>فحص البيانات</b> على الجهاز الرئيسي وتأكد من رسالة «كل السجلات سليمة».</li>
+<li dir="rtl">افتح أي طعام مشتبه في أنه لكل حصة، وقارنه بملصق العبوة، وصحّح القيمة لكل 100 غ (يمكن لمحرر الطعام التحويل من «لكل حصة»).</li>
+<li dir="rtl">راجع أعداد «المشكلات» في صفحة الأطعمة (بدون قيم، عدم تطابق السعرات، معلَّم في الملاحظات) وصحّح كل طعام أو أكّده.</li>
+<li dir="rtl">قبل استيراد الـ Hub عالج الاختلافات التي تظهرها المقارنة.</li>
+<li dir="rtl">بعد تغيير بيانات الوصفات أو مراجع USDA أعد تشغيل تدقيق الوصفات وراجع العلامات.</li>
+</ol>
+
+<h2 dir="rtl">11. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>كل القواعد والحدود</td><td>مُتحقَّق منها في الملفات المذكورة في النطاق</td></tr>
+<tr><td>الأمثلة (التحقق، الطعام المشبوه، الباركود)</td><td>محسوبة بتشغيل دوال التطبيق في 10 نوفمبر 2026</td></tr>
+<tr><td>أرقام تدقيق الوصفات</td><td>مأخوذة من <code dir="ltr">docs/RECIPE-AUDIT.md</code> (مُولَّد في 2026-11-10)</td></tr>
+<tr><td>الاختبارات الآلية</td><td>اختبارات الوحدة 199/199 (vitest، 14 ملفًا، تشغيل 10 نوفمبر 2026)، منها تدقيق الاستيراد وأسباب الطاقة وفحص البيانات وحل مكونات الوصفات</td></tr>
+<tr><td>فحص البيانات على هاتف أندرويد الحقيقي للمالك</td><td>غير مُتحقَّق منه في هذه الوثيقة</td></tr>
+</table>
+
+<h2 dir="rtl">12. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

@@ -48,7 +48,7 @@ Status legend: ✅ implemented and tested here · 🔶 implemented, needs your d
 - The photo is downscaled to ≤1024 px and re-encoded as JPEG on the phone (removes EXIF/GPS); only the pixels, your food names/states/categories
   and an optional note are sent — to **your private Apps Script backend**, which calls Google's **Gemini API free tier** (`gemini-3.8-flash`,
   JSON-schema output). The key is created in Google AI Studio **without billing** and stored only in Script Properties (set from the app,
-  checked with Google first, never kept on the phone). Only free-tier Flash models can be selected; **no fallback, no paid model**.
+  checked with Google first, never kept on the phone). Only free-tier Flash models are used: if Google reports the model overloaded, the backend (v7+) moves to the next free model (gemini-3.8-flash → gemini-3.6-flash → gemini-3.5-flash-lite); **never a paid model**.
   Free quota used up → clear message with the reset time (midnight Pacific); per-minute limit → "wait N seconds". Own daily cap `AI_DAILY_LIMIT` (default 40).
 - The AI identifies items (incl. oil/sauces), estimates grams with a low–high range, raw/cooked state and cooking method, and picks the matching
   row of **your** database. **All nutrition is computed by the app's own engine from your database** (identical to manual logging).

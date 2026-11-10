@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Nutrition_Calculation_Accuracy_Tests_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Nutrition Calculation Accuracy Tests</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-62</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Approved for internal use</td></tr>
+<tr><td>Audience</td><td>Project owner, nutrition reviewers, developers, testers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Calorie_and_Macronutrient_Calculation_Methodology, MEGO_Daily_Calorie_Target_Calculation, MEGO_Portion_and_Measurement_Conversion_Rules, MEGO_Food_Data_Validation_and_Quality_Control, MEGO_Unit_Testing, MEGO_Acceptance_Testing</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document lists the automated tests that prove MEGO's nutrition numbers are calculated correctly: food logging per gram and per unit, raw versus cooked records, recipes, remaining macros, targets and reports, USDA reference values, the energy (Atwater) check, cardio energy estimates, the smart calorie adjustment, goal recommendations and strength metrics. For each case it gives the input, the expected value asserted by the test, how the value is derived, and the test that checks it. All values below are copied from the test files; the unit suite passed 199/199 on 10 November 2026.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Calculation basis</li>
+<li>Food logging accuracy (reference cases)</li>
+<li>Unit and portion conversions</li>
+<li>Recipes</li>
+<li>Targets, remaining macros and reports</li>
+<li>Reference data and energy checks</li>
+<li>Cardio energy and the adjusted daily target</li>
+<li>Goal recommendations and strength metrics</li>
+<li>What the tests guarantee — and what they do not</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Calculation basis</h2>
+<ul>
+<li>Every food stores values <b>per 100 g</b>. An entry's macros = per-100 g value × grams ÷ 100 (<code>macrosFor</code> in <code>src/lib/nutrition.ts</code>).</li>
+<li>Raw and cooked versions are <b>separate records</b>; the app never converts between them.</li>
+<li>Each diary entry keeps a <b>snapshot</b> of its values, so later edits to a food do not change the past.</li>
+<li>Displayed values are rounded by <code>roundMacros</code> (kcal to whole numbers, macros to 0.1 g); values are stored with 0.01 precision so that sums of many small entries do not drift; rounding to whole kcal happens only when displaying.</li>
+</ul>
+
+<h2>2. Food logging accuracy (reference cases)</h2>
+<p>Values per 100 g come from the owner's food table (sample in <code>tests/fixtures/food-sheet-sample.csv</code>).</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Case</th><th>Input</th><th>Expected (asserted)</th><th>Derivation</th><th>Test</th></tr>
+<tr><td>TEST 1</td><td>100 g raw chicken breast (120 / 23 / 0 / 2.6 per 100 g)</td><td>120 kcal, P 23, C 0, F 2.6; state raw</td><td>× 100/100</td><td>core.test.ts; e2e TEST 1</td></tr>
+<tr><td>TEST 2</td><td>100 g grilled chicken breast (cooked record)</td><td>165 kcal, P 31, C 0, F 3.6; state cooked</td><td>cooked record, not converted</td><td>core.test.ts; e2e TEST 2</td></tr>
+<tr><td>TEST 3</td><td>3 whole eggs, piece = 55 g (143 / 13 / 1.1 / 10)</td><td>165 g; 236 kcal, P 21.5, C 1.8, F 16.5</td><td>3 × 55 = 165 g; 143 × 1.65 = 235.95</td><td>core.test.ts; e2e TEST 3</td></tr>
+<tr><td>TEST 4</td><td>3 slices whole-wheat toast, slice = 28 g (247 / 13 / 41 / 3.4)</td><td>84 g; 207 kcal, P 10.9, C 34.4, F 2.9</td><td>3 × 28 = 84 g; 247 × 0.84 = 207.5</td><td>core.test.ts; e2e TEST 4</td></tr>
+<tr><td>Dashboard</td><td>TEST 1–4 logged on one day</td><td>728 kcal consumed</td><td>120 + 165 + 236 + 207</td><td>e2e DASH</td></tr>
+<tr><td>Raw vs cooked rice</td><td>100 g each</td><td>360 kcal vs 130 kcal</td><td>separate records</td><td>core.test.ts</td></tr>
+<tr><td>Raw vs cooked rice (real table)</td><td>200 g each</td><td>720 kcal vs 260 kcal</td><td>× 2</td><td>v2.test.ts (needs private table)</td></tr>
+<tr><td>Precision</td><td>10 tomato entries of 2.7–2.709 g</td><td>day total 5 kcal (exact 4.86)</td><td>many small entries do not round to zero</td><td>v2.test.ts (private table)</td></tr>
+<tr><td>Quantity edit</td><td>100 g → 200 g grilled chicken; then undo</td><td>total = round(per100 × 2), then back to per100</td><td>immediate recalculation</td><td>v2.test.ts</td></tr>
+<tr><td>History snapshot</td><td>Edit raw chicken 120 → 110 kcal</td><td>past entries keep 120; new entries use 110</td><td>snapshot per entry</td><td>core.test.ts TEST 11; e2e TEST 11</td></tr>
+<tr><td>Duplicate tap</td><td>Same food, quantity, unit, meal and date added twice within 1.5 s</td><td>second call rejected (<code>DUPLICATE_ENTRY</code>)</td><td>double-tap guard in <code>src/lib/repo.ts</code></td><td>core.test.ts</td></tr>
+</table>
+
+<h2>3. Unit and portion conversions</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Input</th><th>Expected grams / kcal</th><th>Rule</th><th>Test</th></tr>
+<tr><td>1 tbsp oil (884 kcal/100 g), no density</td><td>15 g → 133 kcal</td><td>tbsp = 15 ml, 1 g/ml assumed</td><td>core.test.ts</td></tr>
+<tr><td>1 tbsp with density 0.91 g/ml</td><td>13.7 g</td><td>15 ml × 0.91</td><td>core.test.ts</td></tr>
+<tr><td>0.1 kg</td><td>100 g</td><td>× 1000</td><td>core.test.ts</td></tr>
+<tr><td>2 tsp</td><td>10 g</td><td>tsp = 5 ml</td><td>core.test.ts</td></tr>
+<tr><td>1 cup milk</td><td>240 g</td><td>cup = 240 ml</td><td>v2.test.ts</td></tr>
+<tr><td>0.5 l milk</td><td>500 g</td><td>l = 1000 ml</td><td>v2.test.ts</td></tr>
+<tr><td>1 piece with piece weight 55 g</td><td>55 g</td><td>piece weight from the food</td><td>v2.test.ts</td></tr>
+</table>
+
+<h2>4. Recipes</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Case</th><th>Expected (asserted)</th><th>Test</th></tr>
+<tr><td>500 g raw chicken + 300 g raw rice + 1 tbsp olive oil, 4 servings</td><td>Total 1813 kcal, P 136, C 237, F 29.8; per serving 453 kcal, P 34, C 59.3, F 7.5; 1.5 servings logged = 680 kcal, P 51, C 88.9, F 11.2. (Ingredients: 600/115/0/13 + 1080/21/237/1.8 + 132.6/0/0/15.)</td><td>core.test.ts TEST 5</td></tr>
+<tr><td>Browser: 500 g raw chicken + 300 g raw rice, 4 servings (no oil)</td><td>1680 kcal total / 420 per serving, logged</td><td>e2e TEST 5</td></tr>
+<tr><td>Recipe entry servings edited 1 → 2</td><td>grams double; a duplicated recipe has identical totals</td><td>v2.test.ts</td></tr>
+<tr><td>Library recipes with an empty food list</td><td>Every recipe gets kcal and macros from USDA except those containing labneh (reported missing, never estimated); per serving × servings = total (within rounding); total = sum of ingredients; cooking oil counted at 8.84 kcal/g</td><td>cardio-goals.test.ts</td></tr>
+<tr><td>User food vs USDA match</td><td>The user's own food takes precedence; approval adds USDA matches once and never changes existing foods</td><td>cardio-goals.test.ts</td></tr>
+<tr><td>Ready meals from the recipe library</td><td>Per-100 g value × serving grams ÷ 100 matches per-serving kcal within 2 kcal; labneh recipe left incomplete; existing foods unchanged; second run adds nothing</td><td>library-foods.test.ts</td></tr>
+</table>
+
+<h2>5. Targets, remaining macros and reports</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Case</th><th>Expected (asserted)</th><th>Test</th></tr>
+<tr><td>Remaining after 200 g grilled chicken (target 2000 / 160 / 200 / 62)</td><td>kcal 2000 − 330, protein 160 − 62, carbs 200, fat 62 − 7.2</td><td>v2.test.ts (private table)</td></tr>
+<tr><td>Targets changed 2000 → 2200 kcal, 160 → 170 g protein</td><td>Day summary, weekly average target and monthly average target show 2200 / 170; day with 279 g protein counts as protein hit</td><td>core.test.ts TEST 6–7; e2e TEST 6–7</td></tr>
+<tr><td>Rest-day target 1800 on Friday; day set to training</td><td>1800, then 2000</td><td>core.test.ts</td></tr>
+<tr><td>Day status</td><td>A past snack-only day is "partial"; a real day is "complete"; weekly/monthly reports separate complete, partial and empty days</td><td>v2.test.ts, core.test.ts TEST 9/10</td></tr>
+<tr><td>Saved target and logging</td><td>Cardio or workouts never change saved targets; a saved 2,110 kcal target is never changed by logging workouts</td><td>cardio-goals.test.ts, workouts.test.ts</td></tr>
+</table>
+
+<h2>6. Reference data and energy checks</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Case</th><th>Expected (asserted)</th><th>Test</th></tr>
+<tr><td>USDA database</td><td>12,879 foods; unique ids; all values finite and ≥ 0; protein + carbs + fat ≤ 100.5 g per 100 g</td><td>fooddb.test.ts</td></tr>
+<tr><td>USDA spot values (kcal / P / C / F)</td><td>FDC 171477 roasted chicken breast 165 / 31.02 / 0 / 3.57; FDC 171287 raw whole egg 143 / 12.56 / 0.72 / 9.51; FDC 168878 cooked white rice 130 / 2.69 / 28.17 / 0.28</td><td>fooddb.test.ts</td></tr>
+<tr><td>Logging a USDA food</td><td>Diary values equal the USDA values; raw/cooked inferred from the USDA name, never converted</td><td>fooddb.test.ts</td></tr>
+<tr><td>Owner's 160 foods</td><td>All 160 imported with identical per-100 g values; audit 71 raw / 61 cooked / 28 other, 4 zero-value placeholders, 0 missing, 0 duplicates</td><td>v2.test.ts</td></tr>
+<tr><td>Atwater check (kcal ≈ 4P + 4C + 9F)</td><td>Spinach difference treated as rounding; dates explained by fibre, almonds by nut factors, grilled chicken by animal factors; mixed vegetables flagged for review; at most 6 unexplained mismatches in the table</td><td>v2.test.ts (private table)</td></tr>
+<tr><td>Placeholder rows 0/0/0/0; missing cells</td><td>Kept but cannot be logged; missing values block logging; decimal comma read correctly</td><td>core.test.ts, v2.test.ts</td></tr>
+</table>
+
+<h2>7. Cardio energy and the adjusted daily target</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Case</th><th>Expected (asserted)</th><th>Test</th></tr>
+<tr><td>Owner routine: treadmill 10 min, 3.5 km/h, 13 % incline, 72 kg</td><td>ACSM walking equation: S = 58.33 m/min, VO2 = 0.1·S + 1.8·S·0.13 + 3.5 ≈ 22.98 ml/kg/min → 6.566 MET (shown 6.6); 79 kcal gross; 67 kcal net ((MET − 1) × kg × h)</td><td>cardio-goals.test.ts</td></tr>
+<tr><td>Elliptical, moderate, 60 min, 80 kg</td><td>5.0 MET → 400 kcal gross, 320 net</td><td>cardio-goals.test.ts</td></tr>
+<tr><td>Cycling 20 km/h; stationary bike vigorous</td><td>8.0 MET; 8.8 MET</td><td>cardio-goals.test.ts</td></tr>
+<tr><td>Manual 120 kcal, 10 min, 72 kg</td><td>kcal 120, net 108</td><td>cardio-goals.test.ts</td></tr>
+<tr><td>Default plan 6 × 10 min (60 min/week), all logged</td><td>Nothing added; adjusted = 2110</td><td>cardio-goals.test.ts</td></tr>
+<tr><td>Fat loss, plan 3 × 10 min used, extra 40-min session with 300 kcal net; base 2000, eaten 1200</td><td>extra net 300 × 50 % = +150; adjusted 2150; remaining 950</td><td>cardio-goals.test.ts</td></tr>
+<tr><td>Partly covered session (10 of 20 min in plan, 200 net)</td><td>extra net 100, allowed 50</td><td>cardio-goals.test.ts</td></tr>
+<tr><td>Sedentary, maintain at 100 %; 900 kcal net</td><td>allowed capped at 400 kcal; Off mode adds 0</td><td>cardio-goals.test.ts</td></tr>
+<tr><td>Fat-loss ceiling</td><td>For bases 80–100 % of TDEE and net 100/300/900: adjusted ≤ max(base, 0.9 × (TDEE + net)) and never below the saved base; owner-like case 2110 + 30-min run (300 net) → +150 = 2260</td><td>cardio-goals.test.ts</td></tr>
+</table>
+
+<h2>8. Goal recommendations and strength metrics</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Case</th><th>Expected (asserted)</th><th>Test</th></tr>
+<tr><td>Default goal (fat loss, preserve muscle), 72 kg</td><td>Protein = round(72 × 2.2) = 158 g; BMR ≤ kcal &lt; TDEE; lean bulk kcal &gt; TDEE; "custom" gives no targets; recommendation never overwrites saved targets</td><td>v2.test.ts</td></tr>
+<tr><td>Goals advisor</td><td>Asks for more data instead of guessing; stalled fat loss → suggests −150 kcal (not applied); losing too fast → +150 kcal; fat-loss suggestions never reach a surplus (≤ 90 % of TDEE)</td><td>cardio-goals.test.ts, workouts.test.ts</td></tr>
+<tr><td>e1RM (Epley)</td><td>100 kg × 5 → 116.67 kg; 100 kg × 1 → 100 kg; pull-ups count body weight</td><td>workouts.test.ts</td></tr>
+<tr><td>Double progression</td><td>All sets at top with RIR → +2.5 kg (30 → 32.5 kg); lower-body compound ≥ 100 kg → +5 kg; below range twice → reduce ~5 % (30 → 28.5 kg)</td><td>workouts.test.ts</td></tr>
+</table>
+
+<h2>9. What the tests guarantee — and what they do not</h2>
+<ul>
+<li><b>Guaranteed by tests:</b> the arithmetic of the app (conversions, sums, rounding, targets, reports, estimates) gives the exact values above, and missing data is never invented.</li>
+<li><b>Not guaranteed:</b> that a food's per-100 g values are correct for the product actually eaten — the app uses the values in the user's table, USDA or Open Food Facts as they are. Cardio calories are labelled as estimates. Gemini photo analysis gives estimates that the user must review; matched foods use database values.</li>
+<li>The app is not a medical device; see MEGO_Nutrition_Disclaimer and MEGO_Medical_Disclaimer.</li>
+</ul>
+
+<h2>10. Verification status</h2>
+<ul>
+<li><b>Verified:</b> all unit-test cases above passed in the run of 10 Nov 2026 (199/199, including the 11 tests that need the private food table, which was present).</li>
+<li><b>Tested in the browser (emulated phone):</b> TEST 1–7, DASH and recipe totals in <code>e2e/run-e2e.mjs</code> (57/57 latest recorded run).</li>
+<li><b>Verified live:</b> TEST 1–7 as part of the 44/44 run against the live URL (7 Nov 2026).</li>
+<li><b>Not verified:</b> independent nutritional review of the owner's food table values; accuracy of AI photo estimates on real meals.</li>
+</ul>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Support_and_Incident_Management_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Support and Incident Management</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-71</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>MEGO Project Owner, administrators, anyone handling user problems</td></tr>
+<tr><td>Related documents</td><td>MEGO_Troubleshooting_Manual, MEGO_FAQ, MEGO_Monitoring_and_Maintenance, MEGO_Data_Backup_and_Recovery, MEGO_Known_Bugs_and_Limitations, MEGO_User_Management_Procedures, MEGO_Gemini_AI_Integration</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document defines how user problems are received and answered, and how incidents (faults that affect users' data or a whole feature) are classified, investigated, fixed, verified and recorded. It includes two real incidents from 10 November 2026 as worked examples. No personal data is included: the incidents are described by symptom and mechanism only.</p>
+<p>Current reality: MEGO has <b>no support desk, ticket system or in-app contact form</b>, and the published privacy page still contains the placeholder for the operator's contact address. Support is therefore handled directly by the Project Owner. The severity levels and response steps below are a <b>proposed process</b> for the owner to approve; they are not enforced by any tool.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Support channels and roles</li>
+<li>Severity levels (proposed)</li>
+<li>Incident life cycle</li>
+<li>First-line triage checklist</li>
+<li>Common requests and standard answers</li>
+<li>Worked example A: "AI is busy" (10 Nov 2026)</li>
+<li>Worked example B: data missing after browser storage loss (10 Nov 2026)</li>
+<li>Rules during every incident</li>
+<li>Incident record template</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Support channels and roles</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Channel / role</th><th>Status</th></tr>
+<tr><td>User-facing contact address</td><td>Not defined yet — placeholder "[Operator name, country and contact email — to be completed by the owner before launch.]" in the privacy page</td></tr>
+<tr><td>Automatic error reports</td><td>Signed-in devices write <code>errorReports</code> (kinds <code>sync</code>, <code>sync-apply</code>; no user id); readable by admins in <code>#/admin</code> once an admin exists</td></tr>
+<tr><td>In-app messages</td><td>Each error is shown to the user with a bilingual message; AI errors include Google's own status text</td></tr>
+<tr><td>Incident owner</td><td>The Project Owner (decides, communicates, approves fixes)</td></tr>
+<tr><td>Administrator</td><td>None yet; once created: dashboard checks, suspensions, food reviews</td></tr>
+<tr><td>Developer</td><td>Investigates and fixes in the repository; every fix ships through tests and the deploy workflow</td></tr>
+</table>
+
+<h2>2. Severity levels (proposed)</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Level</th><th>Definition</th><th>Examples</th><th>Target first response (proposal)</th></tr>
+<tr><td>SEV-1 Critical</td><td>Data loss, data visible to the wrong person, or the app unusable for everyone</td><td>A rules regression exposing private data; records not coming back after sign-in (example B)</td><td>Same day</td></tr>
+<tr><td>SEV-2 High</td><td>A main feature fails for many users; workaround exists</td><td>AI scanner fails for everyone (example A); sync errors after a release</td><td>Within 1 day</td></tr>
+<tr><td>SEV-3 Medium</td><td>One user or a minor feature affected</td><td>Wrong value in one shared food; password e-mail not received</td><td>Within 3 days</td></tr>
+<tr><td>SEV-4 Low</td><td>Question, cosmetic issue, suggestion</td><td>Translation wording, feature request</td><td>Next planned release</td></tr>
+</table>
+
+<h2>3. Incident life cycle</h2>
+<pre>
+ Detect ─► Triage ─► Contain ─► Investigate ─► Fix ─► Verify ─► Communicate ─► Review
+ (user,     (level,   (protect   (reproduce,    (code  (tests,   (what users   (record,
+  report,    scope)    data,      find root      + tests) emulator, should do)   lessons,
+  monitor)             no wipes)  cause)                 live)                  follow-ups)
+</pre>
+<ul>
+<li><b>Contain</b> never means deleting data. Prefer leaving cloud records untouched and taking a local backup before any import.</li>
+<li><b>Fix</b> always includes an automated test that reproduces the fault, so it cannot come back unnoticed.</li>
+<li><b>Verify</b> on the level that matches the fault: unit test, emulator scenario, then the live site.</li>
+</ul>
+
+<h2>4. First-line triage checklist</h2>
+<ol>
+<li>Guest or signed-in account? (Guest data exists only on that device.)</li>
+<li>Which device and browser; installed as an app or in the browser tab?</li>
+<li>Exact message on screen (an AI error shows a code such as "AI overloaded" plus Google's text).</li>
+<li>Online? The sync status in Settings shows idle / syncing / offline / error and the pending count.</li>
+<li>Settings → <b>Data check</b> (read-only): record counts compared with the pre-update backup, suspect per-serving foods, possible duplicates.</li>
+<li>Settings → local backups: is there a recent automatic or pre-update backup on this device?</li>
+<li>Has a release gone out recently? Check the GitHub Actions history.</li>
+<li>Is it reproducible on another device or a disposable test account?</li>
+</ol>
+<p>Never ask a user for their password, and never ask them to send the Hub connection code or screenshots of Script Properties.</p>
+
+<h2>5. Common requests and standard answers</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Request</th><th>Answer / action</th></tr>
+<tr><td>Forgot password</td><td>Use the reset option on the sign-in screen; check spam. Admins cannot reset passwords</td></tr>
+<tr><td>"Account suspended" screen</td><td>Data is kept; the owner reviews and may reactivate (MEGO_User_Management_Procedures)</td></tr>
+<tr><td>Data missing on a new or reset phone (signed-in)</td><td>Sign in again with the same account; the account downloads from the cloud (see example B)</td></tr>
+<tr><td>Data missing (guest)</td><td>Only a local backup on the same device or an exported file can restore it</td></tr>
+<tr><td>AI overloaded / server error / timeout</td><td>Temporary at Google; the app already retried. Try again in a few minutes; the photo is kept for a manual retry</td></tr>
+<tr><td>AI daily quota / own limits</td><td>Free quota or MEGO's caps reached; the message shows when it renews. Nothing is charged</td></tr>
+<tr><td>AI not offered in my country</td><td><code>AI_REGION_RESTRICTED</code>: Google free-tier terms; manual logging still works</td></tr>
+<tr><td>Delete my account</td><td>Self-service in Settings with the password (MEGO_User_Management_Procedures section 8)</td></tr>
+<tr><td>Wrong value in a shared food</td><td>Owner corrects in the Hub and republishes (MEGO_Food_Database_Administration)</td></tr>
+</table>
+
+<h2>6. Worked example A: "AI is busy" (10 Nov 2026)</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Stage</th><th>Details</th></tr>
+<tr><td>Symptom</td><td>Every meal-photo analysis in the live app ended with "The AI service is busy right now. Please try again in a minute." Severity: SEV-2 (feature unusable for everyone; manual logging still worked).</td></tr>
+<tr><td>Investigation</td><td>Reproduced live with a disposable account: every analysis — even a 96-pixel image — returned the busy error after 4–30 s. So the image size was not the cause: Google answered with 5xx server errors. Reading the backend showed that it mapped every 5xx answer to one generic "busy" code, never retried, and still counted each failure against the user's daily scans.</td></tr>
+<tr><td>Root cause</td><td>Google's 503 "overloaded" answer on the primary free model (<code>gemini-3.8-flash</code>), reported by the old backend as "busy" without retry or fallback.</td></tr>
+<tr><td>Fix (backend v6)</td><td>Precise error codes with Google's status/message (never the key): <code>AI_OVERLOADED</code> 503, <code>AI_SERVER_ERROR</code> 500, <code>AI_TIMEOUT</code> 504, quota, key, region, model, image, config; retries after 2 s and 4 s for temporary errors; fallback through the free models <code>gemini-3.8-flash → gemini-3.6-flash → gemini-3.5-flash-lite</code> (free tier only, never a paid model); failed requests no longer counted; new <code>aiDiag</code> action. App: automatic retry after 3 s and 8 s for temporary errors only, manual retry keeps the photo, one request at a time, image validation and compression, bilingual messages. Setup: <code>--update-backend</code> (same URL, data untouched).</td></tr>
+<tr><td>Follow-up fix (backend v7)</td><td>A live check after v6 showed the primary model answering 503 three times in a row on every attempt, so a photo took 60–200 s before the fallback answered. v7 moves on to the next free model immediately after a 503.</td></tr>
+<tr><td>Verification</td><td>9 new unit tests for the scanner (later extended); live on 10 Nov 2026 a real meal photo was analysed through the live app UI (disposable account) in ≈ 64 s with 4 items recognised.</td></tr>
+<tr><td>Residual risk</td><td>The free tier remains slow at peak times; overload can still occur on all three models at once.</td></tr>
+<tr><td>Owner action</td><td><code>git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend</code>; when users report AI problems, read the aiDiag output first.</td></tr>
+</table>
+
+<h2>7. Worked example B: data missing after browser storage loss (10 Nov 2026)</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Stage</th><th>Details</th></tr>
+<tr><td>Symptom</td><td>On an Android phone with a signed-in account, the app suddenly showed the welcome screen. After signing in again with the same account, the diary was empty and the calorie target showed the default 2000. It had happened once before; that time the data was entered again by hand. Severity: SEV-1 (data appeared lost).</td></tr>
+<tr><td>Investigation</td><td>The browser had lost its IndexedDB (the local records <b>and</b> the Firebase session) while <code>localStorage</code> survived. The cloud still held all records. The fault was reproduced on the Firebase emulators with a new scenario <code>e2e/storage-loss.mjs</code>.</td></tr>
+<tr><td>Root cause</td><td>Two defects: (1) the cloud listener started each table from a "last seen" marker kept in <code>localStorage</code>; the marker survived, so the older records were never downloaded into the new, empty database; (2) a fresh default settings record got <code>updatedAt</code> = now and therefore outranked the account's saved settings.</td></tr>
+<tr><td>Fix</td><td>In <code>src/lib/cloudSync.ts</code>, <code>account.ts</code>, <code>repo.ts</code>: markers renamed to <code>mego.cloud2.</code> so every device re-downloads its account once; a missing local database resets the markers; an empty table always downloads in full; settings are always re-read; untouched defaults (<code>updatedAt</code> 0) never outrank the cloud copy. Second commit: one record that cannot be applied no longer stops the download (it is reported as <code>sync-apply</code>); two weigh-ins for the same date keep the newer one on the device while the other stays in the cloud; Data check lists possible duplicates (re-entered copies) read-only. All changes are non-destructive: newer local copies are kept.</td></tr>
+<tr><td>Verification</td><td>Unit tests (<code>tests/cloud-recovery.test.ts</code>); emulator scenario <code>e2e/storage-loss.mjs</code> including old and re-entered copies; deployed live; the owner confirmed the data came back.</td></tr>
+<tr><td>Residual risk</td><td>The browser can still clear storage; signed-in data is safe in the cloud, guest data is not. Re-entered duplicates from the first loss remain until the user removes them.</td></tr>
+<tr><td>Lesson for users</td><td>Signed-in accounts are recovered by signing in again. Guest data lives only on the device — export regularly or create an account.</td></tr>
+</table>
+
+<h2>8. Rules during every incident</h2>
+<ul>
+<li>Do not delete or overwrite cloud data to "clean up"; investigate first.</li>
+<li>Take a local backup on the affected device before any import or restore.</li>
+<li>Use disposable test accounts for reproduction, never a user's account.</li>
+<li>No personal data in incident records, commits or reports: no names, e-mail addresses, diary content or uids of real users.</li>
+<li>Never expose secrets (Gemini key, app token, <code>/exec</code> URL, connection code) in logs or screenshots. If one is exposed, rotate it (MEGO_Monitoring_and_Maintenance section 8).</li>
+<li>Every fix ships with a test and through the normal deploy workflow.</li>
+</ul>
+
+<h2>9. Incident record template</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Content</th></tr>
+<tr><td>ID / date / severity</td><td>e.g. INC-2026-11-10-B · SEV-1</td></tr>
+<tr><td>Symptom</td><td>What users saw</td></tr>
+<tr><td>Scope</td><td>Guest / accounts; platforms; since which release</td></tr>
+<tr><td>Investigation</td><td>How it was reproduced (test account, emulator, live)</td></tr>
+<tr><td>Root cause</td><td>Mechanism, with file names</td></tr>
+<tr><td>Fix</td><td>Commits; test added</td></tr>
+<tr><td>Verification</td><td>Tests, emulator, live result</td></tr>
+<tr><td>User communication</td><td>What users were told to do</td></tr>
+<tr><td>Follow-ups</td><td>Open items and owners</td></tr>
+</table>
+
+<h2>10. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Incident A fix: live meal scan through the app (≈ 64 s, 4 items)</td><td>Verified live, 10 Nov 2026</td></tr>
+<tr><td>Incident B fix: reproduction and recovery</td><td>Verified on Firebase emulators (<code>e2e/storage-loss.mjs</code>); deployed live; recovery confirmed by the owner</td></tr>
+<tr><td>Severity levels, response targets, record template</td><td>Proposal — not yet approved or used</td></tr>
+<tr><td>User contact channel</td><td>Not defined</td></tr>
+<tr><td>Error-report review in the admin dashboard</td><td>Not done in production — no admin exists yet</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

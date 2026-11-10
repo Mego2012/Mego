@@ -986,7 +986,8 @@ function publicAi_(req) {
   var v = verifyFirebaseUser_(req.idToken);
   if (!v.ok) return v;
   if (req.action === 'aiStats') return aiStats_(v.uid, req.idToken);
-  if (req.action === 'aiDiag') { var pf = firestoreGet_('profiles/' + v.uid, req.idToken); if (!pf) return { ok: false, error: 'unauthorized' }; return aiDiag_(); }
+  // diagnostic calls use the shared Gemini quota: admins only (the owner also runs it with the app token)
+  if (req.action === 'aiDiag') { if (!firestoreGet_('admins/' + v.uid, req.idToken)) return { ok: false, error: 'unauthorized' }; return aiDiag_(); }
   var profile = firestoreGet_('profiles/' + v.uid, req.idToken);
   var f = (profile && profile.fields) || {};
   if (!profile || (f.status && f.status.stringValue) !== 'active') return { ok: false, error: 'unauthorized' };

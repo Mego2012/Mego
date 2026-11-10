@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Android_Device_Testing_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Android Device Testing</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-64</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval (real-device checklist not yet executed)</td></tr>
+<tr><td>Audience</td><td>Project owner, testers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Testing_Strategy, MEGO_Acceptance_Testing, MEGO_Platforms_and_System_Requirements, MEGO_Known_Bugs_and_Limitations, MEGO_Release_Readiness_Checklist, MEGO_Troubleshooting_Manual</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>MEGO is a Progressive Web App (PWA) designed first for Android phones (Chrome). This document explains what has been tested on emulated Android devices, what can only be tested on a physical phone, and gives the step-by-step real-device checklist from <code>docs/ANDROID-TEST.md</code> with a results column. <b>Status: the formal real-device checklist has NOT been run yet.</b> The owner uses the app daily on an Android phone, opened from the home-screen icon; that everyday use is real-world evidence that installation and daily logging work, but it is not a recorded test and does not replace the checklist.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Current status</li>
+<li>What emulated testing covers</li>
+<li>What only a physical phone can prove</li>
+<li>Real-device checklist (≈ 20 minutes)</li>
+<li>Capturing problems</li>
+<li>Android-specific findings so far</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Current status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Formal checklist on a physical Android phone</td><td><b>NOT DONE</b> (the result column of <code>docs/ANDROID-TEST.md</code> is empty)</td></tr>
+<tr><td>Everyday use by the owner</td><td>Daily use on an Android phone from the home-screen icon (owner report, not a recorded test)</td></tr>
+<tr><td>Emulated Android devices</td><td>Done — Playwright "Galaxy S9+" and "Pixel 7" profiles, three Samsung viewports with raw touch events</td></tr>
+<tr><td>Incident on a real Android phone</td><td>10 Nov 2026: the browser lost the app's IndexedDB; fixed and confirmed by the owner (see MEGO_Known_Bugs_and_Limitations)</td></tr>
+</table>
+
+<h2>2. What emulated testing covers</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Suite</th><th>Android emulation</th><th>Result</th></tr>
+<tr><td><code>e2e/run-e2e.mjs</code></td><td>Galaxy S9+ profile (mobile viewport, touch, Android user agent), Arabic locale</td><td>57/57 (local); 44/44 on the live URL (7 Nov)</td></tr>
+<tr><td><code>e2e/scroll-test.mjs</code></td><td>Galaxy S23 360×780, A54 412×915, S9+ 320×658; Android 14 Chrome user agent; raw CDP touch swipes; Arabic + English</td><td>103/103, also on the live URL</td></tr>
+<tr><td><code>e2e/multiuser-test.mjs</code>, <code>e2e/storage-loss.mjs</code></td><td>Pixel 7 profile</td><td>8/8; recovery scenario passes</td></tr>
+<tr><td>BACKBTN check</td><td>Android Back closes an open sheet without leaving the page</td><td>Pass (in the 57)</td></tr>
+<tr><td>TEST 14</td><td>PWA prerequisites: manifest, service worker, offline app shell</td><td>Pass</td></tr>
+<tr><td>LAYOUT / DARK</td><td>No horizontal overflow at phone width; dark mode renders</td><td>Pass</td></tr>
+</table>
+<p>The web app manifest (in <code>vite.config.ts</code>) declares name "MEGO — Nutrition", short name "MEGO", <code>display: standalone</code> and <code>orientation: portrait</code>.</p>
+
+<h2>3. What only a physical phone can prove</h2>
+<ul>
+<li>"Add to Home screen" and opening full-screen from the icon (formally recorded).</li>
+<li>Camera barcode scanning — the app uses the browser's BarcodeDetector API (<code>src/lib/barcode.ts</code>), which a headless cloud browser cannot exercise; without camera support the barcode can be typed.</li>
+<li>Taking a meal photo with the real camera for the AI scanner (the AI path itself was verified live on 10 Nov 2026 through the live app UI).</li>
+<li>Real finger scrolling, system font size and display size settings, rotation.</li>
+<li>Airplane-mode behaviour on the device and sync recovery afterwards.</li>
+<li>Password-reset e-mail arriving in a real inbox.</li>
+</ul>
+
+<h2>4. Real-device checklist (≈ 20 minutes)</h2>
+<p>From <code>docs/ANDROID-TEST.md</code>. Use Chrome on the Android phone and fill in the last column (✅ / ❌). Sections C–E need a Firebase account (Firebase is live since 7 Nov 2026).</p>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>Step</th><th>Expected</th><th>✅/❌</th></tr>
+<tr style="background:#f5f5f5"><td colspan="4"><b>A — Install &amp; basics</b></td></tr>
+<tr><td>A1</td><td>Chrome → https://mego2012.github.io/Mego/ → ⋮ → Add to Home screen → open from the icon</td><td>Full-screen app, MEGO splash, no browser bar</td><td></td></tr>
+<tr><td>A2</td><td>Settings → Language: العربية</td><td>Everything right-to-left, numbers readable</td><td></td></tr>
+<tr><td>A3</td><td>Settings → Language: English</td><td>Everything left-to-right</td><td></td></tr>
+<tr><td>A4</td><td>Settings → Theme: Light, Dark, System</td><td>All screens readable</td><td></td></tr>
+<tr><td>A5</td><td>Rotate; small and large Android font size</td><td>No text cut off, nothing wider than the screen</td><td></td></tr>
+<tr><td>A6</td><td>Swipe through Home, Diary, Recipes, Progress, More → Coach, Reports, Settings</td><td>Every screen scrolls to its bottom; bottom bar never covers buttons; Back closes sheets</td><td></td></tr>
+<tr style="background:#f5f5f5"><td colspan="4"><b>B — Food logging</b></td></tr>
+<tr><td>B1</td><td>Diary → + Add → type «صدور فراخ»</td><td>Chicken breast appears (with photo)</td><td></td></tr>
+<tr><td>B2</td><td>Pick it → 150 g → Log</td><td>Entry appears, calorie ring updates</td><td></td></tr>
+<tr><td>B3</td><td>+ Add → barcode icon → scan a packaged product</td><td>Camera opens (allow permission); product found or "create it" offered</td><td></td></tr>
+<tr><td>B4</td><td>Home → Take a photo of a meal</td><td>Review screen with items; nothing saved until you confirm</td><td></td></tr>
+<tr><td>B5</td><td>Airplane mode → reopen the app → log a food</td><td>App opens and logging works offline</td><td></td></tr>
+<tr><td>B6</td><td>Airplane mode off</td><td>Sync status returns to synced</td><td></td></tr>
+<tr style="background:#f5f5f5"><td colspan="4"><b>C — Accounts</b></td></tr>
+<tr><td>C1</td><td>Welcome → Create account</td><td>Lands on Home with the chosen targets</td><td></td></tr>
+<tr><td>C2</td><td>Sign out → Sign in</td><td>Data still there</td><td></td></tr>
+<tr><td>C3</td><td>Forgot password</td><td>Reset e-mail arrives (check spam)</td><td></td></tr>
+<tr style="background:#f5f5f5"><td colspan="4"><b>D — Two devices / sync</b></td></tr>
+<tr><td>D1</td><td>Sign in to the same account on the laptop browser</td><td>Diary from the phone appears within seconds</td><td></td></tr>
+<tr><td>D2</td><td>Add water on the phone</td><td>Appears on the laptop without reloading</td><td></td></tr>
+<tr style="background:#f5f5f5"><td colspan="4"><b>E — Multiple accounts / isolation</b></td></tr>
+<tr><td>E1</td><td>On a second phone (or Chrome incognito) create another account</td><td>Its diary is empty — nothing from account 1</td><td></td></tr>
+<tr><td>E2</td><td>Run <code>node scripts/live-verify.mjs</code> on the laptop</td><td>All checks ✅</td><td></td></tr>
+<tr style="background:#f5f5f5"><td colspan="4"><b>F — Reports</b></td></tr>
+<tr><td>F1</td><td>Mark a day complete → More → Weekly report</td><td>The day is green in the ledger; averages include it</td><td></td></tr>
+</table>
+<p><b>Suggested additions for release 1.3 (not yet in docs/ANDROID-TEST.md):</b> log the saved cardio routine; log one workout set with the rest timer; open two exercise guide pages; Settings → Data check; for a signed-in account, confirm that signing in again on a second browser brings back the diary.</p>
+
+<h2>5. Capturing problems</h2>
+<ul>
+<li>For any ❌, take a screenshot and note the step number.</li>
+<li>Optional console capture: connect the phone by USB, enable Developer options → USB debugging, open <code>chrome://inspect</code> on the laptop and inspect the MEGO tab.</li>
+<li>Do not send passwords, API keys or connection links with a report.</li>
+</ul>
+
+<h2>6. Android-specific findings so far</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Date</th><th>Finding</th><th>Outcome</th></tr>
+<tr><td>2026-11-06</td><td>Touch swipes did not scroll any screen in Chrome mobile (<code>overflow-x: hidden</code> on html/body made body its own scroll container); nested sheets could leave the page locked</td><td>Fixed; touch suite added (now 103 checks)</td></tr>
+<tr><td>2026-11-07</td><td>A swipe starting on a food photo was treated as an image drag (412 px Arabic Foods page)</td><td>Fixed (photos non-draggable)</td></tr>
+<tr><td>2026-11-10</td><td>A swipe starting on a food source tag did not scroll the page</td><td>Fixed</td></tr>
+<tr><td>2026-11-10</td><td>Android phone lost IndexedDB while localStorage survived; account looked empty after signing in again</td><td>Fixed and live; owner confirmed the data came back</td></tr>
+</table>
+
+<h2>7. Verification status</h2>
+<ul>
+<li><b>Tested on emulated Android devices:</b> all suites in section 2.</li>
+<li><b>Real-world evidence (not a recorded test):</b> the owner's daily use from the home-screen icon; the owner's confirmation after the 10 Nov recovery fix.</li>
+<li><b>Not verified:</b> every item of the checklist in section 4 as a recorded result, in particular camera barcode scanning, real-camera meal photo, font-size/rotation behaviour and reset e-mail delivery.</li>
+</ul>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

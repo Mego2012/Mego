@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar">
+<head><meta charset="utf-8"><title>MEGO_Production_Verification_Checklist_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — قائمة التحقق من بيئة الإنتاج</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-57</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>مالك المشروع وفريق الصيانة والمختبِرون</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Production_Deployment_Guide، MEGO_Build_and_Release_Procedures، MEGO_Update_and_Rollback_Procedures، MEGO_Release_Readiness_Checklist، MEGO_Acceptance_Testing، MEGO_Android_Device_Testing، MEGO_Gemini_API_Setup_Guide</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تُنفَّذ هذه القائمة بعد كل نشر في الإنتاج (التطبيق أو الخادم أو القواعد) لإثبات أن النظام الحي يعمل: موقع GitHub Pages، والحسابات وعزل البيانات على مشروع Firebase الحقيقي، ومجموعتا المتصفح واللمس على الموقع الحي، وصفحات التمارين الـ 54 الحية، وخادم Apps Script، وماسح الوجبات Gemini. لكل بند الأمر والنتيجة المتوقعة وآخر نتيجة مسجلة. ولا يُوصف أي بند بأنه «يعمل حيًّا» إلا إذا حصل على ✅ في تشغيل حي.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">طريقة استخدام القائمة</li>
+<li dir="rtl">الموقع والنشر</li>
+<li dir="rtl">الحسابات والسحابة: scripts/live-verify.mjs</li>
+<li dir="rtl">مجموعات المتصفح الحية وصفحات التمارين</li>
+<li dir="rtl">خادم المالك والـ Hub</li>
+<li dir="rtl">الماسح الذكي: التشخيص وصورة حقيقية</li>
+<li dir="rtl">الفحوص اليدوية وفحوص الأجهزة</li>
+<li dir="rtl">فحوص الأمان</li>
+<li dir="rtl">سجل الاعتماد</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. طريقة استخدام القائمة</h2>
+<ul dir="rtl">
+<li dir="rtl">نفّذها على لابتوب المالك والمستودع محدَّث (<code dir="ltr">git pull</code>) وPlaywright مثبّت (<code dir="ltr">npm install --no-save playwright@1.63.0 &amp;&amp; npx playwright install chromium</code>).</li>
+<li dir="rtl">الأقسام المطلوبة: إصدار التطبيق ← 2 و3 و4؛ إصدار الخادم ← 5 و6 (و3 إذا تغيّر وسيط الذكاء الاصطناعي)؛ إصدار القواعد ← 3.</li>
+<li dir="rtl">سجّل كل نتيجة في القسم 9. أي بند فاشل يوقف الإصدار؛ واتبع MEGO_Update_and_Rollback_Procedures.</li>
+</ul>
+
+<h2 dir="rtl">2. الموقع والنشر</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>#</th><th>الفحص</th><th>الطريقة</th><th>المتوقع</th></tr>
+<tr><td>2.1</td><td>مسار عمل النشر</td><td>GitHub ← Actions ← «Test &amp; deploy to GitHub Pages»</td><td>مهمتا build وdeploy خضراوان للإيداع المدفوع</td></tr>
+<tr><td>2.2</td><td>تحميل التطبيق</td><td>افتح <span dir="ltr">https://mego2012.github.io/Mego/</span></td><td>شاشة الترحيب (الحسابات مفعّلة)</td></tr>
+<tr><td>2.3</td><td>الإعداد العام</td><td>افتح <code dir="ltr">/Mego/firebase-config.json</code></td><td>HTTP 200، و<code dir="ltr">projectId</code> = <code dir="ltr">mego-473920</code></td></tr>
+<tr><td>2.4</td><td>تحديث التطبيق المثبّت</td><td>أعد فتح تطبيق PWA المثبّت مرتين</td><td>الإصدار الجديد فعّال؛ والإعدادات ← فحص البيانات تعرض أن جميع السجلات سليمة</td></tr>
+</table>
+
+<h2 dir="rtl">3. الحسابات والسحابة: scripts/live-verify.mjs</h2>
+<pre dir="ltr">node scripts/live-verify.mjs                  # production
+node scripts/laptop-setup.mjs --verify        # same, started by the setup script</pre>
+<p dir="rtl">تشغّل أداة التحقق التطبيقَ المنشور في متصفح حقيقي (ملف Pixel 7) على مشروع Firebase الحقيقي، وتنشئ حسابين مؤقتين (<code dir="ltr">mego-verify-&lt;random&gt;-a/b@example.com</code>)، ولا تستخدم إلا رموزهما (فكل سماح أو رفض هو عمل قواعد الإنتاج نفسها)، ثم تحذف الحسابين في النهاية حتى لو فشل فحص. التقرير: <code dir="ltr">~/.mego-backend/live-verify-&lt;time&gt;.md</code>. يعرّف السكربت الحالي 17 فحصًا:</p>
+<ol dir="rtl">
+<li dir="rtl">الموقع الحي يقدّم التطبيق وإعداد Firebase العام</li>
+<li dir="rtl">تسجيل الحساب A على الموقع الحي</li>
+<li dir="rtl">تسجيل الحساب B — حساب مستقل</li>
+<li dir="rtl">الملفات الشخصية محفوظة على الخادم؛ وكل مستخدم يقرأ ملفه فقط</li>
+<li dir="rtl">تسجيل طعام (الحساب A) ومزامنته مع السحابة</li>
+<li dir="rtl">عزل البيانات يفرضه الخادم</li>
+<li dir="rtl">مكتبة الوصفات تعرض السعرات والمغذيات لحساب جديد بقائمة أطعمة فارغة (الحساب B)</li>
+<li dir="rtl">تسجيل الكارديو (الحساب A): يُزامَن لصاحبه فقط ولا يراه الحساب B</li>
+<li dir="rtl">التمارين (الحساب A): البرنامج وجلسة مسجلة يُزامَنان لصاحبهما فقط</li>
+<li dir="rtl">المزامنة السحابية إلى جهاز ثانٍ (الحساب A يسجّل الدخول في مكان آخر)</li>
+<li dir="rtl">التقرير الأسبوعي من اليوم المسجل</li>
+<li dir="rtl">التقرير الشهري من اليوم المسجل</li>
+<li dir="rtl">وظائف المسؤول يفرضها الخادم (حساب عادي)</li>
+<li dir="rtl">قبول Firebase لطلب استعادة كلمة المرور (من شاشة التطبيق)</li>
+<li dir="rtl">تسجيل الخروج ثم الدخول مجددًا (حساب دائم)</li>
+<li dir="rtl">حذف الحساب التجريبي A — إزالة الدخول والملف والسجلات</li>
+<li dir="rtl">حذف الحساب التجريبي B</li>
+</ol>
+<p dir="rtl"><b>المتوقع:</b> «17/17 live checks passed». <b>آخر نتيجة إنتاج مسجلة:</b> 14/14 في 7 نوفمبر 2026 (نسخة السكربت قبل إضافة الفحوص 7–9). ولاختبار الأداة نفسها دون لمس الإنتاج: <code dir="ltr">node scripts/live-verify.mjs --emulator</code>.</p>
+
+<h2 dir="rtl">4. مجموعات المتصفح الحية وصفحات التمارين</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>#</th><th>المجموعة</th><th>الأمر</th><th>المتوقع / آخر نتيجة</th></tr>
+<tr><td>4.1</td><td>اختبارات المتصفح على الموقع الحي (وضع الضيف؛ تعمل المجموعة دون إعداد Firebase الإنتاجي)</td><td><code dir="ltr">E2E_BASE=https://mego2012.github.io/Mego/ npm run e2e</code><br>(في Windows PowerShell: <code dir="ltr">$env:E2E_BASE="https://mego2012.github.io/Mego/"; npm run e2e</code>)</td><td>نجاح جميع الفحوص (حجم المجموعة الحالي 57/57)</td></tr>
+<tr><td>4.2</td><td>صفحات التمارين الحية — الفحص EX-GUIDE ضمن مجموعة e2e: جميع صفحات التمارين الـ 54 بالعربية والإنجليزية (العرض التوضيحي، البداية/النهاية، التقنية، الأخطاء، السلامة، العضلات، الوصفة التدريبية، السجل، عدم وجود صور معطلة، التالي/السابق)</td><td>جزء من 4.1</td><td>54/54 على الموقع الحي (10 نوفمبر 2026)</td></tr>
+<tr><td>4.3</td><td>اللمس / التمرير على الموقع الحي</td><td><code dir="ltr">node e2e/scroll-test.mjs https://mego2012.github.io/Mego/</code></td><td>103/103</td></tr>
+</table>
+
+<h2 dir="rtl">5. خادم المالك والـ Hub</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>#</th><th>الفحص</th><th>الطريقة</th><th>المتوقع</th></tr>
+<tr><td>5.1</td><td>الاختبارات الحية للخادم (10)</td><td><code dir="ltr">node scripts/laptop-setup.mjs --test</code></td><td>كلها ✅: قبول الرمز، هوية الـ Hub، أصلي وقابل للكتابة، تحقق installMego، رفض الرمز الخاطئ، Food_Database مقروء، كتابة هاتف ← Hub، قراءة Hub ← هاتف، النسخة الأقدم لا تستبدل الأحدث، حذف ناعم إلى Deleted_Records</td></tr>
+<tr><td>5.2</td><td>إصدار الخادم</td><td>مخرجات <code dir="ltr">--update-backend</code> ‏(«backend version …»)</td><td>8 (المستودع الحالي)</td></tr>
+<tr><td>5.3</td><td>إكمال أطعمة الـ Hub (فقط بعد <code dir="ltr">--hub-complete-foods</code>)</td><td>مخرجات الأمر</td><td>«added … rows» و«English names filled: …»؛ التشغيل الثاني لا يضيف شيئًا؛ والمكونات المدرجة دون قيم موثّقة لا تُضاف</td></tr>
+<tr><td>5.4</td><td>التقرير</td><td><code dir="ltr">~/.mego-backend/report-&lt;time&gt;.md</code></td><td>«All live checks passed»</td></tr>
+</table>
+<p dir="rtl">ملاحظة: يطبع <code dir="ltr">--test</code> في النهاية رمز QR ورابط الاتصال الخاص — لا تشاركهما ولا تلتقط لهما صورة شاشة.</p>
+
+<h2 dir="rtl">6. الماسح الذكي: التشخيص وصورة حقيقية</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>#</th><th>الفحص</th><th>الطريقة</th><th>المتوقع</th></tr>
+<tr><td>6.1</td><td>تشخيص الذكاء الاصطناعي (aiDiag)</td><td><code dir="ltr">git pull &amp;&amp; node scripts/laptop-setup.mjs --update-backend</code></td><td>لكل نموذج مجاني (gemini-3.8-flash وgemini-3.6-flash وgemini-3.5-flash-lite) ✅ مع HTTP 200؛ والعلامة ❌ تعرض حالة Google ورسالتها (مثل AI_OVERLOADED = مؤقت)</td></tr>
+<tr><td>6.2</td><td>صورة حقيقية عبر الخادم</td><td><code dir="ltr">node scripts/laptop-setup.mjs --test</code> (اختياريًا <code dir="ltr">--photo meal.jpg</code>)</td><td>«Gemini photo analysis (live call)» ✅ مع النموذج والعناصر والثواني</td></tr>
+<tr><td>6.3</td><td>صورة حقيقية عبر واجهة التطبيق الحي</td><td>سجّل الدخول (حساب مؤقت)، الرئيسية ← الكاميرا ← حلّل ← راجع</td><td>تظهر العناصر المتعرَّف عليها للمراجعة؛ ولا يُحفظ شيء قبل التأكيد. آخر نتيجة 10 نوفمبر 2026: نحو 64 ثانية، 4 عناصر</td></tr>
+</table>
+<p dir="rtl">قد تكون الفئة المجانية بطيئة أو مشغولة في أوقات الذروة؛ والخطأ المؤقت لا يُعد فشلًا للإصدار إذا أظهر التشخيص أن المفتاح والنماذج صالحة.</p>
+
+<h2 dir="rtl">7. الفحوص اليدوية وفحوص الأجهزة</h2>
+<ul dir="rtl">
+<li dir="rtl">هاتف Android حقيقي: اتبع docs/ANDROID-TEST.md (التثبيت، العمل دون اتصال، الكاميرا، الباركود، التمرير). <b>لم يُنفَّذ بعد.</b></li>
+<li dir="rtl">العربية من اليمين لليسار والإنجليزية من اليسار لليمين، والسمة الفاتحة والداكنة: فحص سريع للرئيسية واليوميات والتقارير.</li>
+<li dir="rtl">لوحة المسؤول: فقط بعد وجود حساب المسؤول للمالك (معلّق).</li>
+</ul>
+
+<h2 dir="rtl">8. فحوص الأمان</h2>
+<ul dir="rtl">
+<li dir="rtl">لا مفاتيح ولا رموز ولا روابط /exec ولا رموز اتصال ولا بيانات شخصية في التغييرات المدفوعة.</li>
+<li dir="rtl">البندان 6 و13 في أداة التحقق الحي يُظهران 403 للإجراءات بين الحسابات وإجراءات المسؤول.</li>
+<li dir="rtl">بنود مفتوحة: تدوير مفتاح Gemini ورمز الخادم (ظهرا في محادثة أثناء الإعداد)؛ وطلب دعم GitHub للإيداعات القديمة (docs/GITHUB-SUPPORT-REQUEST.md).</li>
+</ul>
+
+<h2 dir="rtl">9. سجل الاعتماد</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>التاريخ</th><th>الإيداع</th><th>القسم</th><th>النتيجة</th><th>المُتحقِّق</th></tr>
+<tr><td>2026-11-07</td><td>—</td><td>3 (نسخة الـ 14 فحصًا)</td><td>14/14 ✅</td><td>مسجّل في حقائق حالة المشروع</td></tr>
+<tr><td>2026-11-10</td><td>—</td><td>4.2 صفحات التمارين؛ 6.3 الذكاء الاصطناعي عبر الواجهة الحية</td><td>54/54 ✅؛ التحليل ✅</td><td>مسجّل في حقائق حالة المشروع</td></tr>
+<tr><td></td><td></td><td></td><td></td><td></td></tr>
+</table>
+
+<h2 dir="rtl">10. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>الأوامر وأسماء الفحوص والمخرجات المتوقعة</td><td>مُتحقَّق منها في scripts/live-verify.mjs وscripts/laptop-setup.mjs وe2e/run-e2e.mjs وe2e/scroll-test.mjs وapps-script/Code.gs</td></tr>
+<tr><td>أداة التحقق الحي بـ 17 فحصًا على الإنتاج</td><td>غير مُتحقَّق منه (لا يوجد تشغيل مسجل)</td></tr>
+<tr><td>e2e ‏57/57 والتمرير 103/103 على الموقع الحي بعد آخر إيداع</td><td>غير مُتحقَّق منهما لآخر إيداع</td></tr>
+<tr><td>الخادم v8 حيًّا و<code dir="ltr">--hub-complete-foods</code> على الـ Hub الحقيقي</td><td>غير مُتحقَّق منهما</td></tr>
+<tr><td>جهاز Android حقيقي</td><td>لم يُنفَّذ</td></tr>
+</table>
+
+<h2 dir="rtl">11. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse" cellpadding="6">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>المؤلف</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body>
+</html>

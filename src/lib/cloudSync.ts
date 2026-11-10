@@ -179,7 +179,8 @@ export async function publishSharedFoods(foods: Food[]): Promise<number> {
   const { fs } = cloud();
   let n = 0;
   for (const f of foods) {
-    const id = f.sheetKey && /^F\d+$/.test(f.sheetKey) ? f.sheetKey : f.id;
+    // the Hub's stable key (F0001, LIB-…, LIB-ING-…, U-…) keeps one shared record per food, whichever device publishes
+    const id = f.sheetKey && /^[A-Za-z][A-Za-z0-9_-]{0,80}$/.test(f.sheetKey) ? f.sheetKey : f.id;
     const pf: Omit<ParsedFood, 'issues' | 'missingValues'> = {
       row: f.sheetRow ?? 0, sheetKey: id, nameAr: f.nameAr, nameEn: f.nameEn, category: f.category, per100: f.per100, pieceGrams: f.pieceGrams ?? undefined,
       state: f.state, stateLabel: f.stateLabel, prep: f.prep, notes: f.notes

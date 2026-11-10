@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Configuration_and_Environment_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — الإعدادات وبيئات التشغيل</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-38</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>مسودة – تتطلب موافقة المالك</td></tr>
+<tr><td>الجمهور</td><td>المطورون، فريق الصيانة، مالك المشروع</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Developer_Setup_and_Local_Installation، MEGO_Production_Deployment_Guide، MEGO_Firebase_Setup_Guide، MEGO_Apps_Script_Setup_Guide، MEGO_Gemini_API_Setup_Guide، MEGO_Firebase_Integration، MEGO_Google_Sheets_Integration_and_Sync، MEGO_API_Documentation، MEGO_Security_Architecture</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تسرد هذه الوثيقة كل نقاط الإعداد في MEGO: متغيرات وقت البناء، وملفات الإعداد وقت التشغيل، وإعدادات كل جهاز، ومفاتيح تخزين المتصفح، وإعدادات مشروع Apps Script وخصائص السكربت (Script Properties)، وملفات مشروع Firebase، ومتغيرات وخيارات سكربتات الإعداد والاختبار. القيم السرية (الرموز والمفاتيح وروابط الخادم الخاص) تُذكر بأسمائها فقط و<b>لا تُنسخ أبدًا</b>.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">البيئات في لمحة</li>
+<li dir="rtl">إعدادات وقت البناء</li>
+<li dir="rtl">ملف الإعداد وقت التشغيل: firebase-config.json</li>
+<li dir="rtl">إعدادات الجهاز وتخزين المتصفح</li>
+<li dir="rtl">ثوابت العميل التي تعمل كإعدادات</li>
+<li dir="rtl">إعدادات مشروع Apps Script</li>
+<li dir="rtl">إعدادات مشروع Firebase</li>
+<li dir="rtl">سكربتات الإعداد والاختبار: المتغيرات والخيارات</li>
+<li dir="rtl">أين تُحفظ الأسرار</li>
+<li dir="rtl">حالة التحقق</li>
+</ol>
+
+<h2 dir="rtl">1. البيئات في لمحة</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البيئة</th><th>طريقة التشغيل</th><th>الحسابات / السحابة</th><th>خادم الـ Hub</th></tr>
+<tr><td>التطوير المحلي</td><td><code dir="ltr">npm run dev</code> (خادم Vite، المسار الأساسي "/")</td><td>يستخدم <code dir="ltr">public/firebase-config.json</code> إن وُجد — وهذا الملف مُودَع في المستودع ويشير إلى مشروع Firebase الإنتاجي (انظر القسم 3)</td><td>فقط إذا أُدخل رمز اتصال على ذلك الجهاز</td></tr>
+<tr><td>المعاينة المحلية</td><td><code dir="ltr">npm run build</code> ثم <code dir="ltr">npm run preview</code> (المنفذ 4173)</td><td>كما سبق</td><td>كما سبق</td></tr>
+<tr><td>اختبارات المحاكيات</td><td><code dir="ltr">npm run test:rules</code> و<code dir="ltr">npm run e2e:multi</code>: <code dir="ltr">firebase emulators:exec --project demo-mego --only firestore,auth …</code></td><td>محاكيات Firebase (auth 9099، firestore 8080)؛ وتحقن الاختبارات إعدادًا فيه كتلة <code dir="ltr">emulator</code></td><td>محاكي (<code dir="ltr">e2e/gas-mock.mjs</code>)</td></tr>
+<tr><td>الإنتاج</td><td>GitHub Pages عبر سير العمل <code dir="ltr">.github/workflows/deploy.yml</code> عند الدفع إلى <code dir="ltr">main</code> و<code dir="ltr">claude/nutrition-tracking-app-989rku</code></td><td>مشروع Firebase (خطة Spark)</td><td>تطبيق Apps Script الخاص بالمالك (جهاز المالك) ووسيط الذكاء الاصطناعي للحسابات</td></tr>
+</table>
+
+<h2 dir="rtl">2. إعدادات وقت البناء</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المتغير / الإعداد</th><th>الموضع</th><th>الأثر</th></tr>
+<tr><td><code dir="ltr">BASE_PATH</code></td><td><code dir="ltr">vite.config.ts</code>؛ ويضبطه deploy.yml إلى <code dir="ltr">/&lt;repository name&gt;/</code></td><td>قيمة <code dir="ltr">base</code> في Vite و<code dir="ltr">start_url</code> و<code dir="ltr">scope</code> في PWA. الافتراضي "/". ويقرؤه التطبيق وقت التشغيل كـ <code dir="ltr">import.meta.env.BASE_URL</code> لجلب firebase-config.json وقاعدة الأطعمة وصور الأطعمة.</td></tr>
+<tr><td><code dir="ltr">VITE_DEMO=1</code></td><td><code dir="ltr">src/main.tsx</code></td><td>لبنايات لقطات الشاشة والتدقيق فقط: يكشف <code dir="ltr">window.__megoSeedDemo</code> (بيانات تجريبية). بنايات الإنتاج تحذف هذا الفرع ووحدة البيانات التجريبية.</td></tr>
+<tr><td>Node.js 22 و<code dir="ltr">npm ci</code> و<code dir="ltr">npm test</code> و<code dir="ltr">npm run build</code></td><td>deploy.yml</td><td>ترتيب CI: التثبيت، اختبارات الوحدة، البناء، رفع <code dir="ltr">dist</code> إلى Pages. فشل أي اختبار وحدة يوقف النشر.</td></tr>
+<tr><td>PWA ‏(vite-plugin-pwa)</td><td>vite.config.ts</td><td><code dir="ltr">registerType: 'autoUpdate'</code>؛ اسم البيان «MEGO — Nutrition»، و<code dir="ltr">lang: 'ar'</code>، و<code dir="ltr">display: 'standalone'</code>، وعمودي؛ تخزين مسبق لملفات js/css/html/svg/png/woff2 و<code dir="ltr">fooddb/usda.json</code> (حد الملف 3 ميغابايت)؛ وذاكرات تشغيل لـ <code dir="ltr">usda-extra.json</code> وصور الأطعمة (CacheFirst، ‏200 عنصر، سنة) وخطوط Google؛ ويُستثنى مسار Apps Script ‏<code dir="ltr">/macros/</code> من بديل التنقل.</td></tr>
+<tr><td>التقسيم</td><td>vite.config.ts</td><td>recharts وd3 في حزمة منفصلة <code dir="ltr">charts</code>؛ وتحذير حجم الحزمة عند 900 كيلوبايت.</td></tr>
+<tr><td>إعداد اختبارات الوحدة</td><td>قسم <code dir="ltr">test</code> في vite.config.ts؛ و<code dir="ltr">vitest.rules.config.ts</code></td><td>بيئة Node، والملفات <code dir="ltr">tests/**/*.test.ts</code>، وملف التهيئة <code dir="ltr">tests/setup.ts</code>؛ واختبارات القواعد: <code dir="ltr">tests-rules/**</code> بمهلة 30 ث ودون توازي الملفات.</td></tr>
+</table>
+<p dir="rtl">لا يحتوي المستودع على ملف <code dir="ltr">.env</code>، ولا يقرأ الكود أي متغير <code dir="ltr">VITE_*</code> آخر.</p>
+
+<h2 dir="rtl">3. ملف الإعداد وقت التشغيل: firebase-config.json</h2>
+<p dir="rtl">الموضع: <code dir="ltr">public/firebase-config.json</code>، ويُخدَّم على <code dir="ltr">&lt;base&gt;/firebase-config.json</code> وتجلبه <code dir="ltr">loadCloudConfig()</code> مع <code dir="ltr">cache: 'no-cache'</code>. يكتبه <code dir="ltr">scripts/laptop-setup.mjs --cloud</code> ويُودَع في المستودع (رسالة الإيداع «Enable public accounts (Firebase config: public identifiers only)»).</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المفتاح</th><th>المحتوى</th><th>سرّي؟</th></tr>
+<tr><td><code dir="ltr">apiKey</code></td><td>مفتاح الويب لـ Firebase</td><td>معرّف عام (الحماية تفرضها قواعد Firestore)؛ ومع ذلك لا يُنسخ في الوثائق</td></tr>
+<tr><td><code dir="ltr">authDomain</code>، <code dir="ltr">projectId</code>، <code dir="ltr">appId</code></td><td>معرّفات مشروع Firebase</td><td>عامة</td></tr>
+<tr><td><code dir="ltr">aiBackendUrl</code></td><td>تطبيق Apps Script المستخدم كوسيط للذكاء الاصطناعي للحسابات المسجلة (تتحقق برمز هوية Firebase لا برمز التطبيق)</td><td>ليس سرًّا بالتصميم، لكنه لا يُنسخ هنا</td></tr>
+<tr><td><code dir="ltr">emulator</code> (اختياري)</td><td><code dir="ltr">{ authUrl, firestoreHost, firestorePort }</code></td><td>للاختبارات فقط؛ غير موجود في الإنتاج</td></tr>
+</table>
+<p dir="rtl"><b>الأثر:</b> غياب الملف أو خلوه من <code dir="ltr">apiKey</code>/<code dir="ltr">projectId</code> ← تطبيق بوضع الضيف فقط. ووجوده ← شاشة ترحيب بالدخول/التسجيل مع وضع ضيف اختياري.</p>
+
+<h2 dir="rtl">4. إعدادات الجهاز وتخزين المتصفح</h2>
+<h3 dir="rtl">4.1 الكتلة settings.sync ‏(IndexedDB، محلية للجهاز)</h3>
+<p dir="rtl">جزء من سجل <code dir="ltr">settings</code> لكنها <b>تُزال قبل أي رفع</b> (إلى الـ Hub أو Firestore):</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>الافتراضي</th><th>المعنى</th></tr>
+<tr><td><code dir="ltr">url</code></td><td>""</td><td>رابط تطبيق ويب Apps Script (من رمز الاتصال)</td></tr>
+<tr><td><code dir="ltr">token</code></td><td>""</td><td>رمز التطبيق (سرّي)</td></tr>
+<tr><td><code dir="ltr">autoSync</code></td><td>true</td><td>الرفع التلقائي</td></tr>
+<tr><td><code dir="ltr">writeFoodsToSheet</code></td><td>false</td><td>كتابة تعديلات الأطعمة المشتركة عكسيًا في الـ Hub</td></tr>
+<tr><td><code dir="ltr">lastPushAt</code>، <code dir="ltr">lastPullAt</code>، <code dir="ltr">lastFoodsPullAt</code>، <code dir="ltr">lastError</code>، <code dir="ltr">serverVersion</code>، <code dir="ltr">hubNativeId</code></td><td>—</td><td>حالة المزامنة؛ و<code dir="ltr">hubNativeId</code> يثبّت جدول الـ Hub الأصلي</td></tr>
+</table>
+<h3 dir="rtl">4.2 مفاتيح localStorage</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المفتاح</th><th>من يضبطه</th><th>المعنى</th></tr>
+<tr><td><code dir="ltr">mego.activeUid</code></td><td>account.ts</td><td>الحساب المسجل على هذا الجهاز ← يختار القاعدة <code dir="ltr">mego-u-&lt;uid&gt;</code></td></tr>
+<tr><td><code dir="ltr">mego.guest</code></td><td>account.ts</td><td>اختار المستخدم وضع الضيف</td></tr>
+<tr><td><code dir="ltr">mego.importGuestFor</code></td><td>account.ts</td><td>نسخ بيانات الضيف إلى هذا الحساب مرة واحدة عند الإقلاع التالي</td></tr>
+<tr><td><code dir="ltr">mego.pendingSetup.&lt;uid&gt;</code></td><td>Account.tsx (التسجيل)</td><td>الملف الشخصي والأهداف من التسجيل، تُطبَّق مرة واحدة</td></tr>
+<tr><td><code dir="ltr">mego.cloud2.&lt;uid&gt;.&lt;table&gt;</code></td><td>cloudSync.ts</td><td>قيمة <code dir="ltr">updatedAt</code> لآخر ما شوهد لكل جدول متزامن (انظر MEGO_Firebase_Integration، القسم 6)</td></tr>
+</table>
+<h3 dir="rtl">4.3 قواعد بيانات IndexedDB</h3>
+<p dir="rtl"><code dir="ltr">mego-nutrition</code> (الضيف)، و<code dir="ltr">mego-u-&lt;uid&gt;</code> (واحدة لكل حساب)، و<code dir="ltr">mego-nutrition-premigration</code> (لقطة تؤخذ قبل ترقية مخطط Dexie). يُطلب التخزين الدائم عند البدء (<code dir="ltr">navigator.storage.persist()</code>)؛ وقرار منحه بيد المتصفح لا التطبيق.</p>
+
+<h2 dir="rtl">5. ثوابت العميل التي تعمل كإعدادات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الثابت</th><th>القيمة</th><th>الملف</th></tr>
+<tr><td><code dir="ltr">DB_SCHEMA_VERSION</code></td><td>2</td><td dir="ltr">src/lib/db.ts</td></tr>
+<tr><td><code dir="ltr">APP_RELEASE</code></td><td>'1.3-training' (نسخة احتياطية واحدة قبل التحديث لكل إصدار ولكل قاعدة)</td><td dir="ltr">src/lib/localBackup.ts</td></tr>
+<tr><td>تدوير النسخ المحلية <code dir="ltr">KEEP</code></td><td>10</td><td dir="ltr">src/lib/localBackup.ts</td></tr>
+<tr><td>تراجع مزامنة الـ Hub</td><td>5 ث مضاعفة، حتى 5 دقائق</td><td dir="ltr">src/lib/sync.ts</td></tr>
+<tr><td>عميل الذكاء الاصطناعي</td><td>إعادة المحاولة بعد 3 ث و8 ث؛ مهلة الطلب 280 ث؛ الصورة المُدخلة ≤ 30 ميغابايت؛ الرفع ≤ 2,400,000 حرف base64</td><td dir="ltr">src/lib/mealScanner.ts</td></tr>
+<tr><td>الإعدادات الافتراضية</td><td>اللغة العربية، المظهر حسب النظام، بداية الأسبوع السبت، التسامح ±10 % للسعرات و−5 % للبروتين، عتبة اكتمال اليوم 60 %، الماء 3000 مل، الصيام 16 ساعة</td><td dir="ltr">src/lib/defaults.ts</td></tr>
+</table>
+
+<h2 dir="rtl">6. إعدادات مشروع Apps Script</h2>
+<h3 dir="rtl">6.1 الملف appsscript.json</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإعداد</th><th>القيمة</th></tr>
+<tr><td>timeZone</td><td dir="ltr">Asia/Riyadh</td></tr>
+<tr><td>runtimeVersion</td><td>V8</td></tr>
+<tr><td>خدمة متقدمة</td><td>Drive API v3 (الرمز <code dir="ltr">Drive</code>)</td></tr>
+<tr><td>exceptionLogging</td><td>STACKDRIVER</td></tr>
+<tr><td>webapp</td><td dir="ltr">executeAs USER_DEPLOYING, access ANYONE_ANONYMOUS</td></tr>
+<tr><td>oauthScopes</td><td dir="ltr">spreadsheets, drive, script.external_request</td></tr>
+</table>
+<h3 dir="rtl">6.2 ثوابت الكود (apps-script/Code.gs)</h3>
+<p dir="rtl"><code dir="ltr">SOURCE_ID</code> (ملف الـ Hub الأصلي)، و<code dir="ltr">HUB_NAME</code> = «MEGO Nutrition Hub»، و<code dir="ltr">SCRIPT_VERSION</code> = 8، و<code dir="ltr">BOOTSTRAP_HASH</code> (فارغ في المستودع العام)، و<code dir="ltr">SCHEMA_VERSION</code> = 3، و<code dir="ltr">MAX_CHANGES</code> = 500، و<code dir="ltr">MAX_PAYLOAD_CHARS</code> = 45000، و<code dir="ltr">MAX_KEY_CHARS</code> = 200، و<code dir="ltr">AI_FREE_MODELS</code> = gemini-3.8-flash وgemini-3.6-flash وgemini-3.5-flash-lite، و<code dir="ltr">AI_DEFAULT_MODEL</code> = gemini-3.8-flash، و<code dir="ltr">AI_MAX_IMAGE_CHARS</code> = 2,800,000، و<code dir="ltr">AI_MAX_FOODS</code> = 800.</p>
+<h3 dir="rtl">6.3 خصائص السكربت (الأسماء فقط)</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الخاصية</th><th>من يضبطها</th><th>الغرض</th></tr>
+<tr><td dir="ltr">APP_TOKEN</td><td dir="ltr">setup() / rotateToken()</td><td>رمز التطبيق السري (معرّفا UUID دون شرطات)</td></tr>
+<tr><td dir="ltr">HUB_NATIVE_ID, HUB_PENDING_ID, HUB_CONVERTED_AT, HUB_VERIFIED</td><td dir="ltr">installMego()</td><td>معرّف الـ Hub الأصلي بعد نجاح التحقق؛ وحالة التحويل</td></tr>
+<tr><td dir="ltr">BOOTSTRAP_DONE</td><td dir="ltr">bootstrap_</td><td>يعطّل التثبيت لمرة واحدة</td></tr>
+<tr><td dir="ltr">LAST_HUB_BACKUP</td><td dir="ltr">backupOncePerDay_</td><td>تاريخ آخر نسخة يومية للـ Hub ‏(yyyyMMdd)</td></tr>
+<tr><td dir="ltr">GEMINI_API_KEY</td><td>الإجراء setAiKey</td><td>مفتاح Gemini (سرّي)</td></tr>
+<tr><td dir="ltr">AI_MODEL</td><td>يدويًا (اختياري)</td><td>النموذج المفضّل؛ يُتجاهل ما لم يكن ضمن AI_FREE_MODELS</td></tr>
+<tr><td dir="ltr">AI_DAILY_LIMIT, AI_USER_DAILY_LIMIT</td><td>setCloudConfig أو يدويًا</td><td>عدد التحليلات اليومية العام (الافتراضي في الكود 40) ولكل مستخدم (الافتراضي 10)</td></tr>
+<tr><td dir="ltr">FIREBASE_API_KEY, FIREBASE_PROJECT_ID</td><td dir="ltr">setCloudConfig</td><td>معرّفات Firebase العامة للتحقق من رموز الهوية</td></tr>
+<tr><td dir="ltr">AI_USED_&lt;date&gt;, AI_U_&lt;date&gt;_&lt;uid&gt;</td><td dir="ltr">analyzeMeal</td><td>عدادات الاستخدام؛ تحذفها cleanupAiCounters() بعد 8 أيام</td></tr>
+</table>
+
+<h2 dir="rtl">7. إعدادات مشروع Firebase</h2>
+<ul dir="rtl">
+<li dir="rtl"><code dir="ltr">firebase.json</code>: ملف القواعد <code dir="ltr">firebase/firestore.rules</code>، والفهارس <code dir="ltr">firebase/firestore.indexes.json</code> (فارغة)، ومحاكيات auth ‏9099 وfirestore ‏8080، وواجهة المحاكي معطلة، ووضع المشروع الواحد.</li>
+<li dir="rtl">الإنتاج (من الملخص، مُتحقَّق منه في 7 نوفمبر 2026): معرّف المشروع <code dir="ltr">mego-473920</code>، وقاعدة Firestore ‏<code dir="ltr">(default)</code> في <code dir="ltr">me-central2</code>، ومزوّد البريد/كلمة المرور مفعّل، وخطة Spark (دون فوترة).</li>
+<li dir="rtl">دور المشرف: مستند <code dir="ltr">admins/{uid}</code> لا تسمح القواعد للعملاء بكتابته أبدًا؛ وينشئه سكربت الإعداد ببيانات اعتماد المالك.</li>
+</ul>
+
+<h2 dir="rtl">8. سكربتات الإعداد والاختبار: المتغيرات والخيارات</h2>
+<h3 dir="rtl">8.1 الملف scripts/laptop-setup.mjs</h3>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الخيار / المتغير</th><th>الأثر</th></tr>
+<tr><td>(بلا خيار)</td><td>إعداد كامل أو تحديث (آمن عند التكرار)</td></tr>
+<tr><td><code dir="ltr">--test</code></td><td>اختبارات التكامل الحية فقط على الخادم الموجود</td></tr>
+<tr><td><code dir="ltr">--update-backend</code></td><td>رفع أحدث Code.gs إلى النشر نفسه (الرابط نفسه، البيانات دون تغيير) وتشغيل تشخيص الذكاء الاصطناعي</td></tr>
+<tr><td><code dir="ltr">--hub-complete-foods</code></td><td>يتضمن تحديث الخادم؛ ثم يضيف مكونات مكتبة الوصفات الناقصة ووجبات المكتبة إلى Food_Database في الـ Hub ويملأ الأسماء الإنجليزية الفارغة (إضافة فقط؛ نسخة Drive يومية أولًا)</td></tr>
+<tr><td><code dir="ltr">--photo &lt;file&gt;</code></td><td>استخدام صورتك لاختبار الذكاء الاصطناعي الحقيقي</td></tr>
+<tr><td><code dir="ltr">--ai-key-from-clipboard</code></td><td>قراءة مفتاح Gemini من الحافظة بدل كتابته</td></tr>
+<tr><td><code dir="ltr">--auto</code></td><td>دون أسئلة لوحة المفاتيح (تلقائي أيضًا خارج الطرفية)</td></tr>
+<tr><td><code dir="ltr">--cloud [admin-email]</code></td><td>إعداد Firebase أيضًا (المشروع، تطبيق الويب، Firestore مع القواعد، الدخول بالبريد، المشرف، الإعداد العام)</td></tr>
+<tr><td><code dir="ltr">--verify</code></td><td>إعادة تشغيل <code dir="ltr">scripts/live-verify.mjs</code> على الموقع المنشور</td></tr>
+<tr><td><code dir="ltr">MEGO_BACKEND_DIR</code></td><td>مجلد الحالة الخاصة (الافتراضي <code dir="ltr">~/.mego-backend/</code>)؛ ويُكتب <code dir="ltr">state.json</code> بصلاحية 600 ويضم معرّف السكربت والرابط والرمز</td></tr>
+<tr><td><code dir="ltr">MEGO_FAKE_BACKEND</code>، <code dir="ltr">MEGO_FAKE_SECRET</code></td><td>وضع اختبار على خادم وهمي محلي (تستخدمه اختبارات e2e)</td></tr>
+</table>
+<h3 dir="rtl">8.2 سكربتات الاختبار</h3>
+<ul dir="rtl">
+<li dir="rtl"><code dir="ltr">E2E_BASE</code> — تشغيل <code dir="ltr">e2e/run-e2e.mjs</code> على رابط منشور بدل المعاينة المحلية.</li>
+<li dir="rtl"><code dir="ltr">KEEP_PROFILE</code> — الإبقاء على ملف المتصفح بعد e2e (يُستخدم للقطات الشاشة).</li>
+<li dir="rtl">يقرأ <code dir="ltr">e2e/scroll-test.mjs</code> المتغيرات <code dir="ltr">PAGES</code> و<code dir="ltr">PROBE</code> و<code dir="ltr">FIXCSS</code>، ويقرأ <code dir="ltr">e2e/multiuser-test.mjs</code> المتغير <code dir="ltr">SHOTS</code>. دلالاتها الدقيقة: غير مُتحقَّق منها في هذه الوثيقة (راجع السكربتات).</li>
+</ul>
+
+<h2 dir="rtl">9. أين تُحفظ الأسرار</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>السر</th><th>مكان الحفظ</th><th>لا يوجد أبدًا في</th></tr>
+<tr><td>رمز التطبيق</td><td>خصائص السكربت؛ هاتف المالك (settings.sync.token، لا يُرفع)؛ ملف state.json على الحاسوب (صلاحية 600)</td><td>المستودع، Firestore، تبويبات الـ Hub</td></tr>
+<tr><td>مفتاح Gemini</td><td>خصائص السكربت فقط (التطبيق لا يحتفظ به)</td><td>التطبيق، المستودع</td></tr>
+<tr><td>سرّ الإعداد لمرة واحدة</td><td>على الحاسوب فقط؛ والسكربت يحمل بصمته SHA-256 في النسخة الخاصة فقط</td><td>المستودع</td></tr>
+<tr><td>كلمات مرور المستخدمين</td><td>Firebase Authentication</td><td>تخزين التطبيق، Firestore</td></tr>
+</table>
+<p dir="rtl">ملاحظة تشغيلية (من الملخص): ظهر مفتاح Gemini الخاص بالمالك ورابط اتصال الخادم في محادثة أثناء الإعداد؛ ويوصى بتدويرهما معًا (<code dir="ltr">rotateToken()</code> للرمز، ومفتاح جديد عبر الإعدادات ← الذكاء الاصطناعي).</p>
+
+<h2 dir="rtl">10. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>كل الإعدادات والمفاتيح والثوابت والخيارات</td><td>مُتحقَّق منها في <code dir="ltr">vite.config.ts, package.json, deploy.yml, firebase.json, apps-script/appsscript.json, Code.gs, src/lib/*.ts, scripts/laptop-setup.mjs</code></td></tr>
+<tr><td>النشر في الإنتاج وإعدادات Firebase</td><td>مُتحقَّق منها مباشرة في 7 نوفمبر 2026 (نشر ناجح، live-verify ‏14/14)</td></tr>
+<tr><td>القيم الحالية لخصائص السكربت في الإنتاج (مثل حدود الذكاء الاصطناعي وAI_MODEL)</td><td>غير مُتحقَّق منها</td></tr>
+<tr><td>منح المتصفح التخزين الدائم على هاتف المالك</td><td>غير مُتحقَّق منه</td></tr>
+<tr><td>تدوير الرمز والمفتاح بعد ظهورهما في المحادثة</td><td>غير مُتحقَّق منه (موصى به، إجراء من المالك)</td></tr>
+</table>
+
+<h2 dir="rtl">سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

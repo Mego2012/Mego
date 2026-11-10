@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="ar"><head><meta charset="utf-8"><title>MEGO_Missing_and_Duplicate_Foods_Management_AR</title></head>
+<body dir="rtl" style="direction:rtl;text-align:right;font-family:Arial">
+<h1 dir="rtl">MEGO — إدارة الأطعمة الناقصة والمكررة</h1>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الحقل</th><th>القيمة</th></tr>
+<tr><td>رقم الوثيقة</td><td>MEGO-DOC-29</td></tr>
+<tr><td>الإصدار</td><td>1.0</td></tr>
+<tr><td>تاريخ الإنشاء</td><td>2026-11-10</td></tr>
+<tr><td>آخر تحديث</td><td>2026-11-10</td></tr>
+<tr><td>المالك</td><td>MEGO Project Owner (مالك مشروع MEGO)</td></tr>
+<tr><td>الحالة</td><td>معتمد للاستخدام الداخلي</td></tr>
+<tr><td>الجمهور</td><td>المستخدمون، مالك المشروع، الدعم، المطورون</td></tr>
+<tr><td>وثائق ذات صلة</td><td>MEGO_Food_Database_Import_and_Update_Procedures، MEGO_Food_Data_Validation_and_Quality_Control، MEGO_Food_Search_and_Database_Guide، MEGO_Recipes_and_Custom_Foods_Guide، MEGO_Food_Database_Administration</td></tr>
+</table>
+
+<h2 dir="rtl">الغرض والنطاق</h2>
+<p dir="rtl">تشرح هذه الوثيقة ما يفعله MEGO عندما يكون الطعام <b>ناقصًا</b> (غير موجود في البحث، أو غير مكتمل، أو مكوّن وصفة بلا قيم موثّقة)، وكيف <b>يمنع التكرارات ويكتشفها ويعالجها</b> (في الأطعمة وسجلات اليوميات). المبدأ الأساسي: القيمة الناقصة تُعرض ناقصة و<b>لا تُختلق أبدًا</b>؛ والتكرار المحتمل <b>يُبلَّغ عنه ولا يُحذف تلقائيًا أبدًا</b>. المصادر: <code dir="ltr">src/lib/repo.ts</code>، <code dir="ltr">src/lib/recipeEngine.ts</code>، <code dir="ltr">src/lib/recipeRefMap.ts</code>، <code dir="ltr">src/lib/libraryFoods.ts</code>، <code dir="ltr">src/lib/foodNames.ts</code>، <code dir="ltr">src/lib/refFoods.ts</code>، <code dir="ltr">src/lib/foodIntel.ts</code>، <code dir="ltr">src/lib/sheetImport.ts</code>، <code dir="ltr">src/lib/customFoods.ts</code>، <code dir="ltr">src/lib/barcode.ts</code>، <code dir="ltr">src/lib/dataCheck.ts</code>، <code dir="ltr">src/components/FoodPicker.tsx</code>، <code dir="ltr">src/pages/RecipeLibrary.tsx</code>.</p>
+
+<h2 dir="rtl">جدول المحتويات</h2>
+<ol dir="rtl">
+<li dir="rtl">المبادئ</li>
+<li dir="rtl">طعام لا يظهر في البحث</li>
+<li dir="rtl">الأطعمة غير المكتملة</li>
+<li dir="rtl">مكونات الوصفات الناقصة</li>
+<li dir="rtl">إكمال القاعدة من مكتبة الوصفات</li>
+<li dir="rtl">الأسماء الناقصة والبيانات المرجعية الناقصة</li>
+<li dir="rtl">منع تكرار الأطعمة</li>
+<li dir="rtl">منع تكرار سجلات اليوميات</li>
+<li dir="rtl">تقرير التكرارات في فحص البيانات</li>
+<li dir="rtl">معالجة التكرارات</li>
+<li dir="rtl">حالة التحقق</li>
+<li dir="rtl">سجل المراجعات</li>
+</ol>
+
+<h2 dir="rtl">1. المبادئ</h2>
+<ul dir="rtl">
+<li dir="rtl">لا تُملأ أبدًا قيم تقديرية أو «نموذجية» لطعام أو عنصر غذائي أو مكوّن ناقص.</li>
+<li dir="rtl">إضافة الأطعمة لا تغيّر الأطعمة الموجودة؛ فميزات الاستيراد والإكمال تضيف فقط.</li>
+<li dir="rtl">يُمنع التكرار عند الإدخال حين تكون المطابقة مؤكدة (الاسم نفسه والحالة نفسها نيء/مطبوخ)، ويُكتفى بالإبلاغ حين لا تكون مؤكدة.</li>
+</ul>
+
+<h2 dir="rtl">2. طعام لا يظهر في البحث</h2>
+<p dir="rtl">يبحث منتقي الأطعمة بالترتيب التالي ويعرض الخطوة التالية عندما لا يجد ما يناسب:</p>
+<pre dir="ltr">
+ My foods (incl. Hub foods)  →  USDA reference DB (12,879, Arabic/English search)
+        │ not found / not right
+        ▼
+ [+ Create "…" as my food]   — food editor pre-filled with the search text as name;
+                               values typed per 100 g, per 100 ml or per serving (converted to per 100 g)
+ [Search Open Food Facts]    — packaged products; only products with kcal, protein, carbs and fat are listed
+ [Barcode]                   — local food with that barcode first, else Open Food Facts; if not found,
+                               an empty product form opens for the label values
+</pre>
+<p dir="rtl">في الواجهة العربية تظهر هذه الأزرار باسم «أنشئ «…» كطعام خاص بي» والبحث في Open Food Facts والباركود. طعام USDA المختار من البحث يُنسخ مرة واحدة إلى «أطعمتي»، والاختيار التالي يعيد استخدام النسخة نفسها.</p>
+
+<h2 dir="rtl">3. الأطعمة غير المكتملة</h2>
+<p dir="rtl">الطعام الذي قيمه الأربع الرئيسية كلها 0، أو المستورد بقيمة مطلوبة فارغة/غير مقروءة، يُعلَّم <code dir="ltr">incomplete</code>. يبقى في القائمة (ويُحسب في الأطعمة ← المشكلات) لكنه لا يمكن تسجيله (<code dir="ltr">INCOMPLETE_FOOD</code>) ولا يُستخدم في الوصفات. يكمله المستخدم بتعديل الطعام وإدخال قيم الملصق.</p>
+
+<h2 dir="rtl">4. مكونات الوصفات الناقصة</h2>
+<p dir="rtl">لكل مكوّن في وصفة من المكتبة تحدد <code dir="ltr">computeLibraryRecipe</code> القيم الغذائية بهذا الترتيب:</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الترتيب</th><th>المصدر</th><th>التسمية في الوصفة</th></tr>
+<tr><td>1</td><td>طعام المستخدم الذي يحمل الاسم العربي نفسه (مطابق أو بعد التطبيع) وليس غير مكتمل</td><td>من أطعمتي</td></tr>
+<tr><td>2</td><td>مطابقة USDA مُراجعة يدويًا في <code dir="ltr">recipeRefMap.ts</code> (68 مدخلًا)</td><td>USDA</td></tr>
+<tr><td>3</td><td>لا شيء موثوق (القيمة <code dir="ltr">null</code> في الخريطة، أو القاعدة المرجعية غير محمّلة دون اتصال)</td><td>ناقص</td></tr>
+</table>
+<p dir="rtl">المكوّن الناقص <b>لا يضيف شيئًا</b> إلى الإجماليات. تعرض الوصفة: «غير مكتمل: {list} غير موجود في أطعمتك ولا يوجد له مرجع موثوق — غير محسوب في المجموع.» مع زر <b>أضف هذا الطعام</b> الذي يفتح محرر الطعام باسم المكوّن. وما دام مكوّن ناقصًا لا يمكن إضافة الوصفة إلى اليوميات أو الخطة ولا حفظها في «وصفاتي» (الحفظ يرمي الخطأ <code dir="ltr">MISSING_INGREDIENT</code>).</p>
+<p dir="rtl"><b>مثال — اللبنة:</b> قيمتها في الخريطة <code dir="ltr">null</code> («لا مكافئ لها في USDA؛ يجب أن يضيفها المستخدم أو يعتمدها»). لذا فالوصفة <i>lib-labneh-plate</i> هي الوحيدة من وصفات المكتبة الـ101 غير المحلولة على حساب جديد (<code dir="ltr">docs/RECIPE-AUDIT.md</code>، 2026-11-10). وعندما يضيف المستخدم اللبنة من ملصقها تُحل الوصفة بقيمه الخاصة.</p>
+
+<h2 dir="rtl">5. إكمال القاعدة من مكتبة الوصفات</h2>
+<p dir="rtl">الأطعمة ← <b>إكمال قاعدة أطعمتي</b> تعرض معاينة ثم تضيف (بعد نسخة احتياطية محلية) كل مكوّن من المكتبة ينقص أطعمة المستخدم (بقيم USDA)، وكل وجبة من المكتبة مكوناتها كلها معروفة كطعام جاهز بحصة واحدة. على حساب جديد (محسوب في 10 نوفمبر 2026): 68 مكوّنًا للإضافة، وواحد ناقص (اللبنة)، و100 وجبة جاهزة، ووصفة واحدة متجاوزة (lib-labneh-plate). الرسالة «No verified values for: {names}…» (لا قيم موثّقة لـ… أضفه بنفسك من الأطعمة من الملصق لإكمال: …) تسرد ما يجب على المستخدم إضافته. الأطعمة الموجودة (الاسم العربي نفسه، أو للوجبات sourceRef نفسه) لا تُضاف مرة أخرى. وللـ Hub الخاص بالمالك أمر مكافئ: <code dir="ltr">node scripts/laptop-setup.mjs --hub-complete-foods</code>. التفاصيل في MEGO_Food_Database_Import_and_Update_Procedures §7.</p>
+
+<h2 dir="rtl">6. الأسماء الناقصة والبيانات المرجعية الناقصة</h2>
+<ul dir="rtl">
+<li dir="rtl"><b>الأسماء:</b> الأطعمة ← <b>الأسماء بالعربي والإنجليزي</b> تملأ فقط الأسماء العربية أو الإنجليزية <i>الفارغة</i> من <code dir="ltr">public/fooddb/food-names.json</code>؛ والأطعمة التي لا ترجمة لها تُسرد تحت «ما زال ينقصها اسم — أضف أسماء هذه بنفسك من محرر الطعام». وفي الـ Hub يملأ إجراء الخادم <code dir="ltr">fillFoodNames</code> خلايا <code dir="ltr">name_en</code> الفارغة فقط.</li>
+<li dir="rtl"><b>بناء USDA:</b> الأطعمة التي لا طاقة منشورة لها أو ينقصها البروتين أو الكربوهيدرات أو الدهون تُتجاوز (واحد في البناء الحالي) ولا تُقدَّر.</li>
+<li dir="rtl"><b>العناصر الاختيارية:</b> العنصر غير المذكور يبقى مجهولًا (لا صفرًا) في الإجماليات؛ ويذكر المدرب عدد السجلات التي تنقصها الألياف بدل التخمين.</li>
+<li dir="rtl"><b>تصنيفات الأطعمة:</b> معرّفات الكتالوج غير الموجودة في USDA تُتجاوز؛ والأطعمة ذات مؤشر غير مقاس تُرتَّب بعد كل الأطعمة المقاسة بالكامل (مجموعة «بيانات جزئية»)؛ وفقط الأطعمة الحيوانية بلا قيمة ألياف تُحسب 0 غ ألياف (النسيج الحيواني لا يحتوي أليافًا).</li>
+</ul>
+
+<h2 dir="rtl">7. منع تكرار الأطعمة</h2>
+<p dir="rtl">تعدّ <code dir="ltr">findDuplicateFood</code> طعامين غير مؤرشفين مكررين إذا كانت لهما <b>الحالة نفسها</b> (نيء/مطبوخ/أخرى) والاسم العربي نفسه <i>أو</i> الإنجليزي نفسه بعد حذف المسافات الطرفية وتوحيد المسافات وتحويل الحروف إلى صغيرة. إنشاء طعام أو إعادة تسميته بهذا الاسم يُرفض برسالة «يوجد طعام بنفس الاسم ونفس الحالة (نيء/مطبوخ).» أما «صدر دجاج» نيء و«صدر دجاج» مطبوخ فهما <b>ليسا</b> مكررين.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>المسار</th><th>الحماية من التكرار</th></tr>
+<tr><td>محرر الطعام (إنشاء / إعادة تسمية)</td><td>يُرفض عبر <code dir="ltr">findDuplicateFood</code></td></tr>
+<tr><td>استيراد الـ Hub / CSV / Excel</td><td>مطابقة بمفتاح الجدول (food_id أو الاسم)، وإعادة ربط المفتاح القديم بالاسم بالمعرّف الثابت، ومطابقة الصفوف المفتاح باسمها بأطعمة الـ Hub بالاسم + الحالة؛ والأسماء المكررة داخل الملف تُوسَم وتأخذ المفتاح <code dir="ltr">name#2</code></td></tr>
+<tr><td>استيراد الأطعمة الشخصية JSON</td><td>الاسم + الحالة موجودان مسبقًا ← يُتجاوز</td></tr>
+<tr><td>اختيار من USDA</td><td>يعيد استخدام النسخة الموجودة بـ sourceRef نفسه</td></tr>
+<tr><td>اعتماد مطابقات الوصفات / إكمال قاعدة أطعمتي</td><td>لا يُضاف إلا ما ليس موجودًا بالاسم نفسه؛ والوجبات تُفحص بـ sourceRef أو الاسم العربي</td></tr>
+<tr><td>الباركود</td><td>يُستخدم الطعام المحلي ذو الباركود نفسه بدل إنشاء جديد</td></tr>
+<tr><td>ملء الأسماء</td><td>الاسم الذي سيكرر طعامًا آخر لا يُكتب</td></tr>
+</table>
+
+<h2 dir="rtl">8. منع تكرار سجلات اليوميات</h2>
+<p dir="rtl">إضافة الطعام نفسه بالتاريخ والوجبة والكمية والوحدة والحصة نفسها خلال 1.5 ثانية تُرفض (<code dir="ltr">DUPLICATE_ENTRY</code>)، وهذا يحمي من النقر المزدوج. أما التكرار المقصود لاحقًا فمسموح.</p>
+
+<h2 dir="rtl">9. تقرير التكرارات في فحص البيانات</h2>
+<p dir="rtl">الإعدادات ← فحص البيانات ← تشغيل الفحص يعرض أيضًا: «سجلات قد تكون مكررة: {e} من عناصر اليوميات و{f} من الأطعمة تظهر أكثر من مرة (مثلاً بعد إعادة إدخال البيانات).» أُضيف بعد حادثة فقدان البيانات في 10 نوفمبر 2026، حين ربما أُعيد إدخال بعض الأيام يدويًا قبل عودة النسخة السحابية.</p>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>التقرير</th><th>مفتاح التجميع</th><th>المستثنى</th></tr>
+<tr><td>عناصر اليوميات</td><td>التاريخ | الوجبة | الاسم (دون مسافات طرفية وبحروف صغيرة) | الغرامات مقرّبة لأقرب غرام؛ يُسرد عندما تكون النسخ &gt; 1 (الأحدث أولًا، وأول 30 فقط)</td><td>السجلات المحذوفة</td></tr>
+<tr><td>الأطعمة</td><td>الاسم العربي (أو الإنجليزي إن لم يوجد)، دون مسافات طرفية وبحروف صغيرة؛ يُسرد عندما تكون النسخ &gt; 1</td><td>الأطعمة المؤرشفة وأطعمة الـ Hub (<code dir="ltr">sheet</code>) وUSDA (<code dir="ltr">usda</code>)</td></tr>
+</table>
+<p dir="rtl"><b>مثال:</b> 2026-11-08، الفطور، «Oats» ‏40 غ مسجّل مرتين و«oats » ‏40.2 غ مرة ← مجموعة واحدة «Oats · 40 غ × 3». وتقول الملاحظة: «لم يُحذف أي شيء. راجع هذه الأيام في اليوميات واحذف النسخة الزائدة بنفسك إن كانت مكررة فعلاً.»</p>
+<p dir="rtl">ملاحظة: تقرير الأطعمة يجمع بالاسم فقط (لا بالحالة)، لذا يظهر طعام نيء وآخر مطبوخ بالاسم نفسه كتكرار محتمل رغم أن المحرر يسمح بهما. راجع هذه الحالات قبل أي إجراء.</p>
+
+<h2 dir="rtl">10. معالجة التكرارات</h2>
+<ol dir="rtl">
+<li dir="rtl">عناصر اليوميات: افتح اليوم المذكور في اليوميات، وقارن السجلات، واحذف الزائد. الحذف يُزامَن مع الحساب.</li>
+<li dir="rtl">الأطعمة: قرّر أي سجل تبقيه، و<b>أرشف</b> الآخر (الأطعمة المؤرشفة تخرج من القوائم وفحوص التكرار والتصدير؛ وسجلات اليوميات السابقة تحتفظ بقيم لقطتها؛ والأرشفة قابلة للتراجع بالاستعادة). ويمكن أيضًا إعادة تسمية أحدهما.</li>
+<li dir="rtl">أطعمة الـ Hub: قارن عبر فحص الـ Hub (في الـ Hub فقط / على الهاتف فقط / قيم مختلفة)، وصحّح في تبويب Food_Database، ثم استورد مجددًا.</li>
+<li dir="rtl">شغّل فحص البيانات مرة أخرى للتأكد.</li>
+</ol>
+
+<h2 dir="rtl">11. حالة التحقق</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>البند</th><th>الحالة</th></tr>
+<tr><td>القواعد والرسائل</td><td>مُتحقَّق منها في ملفات المصدر ونصوص الترجمة المذكورة</td></tr>
+<tr><td>أعداد إكمال المكتبة (68 / 1 / 100 / 1)</td><td>محسوبة بتشغيل <code dir="ltr">planLibraryFoods</code> في 10 نوفمبر 2026</td></tr>
+<tr><td>الاختبارات الآلية</td><td>اختبارات الوحدة 199/199 (تشغيل 10 نوفمبر 2026)، منها <code dir="ltr">tests/library-foods.test.ts</code> (لا تقدير، إضافة فقط، تكرار التشغيل لا يضيف، الأسماء)، و<code dir="ltr">tests/cardio-goals.test.ts</code> (اللبنة ناقصة)، و<code dir="ltr">tests/fooddb.test.ts</code> (إنشاء الطعام الناقص، استيراد JSON دون تكرار)، و<code dir="ltr">tests/cloud-recovery.test.ts</code> (فحص البيانات)؛ وإكمال الـ Hub ‏<code dir="ltr">e2e/hub-complete-test.mjs</code> ‏9/9 (خادم محاكى)</td></tr>
+<tr><td>تنظيف التكرارات في بيانات المالك الحقيقية بعد الحادثة</td><td>غير مُتحقَّق منه في هذه الوثيقة</td></tr>
+</table>
+
+<h2 dir="rtl">12. سجل المراجعات</h2>
+<table dir="rtl" border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>الإصدار</th><th>التاريخ</th><th>التغيير</th><th>الكاتب</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>الإصدار الأول</td><td>Claude لصالح مالك مشروع MEGO</td></tr>
+</table>
+</body></html>

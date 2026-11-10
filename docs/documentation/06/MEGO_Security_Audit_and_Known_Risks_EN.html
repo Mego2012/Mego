@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>MEGO_Security_Audit_and_Known_Risks_EN</title></head>
+<body style="font-family:Arial">
+<h1>MEGO — Security Audit and Known Risks</h1>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Field</th><th>Value</th></tr>
+<tr><td>Document ID</td><td>MEGO-DOC-49</td></tr>
+<tr><td>Version</td><td>1.0</td></tr>
+<tr><td>Created</td><td>2026-11-10</td></tr>
+<tr><td>Last updated</td><td>2026-11-10</td></tr>
+<tr><td>Owner</td><td>MEGO Project Owner</td></tr>
+<tr><td>Status</td><td>Draft – requires owner approval</td></tr>
+<tr><td>Audience</td><td>Project owner, developers, security reviewers</td></tr>
+<tr><td>Related documents</td><td>MEGO_Security_Architecture, MEGO_Access_Control_and_Permissions, MEGO_Authentication_and_Session_Management, MEGO_User_Data_Protection, MEGO_Data_Retention_and_Deletion, MEGO_Data_Backup_and_Recovery, MEGO_Known_Bugs_and_Limitations, MEGO_Support_and_Incident_Management</td></tr>
+</table>
+
+<h2>Purpose and scope</h2>
+<p>This document records the result of an internal security review of the MEGO code and configuration as of 10 November 2026 and keeps a register of known risks with severity, status and the action required. It is a code-and-configuration review by the documentation author, not an independent penetration test. Severity is a qualitative judgement (High / Medium / Low) based on likelihood and impact for a small free-tier deployment.</p>
+
+<h2>Table of contents</h2>
+<ol>
+<li>Audit method and scope</li>
+<li>Summary</li>
+<li>Actions required from the owner (priority)</li>
+<li>Risk register</li>
+<li>Credential rotation procedures</li>
+<li>Old public commits exposing a CSV</li>
+<li>Free-tier (Spark) limits as an operational risk</li>
+<li>Positive findings</li>
+<li>Verification status</li>
+</ol>
+
+<h2>1. Audit method and scope</h2>
+<ul>
+<li>Reviewed: <code>firebase/firestore.rules</code>, <code>src/lib/firebase.ts</code>, <code>account.ts</code>, <code>cloudSync.ts</code>, <code>sync.ts</code>, <code>backup.ts</code>, <code>localBackup.ts</code>, <code>mealScanner.ts</code>, <code>src/pages/Account.tsx</code>, <code>apps-script/Code.gs</code> and <code>appsscript.json</code>, <code>.github/workflows/deploy.yml</code>, <code>index.html</code>, existing reports in <code>docs/</code>.</li>
+<li>Evidence of behaviour: rules tests (14, emulators), multi-user browser checks (8, emulators), live verification against production (14/14), laptop-setup live tests, storage-loss emulator scenario.</li>
+<li>Not in scope / not performed: penetration test, dependency vulnerability scan (<code>npm audit</code> results not reviewed — Not verified), Firebase console settings, Google Cloud IAM members.</li>
+</ul>
+
+<h2>2. Summary</h2>
+<p>The core access-control design is sound: private data is isolated per user by server-side rules, administrators have no access to private records, nobody can promote themselves, and the AI key never reaches the device. The most important open items are operational: two credentials that were exposed in a chat must be rotated, two old public commits still expose a private CSV file, and the free-tier limits cap capacity. Several medium/low hardening items are listed below.</p>
+
+<h2>3. Actions required from the owner (priority)</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>#</th><th>Action</th><th>Risk ID</th></tr>
+<tr><td>1</td><td>Rotate the Gemini API key (section 5.1)</td><td>R-01</td></tr>
+<tr><td>2</td><td>Rotate the Apps Script backend token and reconnect owner devices (section 5.2)</td><td>R-02</td></tr>
+<tr><td>3</td><td>Send the prepared GitHub Support request (<code>docs/GITHUB-SUPPORT-REQUEST.md</code>) for commits a7b5bbb and 3fb3c82</td><td>R-03</td></tr>
+<tr><td>4</td><td>Register the owner account and run <code>node scripts/laptop-setup.mjs --cloud &lt;e-mail&gt;</code> again to create the first administrator</td><td>R-12</td></tr>
+<tr><td>5</td><td>Complete the legal review (<code>docs/LEGAL-REVIEW.md</code>) before opening public registration</td><td>R-17</td></tr>
+<tr><td>6</td><td>Run the real-device checklist <code>docs/ANDROID-TEST.md</code></td><td>R-18</td></tr>
+</table>
+
+<h2>4. Risk register</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>ID</th><th>Risk</th><th>Severity</th><th>Status</th><th>Recommended action</th></tr>
+<tr><td>R-01</td><td>The owner's Gemini API key was shown in a chat during setup. Anyone holding it could use the owner's free quota.</td><td>High</td><td>Open</td><td>Rotate (5.1)</td></tr>
+<tr><td>R-02</td><td>The backend connection link (web-app URL + APP_TOKEN) was shown in a chat. Holder could read/write the owner's Hub through the token-protected actions.</td><td>High</td><td>Open</td><td>Rotate token (5.2); optionally new deployment URL</td></tr>
+<tr><td>R-03</td><td>Old public commits a7b5bbb and 3fb3c82 still serve <code>tests/fixtures/foods-160.csv</code> (the owner's private 160-food table) by SHA.</td><td>Medium</td><td>Open — request prepared, owner must send</td><td>Section 6</td></tr>
+<tr><td>R-04</td><td>Free-tier limits (Firebase Spark, Gemini free tier, Apps Script) cap usage; on exhaustion the service stops for the day.</td><td>Medium (availability)</td><td>Accepted</td><td>Section 7; monitor usage</td></tr>
+<tr><td>R-05</td><td>E-mail verification is not enforced (neither app nor rules check <code>email_verified</code>); accounts can be created with addresses the person does not own.</td><td>Medium</td><td>Open</td><td>Require verified e-mail in rules for writes, or block sign-in until verified</td></tr>
+<tr><td>R-06</td><td>Local data (IndexedDB) is not encrypted and remains after sign-out; on a shared or lost unlocked device it can be read.</td><td>Medium</td><td>Open</td><td>Offer "remove this device's copy on sign-out"; advise device lock</td></tr>
+<tr><td>R-07</td><td>No Content-Security-Policy (GitHub Pages cannot set headers; no meta CSP in <code>index.html</code>). Third-party resources: Google Fonts.</td><td>Low</td><td>Open</td><td>Add a meta CSP restricting script sources</td></tr>
+<tr><td>R-08</td><td>Apps Script web app runs as the owner with access "anyone" and broad scopes (Sheets, full Drive, external requests). Security rests on the token.</td><td>Medium</td><td>Accepted by design</td><td>Keep token secret; rotate on any exposure</td></tr>
+<tr><td>R-09</td><td>APP_TOKEN is compared with <code>!==</code> (not constant-time); the Settings token field is plain text; the connection code is printed in logs/terminal.</td><td>Low</td><td>Open</td><td>Mask the field; constant-time comparison is a minor hardening</td></tr>
+<tr><td>R-10</td><td>Rules do not validate type/length of <code>displayName</code>/<code>country</code> on owner updates; country is self-declared, so the AI region restriction can be bypassed by a dishonest user.</td><td>Low</td><td>Open</td><td>Add <code>is string</code> and size checks; treat region check as best effort</td></tr>
+<tr><td>R-11</td><td><code>errorReports</code> can be created by any signed-in user (also suspended), and <code>foodSubmissions</code> fields are not validated — potential spam into admin views.</td><td>Low</td><td>Open</td><td>Require <code>isActive()</code>; validate submission shape</td></tr>
+<tr><td>R-12</td><td>No administrator exists yet: suspensions and food reviews are not possible in production.</td><td>Medium (operational)</td><td>Waiting for owner</td><td>Owner action 4</td></tr>
+<tr><td>R-13</td><td>Account deletion leaves the user's <code>foodSubmissions</code>, local sync markers, and AI counters (until clean-up); is not atomic.</td><td>Low</td><td>Open</td><td>See MEGO_Data_Retention_and_Deletion §8</td></tr>
+<tr><td>R-14</td><td>A suspended user cannot delete their own records (rules require an active account).</td><td>Low (privacy process)</td><td>Open</td><td>Owner-assisted deletion or rule change</td></tr>
+<tr><td>R-15</td><td>Storage loss on Android left a signed-in account empty after re-login (incident 10 Nov 2026).</td><td>High (was)</td><td><b>Fixed and live</b></td><td>See MEGO_Data_Backup_and_Recovery §9; guest data still device-only</td></tr>
+<tr><td>R-16</td><td>Gemini free tier: Google may use submitted content to improve products and human reviewers may see it; service can be slow or busy.</td><td>Medium (privacy/UX)</td><td>Disclosed in privacy draft</td><td>Keep disclosure; EU/EEA/UK/CH refused</td></tr>
+<tr><td>R-17</td><td>Privacy policy and terms are drafts; operator identity, governing law, retention and consents undecided.</td><td>Medium (legal)</td><td>Open</td><td>Legal review</td></tr>
+<tr><td>R-18</td><td>No test on a real Android device (only emulated viewports).</td><td>Medium</td><td>Open</td><td><code>docs/ANDROID-TEST.md</code></td></tr>
+<tr><td>R-19</td><td>No multi-factor authentication; no idle timeout.</td><td>Low</td><td>Accepted for now</td><td>Consider for admin accounts</td></tr>
+<tr><td>R-20</td><td>Firebase project settings (password policy, e-mail enumeration protection, authorised domains) not inspected.</td><td>Low</td><td>Not verified</td><td>Review in the Firebase console</td></tr>
+<tr><td>R-21</td><td>No versioned server-side backup of Firestore; the cloud copy mirrors deletions.</td><td>Medium</td><td>Open</td><td>Users download backup files; consider periodic export</td></tr>
+</table>
+
+<h2>5. Credential rotation procedures</h2>
+<h3>5.1 Gemini API key (R-01)</h3>
+<ol>
+<li>In Google AI Studio (owner's account) create a new API key. Do not enable billing.</li>
+<li>Copy the key to the laptop clipboard and run <code>node scripts/laptop-setup.mjs --ai-key-from-clipboard</code>, or store it from the owner device (Settings → AI scanner key, which calls <code>setAiKey</code>). The backend checks the key with Google before saving it to Script Properties (<code>GEMINI_API_KEY</code>).</li>
+<li>Test one meal scan.</li>
+<li>Delete the old key in Google AI Studio.</li>
+<li>Never paste keys into chats, tickets or documents.</li>
+</ol>
+<h3>5.2 Backend token APP_TOKEN (R-02)</h3>
+<ol>
+<li>Open the Apps Script project under the owner's account and run <code>rotateToken()</code> (deletes <code>APP_TOKEN</code> and creates a new 256-bit token via <code>setup()</code>; the new value is written to the execution log).</li>
+<li>Obtain the new connection code (run <code>installMego()</code> again — safe to re-run — or assemble it from the log). Treat the log as secret.</li>
+<li>On each owner device: Settings → Hub connection → paste the new code → test. The old token is refused immediately.</li>
+<li>Update the laptop copy in <code>~/.mego-backend/</code> (exact update step Not verified; <code>--test</code> reports "unauthorized" while it is stale).</li>
+<li>Optional: create a new web-app deployment to change the URL and archive the old deployment.</li>
+<li>Delete chat messages, screenshots or notes containing the old link.</li>
+</ol>
+<p>Public accounts are not affected by either rotation: they authenticate to the AI proxy with their own Firebase ID token.</p>
+
+<h2>6. Old public commits exposing a CSV (R-03)</h2>
+<ul>
+<li>File: <code>tests/fixtures/foods-160.csv</code> (13,451 bytes) — the owner's private food table.</li>
+<li>Checked 7 Nov 2026: still downloadable (HTTP 200) through commits <code>a7b5bbb…</code> and <code>3fb3c82…</code>; not present in the current branch (history rewritten and force-pushed); commits 2523513 and 5bc5b6b return 404.</li>
+<li>Reason it persists: GitHub keeps unreferenced objects; old Actions runs #2 and #3 reference those commits.</li>
+<li>Action: the owner sends the prepared text in <code>docs/GITHUB-SUPPORT-REQUEST.md</code> while signed in as the repository owner; optionally deletes Actions runs #2 and #3 first; then re-checks that both URLs return 404.</li>
+<li>Prevention: <code>tests/private/</code> is in <code>.gitignore</code>; keep private fixtures there.</li>
+</ul>
+
+<h2>7. Free-tier (Spark) limits as an operational risk (R-04)</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Service</th><th>Limit (as recorded in <code>docs/ARCHITECTURE.md</code>; Google may change it)</th><th>Effect when reached</th></tr>
+<tr><td>Firebase Authentication</td><td>3,000 daily active users; 150 password-reset e-mails/day; 100 sign-ups/hour per IP</td><td>Sign-ups / reset e-mails refused until reset</td></tr>
+<tr><td>Cloud Firestore</td><td>1 GiB stored; 50,000 reads, 20,000 writes, 20,000 deletes per day</td><td>Sync stops until the daily reset; local data keeps working offline</td></tr>
+<tr><td>Gemini API free tier</td><td>Google's per-minute and per-day quotas; MEGO adds 10 scans per user per day and a global cap (default 40 in code, 200 set by the setup script)</td><td>Errors <code>AI_QUOTA_MINUTE</code>/<code>AI_QUOTA_DAY</code>, <code>AI_USER_LIMIT</code>, <code>AI_DAILY_LIMIT</code>; overload <code>AI_OVERLOADED</code></td></tr>
+<tr><td>Apps Script</td><td>Google's Apps Script quotas (concurrent executions, URL fetch calls) — exact values Not verified</td><td>Backend errors at peak</td></tr>
+</table>
+<p>Free tiers cannot bill, so exhaustion means downtime, not cost. Rule lookups (<code>exists</code>/<code>get</code>) count as reads. Account deletion of large accounts consumes reads and deletes.</p>
+
+<h2>8. Positive findings</h2>
+<ul>
+<li>Server-side isolation verified live: other user's data 403, anonymous 403, no self-promotion, regular users cannot list profiles or suspend others.</li>
+<li>Admins cannot read private records; admin writes to profiles limited to <code>status</code>.</li>
+<li>Monotonic <code>updatedAt</code> prevents stale overwrites, in Firestore and in the Hub.</li>
+<li>Gemini key stays server-side; AI proxy reads profile with the user's own token.</li>
+<li>Sync token removed from backups, exports and cloud copies.</li>
+<li>Meal photos re-encoded (EXIF removed) and not stored.</li>
+<li>Password reset gives no account-existence signal in the app.</li>
+<li>CI runs tests before every deploy; secret scan (7 Nov 2026) found no real secrets in the repository.</li>
+</ul>
+
+<h2>9. Verification status</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Item</th><th>Status</th></tr>
+<tr><td>Positive findings on isolation and admin limits</td><td>Verified live (14/14) and on emulators</td></tr>
+<tr><td>CSV exposure via old commits</td><td>Checked live on 7 Nov 2026 (HTTP 200); not re-checked on 10 Nov</td></tr>
+<tr><td>Credential exposure in chat</td><td>Reported by the project record; rotation not yet performed</td></tr>
+<tr><td>Dependency vulnerabilities, Firebase console settings, IAM</td><td>Not verified</td></tr>
+<tr><td>Independent penetration test</td><td>Not performed</td></tr>
+</table>
+
+<h2>Revision history</h2>
+<table border="1" style="border-collapse:collapse">
+<tr style="background:#e8f3ef"><th>Version</th><th>Date</th><th>Change</th><th>Author</th></tr>
+<tr><td>1.0</td><td>2026-11-10</td><td>Initial release</td><td>Claude for MEGO Project Owner</td></tr>
+</table>
+</body></html>

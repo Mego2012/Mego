@@ -40,6 +40,8 @@ const APP_URL = 'https://mego2012.github.io/Mego/';
 const HUB_SOURCE_ID = '1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI';
 const args = process.argv.slice(2);
 const onlyTest = args.includes('--test');
+/** --update-backend: upload the latest Code.gs to the SAME deployment (same URL, data untouched) and run the AI diagnostic. */
+const updateOnly = args.includes('--update-backend');
 const photoArg = args.includes('--photo') ? args[args.indexOf('--photo') + 1] : '';
 /** For automated testing of this script against an emulated backend (skips clasp/Google). */
 const FAKE_BACKEND = process.env.MEGO_FAKE_BACKEND || '';
@@ -489,6 +491,14 @@ try {
     pushCode(needsInstall ? createHash('sha256').update(secret).digest('hex') : '');
     deploy();
     if (needsInstall) await bootstrap(secret);
+    if (updateOnly) {
+      step('AI diagnostic — Google\'s exact answer for each free model (text only, no photo)');
+      const d = await call(state.url, { action: 'aiDiag', token: state.token });
+      if (!d.ok) { log('  ❌ ' + d.error); process.exit(1); }
+      log('  backend version ' + d.scriptVersion + ' · configured model ' + d.configuredModel);
+      for (const m of d.models) log(`  ${m.error ? '❌' : '✅'} ${m.model}: HTTP ${m.http ?? '-'} ${m.error ?? 'OK'} ${m.google ? '— ' + [m.google.status, m.google.message].filter(Boolean).join(': ') : ''} (${m.ms} ms)`);
+      process.exit(0);
+    }
   }
   if (!state.url || !state.token) throw new Error('no backend yet — run without --test first');
   const info = await liveTests();

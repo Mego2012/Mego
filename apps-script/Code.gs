@@ -34,7 +34,7 @@
 /** The original Hub file (Excel). Kept untouched as the backup after conversion. */
 var SOURCE_ID = '1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI';
 var HUB_NAME = 'MEGO Nutrition Hub';
-var SCRIPT_VERSION = 5;
+var SCRIPT_VERSION = 6;
 /**
  * One-time automated install (scripts/laptop-setup.mjs). Empty in the public repository = disabled.
  * The laptop setup writes the SHA-256 of a random secret here only in YOUR private copy of the script; the
@@ -263,10 +263,11 @@ function doPost(e) {
     var token = PropertiesService.getScriptProperties().getProperty('APP_TOKEN');
     if (req.action === 'bootstrap') return json_(bootstrap_(req));
     // Public accounts (Firebase): the user's own sign-in token instead of the owner's app token.
-    if (req.idToken && (req.action === 'analyzeMeal' || req.action === 'aiStats')) return json_(publicAi_(req));
+    if (req.idToken && (req.action === 'analyzeMeal' || req.action === 'aiStats' || req.action === 'aiDiag')) return json_(publicAi_(req));
     if (!token || typeof req.token !== 'string' || req.token !== token) return json_({ ok: false, error: 'unauthorized' });
     // AI meal analysis never touches the spreadsheet, so it runs outside the lock (it can take ~10-40 s).
     if (req.action === 'analyzeMeal') return json_(analyzeMeal_(req));
+    if (req.action === 'aiDiag') return json_(aiDiag_());
     if (req.action === 'setAiKey') return json_(setAiKey_(req));
     if (req.action === 'setCloudConfig') return json_(setCloudConfig_(req));
     var lock = LockService.getScriptLock();
@@ -776,21 +777,90 @@ var AI_SYSTEM = [
   'details from the photo in the output.'
 ].join('\n');
 
-/** Maps a Gemini error response to a clear app error. Never retries elsewhere. */
+/**
+ * Maps a Gemini error response to a precise app error. Google's own status/message are returned in `google`
+ * (never the key) so the real cause is visible in the app instead of one generic "busy" message.
+ *   temporary (retried): AI_OVERLOADED (503 UNAVAILABLE), AI_SERVER_ERROR (500 INTERNAL), AI_TIMEOUT (504 DEADLINE_EXCEEDED)
+ *   not retried: AI_QUOTA_MINUTE / AI_QUOTA_DAY (429), AI_KEY_INVALID (401/403), AI_REGION, AI_MODEL_UNAVAILABLE (404),
+ *                AI_BAD_IMAGE (400 about the image), AI_CONFIG (other 400 — a request/configuration problem)
+ */
 function aiError_(code, text) {
   var err = {};
   try { err = JSON.parse(text).error || {}; } catch (e) { /* not JSON */ }
-  var msg = String(err.message || '');
+  var msg = String(err.message || '').slice(0, 300);
+  var google = { http: code, status: String(err.status || ''), message: msg };
+  var r = function (error, extra) { var o = { ok: false, error: error, google: google }; for (var k in extra) o[k] = extra[k]; return o; };
   if (code === 429) {
-    if (/PerDay/i.test(text)) return { ok: false, error: 'AI_QUOTA_DAY' };
+    if (/PerDay|per day|daily/i.test(text)) return r('AI_QUOTA_DAY');
     var m = /"retryDelay"\s*:\s*"(\d+)/.exec(text);
-    return { ok: false, error: 'AI_QUOTA_MINUTE', retryAfter: m ? Number(m[1]) : 60 };
+    return r('AI_QUOTA_MINUTE', { retryAfter: m ? Number(m[1]) : 60 });
   }
-  if (/location is not supported|not available in your country/i.test(msg)) return { ok: false, error: 'AI_REGION' };
-  if (code === 401 || code === 403 || /API key not valid|API_KEY_INVALID/i.test(text)) return { ok: false, error: 'AI_KEY_INVALID' };
-  if (code === 404) return { ok: false, error: 'AI_MODEL_UNAVAILABLE' };
-  if (code >= 500) return { ok: false, error: 'AI_BUSY' };
-  return { ok: false, error: 'AI_HTTP_' + code, detail: msg.slice(0, 200) };
+  if (/location is not supported|not available in your country/i.test(msg)) return r('AI_REGION');
+  if (code === 401 || code === 403 || /API key not valid|API_KEY_INVALID|PERMISSION_DENIED/i.test(text)) return r('AI_KEY_INVALID');
+  if (code === 404) return r('AI_MODEL_UNAVAILABLE');
+  if (code === 503 || google.status === 'UNAVAILABLE') return r('AI_OVERLOADED');
+  if (code === 504 || google.status === 'DEADLINE_EXCEEDED') return r('AI_TIMEOUT');
+  if (code >= 500) return r('AI_SERVER_ERROR');
+  if (code === 400 && /image|inline_?data|mime|base64/i.test(msg)) return r('AI_BAD_IMAGE');
+  if (code === 400) return r('AI_CONFIG');
+  return r('AI_HTTP_' + code);
+}
+var AI_TEMPORARY = ['AI_OVERLOADED', 'AI_SERVER_ERROR', 'AI_TIMEOUT', 'AI_NETWORK'];
+
+/**
+ * One generateContent call with retries: temporary errors are retried with exponential backoff (2 s, 4 s) on the
+ * same model; if the model stays overloaded/failing, the next FREE Flash model in AI_FREE_MODELS is tried (same
+ * provider, same free tier — never a paid model). Returns { ok, model, out } or the last mapped error with `tried`.
+ */
+function geminiGenerate_(key, body, deadlineMs) {
+  var first = aiModel_();
+  var models = [first].concat(AI_FREE_MODELS.filter(function (m) { return m !== first; }));
+  var started = Date.now(), last = null, tried = [];
+  for (var i = 0; i < models.length; i++) {
+    var model = models[i];
+    // thinkingLevel is a Gemini 3 Flash setting; the Lite fallback runs without it
+    var b = JSON.parse(JSON.stringify(body));
+    if (/lite/.test(model) && b.generationConfig) delete b.generationConfig.thinkingConfig;
+    for (var attempt = 0; attempt < 3; attempt++) {
+      if (Date.now() - started > deadlineMs) { last = last || { ok: false, error: 'AI_TIMEOUT' }; last.tried = tried; return last; }
+      var res;
+      try {
+        res = UrlFetchApp.fetch(AI_BASE + model + ':generateContent', {
+          method: 'post', contentType: 'application/json', headers: { 'x-goog-api-key': key }, payload: JSON.stringify(b), muteHttpExceptions: true
+        });
+      } catch (e) {
+        last = { ok: false, error: 'AI_NETWORK', detail: String((e && e.message) || e).slice(0, 200) };
+        tried.push(model + ':network');
+        Utilities.sleep(2000 * Math.pow(2, attempt));
+        continue;
+      }
+      var code = res.getResponseCode();
+      if (code === 200) return { ok: true, model: model, out: JSON.parse(res.getContentText()), tried: tried };
+      last = aiError_(code, res.getContentText());
+      tried.push(model + ':' + code);
+      console.warn('Gemini ' + model + ' → ' + code + ' ' + (last.google ? last.google.status + ' ' + last.google.message : ''));
+      if (AI_TEMPORARY.indexOf(last.error) < 0) { last.tried = tried; return last; } // quota, key, config: never retried
+      if (attempt < 2) Utilities.sleep(2000 * Math.pow(2, attempt));
+    }
+  }
+  last.tried = tried;
+  return last;
+}
+
+/** Diagnostic: a tiny text-only request to every free model (no image). Shows Google's exact answer per model. */
+function aiDiag_() {
+  var key = PropertiesService.getScriptProperties().getProperty('GEMINI_API_KEY');
+  if (!key) return { ok: false, error: 'AI_NOT_CONFIGURED' };
+  return { ok: true, scriptVersion: SCRIPT_VERSION, configuredModel: aiModel_(), models: AI_FREE_MODELS.map(function (m) {
+    var t0 = Date.now(), res;
+    try {
+      res = UrlFetchApp.fetch(AI_BASE + m + ':generateContent', { method: 'post', contentType: 'application/json', headers: { 'x-goog-api-key': key },
+        payload: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: 'Reply with the single word OK.' }] }], generationConfig: { maxOutputTokens: 20 } }), muteHttpExceptions: true });
+    } catch (e) { return { model: m, error: 'AI_NETWORK', ms: Date.now() - t0 }; }
+    var code = res.getResponseCode();
+    var r = code === 200 ? { ok: true } : aiError_(code, res.getContentText());
+    return { model: m, http: code, error: r.error || null, google: r.google || null, ms: Date.now() - t0 };
+  }) };
 }
 
 /** Stores the Gemini key in Script Properties after checking it with Google (a metadata call, not a generation). */
@@ -833,26 +903,17 @@ function analyzeMeal_(req) {
 
   var userText = 'User language: ' + lang + '.\n' + (note ? 'User note about this meal: ' + note + '\n' : '') +
     '\nUser food database (' + lines.length + ' rows):\n' + lines.join('\n') + '\n\nAnalyse the meal in the photo.';
-  var model = aiModel_();
   var body = {
     systemInstruction: { parts: [{ text: AI_SYSTEM }] },
     contents: [{ role: 'user', parts: [{ inlineData: { mimeType: mediaType, data: img } }, { text: userText }] }],
     generationConfig: { responseMimeType: 'application/json', responseJsonSchema: AI_SCHEMA, maxOutputTokens: 8192, temperature: 0.2,
       thinkingConfig: { thinkingLevel: 'MEDIUM' } }
   };
-  var res;
-  try {
-    res = UrlFetchApp.fetch(AI_BASE + model + ':generateContent', {
-      method: 'post', contentType: 'application/json', headers: { 'x-goog-api-key': key }, payload: JSON.stringify(body), muteHttpExceptions: true
-    });
-  } catch (e) {
-    return { ok: false, error: 'AI_NETWORK', detail: String((e && e.message) || e).slice(0, 200) };
-  }
+  var g = geminiGenerate_(key, body, 240000);
+  if (!g.ok) { if (req._refund) req._refund(); return g; } // failed requests do not use up the daily allowance
   props.setProperty('AI_USED_' + day, String((Number(used) || 0) + 1));
-  var code = res.getResponseCode();
-  var text = res.getContentText();
-  if (code !== 200) return aiError_(code, text);
-  var out = JSON.parse(text);
+  var model = g.model;
+  var out = g.out;
   if (out.promptFeedback && out.promptFeedback.blockReason) return { ok: false, error: 'AI_REFUSED' };
   var cand = (out.candidates || [])[0];
   if (!cand) return { ok: false, error: 'AI_BAD_OUTPUT' };
@@ -861,7 +922,7 @@ function analyzeMeal_(req) {
   var t = ((cand.content || {}).parts || []).filter(function (p) { return typeof p.text === 'string' && !p.thought; }).map(function (p) { return p.text; }).join('');
   var result;
   try { result = JSON.parse(t); } catch (e) { return { ok: false, error: 'AI_BAD_OUTPUT' }; }
-  return { ok: true, model: model, result: result };
+  return { ok: true, model: model, result: result, tried: g.tried };
 }
 
 /* ============================================================== public accounts (Firebase) — AI proxy */
@@ -898,6 +959,7 @@ function publicAi_(req) {
   var v = verifyFirebaseUser_(req.idToken);
   if (!v.ok) return v;
   if (req.action === 'aiStats') return aiStats_(v.uid, req.idToken);
+  if (req.action === 'aiDiag') { var pf = firestoreGet_('profiles/' + v.uid, req.idToken); if (!pf) return { ok: false, error: 'unauthorized' }; return aiDiag_(); }
   var profile = firestoreGet_('profiles/' + v.uid, req.idToken);
   var f = (profile && profile.fields) || {};
   if (!profile || (f.status && f.status.stringValue) !== 'active') return { ok: false, error: 'unauthorized' };
@@ -914,6 +976,10 @@ function publicAi_(req) {
     if (used >= perUser) return { ok: false, error: 'AI_USER_LIMIT', limit: perUser };
     props.setProperty(ukey, String(used + 1));
   } finally { lock.releaseLock(); }
+  req._refund = function () { // a failed analysis does not count against the user's daily scans
+    var l = LockService.getScriptLock(); l.waitLock(10000);
+    try { var n = Number(props.getProperty(ukey)) || 0; if (n > 0) props.setProperty(ukey, String(n - 1)); } finally { l.releaseLock(); }
+  };
   return analyzeMeal_(req); // global cap, Gemini call and error mapping are shared with the owner path
 }
 

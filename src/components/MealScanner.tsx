@@ -5,7 +5,7 @@ import { useApp } from '../app/AppContext';
 import { db } from '../lib/db';
 import { isValidISODate, today } from '../lib/dates';
 import {
-  blockers, buildCatalog, COOKING_METHODS, itemNutrition, logScannedMeal, mealTotals, needsConfirmation, prepareImage, requestAnalysis,
+  blockers, buildCatalog, COOKING_METHODS, itemNutrition, logScannedMeal, mealTotals, needsConfirmation, prepareImage, analyzeWithRetry, TEMPORARY,
   ScanError, suggestFoods, toScanItems, LOW_CONFIDENCE, type AiResult, type CookingMethod, type ScanItem
 } from '../lib/mealScanner';
 import { archiveFood, deleteEntries, displayName, uid } from '../lib/repo';
@@ -77,16 +77,22 @@ export function MealScannerSheet({ file, date: initialDate, meal: initialMeal, o
     return () => URL.revokeObjectURL(u);
   }, [file]);
 
+  const prepared = useRef<{ file: Blob; base64: string } | null>(null);
+  const [retryInfo, setRetryInfo] = useState<{ attempt: number; code: string } | null>(null);
   const analyze = async () => {
+    if (stage === 'preparing' || stage === 'analyzing') return; // one request at a time
     const id = ++runId.current;
     setError('');
+    setRetryInfo(null);
     try {
       setStage('preparing');
-      const img = await prepareImage(file);
+      // the prepared image is kept, so a retry never re-asks for the photo or re-encodes it
+      const img = prepared.current?.file === file ? prepared.current : { file, base64: (await prepareImage(file)).base64 };
+      prepared.current = img;
       if (id !== runId.current) return;
       setStage('analyzing');
       const catalog = buildCatalog(foods);
-      const res = await requestAnalysis(img.base64, catalog, { lang, note });
+      const res = await analyzeWithRetry(img.base64, catalog, { lang, note, onRetry: (attempt, code) => { if (id === runId.current) setRetryInfo({ attempt, code }); } });
       if (id !== runId.current) return;
       setResult(res);
       setItems(toScanItems(res, catalog, foods));
@@ -150,7 +156,13 @@ export function MealScannerSheet({ file, date: initialDate, meal: initialMeal, o
 
       {(stage === 'ready' || stage === 'error') && (
         <div className="stack" style={{ gap: 10 }}>
-          {stage === 'error' && <div className="notice warn" role="alert" data-testid="scan-error">{t(error, errorParams)}</div>}
+          {stage === 'error' && (
+            <div className="notice warn" role="alert" data-testid="scan-error" data-code={error}>
+              {t(error, errorParams)}
+              {TEMPORARY.has(error) && <div className="tiny" style={{ marginTop: 4 }}>{t('scanKeptPhoto')}</div>}
+              {errorParams.google && <div className="tiny muted" dir="ltr" style={{ marginTop: 4 }} data-testid="scan-error-detail">{t('scanGoogleSaid')}: {String(errorParams.google)}</div>}
+            </div>
+          )}
           <label className="field">
             <span className="small muted">{t('scanNote')}</span>
             <input className="input" value={note} maxLength={300} placeholder={t('scanNotePh')} onChange={(e) => setNote(e.target.value)} data-testid="scan-note" />
@@ -167,6 +179,7 @@ export function MealScannerSheet({ file, date: initialDate, meal: initialMeal, o
         <div className="stack center" style={{ gap: 10, padding: '18px 0' }} data-testid="scan-busy" aria-live="polite">
           <div className="spinner" aria-hidden="true" />
           <div className="small">{stage === 'preparing' ? t('scanPreparing') : t('scanAnalyzing')}</div>
+          {retryInfo && <div className="tiny muted" data-testid="scan-retrying">{t('scanRetrying', { n: retryInfo.attempt, max: 2, why: t(retryInfo.code + '_short') })}</div>}
           <button className="btn sm ghost" onClick={cancel}>{t('scanCancel')}</button>
         </div>
       )}

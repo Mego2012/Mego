@@ -118,7 +118,7 @@ export function createGas({ foodRows = [], token = 'test-token', spreadsheetName
     LockService: { getScriptLock: () => ({ waitLock() {}, releaseLock() {} }) },
     ContentService: { MimeType: { JSON: 'json' }, createTextOutput: (t) => ({ text: t, setMimeType() { return this; } }) },
     Utilities: {
-      getUuid: () => randomUUID(), formatDate: (d) => d.toISOString().slice(0, 10).replace(/-/g, ''),
+      sleep: () => {}, getUuid: () => randomUUID(), formatDate: (d) => d.toISOString().slice(0, 10).replace(/-/g, ''),
       DigestAlgorithm: { SHA_256: 'sha256' }, Charset: { UTF_8: 'utf8' },
       computeDigest: (alg, text) => [...createHash(alg).update(String(text), 'utf8').digest()].map((b) => (b > 127 ? b - 256 : b))
     },

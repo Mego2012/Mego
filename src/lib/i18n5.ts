@@ -1,6 +1,15 @@
 /** Strings for workouts, training analytics and the rule-based coach (release 1.3). Parity test covers them. */
 export const en5: Record<string, string> = {
   nav_workouts: 'Workouts',
+  AI_OVERLOADED: 'Google\'s AI model is overloaded right now (temporary). MEGO already retried; please try again in a few minutes.',
+  AI_SERVER_ERROR: 'The AI service returned a server error (temporary). Please try again.',
+  AI_CONFIG: 'The AI request was rejected because of a configuration problem on the backend — this is not your photo. The details below help fix it.',
+  AI_UNSUPPORTED_FORMAT: 'This image format can\'t be read on this phone. Use JPEG, PNG or WebP (or take the photo with the camera button).',
+  AI_IMAGE_TOO_LARGE: 'The image is too large (over {mb} MB). Choose a smaller photo.',
+  AI_OVERLOADED_short: 'AI overloaded', AI_SERVER_ERROR_short: 'server error', AI_TIMEOUT_short: 'slow response', AI_NETWORK_short: 'connection problem', AI_BUSY_short: 'AI busy', AI_QUOTA_MINUTE_short: 'per-minute limit',
+  scanRetrying: 'Retrying automatically ({n}/{max}) — {why}…',
+  scanKeptPhoto: 'Your photo is kept — tap Retry, no need to choose it again.',
+  scanGoogleSaid: 'Service response',
   dc_title: 'Data check', dc_run: 'Run check', dc_note: 'Read-only check of the records on this device; nothing is changed.',
   dc_entries: 'Food log entries', dc_daysWord: 'days', dc_range: 'First – last logged day', dc_body: 'Weigh-ins / waist measurements', dc_foods: 'Foods / my recipes',
   dc_targets: 'Calorie targets (training / rest)', dc_backup: 'Latest pre-update backup',
@@ -96,6 +105,15 @@ export const en5: Record<string, string> = {
 
 export const ar5: Record<string, string> = {
   nav_workouts: 'التمارين',
+  AI_OVERLOADED: 'نموذج الذكاء الاصطناعي لدى Google عليه ضغط كبير الآن (مؤقت). أعاد MEGO المحاولة تلقائياً؛ حاول مجدداً بعد دقائق.',
+  AI_SERVER_ERROR: 'أعادت خدمة الذكاء الاصطناعي خطأً من الخادم (مؤقت). حاول مجدداً.',
+  AI_CONFIG: 'رُفض طلب التحليل بسبب مشكلة إعداد في الخادم — ليست مشكلة في صورتك. التفاصيل أدناه تساعد في إصلاحها.',
+  AI_UNSUPPORTED_FORMAT: 'لا يمكن قراءة صيغة هذه الصورة على هذا الهاتف. استخدم JPEG أو PNG أو WebP (أو التقط الصورة بزر الكاميرا).',
+  AI_IMAGE_TOO_LARGE: 'الصورة كبيرة جداً (أكثر من {mb} ميغابايت). اختر صورة أصغر.',
+  AI_OVERLOADED_short: 'ضغط على الذكاء الاصطناعي', AI_SERVER_ERROR_short: 'خطأ في الخادم', AI_TIMEOUT_short: 'استجابة بطيئة', AI_NETWORK_short: 'مشكلة اتصال', AI_BUSY_short: 'الخدمة مشغولة', AI_QUOTA_MINUTE_short: 'حد الدقيقة',
+  scanRetrying: 'إعادة المحاولة تلقائياً ({n}/{max}) — {why}…',
+  scanKeptPhoto: 'صورتك محفوظة — اضغط «إعادة المحاولة» دون اختيارها مجدداً.',
+  scanGoogleSaid: 'رد الخدمة',
   dc_title: 'فحص البيانات', dc_run: 'تشغيل الفحص', dc_note: 'فحص للقراءة فقط للسجلات على هذا الجهاز؛ لا يغيّر أي شيء.',
   dc_entries: 'سجلات الطعام', dc_daysWord: 'أيام', dc_range: 'أول – آخر يوم مسجّل', dc_body: 'الأوزان / قياسات الخصر', dc_foods: 'الأطعمة / وصفاتي',
   dc_targets: 'أهداف السعرات (تمرين / راحة)', dc_backup: 'آخر نسخة قبل التحديث',

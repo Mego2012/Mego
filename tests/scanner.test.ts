@@ -12,7 +12,7 @@ import { addFoodEntry, saveSettings } from '../src/lib/repo';
 import { summarizeDay } from '../src/lib/reports';
 import { importParsedFoods, parseCSV, parseFoodRows } from '../src/lib/sheetImport';
 import {
-  blockers, buildCatalog, itemNutrition, logScannedMeal, mealTotals, needsConfirmation, nextQuotaReset, requestAnalysis, ScanError, suggestFoods, toScanItems,
+  analyzeWithRetry, blockers, buildCatalog, itemNutrition, prepareImage, logScannedMeal, mealTotals, needsConfirmation, nextQuotaReset, requestAnalysis, ScanError, suggestFoods, toScanItems,
   validateAiResult, type AiItem, type ScanItem
 } from '../src/lib/mealScanner';
 import { createGas, type AiRequest } from '../e2e/gas-mock.mjs';
@@ -289,7 +289,7 @@ describe('AI meal scanner', () => {
     gas = createGas({ token: TOKEN, scriptProps: k, ai: gemini(scenarioFromNote, { code: 400, error: { error: { code: 400, message: 'User location is not supported for the API use.', status: 'FAILED_PRECONDITION' } } }) });
     expect(await err()).toBe('AI_REGION');
     gas = createGas({ token: TOKEN, scriptProps: k, ai: gemini(scenarioFromNote, { code: 503 }) });
-    expect(await err()).toBe('AI_BUSY');
+    expect(await err()).toBe('AI_OVERLOADED'); // after retries on every free model
     gas = createGas({ token: TOKEN, scriptProps: k, ai: gemini(scenarioFromNote, { code: 404 }) });
     expect(await err()).toBe('AI_MODEL_UNAVAILABLE');
     gas = createGas({ token: TOKEN, scriptProps: k }); // UrlFetchApp throws
@@ -389,5 +389,108 @@ describe('owner configuration of the public platform', () => {
     expect(g.post({ action: 'setCloudConfig', token: TOKEN, apiKey: 'bad key', projectId: 'mego' }).ok).toBe(false);
     expect(g.post({ action: 'setCloudConfig', token: TOKEN, apiKey: 'AIzaSyAAAAAAAAAAAAAAAAAAAAAAA', projectId: 'mego-abc123', userLimit: 999, globalLimit: 5 }).ok).toBe(true);
     expect([g.props.get('FIREBASE_PROJECT_ID'), g.props.get('AI_USER_DAILY_LIMIT'), g.props.get('AI_DAILY_LIMIT')]).toEqual(['mego-abc123', '50', '5']);
+  });
+});
+
+describe('AI "busy" root cause: precise errors, retries, fallback, no wasted quota', () => {
+  beforeEach(() => setup());
+  afterAll(() => { globalThis.fetch = realFetch; });
+  const errOf = async (p: Promise<unknown>) => { try { await p; return 'none'; } catch (e) { return e as ScanError; } };
+  /** Gemini stand-in that answers with a sequence of codes per model, then succeeds. */
+  function seq(perModel: Record<string, number[]>, errBody?: (code: number) => unknown) {
+    const calls: string[] = [];
+    const ok = gemini(scenarioFromNote);
+    const fn = (req: AiRequest) => {
+      if (req.method === 'get') return ok(req);
+      const model = /models\/([^:]+):/.exec(req.url)![1];
+      calls.push(model);
+      const q = perModel[model] ?? [];
+      const code = q.length ? q.shift()! : 200;
+      if (code !== 200) return { code, json: errBody ? errBody(code) : { error: { code, status: code === 503 ? 'UNAVAILABLE' : code === 504 ? 'DEADLINE_EXCEEDED' : 'INTERNAL', message: code === 503 ? 'The model is overloaded. Please try again later.' : 'An internal error has occurred.' } } };
+      return ok(req);
+    };
+    return { fn, calls };
+  }
+  const k = { GEMINI_API_KEY: KEY };
+
+  it('temporary 503 is retried on the same model and succeeds; only the success is counted', async () => {
+    const g = seq({ 'gemini-3.8-flash': [503, 503] });
+    gas = createGas({ token: TOKEN, scriptProps: k, ai: g.fn });
+    const { result } = await scan('salad');
+    expect(result.items.length).toBeGreaterThan(0);
+    expect(g.calls).toEqual(['gemini-3.8-flash', 'gemini-3.8-flash', 'gemini-3.8-flash']);
+    expect(Number(gas.props.get('AI_USED_' + new Date().toISOString().slice(0, 10)))).toBe(1);
+  });
+  it('a model that stays overloaded falls back to the next FREE Flash model', async () => {
+    const g = seq({ 'gemini-3.8-flash': [503, 503, 503] });
+    gas = createGas({ token: TOKEN, scriptProps: k, ai: g.fn });
+    const r = gas.post({ action: 'analyzeMeal', token: TOKEN, image: IMG, foods: buildCatalog(foods).lines, lang: 'en', note: 'SCENARIO:salad' }) as { ok: boolean; model: string; tried: string[] };
+    expect(r.ok, JSON.stringify(r).slice(0, 300)).toBe(true);
+    expect(r.model).toBe('gemini-3.6-flash');
+    expect(r.tried).toEqual(['gemini-3.8-flash:503', 'gemini-3.8-flash:503', 'gemini-3.8-flash:503']);
+  });
+  it('500 → AI_SERVER_ERROR, 504 → AI_TIMEOUT, other 400 → AI_CONFIG with Google\'s own message; failures do not use quota', async () => {
+    for (const [code, want] of [[500, 'AI_SERVER_ERROR'], [504, 'AI_TIMEOUT']] as const) {
+      const g = seq({ 'gemini-3.8-flash': [code, code, code], 'gemini-3.6-flash': [code, code, code], 'gemini-3.5-flash-lite': [code, code, code] });
+      gas = createGas({ token: TOKEN, scriptProps: k, ai: g.fn });
+      const e = await errOf(scan('salad')) as ScanError;
+      expect(e.code).toBe(want);
+      expect(String(e.params.google)).toMatch(String(code));
+      expect(gas.props.get('AI_USED_' + new Date().toISOString().slice(0, 10)) ?? null).toBeNull();
+    }
+    const g = seq({ 'gemini-3.8-flash': [400] }, () => ({ error: { code: 400, status: 'INVALID_ARGUMENT', message: 'Invalid JSON payload received. Unknown name "thinkingLevel"' } }));
+    gas = createGas({ token: TOKEN, scriptProps: k, ai: g.fn });
+    const e = await errOf(scan('salad')) as ScanError;
+    expect(e.code).toBe('AI_CONFIG');
+    expect(String(e.params.google)).toContain('thinkingLevel');
+    expect(g.calls).toHaveLength(1); // configuration errors are never retried
+  });
+  it('quota and key errors are not retried', async () => {
+    const g = seq({ 'gemini-3.8-flash': [429] }, () => QUOTA_DAY);
+    gas = createGas({ token: TOKEN, scriptProps: k, ai: g.fn });
+    expect(((await errOf(scan('salad'))) as ScanError).code).toBe('AI_QUOTA_DAY');
+    expect(g.calls).toHaveLength(1);
+  });
+  it('client: temporary failures are retried automatically with backoff, then succeed with the same image', async () => {
+    let n = 0;
+    globalThis.fetch = (async (_u: string, init: RequestInit) => {
+      n++;
+      if (n <= 2) return new Response('Bad gateway', { status: 502 });
+      return new Response(JSON.stringify(gas.post(JSON.parse(String(init.body)))), { status: 200 });
+    }) as typeof fetch;
+    const retries: string[] = [];
+    const r = await analyzeWithRetry(IMG, buildCatalog(foods), { lang: 'en', note: 'SCENARIO:salad', delays: [0, 0], onRetry: (a, c) => retries.push(a + ':' + c) });
+    expect(r.items.length).toBeGreaterThan(0);
+    expect(retries).toEqual(['1:AI_SERVER_ERROR', '2:AI_SERVER_ERROR']);
+  });
+  it('client: invalid key is reported at once (no retry); offline is reported as offline', async () => {
+    gas = createGas({ token: TOKEN, scriptProps: k, ai: gemini(scenarioFromNote, { code: 400, error: { error: { code: 400, message: 'API key not valid. Please pass a valid API key.', status: 'INVALID_ARGUMENT' } } }) });
+    const retries: number[] = [];
+    const e = await errOf(analyzeWithRetry(IMG, buildCatalog(foods), { lang: 'en', note: 'SCENARIO:salad', delays: [0, 0], onRetry: (a) => retries.push(a) })) as ScanError;
+    expect(e.code).toBe('AI_KEY_INVALID');
+    expect(retries).toEqual([]);
+    const nav = globalThis.navigator;
+    Object.defineProperty(globalThis, 'navigator', { value: { onLine: false }, configurable: true });
+    try { expect(((await errOf(requestAnalysis(IMG, buildCatalog(foods), { lang: 'en' }))) as ScanError).code).toBe('AI_OFFLINE'); }
+    finally { Object.defineProperty(globalThis, 'navigator', { value: nav, configurable: true }); }
+  });
+  it('client: rapid repeated taps send the image only once', async () => {
+    let n = 0;
+    globalThis.fetch = (async (_u: string, init: RequestInit) => { n++; await new Promise((r) => setTimeout(r, 20)); return new Response(JSON.stringify(gas.post(JSON.parse(String(init.body)))), { status: 200 }); }) as typeof fetch;
+    const c = buildCatalog(foods);
+    const [a, b, d] = await Promise.all([1, 2, 3].map(() => analyzeWithRetry(IMG, c, { lang: 'en', note: 'SCENARIO:salad' })));
+    expect(n).toBe(1);
+    expect(a).toBe(b);
+    expect(b).toBe(d);
+  });
+  it('client: a slow backend times out with a clear error (no fake result)', async () => {
+    globalThis.fetch = (() => new Promise(() => {})) as unknown as typeof fetch;
+    const e = await errOf(requestAnalysis(IMG, buildCatalog(foods), { lang: 'en', timeoutMs: 30 })) as ScanError;
+    expect(e.code).toBe('AI_TIMEOUT');
+  });
+  it('image validation: non-image and oversized files are rejected before upload', async () => {
+    expect(((await errOf(prepareImage(new Blob(['x'], { type: 'application/pdf' })))) as ScanError).code).toBe('AI_UNSUPPORTED_FORMAT');
+    const big = { type: 'image/jpeg', size: 31 * 1024 * 1024 } as Blob;
+    expect(((await errOf(prepareImage(big))) as ScanError).code).toBe('AI_IMAGE_TOO_LARGE');
   });
 });

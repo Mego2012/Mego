@@ -100,13 +100,24 @@ export function buildCatalog(foods: Food[]): Catalog {
  * Downscales and re-encodes the photo as JPEG on the phone. Re-encoding through a canvas drops ALL metadata
  * (EXIF: GPS location, device, time), so only pixels are sent.
  */
-export async function prepareImage(file: Blob, max = 1024): Promise<{ base64: string; bytes: number; blob: Blob }> {
-  if (!file.type.startsWith('image/')) throw new Error('AI_BAD_IMAGE');
-  let blob = await compressImage(file, max);
-  if (blob === file) throw new Error('AI_BAD_IMAGE'); // could not decode/re-encode → never send the original file
-  if (blob.size > 1_500_000) blob = await compressImage(file, 768);
-  const base64 = await blobToBase64(blob);
-  return { base64, bytes: blob.size, blob };
+/** Formats every current phone browser can decode (HEIC only where the browser itself supports it). */
+export const ACCEPTED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/heic', 'image/heif', 'image/avif'];
+export const MAX_INPUT_BYTES = 30 * 1024 * 1024;
+/** Backend limit is 2.8 M base64 characters; stay clearly below. */
+export const MAX_UPLOAD_B64 = 2_400_000;
+
+export async function prepareImage(file: Blob, max = 1024): Promise<{ base64: string; bytes: number; blob: Blob; width?: number }> {
+  if (!file.type || !file.type.startsWith('image/')) throw new ScanError('AI_UNSUPPORTED_FORMAT');
+  if (file.size > MAX_INPUT_BYTES) throw new ScanError('AI_IMAGE_TOO_LARGE', { mb: Math.round(MAX_INPUT_BYTES / 1048576) });
+  // Re-encode as JPEG (supported by the vision model); shrink further only if still too large for the backend.
+  for (const side of [max, 768, 640]) {
+    let blob: Blob;
+    try { blob = await compressImage(file, side); } catch { throw new ScanError('AI_UNSUPPORTED_FORMAT'); }
+    if (blob === file || blob.type !== 'image/jpeg') throw new ScanError('AI_UNSUPPORTED_FORMAT'); // could not decode → never send the original
+    const base64 = await blobToBase64(blob);
+    if (base64.length <= MAX_UPLOAD_B64) return { base64, bytes: blob.size, blob, width: side };
+  }
+  throw new ScanError('AI_IMAGE_TOO_LARGE', { mb: Math.round(MAX_INPUT_BYTES / 1048576) });
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -136,6 +147,42 @@ export function nextQuotaReset(now = new Date()): Date {
   return new Date(t);
 }
 
+/** Temporary failures: retried automatically (with backoff) and offered for manual retry. */
+export const TEMPORARY = new Set(['AI_OVERLOADED', 'AI_SERVER_ERROR', 'AI_TIMEOUT', 'AI_NETWORK', 'AI_BUSY']);
+export const RETRY_DELAYS_MS = [3000, 8000];
+
+const inFlight = new Map<string, Promise<AiResult>>();
+const keyOf = (b64: string) => `${b64.length}:${b64.slice(0, 48)}:${b64.slice(-48)}`;
+
+/**
+ * Analyse with automatic retries for temporary failures only (exponential backoff, max 2 retries).
+ * Quota, key, configuration and image errors are never retried. The same image is never sent twice at once:
+ * a second call while one is running returns the same promise.
+ */
+export function analyzeWithRetry(base64: string, catalog: Catalog, opts: { lang: 'ar' | 'en'; note?: string; timeoutMs?: number; onRetry?: (attempt: number, code: string) => void; sleep?: (ms: number) => Promise<void>; delays?: number[] }): Promise<AiResult> {
+  const k = keyOf(base64);
+  const running = inFlight.get(k);
+  if (running) return running;
+  const sleep = opts.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const delays = opts.delays ?? RETRY_DELAYS_MS;
+  const p = (async () => {
+    for (let attempt = 0; ; attempt++) {
+      try {
+        return await requestAnalysis(base64, catalog, opts);
+      } catch (e) {
+        const code = e instanceof ScanError ? e.code : 'AI_NETWORK';
+        const retryable = TEMPORARY.has(code) && !(code === 'AI_NETWORK' && typeof navigator !== 'undefined' && navigator.onLine === false);
+        const shortMinuteQuota = code === 'AI_QUOTA_MINUTE' && Number((e as ScanError).params?.s ?? 99) <= 20;
+        if (attempt >= delays.length || !(retryable || shortMinuteQuota)) throw e;
+        opts.onRetry?.(attempt + 1, code);
+        await sleep(shortMinuteQuota ? Number((e as ScanError).params.s) * 1000 : delays[attempt]);
+      }
+    }
+  })().finally(() => inFlight.delete(k));
+  inFlight.set(k, p);
+  return p;
+}
+
 export async function requestAnalysis(base64: string, catalog: Catalog, opts: { lang: 'ar' | 'en'; note?: string; timeoutMs?: number }): Promise<AiResult> {
   const s = await getSettings();
   // Signed-in public accounts use their own sign-in token with the public AI backend; owner/guest devices use the private backend.
@@ -162,7 +209,8 @@ export async function requestAnalysis(base64: string, catalog: Catalog, opts: { 
   }
   if (typeof navigator !== 'undefined' && navigator.onLine === false) throw new ScanError('AI_OFFLINE');
   let timer: ReturnType<typeof setTimeout> | undefined;
-  const timeout = new Promise<never>((_, rej) => { timer = setTimeout(() => rej(new ScanError('AI_TIMEOUT')), opts.timeoutMs ?? 120_000); });
+  // the backend itself retries for up to 4 minutes before answering
+  const timeout = new Promise<never>((_, rej) => { timer = setTimeout(() => rej(new ScanError('AI_TIMEOUT')), opts.timeoutMs ?? 280_000); });
   try {
     const res = await Promise.race([
       call(),
@@ -172,13 +220,17 @@ export async function requestAnalysis(base64: string, catalog: Catalog, opts: { 
   } catch (e) {
     if (e instanceof ScanError) throw e;
     const msg = (e as Error).message || '';
-    const data = (e as { data?: { retryAfter?: number } }).data;
+    const data = (e as { data?: { retryAfter?: number; google?: { http?: number; status?: string; message?: string } } }).data;
+    const g: Record<string, string> = data?.google ? { google: [data.google.http, data.google.status, data.google.message].filter(Boolean).join(' · ').slice(0, 220) } : {};
     if (msg === 'AI_QUOTA_DAY') throw new ScanError(msg, { time: nextQuotaReset().toLocaleTimeString(opts.lang === 'ar' ? 'ar' : 'en', { hour: '2-digit', minute: '2-digit' }) });
     if (msg === 'AI_QUOTA_MINUTE') throw new ScanError(msg, { s: Math.max(1, Math.round(data?.retryAfter ?? 60)) });
     if (msg === 'AI_USER_LIMIT') throw new ScanError(msg, { n: (data as { limit?: number } | undefined)?.limit ?? 10 });
-    if (/^AI_/.test(msg)) throw new ScanError(msg.split(':')[0]);
+    if (/^AI_HTTP_/.test(msg)) throw new ScanError('AI_SERVER_ERROR', g);
+    if (/^AI_/.test(msg)) throw new ScanError(msg.split(':')[0], g);
     if (msg === 'unauthorized') throw new ScanError('AI_UNAUTHORIZED');
     if (msg === 'unknown action') throw new ScanError('AI_OLD_BACKEND');
+    if (/^HTTP 5\d\d/.test(msg)) throw new ScanError('AI_SERVER_ERROR', { google: msg });
+    if (/^HTTP 4\d\d/.test(msg)) throw new ScanError('AI_CONFIG', { google: msg });
     throw new ScanError('AI_NETWORK');
   } finally {
     clearTimeout(timer);

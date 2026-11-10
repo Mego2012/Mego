@@ -148,6 +148,16 @@ try {
     if (bText.includes(FOOD)) throw new Error("A's food visible in B's diary");
     return 'B → 403 · anonymous → 403 · B\'s diary does not contain A\'s food';
   });
+  await check('Recipe library shows calories and macros for a new account with an empty food list (account B)', async () => {
+    await B.page.goto(BASE + '#/recipes?tab=library');
+    await B.page.getByTestId('library-card').first().waitFor({ timeout: 60000 });
+    await until(async () => (await B.page.getByTestId('usda-chip').count()) > 0, 60000);
+    const cards = await B.page.getByTestId('library-card').count();
+    const kcal = await B.page.getByTestId('card-kcal').count();
+    const usda = await B.page.getByTestId('usda-chip').count();
+    if (kcal !== cards) throw new Error(`${kcal} of ${cards} cards show nutrition`);
+    return `${cards} recipes with kcal/macros per serving · ${usda} computed from USDA matches awaiting approval`;
+  });
   await check('Cardio logging (account A): synced to the owner only, invisible to account B', async () => {
     await A.page.goto(BASE + '#/cardio');
     await A.page.getByTestId('routine-log').click();

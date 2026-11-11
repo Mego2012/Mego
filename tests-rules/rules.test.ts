@@ -60,6 +60,17 @@ describe('administrator', () => {
     await assertSucceeds(getCountFromServer(collection(a, 'profiles')));
     await assertSucceeds(getDoc(doc(a, 'profiles', 'alice')));
     for (const u of USERS) await assertFails(getDoc(doc(a, 'users', u, 'entries', 'e1')));
+    // no private table of any user is readable, listable, writable or deletable by an admin
+    await env.withSecurityRulesDisabled(async (ctx) => {
+      for (const t of ['body', 'days', 'settings', 'kv', 'recipes', 'fasts', 'foods']) await setDoc(doc(ctx.firestore(), 'users', 'alice', t, 'x'), rec(10));
+    });
+    for (const t of ['entries', 'body', 'days', 'settings', 'kv', 'recipes', 'fasts', 'foods']) {
+      await assertFails(getDoc(doc(a, 'users', 'alice', t, 'x')));
+      await assertFails(getDocs(collection(a, 'users', 'alice', t)));
+      await assertFails(setDoc(doc(a, 'users', 'alice', t, 'y'), rec(20)));
+      await assertFails(deleteDoc(doc(a, 'users', 'alice', t, 'x')));
+    }
+    await assertFails(updateDoc(doc(a, 'profiles', 'alice'), { displayName: 'changed by admin' }));
   });
   it('can suspend / reactivate but change nothing else in a profile', async () => {
     await assertSucceeds(updateDoc(doc(as('admin'), 'profiles', 'bob'), { status: 'suspended' }));

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { collection, deleteDoc, doc, getDocs } from 'firebase/firestore';
+import { collection, deleteDoc, doc, getDocs, query, where } from 'firebase/firestore';
 import { Icon } from '../components/icons';
 import { useApp } from '../app/AppContext';
 import { MegoMark } from '../components/instrument';
@@ -8,7 +8,7 @@ import { Card, NumField, Segmented, TextField, useAsync } from '../components/ui
 import { accountState, chooseGuest, enterAccount, guestDataSummary, leaveAccount, subscribeAccount, userDbName, type AccountState } from '../lib/account';
 import { downloadBackup } from '../lib/backup';
 import { SYNC_TABLES } from '../lib/db';
-import { adminListErrors, adminListProfiles, adminListSubmissions, adminReview, adminSetStatus, adminStats, type Submission, AI_RESTRICTED_COUNTRIES, cloud, deleteAccountAuth, login, register, resetPassword, updateMyProfile } from '../lib/firebase';
+import { adminListErrors, adminListProfiles, adminListSubmissions, adminReview, adminSetStatus, adminStats, type Submission, AI_RESTRICTED_COUNTRIES, cloud, deleteAccountAuth, emailVerified, login, register, resendVerification, resetPassword, updateMyProfile } from '../lib/firebase';
 import { recommend } from '../lib/goals';
 import type { GoalType, Macros, Profile } from '../lib/types';
 
@@ -194,7 +194,6 @@ export function AccountCard() {
   const nav = useNavigate();
   const { run } = useAsync();
   const [del, setDel] = useState(false);
-  const [pw, setPw] = useState('');
   const [name, setName] = useState(acc.profile?.displayName ?? '');
   useEffect(() => setName(acc.profile?.displayName ?? ''), [acc.profile?.displayName]);
   if (!acc.cloud) return null;
@@ -218,6 +217,7 @@ export function AccountCard() {
           </div>
           <span className="chip good"><Icon name="cloud" /> {t('acc_synced')}</span>
         </div>
+        {!emailVerified() && <div className="banner info small" data-testid="acc-unverified">{t('acc_unverified')} <button className="btn sm" onClick={() => run(resendVerification, t('acc_verifySent'))} data-testid="acc-resend">{t('acc_resend')}</button></div>}
         <div className="row"><div className="grow"><TextField label={t('reg_name')} value={name} onChange={setName} testId="acc-name" /></div>
           <button className="btn sm" style={{ alignSelf: 'flex-end' }} onClick={() => run(() => updateMyProfile(acc.uid!, { displayName: name.trim().slice(0, 40) }), t('saved'))}>{t('save')}</button></div>
         <div className="acc-actions">
@@ -226,14 +226,7 @@ export function AccountCard() {
           <button className="btn" onClick={async () => { const { logout } = await import('../lib/firebase'); await logout(); leaveAccount(); }} data-testid="acc-logout"><Icon name="logout" /> {t('acc_logout')}</button>
           <button className="btn danger" onClick={() => setDel(true)} data-testid="acc-delete"><Icon name="trash" /> {t('acc_delete')}</button>
         </div>
-        {del && (
-          <div className="notice warn stack" data-testid="delete-confirm">
-            <div className="small">{t('acc_deleteWarn')}</div>
-            <label className="field"><span>{t('auth_password')}</span><input className="input" type="password" value={pw} onChange={(e) => setPw(e.target.value)} data-testid="delete-password" /></label>
-            <div className="row"><button className="btn" onClick={() => setDel(false)}>{t('cancel')}</button>
-              <button className="btn danger grow" disabled={!pw} data-testid="delete-confirm-btn" onClick={() => run(async () => { await deleteMyAccount(acc.uid!, pw); })}>{t('acc_deleteConfirm')}</button></div>
-          </div>
-        )}
+        {del && <DeleteAccountForm uid={acc.uid!} onCancel={() => setDel(false)} />}
       </div>
     </Card>
   );
@@ -247,13 +240,17 @@ export async function deleteMyAccount(uid: string, password: string) {
   const u = cloud().auth.currentUser;
   if (!u?.email) throw new Error('NOT_SIGNED_IN');
   await reauthenticateWithCredential(u, EmailAuthProvider.credential(u.email, password));
-  for (const table of Object.keys(SYNC_TABLES)) {
-    const snap = await getDocs(collection(fs, 'users', uid, table));
-    for (const d of snap.docs) await deleteDoc(d.ref);
-  }
+  // Every cloud record first (each one retried once); the login is removed only when nothing is left behind, so an
+  // interrupted deletion can simply be started again.
+  const refs = [];
+  for (const table of Object.keys(SYNC_TABLES)) refs.push(...(await getDocs(collection(fs, 'users', uid, table))).docs.map((d) => d.ref));
+  refs.push(...(await getDocs(query(collection(fs, 'foodSubmissions'), where('ownerUid', '==', uid)))).docs.map((d) => d.ref));
+  for (const r of refs) { try { await deleteDoc(r); } catch { await deleteDoc(r); } }
   await deleteDoc(doc(fs, 'profiles', uid));
   await deleteAccountAuth(password);
   await new Promise<void>((res) => { const r = indexedDB.deleteDatabase(userDbName(uid)); r.onsuccess = r.onerror = r.onblocked = () => res(); });
+  // this account's local markers and pending setup (nothing else on the device is touched)
+  try { for (const k of Object.keys(localStorage)) if (k.includes('.' + uid)) localStorage.removeItem(k); } catch { /* ignore */ }
   leaveAccount();
 }
 
@@ -347,13 +344,33 @@ export function AdminPage() {
 
 /* ------------------------------------------------------------------ suspended + legal */
 
+/** Password confirmation + full deletion (also offered on the suspended screen). */
+function DeleteAccountForm({ uid, onCancel }: { uid: string; onCancel: () => void }) {
+  const { t } = useApp();
+  const { run } = useAsync();
+  const [pw, setPw] = useState('');
+  return (
+    <div className="notice warn stack" data-testid="delete-confirm">
+      <div className="small">{t('acc_deleteWarn')}</div>
+      <label className="field"><span>{t('auth_password')}</span><input className="input" type="password" value={pw} onChange={(e) => setPw(e.target.value)} data-testid="delete-password" /></label>
+      <div className="row"><button className="btn" onClick={onCancel}>{t('cancel')}</button>
+        <button className="btn danger grow" disabled={!pw} data-testid="delete-confirm-btn" onClick={() => run(async () => { await deleteMyAccount(uid, pw); })}>{t('acc_deleteConfirm')}</button></div>
+    </div>
+  );
+}
+
 export function Suspended() {
   const { t } = useApp();
+  const acc = useAccount();
+  const [del, setDel] = useState(false);
   return (
     <div className="welcome"><div className="welcome-inner stack" data-testid="suspended">
       <div className="welcome-brand"><MegoMark size={48} /></div>
       <h1 className="welcome-title">{t('acc_suspendedTitle')}</h1>
       <p className="welcome-sub">{t('acc_suspendedText')}</p>
+      {/* a suspended user keeps the right to take or delete their own data */}
+      <button className="btn block" onClick={() => downloadBackup()} data-testid="suspended-export">{t('acc_export')}</button>
+      {acc.uid && (del ? <DeleteAccountForm uid={acc.uid} onCancel={() => setDel(false)} /> : <button className="btn danger block" onClick={() => setDel(true)} data-testid="suspended-delete">{t('acc_delete')}</button>)}
       <button className="btn block" onClick={async () => { const { logout } = await import('../lib/firebase'); await logout(); leaveAccount(); }}>{t('acc_logout')}</button>
     </div></div>
   );

@@ -264,7 +264,7 @@ function doPost(e) {
     if (req.action === 'bootstrap') return json_(bootstrap_(req));
     // Public accounts (Firebase): the user's own sign-in token instead of the owner's app token.
     if (req.idToken && (req.action === 'analyzeMeal' || req.action === 'aiStats' || req.action === 'aiDiag')) return json_(publicAi_(req));
-    if (!token || typeof req.token !== 'string' || req.token !== token) return json_({ ok: false, error: 'unauthorized' });
+    if (!token || typeof req.token !== 'string' || !sameSecret_(req.token, token)) return json_({ ok: false, error: 'unauthorized' });
     // AI meal analysis never touches the spreadsheet, so it runs outside the lock (it can take ~10-40 s).
     if (req.action === 'analyzeMeal') return json_(analyzeMeal_(req));
     if (req.action === 'aiDiag') return json_(aiDiag_());
@@ -290,6 +290,14 @@ function doPost(e) {
   } catch (err) {
     return json_({ ok: false, error: String((err && err.message) || err) });
   }
+}
+
+/** Constant-time comparison of two secrets (the time taken does not reveal how many characters match). */
+function sameSecret_(a, b) {
+  if (a.length !== b.length) return false;
+  var diff = 0;
+  for (var i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
 }
 
 function json_(o) {

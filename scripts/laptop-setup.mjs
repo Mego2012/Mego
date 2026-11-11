@@ -7,6 +7,7 @@
  *   node scripts/laptop-setup.mjs --photo meal.jpg   use your own photo for the real AI test
  *   node scripts/laptop-setup.mjs --ai-key-from-clipboard   read the Gemini key you copied (never typed into a chat)
  *   --auto   no keyboard prompts (also automatic when not run in a terminal): waits for Google screens by polling
+ *   --deploy-rules   deploy only the Firestore security rules (firebase/firestore.rules) to the existing project
  *   --hub-complete-foods   update the backend, then ADD to the Hub's Food_Database every recipe-library ingredient
  *            that is missing (USDA values) and every library meal as a ready food (computed from the Hub's own values),
  *            and fill EMPTY English names. Adds only; existing rows and values are never changed; daily Drive backup first.
@@ -547,6 +548,18 @@ async function hubCompleteFoods() {
 
 try {
   log('MEGO Nutrition Hub — laptop setup (free, no billing)');
+  if (args.includes('--deploy-rules') && !FAKE_BACKEND) {
+    step('Firestore security rules — deploy firebase/firestore.rules (nothing else changes)');
+    if (!existsSync(path.join(ROOT, 'node_modules/firebase-tools'))) run('npm', ['ci'], { cwd: ROOT, stdio: 'inherit' });
+    if (!/@/.test(firebase(['login:list'], { allowFail: true }).out)) {
+      log('   A browser window opens: choose your Google account and click "Allow".');
+      run('npx', [...FB, 'login'], { cwd: ROOT, stdio: 'inherit' });
+    }
+    const P = state.fbProject || JSON.parse(readFileSync(path.join(ROOT, 'public/firebase-config.json'), 'utf8')).projectId;
+    firebase(['deploy', '--only', 'firestore:rules', '--project', P]);
+    ok('security rules deployed to ' + P);
+    process.exit(0);
+  }
   if (FAKE_BACKEND) {
     state.url = FAKE_BACKEND;
     if (!state.token) await bootstrap(process.env.MEGO_FAKE_SECRET);

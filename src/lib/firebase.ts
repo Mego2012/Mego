@@ -83,6 +83,9 @@ export async function login(email: string, password: string): Promise<User> {
   return (await signInWithEmailAndPassword(auth, email.trim(), password)).user;
 }
 export async function logout() { await signOut(cloud().auth); }
+/** True when the signed-in e-mail address was confirmed (or nobody is signed in). */
+export function emailVerified(): boolean { return auth?.currentUser ? auth.currentUser.emailVerified : true; }
+export async function resendVerification() { const u = cloud().auth.currentUser; if (u && !u.emailVerified) await sendEmailVerification(u); }
 export async function resetPassword(email: string) { await sendPasswordResetEmail(cloud().auth, email.trim()); }
 export function onUser(fn: (u: User | null) => void) { return onAuthStateChanged(cloud().auth, fn); }
 export function currentUser(): User | null { return auth?.currentUser ?? null; }

@@ -1,6 +1,7 @@
 rules_version = '2';
 // MEGO — Firestore security rules (enforced by Google's servers on every request).
-//  * users/{uid}/**  : private data. Only the owner, only while the account is active. Admins have NO access.
+//  * users/{uid}/**  : private data. Only the owner. Writing needs an active account; reading and deleting do not
+//                      (a suspended user can still export and delete their own data). Admins have NO access.
 //                      An older copy can never overwrite a newer one (updatedAt must not go back).
 //  * profiles/{uid}  : account card (name, email, status, country, lastActiveAt). Owner reads/creates/updates a
 //                      fixed set of fields; admins read all and may change ONLY the status.
@@ -18,13 +19,16 @@ service cloud.firestore {
         && profile(request.auth.uid).data.status == 'active';
     }
     function isOwner(uid) { return signedIn() && request.auth.uid == uid; }
+    function validName(n) { return n is string && n.size() >= 1 && n.size() <= 40; }
+    // two-letter country code (self-declared; 'ZZ' = other)
+    function validCountry(c) { return c is string && c.matches('^[A-Z]{2}$'); }
 
     match /users/{uid}/{table}/{key} {
-      allow read: if isOwner(uid) && isActive();
+      allow read: if isOwner(uid);
       allow create: if isOwner(uid) && isActive() && validRecord();
       allow update: if isOwner(uid) && isActive() && validRecord()
         && request.resource.data.updatedAt >= resource.data.updatedAt;
-      allow delete: if isOwner(uid) && isActive();
+      allow delete: if isOwner(uid);
       function validRecord() {
         return request.resource.data.keys().hasOnly(['data', 'updatedAt', 'deleted'])
           && request.resource.data.updatedAt is int
@@ -39,9 +43,13 @@ service cloud.firestore {
       allow create: if isOwner(uid)
         && request.resource.data.keys().hasOnly(['displayName', 'email', 'status', 'country', 'ageConfirmed', 'createdAt', 'lastActiveAt'])
         && request.resource.data.status == 'active' && request.resource.data.ageConfirmed == true
-        && request.resource.data.email == request.auth.token.email;
+        && request.resource.data.email == request.auth.token.email
+        && validName(request.resource.data.displayName) && validCountry(request.resource.data.country)
+        && request.resource.data.createdAt is int && request.resource.data.lastActiveAt is int;
       allow update: if (isOwner(uid) && profile(uid).data.status == 'active'
-          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'country', 'lastActiveAt']))
+          && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['displayName', 'country', 'lastActiveAt'])
+          && validName(request.resource.data.displayName) && validCountry(request.resource.data.country)
+          && request.resource.data.lastActiveAt is int)
         || (isAdmin() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status'])
           && request.resource.data.status in ['active', 'suspended']);
       allow delete: if isOwner(uid);
@@ -58,14 +66,20 @@ service cloud.firestore {
     }
 
     match /foodSubmissions/{id} {
-      allow read: if isAdmin() || (isActive() && resource.data.ownerUid == request.auth.uid);
-      allow create: if isActive() && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == 'pending';
+      allow read: if isAdmin() || (signedIn() && resource.data.ownerUid == request.auth.uid);
+      allow create: if isActive() && request.resource.data.ownerUid == request.auth.uid && request.resource.data.status == 'pending'
+        && request.resource.data.keys().hasOnly(['ownerUid', 'status', 'at', 'food']) && request.resource.data.at is int
+        && request.resource.data.food is map && request.resource.data.food.size() <= 40;
       allow update: if isAdmin();
-      allow delete: if isAdmin() || (isActive() && resource.data.ownerUid == request.auth.uid && resource.data.status == 'pending');
+      // the proposer may always remove their own proposals (account deletion)
+      allow delete: if isAdmin() || (signedIn() && resource.data.ownerUid == request.auth.uid);
     }
 
     match /errorReports/{id} {
-      allow create: if signedIn() && request.resource.data.keys().hasOnly(['at', 'kind', 'message', 'app'])
+      allow create: if isActive() && request.resource.data.keys().hasOnly(['at', 'kind', 'message', 'app'])
+        && request.resource.data.at is int
+        && request.resource.data.kind is string && request.resource.data.kind.size() <= 40
+        && request.resource.data.app is string && request.resource.data.app.size() <= 10
         && request.resource.data.message is string && request.resource.data.message.size() < 500;
       allow read, delete: if isAdmin();
     }

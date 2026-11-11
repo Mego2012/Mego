@@ -66,11 +66,14 @@ describe('administrator', () => {
     await assertFails(updateDoc(doc(as('admin'), 'profiles', 'bob'), { displayName: 'hacked' }));
     await assertFails(updateDoc(doc(as('admin'), 'profiles', 'bob'), { status: 'deleted' }));
   });
-  it('a suspended user is blocked by the server', async () => {
+  it('a suspended user cannot write, but can still read (export) and delete their own data', async () => {
     await env.withSecurityRulesDisabled(async (ctx) => { await updateDoc(doc(ctx.firestore(), 'profiles', 'bob'), { status: 'suspended' }); });
-    await assertFails(getDoc(doc(as('bob'), 'users', 'bob', 'entries', 'e1')));
     await assertFails(setDoc(doc(as('bob'), 'users', 'bob', 'entries', 'e2'), rec(30)));
     await assertFails(updateDoc(doc(as('bob'), 'profiles', 'bob'), { status: 'active' }));
+    await assertFails(setDoc(doc(as('bob'), 'errorReports', 'rb'), { at: 1, kind: 'sync', message: 'x', app: '1' }));
+    await assertSucceeds(getDoc(doc(as('bob'), 'users', 'bob', 'entries', 'e1')));
+    await assertSucceeds(deleteDoc(doc(as('bob'), 'users', 'bob', 'entries', 'e1')));
+    await assertFails(getDoc(doc(as('bob'), 'users', 'alice', 'entries', 'e1'))); // still only their own
   });
   it('nobody can make themselves admin; regular users cannot list profiles', async () => {
     await assertFails(setDoc(doc(as('alice'), 'admins', 'alice'), { since: 1 }));
@@ -84,11 +87,17 @@ describe('shared food database', () => {
     await assertSucceeds(getDoc(doc(as('alice'), 'foods', 'F0001')));
     await assertFails(setDoc(doc(as('alice'), 'foods', 'F0001'), { nameAr: 'x', per100: { kcal: 1 } }));
     await assertSucceeds(setDoc(doc(as('admin'), 'foods', 'F0002'), { nameAr: 'تونة', per100: { kcal: 116 } }));
-    await assertSucceeds(setDoc(doc(as('alice'), 'foodSubmissions', 's1'), { ownerUid: 'alice', status: 'pending', nameAr: 'كعك', per100: { kcal: 400 } }));
-    await assertFails(setDoc(doc(as('alice'), 'foodSubmissions', 's2'), { ownerUid: 'bob', status: 'pending' }));
-    await assertFails(setDoc(doc(as('alice'), 'foodSubmissions', 's3'), { ownerUid: 'alice', status: 'approved' }));
+    const sub = { ownerUid: 'alice', status: 'pending', at: 1, food: { nameAr: 'كعك', per100: { kcal: 400 } } };
+    await assertSucceeds(setDoc(doc(as('alice'), 'foodSubmissions', 's1'), sub));
+    await assertFails(setDoc(doc(as('alice'), 'foodSubmissions', 's2'), { ...sub, ownerUid: 'bob' }));
+    await assertFails(setDoc(doc(as('alice'), 'foodSubmissions', 's3'), { ...sub, status: 'approved' }));
+    await assertFails(setDoc(doc(as('alice'), 'foodSubmissions', 's4'), { ...sub, extra: 'x' })); // unknown fields refused
+    await assertFails(setDoc(doc(as('alice'), 'foodSubmissions', 's5'), { ...sub, food: 'text' }));
     await assertFails(getDoc(doc(as('bob'), 'foodSubmissions', 's1')));
     await assertSucceeds(updateDoc(doc(as('admin'), 'foodSubmissions', 's1'), { status: 'approved' }));
+    // the proposer can remove their own proposal even after review (account deletion), nobody else can
+    await assertFails(deleteDoc(doc(as('bob'), 'foodSubmissions', 's1')));
+    await assertSucceeds(deleteDoc(doc(as('alice'), 'foodSubmissions', 's1')));
   });
 });
 
@@ -100,11 +109,21 @@ describe('registration & error reports', () => {
     await assertFails(setDoc(doc(d, 'profiles', 'dave'), { ...p, ageConfirmed: false }));
     await assertFails(setDoc(doc(d, 'profiles', 'dave'), { ...p, email: 'alice@example.com' }));
     await assertFails(setDoc(doc(d, 'profiles', 'alice'), p));
+    await assertFails(setDoc(doc(d, 'profiles', 'dave'), { ...p, displayName: '' }));
+    await assertFails(setDoc(doc(d, 'profiles', 'dave'), { ...p, displayName: 'x'.repeat(41) }));
+    await assertFails(setDoc(doc(d, 'profiles', 'dave'), { ...p, country: 'Egypt' }));
+    await assertFails(setDoc(doc(d, 'profiles', 'dave'), { ...p, country: 5 }));
     await assertSucceeds(setDoc(doc(d, 'profiles', 'dave'), p));
+    await assertFails(updateDoc(doc(d, 'profiles', 'dave'), { country: 'sa' }));
+    await assertFails(updateDoc(doc(d, 'profiles', 'dave'), { displayName: { evil: 1 } }));
+    await assertSucceeds(updateDoc(doc(d, 'profiles', 'dave'), { displayName: 'David', country: 'SA', lastActiveAt: 3 }));
   });
   it('error reports: users write small reports, only admins read', async () => {
     await assertSucceeds(setDoc(doc(as('alice'), 'errorReports', 'r1'), { at: 1, kind: 'sync', message: 'timeout', app: '1' }));
     await assertFails(setDoc(doc(as('alice'), 'errorReports', 'r2'), { at: 1, kind: 'sync', message: 'x', app: '1', diary: 'private' }));
+    await assertFails(setDoc(doc(as('alice'), 'errorReports', 'r3'), { at: 1, kind: 'k'.repeat(41), message: 'x', app: '1' }));
+    await assertFails(setDoc(doc(as('alice'), 'errorReports', 'r4'), { at: 'now', kind: 'sync', message: 'x', app: '1' }));
+    await assertFails(setDoc(doc(as('dave'), 'errorReports', 'r5'), { at: 1, kind: 'sync', message: 'x', app: '1' })); // no profile
     await assertFails(getDoc(doc(as('alice'), 'errorReports', 'r1')));
     await assertSucceeds(getDoc(doc(as('admin'), 'errorReports', 'r1')));
   });

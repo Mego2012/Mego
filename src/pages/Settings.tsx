@@ -198,6 +198,7 @@ function TargetsForm() {
 function SyncForm() {
   const { t, settings, d, n } = useApp();
   const [cfg, setCfg] = useState(settings.sync);
+  const [showTok, setShowTok] = useState(false);
   useEffect(() => setCfg((c) => ({ ...settings.sync, url: c.url || settings.sync.url, token: c.token || settings.sync.token })), [settings.sync]);
   const status = useSyncStatus();
   const { run, busy } = useAsync();
@@ -261,7 +262,12 @@ function SyncForm() {
           <summary className="small">{t('manualConnection')}</summary>
           <div className="stack" style={{ marginTop: 8 }}>
             <TextField label={t('syncUrl')} value={cfg.url} onChange={(url) => setCfg({ ...cfg, url })} dir="ltr" placeholder="https://script.google.com/macros/s/…/exec" testId="sync-url" />
-            <TextField label={t('syncToken')} value={cfg.token} onChange={(token) => setCfg({ ...cfg, token })} dir="ltr" testId="sync-token" />
+            <label className="field"><span>{t('syncToken')}</span>
+              {/* secret: hidden by default, never shown on screen unless asked */}
+              <div className="row" style={{ gap: 6 }}>
+                <input className="input grow" type={showTok ? 'text' : 'password'} autoComplete="off" spellCheck={false} dir="ltr" value={cfg.token} onChange={(e) => setCfg({ ...cfg, token: e.target.value })} data-testid="sync-token" />
+                <button type="button" className="btn sm" onClick={() => setShowTok((x) => !x)} aria-pressed={showTok} data-testid="sync-token-show">{t(showTok ? 'hide' : 'show')}</button>
+              </div></label>
           </div>
         </details>
         <label className="check"><input type="checkbox" checked={cfg.autoSync} onChange={(e) => setCfg({ ...cfg, autoSync: e.target.checked })} />{t('autoSync')}</label>

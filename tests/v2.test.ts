@@ -283,7 +283,7 @@ describe('MEGO Nutrition Hub backend (real Code.gs v3 on an emulated Hub)', () =
     expect(gas.post({ action: 'ping', token: 'bad' })).toEqual({ ok: false, error: 'unauthorized' });
     expect(gas.post({ action: 'ping' }).error).toBe('unauthorized');
     const ping = gas.post({ action: 'ping', token: 'tok' });
-    expect(ping).toMatchObject({ ok: true, spreadsheetId: HUB_ID, sourceId: HUB_ID, mode: 'xlsx', writable: false, scriptVersion: 8 });
+    expect(ping).toMatchObject({ ok: true, spreadsheetId: HUB_ID, sourceId: HUB_ID, mode: 'xlsx', writable: false, scriptVersion: 9 });
     const before = JSON.stringify(gas.sheet('قاعدة بيانات الأطعمة').data);
     const foods = gas.post({ action: 'foods', token: 'tok' });
     expect(foods).toMatchObject({ ok: true, structured: false, readOnly: true });
@@ -370,6 +370,19 @@ describe('MEGO Nutrition Hub backend (real Code.gs v3 on an emulated Hub)', () =
     expect(gas.drive.copies.length).toBe(2); // migration backup + daily backup before the first write
     expect(gas.post({ action: 'fillFoodNames', token: 'tok', names: { 'صدر دجاج': 'x' } }).filled).toBe(0); // idempotent
     expect(gas.post({ action: 'fillFoodNames', token: 'wrong', names: {} }).ok).toBe(false);
+  });
+  it('setAppToken: the owner replaces the app token; the old one stops working at once; bad formats are refused', () => {
+    const gas = createGas({ foodRows: rows, token: 'tok', mode: 'native' });
+    gas.migrateHub();
+    const fresh = 'a'.repeat(32) + '0123456789abcdef0123456789abcdef';
+    expect(gas.post({ action: 'setAppToken', token: 'wrong', newToken: fresh }).ok).toBe(false);
+    expect(gas.post({ action: 'setAppToken', token: 'tok', newToken: 'short' }).error).toBe('invalid token format');
+    expect(gas.post({ action: 'setAppToken', token: 'tok', newToken: fresh.toUpperCase() }).ok).toBe(false);
+    const r = gas.post({ action: 'setAppToken', token: 'tok', newToken: fresh });
+    expect(r.ok).toBe(true);
+    expect(JSON.stringify(r)).not.toContain(fresh); // never echoed back
+    expect(gas.post({ action: 'ping', token: 'tok' }).ok).toBe(false);
+    expect(gas.post({ action: 'ping', token: fresh }).ok).toBe(true);
   });
   it('installMego: converts the Excel Hub once, verifies 160 foods, switches only after verification; .xlsx untouched', () => {
     const gas = createGas({ foodRows: rows, token: '', mode: 'xlsx', deployedUrl: 'https://script.google.com/macros/s/DEPLOY/exec' });

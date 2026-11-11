@@ -7,6 +7,8 @@
  *   node scripts/laptop-setup.mjs --photo meal.jpg   use your own photo for the real AI test
  *   node scripts/laptop-setup.mjs --ai-key-from-clipboard   read the Gemini key you copied (never typed into a chat)
  *   --auto   no keyboard prompts (also automatic when not run in a terminal): waits for Google screens by polling
+ *   --rotate-token   update the backend, then replace the app (backend) token with a new one made on this laptop;
+ *            the old one stops working at once; the new one is stored only in ~/.mego-backend/state.json (never shown)
  *   --deploy-rules   deploy only the Firestore security rules (firebase/firestore.rules) to the existing project
  *   --hub-complete-foods   update the backend, then ADD to the Hub's Food_Database every recipe-library ingredient
  *            that is missing (USDA values) and every library meal as a ready food (computed from the Hub's own values),
@@ -46,7 +48,8 @@ const args = process.argv.slice(2);
 const onlyTest = args.includes('--test');
 /** --update-backend: upload the latest Code.gs to the SAME deployment (same URL, data untouched) and run the AI diagnostic. */
 const hubComplete = args.includes('--hub-complete-foods');
-const updateOnly = args.includes('--update-backend') || hubComplete;
+const rotate = args.includes('--rotate-token');
+const updateOnly = args.includes('--update-backend') || hubComplete || rotate;
 const photoArg = args.includes('--photo') ? args[args.indexOf('--photo') + 1] : '';
 /** For automated testing of this script against an emulated backend (skips clasp/Google). */
 const FAKE_BACKEND = process.env.MEGO_FAKE_BACKEND || '';
@@ -481,6 +484,32 @@ async function liveVerify() {
   record('live verification with real accounts (see live-verify report)', v.status === 0, v.status === 0 ? '' : 'one or more live checks failed');
 }
 
+/* ------------------------------------------------------------------ rotate the app (backend) token */
+
+async function rotateAppToken() {
+  step('Backend secret (app token) — replace it with a new one (never shown on screen)');
+  const alive = async (tok) => (await call(state.url, { action: 'ping', token: tok })).ok === true;
+  // an interrupted earlier rotation: adopt the pending token if the backend already uses it
+  if (state.pendingToken && !(await alive(state.token)) && (await alive(state.pendingToken))) {
+    state.token = state.pendingToken; delete state.pendingToken; saveState(state);
+    ok('finished an interrupted rotation');
+  }
+  if (!(await alive(state.token))) { log('  ❌ the stored token is not accepted by the backend — nothing changed'); process.exit(1); }
+  const v = (await call(state.url, { action: 'ping', token: state.token })).scriptVersion ?? 0;
+  if (v < 9) { log('  ❌ backend version 9 or newer is needed (got ' + v + ')'); process.exit(1); }
+  const fresh = randomBytes(32).toString('hex');
+  state.pendingToken = fresh; saveState(state); // saved first: a crash can never lose the new token
+  const r = await call(state.url, { action: 'setAppToken', token: state.token, newToken: fresh });
+  if (!r.ok) { delete state.pendingToken; saveState(state); log('  ❌ ' + (r.error || 'rotation refused') + ' — the old token is still valid'); process.exit(1); }
+  const old = state.token;
+  const newOk = await alive(fresh), oldRefused = !(await alive(old));
+  if (newOk) { state.token = fresh; delete state.pendingToken; saveState(state); }
+  record('new token accepted by the backend', newOk, newOk ? '' : 'kept as pendingToken in ' + STATE + ' — run --rotate-token again');
+  record('old token refused', oldRefused, '');
+  if (!newOk || !oldRefused) process.exitCode = 1;
+  if (newOk) log('   The new token is stored only in ' + STATE + ' (private, not shown). A device that used Google Sheets sync must be\n   reconnected: run  node scripts/laptop-setup.mjs --test  on this laptop and scan the QR code privately.');
+}
+
 /* ------------------------------------------------------------------ Hub: complete the food database */
 
 async function hubCompleteFoods() {
@@ -564,6 +593,7 @@ try {
     state.url = FAKE_BACKEND;
     if (!state.token) await bootstrap(process.env.MEGO_FAKE_SECRET);
     if (hubComplete) { await hubCompleteFoods(); process.exit(0); }
+    if (rotate) { await rotateAppToken(); process.exit(process.exitCode ?? 0); }
   } else if (!onlyTest) {
     await ensureLogin();
     await ensureProject();
@@ -573,6 +603,7 @@ try {
     deploy();
     if (needsInstall) await bootstrap(secret);
     if (hubComplete) { await hubCompleteFoods(); process.exit(0); }
+    if (rotate) { await rotateAppToken(); process.exit(process.exitCode ?? 0); }
     if (updateOnly) {
       step('AI diagnostic — Google\'s exact answer for each free model (text only, no photo)');
       const d = await call(state.url, { action: 'aiDiag', token: state.token });

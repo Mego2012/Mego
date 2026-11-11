@@ -45,7 +45,7 @@ production Apps Script / Firebase project. Branch: `claude/nutrition-tracking-ap
 
 | Task | Status | What was done / remains | Tested | Deployed |
 | --- | --- | --- | --- | --- |
-| `TEST COPY T2 of live (2026-11-02) - solver v2 mobile testing` | Waiting for Ahmed | Still present (Google Sheet, modified 4 Nov). It belongs to the other Google account (ahmedmego967), which the connected account cannot edit. Not opened or changed. Action: sign in as that account and delete it if no longer needed | Drive search 11 Nov | — |
+| `TEST COPY T2 of live (2026-11-02) - solver v2 mobile testing` and folder `MEGO – Cleanup Review` | Completed | On Ahmed's instruction (11 Nov) the review folder (14 old workbook backups from 25 Oct–5 Nov, the never-deployed FitnessOS folder and TEST COPY T2) was moved to the Drive trash — restorable for 30 days. Kept: MEGO Nutrition Hub (live sheet), the original Excel (backend source), the two current backups (7 and 11 Nov) and the documentation folder. The backend uses no file from the trashed folder | Drive metadata: trashed = true for both | — |
 
 ## F. Legal and public launch
 

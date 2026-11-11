@@ -10,7 +10,7 @@ production Apps Script / Firebase project. Branch: `claude/nutrition-tracking-ap
 | --- | --- | --- | --- | --- |
 | New Gemini API key active | Completed | Key replaced by Ahmed; a real meal photo was analysed on the live backend in 15.7 s on the first model (11 Nov) | live analysis, disposable account deleted | yes |
 | Old Gemini key revoked | Waiting for Ahmed | Cannot be checked from here (the old key is not known to Claude and must not be). In Google AI Studio → API keys, confirm the old key is deleted | — | — |
-| Backend secret (app token) rotation | Waiting for Ahmed | Backend v9 adds `setAppToken`; `node scripts/laptop-setup.mjs --rotate-token` makes the new secret on the laptop, stores it only in `~/.mego-backend/state.json`, never prints it, and verifies old refused / new accepted | v2 34/34, e2e/rotate-token-test.mjs 7/7 | code pushed; Ahmed runs the command |
+| Backend secret (app token) rotation | Completed | Rotated by Ahmed on 11 Nov with `--rotate-token` (backend v9): new token accepted, old token refused; stored only on the laptop, never shown. A live meal analysis afterwards succeeded | v2 34/34, rotate e2e 7/7, live run + live analysis | yes |
 | Dependent configuration | Completed (analysis) | Only the laptop state and a device using Google Sheets sync use the token; signed-in accounts and the AI scanner use the user's Firebase sign-in, not the token | code review | — |
 | Firestore security rules | Completed | Deployed by Ahmed (`--deploy-rules`) | rules 14/14 (emulator), live 17/17 | yes |
 

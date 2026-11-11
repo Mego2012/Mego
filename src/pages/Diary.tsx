@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
-import { useDayLog, useEntries } from '../app/hooks';
+import { useCardio, useDayLog, useEntries, useTraining } from '../app/hooks';
+import { EnergyCard } from '../components/EnergyCard';
+import { energyFor } from '../lib/energy';
 import { FoodPicker, QuantityForm, UnitOptions } from '../components/FoodPicker';
 import { ScanButtons } from '../components/MealScanner';
 import { Icon } from '../components/icons';
@@ -27,6 +29,11 @@ export default function Diary() {
   const entries = useEntries(date);
   const log = useDayLog(date);
   const day = useMemo(() => summarizeDay(date, entries, log, settings), [date, entries, log, settings]);
+  const cardio = useCardio();
+  const training = useTraining();
+  // same cardio / extra-training adjustment as the home page, for whichever day is open (see energy.ts)
+  const energy = useMemo(() => energyFor(date, day.target.kcal, day.totals.kcal, cardio, settings, training?.workouts ?? []), [date, day, cardio, settings, training]);
+  const kTarget = energy.adjusted;
   const [addMeal, setAddMeal] = useState<MealType | null>(params.get('add') ? (params.get('meal') as MealType) || 'breakfast' : null);
   const [editing, setEditing] = useState<DiaryEntry | null>(null);
   const [copyTarget, setCopyTarget] = useState<{ kind: 'meal' | 'day'; meal?: MealType } | null>(null);
@@ -55,13 +62,13 @@ export default function Diary() {
 
       <section className="day-panel trio">
         <div className="day-panel-top">
-          <Ring value={day.totals.kcal} max={day.target.kcal} size={104} stroke={10}>
+          <Ring value={day.totals.kcal} max={kTarget} size={104} stroke={10}>
             <div className="num ring-v">{n(day.totals.kcal)}</div>
-            <div className="tiny muted">/ {n(day.target.kcal)}</div>
+            <div className="tiny muted" data-testid="diary-target">/ {n(kTarget)}</div>
           </Ring>
           <div className="grow" style={{ minWidth: 0 }}>
-            <div className="k-label">{day.target.kcal - day.totals.kcal >= 0 ? t('remaining') : t('over')}</div>
-            <div className="day-left num">{n(Math.abs(day.target.kcal - day.totals.kcal))} <span className="unit">{t('kcalUnit')}</span></div>
+            <div className="k-label">{kTarget - day.totals.kcal >= 0 ? t('remaining') : t('over')}</div>
+            <div className="day-left num">{n(Math.abs(kTarget - day.totals.kcal))} <span className="unit">{t('kcalUnit')}</span></div>
             <div className="row wrap" style={{ gap: 6, marginTop: 6 }}>
               <span className={`chip status-${day.status}`} data-testid="day-status">{t('status_' + day.status)}</span>
               <select className="chip-select" value={log?.dayType ?? ''} aria-label={t('dayType')}
@@ -84,6 +91,8 @@ export default function Diary() {
         </div>
         {day.status === 'empty' && <div className="tiny muted">{t('dayIsEmpty')}</div>}
       </section>
+
+      {(energy.cardioKcal > 0 || energy.allowed > 0) && <EnergyCard e={energy} />}
 
       <div className="scan-strip"><ScanButtons date={date} /></div>
 

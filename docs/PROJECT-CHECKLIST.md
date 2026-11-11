@@ -59,12 +59,13 @@ production Apps Script / Firebase project. Branch: `claude/nutrition-tracking-ap
 
 | Check | Result |
 | --- | --- |
-| Unit tests (vitest) | see final report |
+| Unit tests (vitest) | 200/200 (14 files) |
 | Firestore rules + cloud sync (emulator) | 14/14 |
-| Browser end-to-end (guest, AR/EN) | see final report |
-| Touch / scroll on phone sizes | see final report |
+| Browser end-to-end (guest, AR/EN) | 57/57 |
+| Touch / scroll on phone sizes | 103/103 |
 | Multi-user, admin, suspension, deletion (emulator) | 8/8 |
-| Live production checks (accounts, sync, reports, deletion) | see final report |
+| Live production checks (accounts, sync, reports, deletion) | 17/17 (11 Nov, after deploy) |
+| Storage-loss recovery scenario (emulator) | data recovered |
 | AI meal analysis (live) | passed, 15.7 s |
 | Admin-only actions refused to regular users (live) | passed |
 | Laptop setup / Hub completion / token rotation (emulated Google) | 10/10, 9/9, 7/7 |

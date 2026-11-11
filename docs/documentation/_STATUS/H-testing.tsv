@@ -1,17 +1,17 @@
-58	MEGO_Testing Strategy AR.html	1afkBojU-ZVUVV-8Jfu9qEBX-h9FmtAZdrfvkI5iCgKg	1512	AR only; EN already existed (1gubklK-TKSuSfzNpcJ XyfjcxplujFVN771y5Hcc8LM); counts updated to unit 199/14 files, e2e 57, hub-complete 9
-59	MEGO_Unit Testing EN.html	1LsHCO3g3PTup2caNCVHzAW2gcjm6o2E3OHukAXQPSAo	1444	vitest run 10 Nov: 199/199 in 14 files
-59	MEGO_Unit Testing AR.html	14TUKT2Ap5TSLa8wz4SACTT1Ywr6I8o4LUuOvlvp6-18	1491	-
-60	MEGO_Integration Testing EN.html	1KA67kbS3zw3Oohsz8sDs1hM7K-dFYQA18xZOeOyFpnA	1464	rules 14, storage-loss, laptop 10, hub-complete 9
-60	MEGO_Integration Testing AR.html	1hAZMYn4R8o6lEIBfHWjsRa5PSyXVAK1qOTxV9XhQHLc	1385	-
-61	MEGO_Acceptance Testing EN.html	1UP2jGWl49mvDZ8i3NN9BaOpS62cDG5qcoXu79mU7mBw	1403	all 57 run-e2e checks listed
-61	MEGO_Acceptance Testing AR.html	1q157e3C6EhBzfBm-oVXwJBHCLZLGgYYtHu-2YlWd37A	1359	-
-62	MEGO_Nutrition Calculation Accuracy Tests EN.html	14KJ0DNS1LGptQ4qkA4ee5kKXfyzBgFa AW-y3-9 bMc	1796	values copied from tests
-62	MEGO_Nutrition Calculation Accuracy Tests AR.html	1CVYOJrs7-FkNDjPgSfECCNLMsF2SUUpKIjgAg Jthn4	1726	-
-63	MEGO_Multi User Testing EN.html	1hq63Wgu05vjlttalVwxniGoBNhzl43lFCh9GlV6s7 c	1122	-
-63	MEGO_Multi User Testing AR.html	1PMJ146TgVpTb3tnsZAoet0rRO517HPDCNdINL0gCJSc	1052	-
-64	MEGO_Android Device Testing EN.html	1K92NDgPv4Cz-14TWG3vOq-jPX JkL5dscMcI9C8c0SU	1130	status Draft: checklist NOT DONE; owner daily use noted
-64	MEGO_Android Device Testing AR.html	1P80BZUkrzBt-V07pf0 40q9ZyUsZKU998tCH0HcBchg	1084	-
-65	MEGO_Known Bugs and Limitations EN.html	1a8sbU654rd5cXNsBiIO8X09jMC-Ago9KbZYhU9mUJIo	1604	incident 10 Nov + dated fix history
-65	MEGO_Known Bugs and Limitations AR.html	1yUZi2KVjCWgxg-Gr7mVHfzQh46hFzUoJW2TMxIQPCvY	1545	-
-66	MEGO_Release Readiness Checklist EN.html	1ZfDBbP6NGfrum5Vg-ov35AfN2sg mU9-depkBHZD6WQ	1165	-
-66	MEGO_Release Readiness Checklist AR.html	1pvO9o4Z-8kB0FyrblKY0PWn6jDUB1FOiDrSutleTV4A	1141	-
+58	MEGO_Testing_Strategy_AR.html	1afkBojU-ZVUVV-8Jfu9qEBX-h9FmtAZdrfvkI5iCgKg	1512	AR only; EN already existed (1gubklK-TKSuSfzNpcJ_XyfjcxplujFVN771y5Hcc8LM); counts updated: unit 199 in 14 files, e2e 57, laptop-setup 10, hub-complete 9
+59	MEGO_Unit_Testing_EN.html	1LsHCO3g3PTup2caNCVHzAW2gcjm6o2E3OHukAXQPSAo	1444	npx vitest run 10 Nov: 199/199 in 14 files; per-file counts listed
+59	MEGO_Unit_Testing_AR.html	14TUKT2Ap5TSLa8wz4SACTT1Ywr6I8o4LUuOvlvp6-18	1491	
+60	MEGO_Integration_Testing_EN.html	1KA67kbS3zw3Oohsz8sDs1hM7K-dFYQA18xZOeOyFpnA	1464	tests-rules 14, storage-loss scenario, laptop-setup 10, hub-complete 9, migration
+60	MEGO_Integration_Testing_AR.html	1hAZMYn4R8o6lEIBfHWjsRa5PSyXVAK1qOTxV9XhQHLc	1385	
+61	MEGO_Acceptance_Testing_EN.html	1UP2jGWl49mvDZ8i3NN9BaOpS62cDG5qcoXu79mU7mBw	1403	all 57 run-e2e checks + scroll 103
+61	MEGO_Acceptance_Testing_AR.html	1q157e3C6EhBzfBm-oVXwJBHCLZLGgYYtHu-2YlWd37A	1359	
+62	MEGO_Nutrition_Calculation_Accuracy_Tests_EN.html	14KJ0DNS1LGptQ4qkA4ee5kKXfyzBgFa_AW-y3-9_bMc	1796	values copied from test files
+62	MEGO_Nutrition_Calculation_Accuracy_Tests_AR.html	1CVYOJrs7-FkNDjPgSfECCNLMsF2SUUpKIjgAg_Jthn4	1726	
+63	MEGO_Multi_User_Testing_EN.html	1hq63Wgu05vjlttalVwxniGoBNhzl43lFCh9GlV6s7_c	1122	
+63	MEGO_Multi_User_Testing_AR.html	1PMJ146TgVpTb3tnsZAoet0rRO517HPDCNdINL0gCJSc	1052	
+64	MEGO_Android_Device_Testing_EN.html	1K92NDgPv4Cz-14TWG3vOq-jPX_JkL5dscMcI9C8c0SU	1130	Draft status: real-device checklist NOT DONE; owner daily use noted
+64	MEGO_Android_Device_Testing_AR.html	1P80BZUkrzBt-V07pf0_40q9ZyUsZKU998tCH0HcBchg	1084	
+65	MEGO_Known_Bugs_and_Limitations_EN.html	1a8sbU654rd5cXNsBiIO8X09jMC-Ago9KbZYhU9mUJIo	1604	10 Nov incident + dated fix history + remaining limits
+65	MEGO_Known_Bugs_and_Limitations_AR.html	1yUZi2KVjCWgxg-Gr7mVHfzQh46hFzUoJW2TMxIQPCvY	1545	
+66	MEGO_Release_Readiness_Checklist_EN.html	1ZfDBbP6NGfrum5Vg-ov35AfN2sg_mU9-depkBHZD6WQ	1165	
+66	MEGO_Release_Readiness_Checklist_AR.html	1pvO9o4Z-8kB0FyrblKY0PWn6jDUB1FOiDrSutleTV4A	1141	

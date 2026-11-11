@@ -389,6 +389,7 @@ function NamesCard() {
           </ul>
           {plan.noEnglish.length + plan.noArabic.length > 0 && <div className="banner info small">{t('fn_leftNote')}: {[...plan.noEnglish.map((f) => f.nameAr), ...plan.noArabic.map((f) => f.nameEn)].slice(0, 25).join('، ')}</div>}
           {done !== null ? <div className="banner info small" data-testid="fn-done">{t('fn_done', { n: done })}</div> :
+            !plan.fixes.length ? <div className="banner info small" data-testid="fn-nothing">{plan.noEnglish.length + plan.noArabic.length ? t('fn_nothingAuto') : t('fn_allDone', { n: plan.complete })}</div> :
             <button className="btn primary block" disabled={busy || !plan.fixes.length} data-testid="fn-apply"
               onClick={() => run(async () => { setDone(await (await import('../lib/foodNames')).fillMissingNames()); setPlan(await (await import('../lib/foodNames')).previewNames()); })}>{t('fn_apply')}</button>}
         </div>

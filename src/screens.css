@@ -421,3 +421,13 @@ input.input:not([type="number"]):not([dir]) { unicode-bidi: plaintext; text-alig
 .ds-preview { display: grid; grid-template-columns: minmax(0, 1fr); gap: 8px; padding: 10px 12px; border-radius: 14px; background: var(--surface-2); }
 @media (min-width: 560px) { .ds-modes { grid-template-columns: repeat(3, minmax(0, 1fr)); } .ds-week { grid-template-columns: repeat(4, minmax(0, 1fr)); } .ds-preview { grid-template-columns: 1fr 1fr; } }
 .ds-week .input { font-size: 13px; padding-inline: 8px; }
+
+/* Diet advisor (Coach) */
+.da-basis { font-size: 10.5px; padding: 1px 7px; margin-inline-start: 4px; vertical-align: 1px; }
+.da-basis.data { background: var(--primary-soft); color: var(--text); }
+.da-basis.guideline { background: var(--surface-2); color: var(--muted); }
+.da-why { margin: 2px 0 0; padding-inline-start: 18px; display: grid; gap: 4px; }
+.da-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.da-table th, .da-table td { padding: 6px 4px; text-align: start; border-bottom: 1px solid var(--hairline); white-space: nowrap; }
+.da-table td:nth-child(2) { width: 30%; min-width: 60px; }
+.da-bar { display: block; height: 8px; border-radius: 4px; background: var(--primary); }

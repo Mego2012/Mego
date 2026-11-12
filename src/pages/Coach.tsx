@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Icon, type IconName } from '../components/icons';
 import { FoodThumb } from '../components/FoodThumb';
+import { DietAdvisor } from '../components/DietAdvisor';
 import { useApp } from '../app/AppContext';
 import { useBundle } from '../app/hooks';
 import { EmptyState, MacroLine, Segmented, Sheet, Skeleton } from '../components/ui';
@@ -12,8 +13,8 @@ import { AA_REFERENCE, aminoAcidScore, goalClass, loadIntelFoods, nrf93, prosCon
 import { photoKeyFor } from '../lib/foodPhotos';
 import { summarizeDay } from '../lib/reports';
 
-type Tab = 'today' | 'week' | 'month' | 'foods' | 'learn';
-const TAB_ICON: Record<Tab, IconName> = { today: 'sparkle', week: 'weekly', month: 'monthly', foods: 'chart', learn: 'book' };
+type Tab = 'today' | 'advisor' | 'week' | 'month' | 'foods' | 'learn';
+const TAB_ICON: Record<Tab, IconName> = { today: 'sparkle', advisor: 'target', week: 'weekly', month: 'monthly', foods: 'chart', learn: 'book' };
 
 /** Loads the Food Intelligence data (USDA, cached offline after the first load). */
 function useIntelFoods() {
@@ -39,7 +40,7 @@ export default function Coach() {
   return (
     <div data-testid="coach" className="coach">
       <nav className="icon-tabs" role="tablist" aria-label={t('nav_coach')}>
-        {(['today', 'week', 'month', 'foods', 'learn'] as Tab[]).map((x) => (
+        {(['today', 'advisor', 'week', 'month', 'foods', 'learn'] as Tab[]).map((x) => (
           <button key={x} role="tab" aria-selected={tab === x} className={tab === x ? 'on' : ''} onClick={() => setTab(x)}>
             <Icon name={TAB_ICON[x]} /><span>{t(x === 'foods' ? 'coach_foodsShort' : 'coach_' + x)}</span>
           </button>
@@ -47,6 +48,7 @@ export default function Coach() {
       </nav>
       {intel.error && tab !== 'learn' && <div className="notice warn small" style={{ marginBottom: 10 }}>{t('refDbOffline')}</div>}
       {tab === 'today' && <TodayTab foods={intel.foods} />}
+      {tab === 'advisor' && <DietAdvisor />}
       {tab === 'week' && <WeekTab />}
       {tab === 'month' && <MonthTab />}
       {tab === 'foods' && (intel.foods ? <FoodsTab foods={intel.foods} /> : <Skeleton lines={6} />)}

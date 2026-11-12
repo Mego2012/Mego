@@ -3,6 +3,7 @@ import { ar2, en2 } from './i18n2';
 import { ar3, en3 } from './i18n3';
 import { ar4, en4 } from './i18n4';
 import { ar5, en5 } from './i18n5';
+import { ar6, en6 } from './i18n6';
 
 type Dict = Record<string, string>;
 
@@ -216,7 +217,7 @@ const ar: Dict = {
   install: 'تثبيت التطبيق', updateReady: 'يتوفر تحديث', reload: 'إعادة تحميل'
 };
 
-export const DICTS: Record<Lang, Dict> = { ar: { ...ar, ...ar2, ...ar3, ...ar4, ...ar5 }, en: { ...en, ...en2, ...en3, ...en4, ...en5 } };
+export const DICTS: Record<Lang, Dict> = { ar: { ...ar, ...ar2, ...ar3, ...ar4, ...ar5, ...ar6 }, en: { ...en, ...en2, ...en3, ...en4, ...en5, ...en6 } };
 
 export function translate(lang: Lang, key: string, params?: Record<string, string | number>): string {
   let s = DICTS[lang][key] ?? DICTS.en[key] ?? key;

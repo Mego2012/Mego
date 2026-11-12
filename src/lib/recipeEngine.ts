@@ -3,8 +3,37 @@ import { macrosFor, preciseMacros, roundMacros, scaleMacros, sumMacros, basisFro
 import { buildIngredient, saveRecipe, setPlannedDay, uid, kvGet } from './repo';
 import { LIBRARY as LIB1, type LibraryRecipe } from './recipeLibraryData';
 import { LIBRARY_2 } from './recipeLibraryData2';
+import { LIBRARY_3 } from './recipeLibraryData3';
+import { seasoningsFromGroups } from './seasonings';
 
-export const LIBRARY: LibraryRecipe[] = [...LIB1, ...LIBRARY_2];
+/**
+ * Converts the legacy seasoning groups of a recipe into exact, counted seasoning lines (seasonings.ts).
+ * Recipes that already list exact `seasonings` are returned unchanged.
+ */
+export function prepareLibraryRecipe(l: LibraryRecipe): LibraryRecipe {
+  if (l.seasonings) return l;
+  const s = seasoningsFromGroups(l.uncounted, l.servings);
+  const known = l.uncounted.filter((u) => !s.unknown.includes(u[1]));
+  return {
+    ...l,
+    seasonings: s.seasonings,
+    notCounted: s.notCounted,
+    // groups that could not be converted stay "uncounted" (tests require none)
+    uncounted: l.uncounted.filter((u) => !known.includes(u)),
+    ...(s.water ? { waterMl: l.waterMl ?? 0 } : {})
+  };
+}
+
+export const LIBRARY: LibraryRecipe[] = [...LIB1, ...LIBRARY_2, ...LIBRARY_3].map(prepareLibraryRecipe);
+
+/** Every counted line of a recipe: main ingredients, then seasonings / sauces (each counted once). */
+export function allIngredients(l: LibraryRecipe): [string, number, string?, string?][] {
+  return [...l.ingredients, ...(l.seasonings ?? [])];
+}
+
+/** Sauces are side portions, not meals: never suggested or planned as a meal on their own. */
+export const isSauce = (l: LibraryRecipe) => (l.tags as string[]).includes('sauce');
+export const isSide = (l: LibraryRecipe) => (l.tags as string[]).includes('side');
 import { normalizeText } from './search';
 import { RECIPE_REF } from './recipeRefMap';
 import { loadRefFoods, refById, type RefFood } from './refFoods';
@@ -16,6 +45,8 @@ export interface IngredientResolution {
   name: string;
   grams: number;
   source: 'mine' | 'usda' | 'missing';
+  /** main ingredient or seasoning / sauce line */
+  role?: 'main' | 'seasoning';
   foodName?: string;
   refId?: string;
   state?: string;
@@ -60,6 +91,8 @@ export function findFood(index: Map<string, Food>, name: string): Food | undefin
 const EST = /(⚠|غير محقق|تقريبي|تقديري|للمراجعة)/;
 
 export type RefResolver = (id: string) => RefFood | undefined;
+/** A reference food with no energy and no macronutrients at all (salt, water). */
+export const zeroRef = (rf: RefFood) => !(rf.per100.kcal > 0 || rf.per100.protein > 0 || rf.per100.carbs > 0 || rf.per100.fat > 0);
 
 export function computeLibraryRecipe(lib: LibraryRecipe, index: Map<string, Food>, ref: RefResolver = () => undefined): ComputedRecipe {
   const missing: string[] = [];
@@ -67,13 +100,15 @@ export function computeLibraryRecipe(lib: LibraryRecipe, index: Map<string, Food
   const usda: string[] = [];
   const items: IngredientResolution[] = [];
   const parts: Macros[] = [];
-  for (const [name, grams] of lib.ingredients) {
+  const nMain = lib.ingredients.length;
+  for (const [k, [name, grams]] of allIngredients(lib).entries()) {
+    const role: IngredientResolution['role'] = k < nMain ? 'main' : 'seasoning';
     const f = findFood(index, name);
     if (f && !f.incomplete) {
       if (EST.test(f.notes)) estimatedFoods.push(name);
       const m = macrosFor(basisFromFood(f), grams, 'g').macros;
       parts.push(m);
-      items.push({ name, grams, source: 'mine', foodName: f.nameAr || f.nameEn, state: f.state, macros: m });
+      items.push({ name, grams, source: 'mine', role, foodName: f.nameAr || f.nameEn, state: f.state, macros: m });
       continue;
     }
     const id = RECIPE_REF[name];
@@ -81,12 +116,12 @@ export function computeLibraryRecipe(lib: LibraryRecipe, index: Map<string, Food
     if (rf) {
       const m = scaleMacros(rf.per100, grams / 100);
       parts.push(m);
-      usda.push(name);
-      items.push({ name, grams, source: 'usda', foodName: rf.name, refId: rf.id, state: rf.state, macros: m });
+      if (!usda.includes(name)) usda.push(name);
+      items.push({ name, grams, source: 'usda', role, foodName: rf.name, refId: rf.id, state: rf.state, macros: m });
       continue;
     }
     missing.push(name);
-    items.push({ name, grams, source: 'missing' });
+    items.push({ name, grams, source: 'missing', role });
   }
   const totals = preciseMacros(sumMacros(parts));
   const perServing = preciseMacros(scaleMacros(totals, 1 / lib.servings));
@@ -96,7 +131,7 @@ export function computeLibraryRecipe(lib: LibraryRecipe, index: Map<string, Food
   if (perServing.kcal <= 400) derived.push('low-calorie');
   if (perServing.carbs <= 20) derived.push('low-carb');
   return {
-    lib, ok: missing.length === 0, items, usda, gramsPerServing: Math.round(lib.ingredients.reduce((a, i) => a + i[1], 0) / lib.servings), missing, estimatedFoods, uncountedKcal: Math.round(uncountedKcal), totals, perServing,
+    lib, ok: missing.length === 0, items, usda, gramsPerServing: Math.round(allIngredients(lib).reduce((a, i) => a + i[1], 0) / lib.servings), missing, estimatedFoods, uncountedKcal: Math.round(uncountedKcal), totals, perServing,
     totalTime: lib.prepMin + lib.cookMin, derived, isEstimate: estimatedFoods.length > 0 || uncountedKcal >= 5
   };
 }
@@ -121,6 +156,7 @@ export async function approveRecipeMatches(names: string[]): Promise<number> {
     const id = RECIPE_REF[name];
     const rf = id ? refById(id) : undefined;
     if (!rf) continue;
+    if (zeroRef(rf)) continue; // salt / water: 0 kcal, nothing to store (it would be an "incomplete" food)
     const f = await createFood({
       nameAr: name, nameEn: rf.name, category: rf.category, per100: { ...rf.per100 }, state: rf.state,
       stateLabel: rf.state === 'raw' ? 'نيء' : rf.state === 'cooked' ? 'مطبوخ' : 'محضّر', prep: '',
@@ -134,22 +170,31 @@ export async function approveRecipeMatches(names: string[]): Promise<number> {
 }
 
 /** Creates (or reuses) an editable user Recipe from a library recipe, using the user's food records. */
-export async function materializeLibraryRecipe(libId: string, opts: { approveMatches?: boolean } = {}): Promise<Recipe> {
-  const lib = LIBRARY.find((l) => l.id === libId);
+export async function materializeLibraryRecipe(libId: string, opts: { approveMatches?: boolean; variant?: LibraryRecipe; variantKey?: string } = {}): Promise<Recipe> {
+  // A variant (ingredient substitutions) is saved as its own recipe under its variant key; the original stays as it is.
+  const key = opts.variant && opts.variantKey && opts.variantKey !== libId ? opts.variantKey : libId;
+  const lib = key !== libId ? opts.variant : LIBRARY.find((l) => l.id === libId);
   if (!lib) throw new Error('Recipe not found');
-  const existing = (await db.recipes.toArray()).find((r) => r.libraryId === libId && !r.deleted);
+  const existing = (await db.recipes.toArray()).find((r) => r.libraryId === key && !r.deleted);
   if (existing) return existing;
-  if (opts.approveMatches) await approveRecipeMatches(lib.ingredients.map((i) => i[0]));
+  if (opts.approveMatches) await approveRecipeMatches(allIngredients(lib).map((i) => i[0]));
   const index = indexFoods(await db.foods.toArray());
   const ings = [];
-  for (const [name, grams] of lib.ingredients) {
+  for (const [name, grams] of allIngredients(lib)) {
     const f = findFood(index, name);
-    if (!f || f.incomplete) throw new Error('MISSING_INGREDIENT:' + name);
+    if (!f || f.incomplete) {
+      // a 0-calorie reference line (salt) adds no nutrition: it stays in the recipe text, not in the saved ingredients
+      const id = RECIPE_REF[name];
+      const rf = id ? refById(id) : undefined;
+      if (rf && zeroRef(rf)) continue;
+      throw new Error('MISSING_INGREDIENT:' + name);
+    }
     ings.push(await buildIngredient(f.id, grams, 'g'));
   }
-  const r = await saveRecipe({ name: lib.nameAr, servings: lib.servings, ingredients: ings, notes: `lib:${lib.id}` });
-  await db.recipes.update(r.id, { libraryId: lib.id });
-  return { ...r, libraryId: lib.id };
+  const name = key !== libId ? `${lib.nameAr} (معدّلة)` : lib.nameAr;
+  const r = await saveRecipe({ name, servings: lib.servings, ingredients: ings, notes: `lib:${key}` });
+  await db.recipes.update(r.id, { libraryId: key });
+  return { ...r, libraryId: key };
 }
 
 /* ------------------------------------------------------------------ suggestions */
@@ -200,7 +245,7 @@ export function suggest(
   if (remaining.kcal < 60) return [];
   const ideal = Math.max(remaining.kcal / Math.max(mealsLeft, 1), Math.min(remaining.kcal, 250));
   const pool: { kind: 'library' | 'user'; id: string; name: string; emoji: string; per: Macros; minutes: number | null; meals: MealType[] | null; ingredients: string[]; computed?: ComputedRecipe; recipe?: Recipe }[] = [];
-  for (const c of library) if (c.ok) pool.push({ kind: 'library', id: c.lib.id, name: c.lib.nameAr, emoji: c.lib.emoji, per: c.perServing, minutes: c.totalTime, meals: c.lib.meals, ingredients: c.lib.ingredients.map((i) => i[0]), computed: c });
+  for (const c of library) if (c.ok && !isSauce(c.lib)) pool.push({ kind: 'library', id: c.lib.id, name: c.lib.nameAr, emoji: c.lib.emoji, per: c.perServing, minutes: c.totalTime, meals: c.lib.meals, ingredients: c.lib.ingredients.map((i) => i[0]), computed: c });
   for (const r of userRecipes) if (!r.deleted && !r.libraryId) pool.push({ kind: 'user', id: r.id, name: r.name, emoji: '🍽️', per: scaleMacros(r.totals, 1 / r.servings), minutes: null, meals: null, ingredients: r.ingredients.map((i) => i.name), recipe: r });
 
   const out: Suggestion[] = [];
@@ -259,7 +304,7 @@ export interface GeneratedDay {
  * targets (protein never far under, calories not over), avoiding repeating the same lunch/dinner.
  */
 export function generatePlan(dates: string[], targetsFor: (d: string) => Macros, library: ComputedRecipe[], avoidIds: Set<string> = new Set()): GeneratedDay[] {
-  const ok = library.filter((c) => c.ok && !avoidIds.has(c.lib.id));
+  const ok = library.filter((c) => c.ok && !avoidIds.has(c.lib.id) && !isSauce(c.lib) && !isSide(c.lib));
   const by = (meal: MealType) => ok.filter((c) => c.lib.meals.includes(meal));
   const used = new Map<string, number>();
   const days: GeneratedDay[] = [];
@@ -283,8 +328,12 @@ export function generatePlan(dates: string[], targetsFor: (d: string) => Macros,
     for (const b of pickOrder(B)) for (const l of pickOrder(L)) for (const d of pickOrder(D)) {
       if (l.lib.id === d.lib.id) continue;
       for (const n of pickOrder(N)) for (const ml of mults) for (const md of mults) for (const mn of snackMults) {
-        const parts = [b.perServing, scaleMacros(l.perServing, ml), scaleMacros(d.perServing, md), scaleMacros(n.perServing, mn)];
-        const t = sumMacros(parts);
+        // plain arithmetic (no object allocation): this loop runs ~470k times per day
+        const B0 = b.perServing, L0 = l.perServing, D0 = d.perServing, N0 = n.perServing;
+        const t = {
+          kcal: B0.kcal + L0.kcal * ml + D0.kcal * md + N0.kcal * mn, protein: B0.protein + L0.protein * ml + D0.protein * md + N0.protein * mn,
+          carbs: B0.carbs + L0.carbs * ml + D0.carbs * md + N0.carbs * mn, fat: B0.fat + L0.fat * ml + D0.fat * md + N0.fat * mn
+        };
         const kcalOver = Math.max(0, t.kcal - T.kcal);
         const kcalUnder = Math.max(0, T.kcal - t.kcal);
         const pUnder = Math.max(0, T.protein - t.protein);
@@ -292,7 +341,7 @@ export function generatePlan(dates: string[], targetsFor: (d: string) => Macros,
           + ((used.get(l.lib.id) ?? 0) + (used.get(d.lib.id) ?? 0)) * 0.08 + ((used.get(b.lib.id) ?? 0) + (used.get(n.lib.id) ?? 0)) * 0.03;
         if (!best || cost < best.cost) {
           best = {
-            cost, total: roundMacros(t),
+            cost, total: roundMacros(sumMacros([b.perServing, scaleMacros(l.perServing, ml), scaleMacros(d.perServing, md), scaleMacros(n.perServing, mn)])),
             picks: [
               { meal: 'breakfast', libId: b.lib.id, servings: 1, macros: roundMacros(b.perServing) },
               { meal: 'lunch', libId: l.lib.id, servings: ml, macros: roundMacros(scaleMacros(l.perServing, ml)) },
@@ -354,7 +403,7 @@ export async function shoppingList(dates: string[]): Promise<ShoppingItem[]> {
       try { add(f, it.name, macrosFor(basisFromFood(f), it.quantity, it.unit, it.servingId).grams); } catch { /* skip */ }
     }
   }
-  return [...acc.values()].map((x) => ({ ...x, grams: Math.round(x.grams) })).sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+  return [...acc.values()].map((x) => ({ ...x, grams: x.grams >= 10 ? Math.round(x.grams) : Math.round(x.grams * 10) / 10 })) // spices: 0.1 g.sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
 }
 
 export async function recipeMeta(): Promise<{ favorites: Set<string>; ratings: Record<string, number> }> {
@@ -412,7 +461,7 @@ export function whatCanICook(lib: ComputedRecipe[], pantry: string[], remaining:
   const have = new Set(pantry);
   const out: CookMatch[] = [];
   for (const c of lib) {
-    if (!c.ok) continue;
+    if (!c.ok || isSauce(c.lib)) continue;
     if (f.meal && !c.lib.meals.includes(f.meal)) continue;
     if (f.method && !(c.lib.methods as string[]).includes(f.method)) continue;
     if (f.maxMinutes && c.totalTime > Number(f.maxMinutes)) continue;
@@ -448,7 +497,7 @@ export function replacePick(days: GeneratedDay[], date: string, meal: MealType, 
     if (d.date !== date) return d;
     const cur = d.picks.find((p) => p.meal === meal)!;
     const target = cur.macros.kcal;
-    const options = lib.filter((c) => c.ok && c.lib.meals.includes(meal) && !used.has(c.lib.id) && c.lib.id !== cur.libId)
+    const options = lib.filter((c) => c.ok && !isSauce(c.lib) && !isSide(c.lib) && c.lib.meals.includes(meal) && !used.has(c.lib.id) && c.lib.id !== cur.libId)
       .map((c) => {
         const m = [0.75, 1, 1.25, 1.5, 1.75, 2].reduce((best, x) => (Math.abs(c.perServing.kcal * x - target) < Math.abs(c.perServing.kcal * best - target) ? x : best), 1);
         return { c, m, err: Math.abs(c.perServing.kcal * m - target) - c.perServing.protein * m * 2 };

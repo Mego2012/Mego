@@ -36,8 +36,12 @@ describe('complete my food database from the recipe library', () => {
     const chicken = all.find((f) => f.nameAr === 'صدر دجاج مشوي');
     if (chicken) expect(chicken.nameEn).toBe(names['صدر دجاج مشوي']); // short English name, not the USDA description
     expect(await db.backups.where('reason').equals('pre-import').count()).toBeGreaterThan(0);
+    const backups = await db.backups.count();
     const again = await completeFoodDatabase();
     expect(again.ingredientsAdded + again.recipesAdded).toBe(0);
+    expect(await db.backups.count()).toBe(backups); // nothing left to add (salt is never stored) → no extra backup
+    expect(all.some((f) => f.nameAr === 'ملح')).toBe(false);
+    expect(all.find((f) => f.nameAr === 'بابريكا')).toMatchObject({ source: 'usda', per100: expect.objectContaining({ kcal: 282 }) });
   });
 });
 

@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { setRefData } from '../src/lib/refFoods';
 import { db, useDatabase } from '../src/lib/db';
 import { addDays, today, startOfWeek, weekDates } from '../src/lib/dates';
 import { explainEnergy, gramsPerUnit, macrosFor, roundMacros } from '../src/lib/nutrition';
@@ -29,6 +30,9 @@ const REAL_PATH = new URL('./private/foods-160.csv', import.meta.url);
 const REAL = existsSync(REAL_PATH);
 const CSV160 = readFileSync(REAL ? REAL_PATH : new URL('./fixtures/foods-synthetic.csv', import.meta.url), 'utf8');
 const itReal = it.skipIf(!REAL);
+// The app ships the USDA reference file (public/fooddb/usda.json); recipe seasonings resolve through it when a
+// user's own table has no spices — load it here the way the app does at runtime.
+beforeAll(() => setRefData(JSON.parse(readFileSync(new URL('../public/fooddb/usda.json', import.meta.url), 'utf8'))));
 let n = 0;
 async function fresh160() {
   useDatabase('v2-' + ++n);
@@ -114,7 +118,7 @@ describe('nutrition engine fixes', () => {
     expect(await db.entries.count()).toBe(0);
   });
   it('recipe entry grams follow the servings when edited', async () => {
-    const r = await materializeLibraryRecipe('lib-kabsa');
+    const r = await materializeLibraryRecipe('lib-kabsa', { approveMatches: true }); // seasonings come from the shipped USDA file, as in the app
     const e = await addRecipeEntry(today(), 'lunch', r, 1);
     const e2 = await updateEntry(e.id, { quantity: 2 });
     expect(e2.grams).toBe(e.grams * 2);
@@ -162,10 +166,18 @@ describe('recipe library', () => {
     const lib = await computeLibrary();
     const k = lib.find((c) => c.lib.id === 'lib-kabsa')!;
     // 600 g raw chicken + 300 g raw basmati + 100 onion + 150 tomato + 80 carrot + 15 olive oil
-    const exact = (600 * 120 + 300 * 349 + 100 * 40 + 150 * 18 + 80 * 41 + 15 * 884) / 100;
+    const main = (600 * 120 + 300 * 349 + 100 * 40 + 150 * 18 + 80 * 41 + 15 * 884) / 100;
+    // seasonings are counted with exact weights (kabsa spices for 4 servings, USDA SR Legacy per 100 g)
+    // garlic 3 g/serving + kabsa spice mix per serving (cardamom 0.4, cinnamon 0.3, cloves 0.1, pepper 0.3, cumin 0.3, salt 1) × 4
+    expect(k.lib.seasonings).toEqual([['ثوم', 12], ['هيل مطحون', 1.6], ['قرفة مطحونة', 1.2], ['قرنفل مطحون', 0.4], ['فلفل أسود مطحون', 1.2], ['كمون مطحون', 1.2], ['ملح', 4]]);
+    const usda: Record<string, number> = { 'ثوم': 149, 'ملح': 0, 'فلفل أسود مطحون': 251, 'كمون مطحون': 375, 'هيل مطحون': 311, 'قرفة مطحونة': 247, 'قرنفل مطحون': 274 }; // SR Legacy kcal/100 g
+    const spices = k.lib.seasonings!.reduce((a, [name, g]) => a + (g * usda[name]) / 100, 0);
+    expect(spices).toBeGreaterThan(20);
+    const exact = main + spices;
     expect(Math.round(k.totals.kcal)).toBe(Math.round(exact));
     expect(Math.round(k.perServing.kcal)).toBe(Math.round(exact / 4));
-    expect(k.isEstimate).toBe(true); // uncounted seasonings are disclosed
+    expect(k.uncountedKcal).toBe(0); // no seasoning is guessed any more (isEstimate can still be set by a food the user marked approximate); the dried lime is removed before serving
+    expect(k.lib.notCounted?.length).toBe(1);
   });
   itReal('suggestions respect remaining calories AND protein (350 kcal / 25 g P / 10 g C)', async () => {
     const lib = await computeLibrary();

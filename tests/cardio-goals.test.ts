@@ -262,7 +262,8 @@ describe('recipe nutrition', () => {
     for (const c of all) {
       expect(c.perServing.kcal).toBeGreaterThan(0);
       expect(Math.abs(c.perServing.kcal * c.lib.servings - c.totals.kcal)).toBeLessThan(0.01 * c.lib.servings + 1e-9); // 2-decimal rounding only // per serving = total ÷ servings
-      expect(c.items).toHaveLength(c.lib.ingredients.length);
+      expect(c.items).toHaveLength(c.lib.ingredients.length + (c.lib.seasonings?.length ?? 0)); // seasonings are counted lines too
+      expect(c.items.filter((i) => i.role === 'main')).toHaveLength(c.lib.ingredients.length);
     }
   });
   it('total = sum of ingredients, no double counting', () => {

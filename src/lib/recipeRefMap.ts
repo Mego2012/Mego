@@ -74,5 +74,62 @@ export const RECIPE_REF: Record<string, string | null> = {
   'فاصوليا سوداء مطبوخة': 'S173735', // Beans, black, cooked, boiled, without salt
   'قرنبيط': 'S169986',               // Cauliflower, raw
   'بذور الشيا': 'S170554',           // Chia seeds, dried
-  'سمسم': 'S170150'                  // Sesame seeds, whole, dried
+  'سمسم': 'S170150',                 // Sesame seeds, whole, dried
+  // ---- seasonings, sauces and marinade ingredients (Cooking Guide) — counted like every other ingredient
+  'ملح': 'S173468',                  // Salt, table (0 kcal; sodium)
+  'فلفل أسود مطحون': 'S170931',      // Spices, pepper, black
+  'كمون مطحون': 'S170923',           // Spices, cumin seed
+  'بابريكا': 'S171329',              // Spices, paprika
+  'شطة مطحونة (فلفل أحمر حار)': 'S170932', // Spices, pepper, red or cayenne
+  'كركم مطحون': 'S172231',           // Spices, turmeric, ground
+  'قرفة مطحونة': 'S171320',          // Spices, cinnamon, ground
+  'زنجبيل مطحون': 'S170926',         // Spices, ginger, ground
+  'كاري بودرة': 'S170924',           // Spices, curry powder
+  'هيل مطحون': 'S170919',            // Spices, cardamom
+  'قرنفل مطحون': 'S171321',          // Spices, cloves, ground
+  'بهار حلو مطحون': 'S171315',       // Spices, allspice, ground
+  'كزبرة ناشفة مطحونة': 'S170922',   // Spices, coriander seed
+  'جوزة الطيب مطحونة': 'S171326',    // Spices, nutmeg, ground
+  'بودرة ثوم': 'S171325',            // Spices, garlic powder
+  'بودرة بصل': 'S171327',            // Spices, onion powder
+  'زعتر مجفف': 'S170938',            // Spices, thyme, dried
+  'أوريجانو مجفف': 'S171328',        // Spices, oregano, dried
+  'روزماري مجفف': 'S171333',         // Spices, rosemary, dried
+  'ريحان مجفف': 'S171317',           // Spices, basil, dried
+  'نعناع مجفف': 'S172239',           // Spearmint, dried
+  'ثوم': 'S169230',                  // Garlic, raw
+  'زنجبيل طازج': 'S169231',          // Ginger root, raw
+  'عصير ليمون': 'S167747',           // Lemon juice, raw
+  'عصير ليم (لايم)': 'S168156',      // Lime juice, raw
+  'بقدونس طازج': 'S170416',          // Parsley, fresh
+  'كزبرة خضراء طازجة': 'S169997',    // Coriander (cilantro) leaves, raw
+  'نعناع طازج': 'S173475',           // Spearmint, fresh
+  'شبت طازج': 'S172233',             // Dill weed, fresh
+  'ريحان طازج': 'S172232',           // Basil, fresh
+  'بصل أخضر': 'S170005',             // Onions, spring or scallions, raw
+  'فلفل حار أخضر': 'S170497',        // Peppers, hot chili, green, raw
+  'صويا صوص قليل الصوديوم': 'S172473', // Soy sauce (shoyu), low sodium
+  'صلصة حارة (سريراتشا)': 'S171186', // Sauce, hot chile, sriracha
+  'خل أبيض': 'S172237',              // Vinegar, distilled
+  'خل أحمر': 'S172240',              // Vinegar, red wine
+  'خل بلسمي': 'S172241',             // Vinegar, balsamic
+  'خردل': 'S172234',                 // Mustard, prepared, yellow
+  'عسل': 'S169640',                  // Honey
+  'فانيليا سائلة': 'S173471',        // Vanilla extract
+  'كاكاو خام بودرة': 'S169593',      // Cocoa, dry powder, unsweetened
+  'مخلل خيار': 'S168558',            // Pickles, cucumber, dill
+  'معجون طماطم': 'S170459',          // Tomato products, canned, paste, without salt added
+  'طماطم مهروسة معلبة': 'S170501',   // Tomatoes, crushed, canned
+  'جبن بارميزان مبشور': 'S171247',   // Cheese, parmesan, grated
+  'جبن كريمي قليل الدسم': 'S169079', // Cheese, cream, low fat
+  'مرق دجاج قليل الصوديوم': 'S172888', // Soup, chicken broth, reduced sodium, ready to serve
+  'نشا ذرة': 'S169698',              // Cornstarch
+  'فطر (مشروم) أبيض': 'S169251',     // Mushrooms, white, raw
+  'معكرونة قمح كامل نيئة/جافة': 'S169738', // Pasta, whole-wheat, dry
+  'زيت أفوكادو': 'S173573',          // Oil, avocado
+  'زيت كانولا': 'S172336',           // Oil, canola
+  'زبدة غير مملحة': 'S173430',       // Butter, without salt
+  'زبادي عادي قليل الدسم': 'S170886', // Yogurt, plain, low fat
+  'بازلاء مجمدة': 'S170016',         // Peas, green, frozen, unprepared
+  'كسكس نيء/جاف': 'S169699'          // Couscous, dry
 };

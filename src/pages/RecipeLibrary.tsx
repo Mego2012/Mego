@@ -1,5 +1,5 @@
 import { useLiveQuery } from 'dexie-react-hooks';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../app/AppContext';
 import { useBundle } from '../app/hooks';
 import { Icon } from '../components/icons';
@@ -8,12 +8,18 @@ import { Card, MacroLine, NumField, Segmented, Sheet, StateChip, useAsync } from
 import { db } from '../lib/db';
 import { isValidISODate, today } from '../lib/dates';
 import { round, roundMacros, scaleMacros } from '../lib/nutrition';
-import { allLibraryIngredients, approveRecipeMatches, computeLibrary, materializeLibraryRecipe, recipeMeta, suggest, whatCanICook, type ComputedRecipe, type SuggestFilters, type Suggestion } from '../lib/recipeEngine';
+import { allLibraryIngredients, approveRecipeMatches, computeLibrary, computeLibraryRecipe, findFood, indexFoods, materializeLibraryRecipe, recipeMeta, suggest, whatCanICook, type ComputedRecipe, type SuggestFilters, type Suggestion } from '../lib/recipeEngine';
 import { kvGet } from '../lib/repo';
 import { addRecipeEntry, deleteEntry, kvSet, setPlannedDay, uid } from '../lib/repo';
 import { summarizeDay } from '../lib/reports';
 import { normalizeText } from '../lib/search';
 import { FoodEditor } from './Foods';
+import { CookMode } from '../components/CookMode';
+import { fmtClock, stepTemps, stepTimers, swapsFor, variantId, variantOf, type SwapChoice } from '../lib/cooking';
+import { householdMeasure, SEASONING_INFO } from '../lib/seasonings';
+import { loadFoodNames } from '../lib/foodNames';
+import { refById } from '../lib/refFoods';
+import { targetsFor } from '../lib/targets';
 import { MEALS, type MealType } from '../lib/types';
 
 export function useLibrary() {
@@ -24,7 +30,8 @@ export function useLibrary() {
   return { lib, meta, foods };
 }
 
-const TAGS = ['all', 'favorites', 'high_protein', 'low_calorie', 'low_carb', 'chicken', 'eggs', 'rice', 'fish', 'meat', 'sandwich', 'quick', 'meal_prep', 'high_fiber', 'vegetarian', 'breakfast_idea'] as const;
+const METHODS = ['air-fryer', 'oven', 'pan', 'pot', 'grill', 'no-cook', 'blender'];
+const TAGS = ['all', 'favorites', 'high_protein', 'low_calorie', 'low_carb', 'chicken', 'eggs', 'rice', 'fish', 'meat', 'pasta', 'potato', 'side', 'sauce', 'sandwich', 'quick', 'meal_prep', 'high_fiber', 'vegetarian', 'breakfast_idea'] as const;
 
 function hasTag(c: ComputedRecipe, tag: (typeof TAGS)[number], favs: Set<string>): boolean {
   if (tag === 'all') return true;
@@ -42,11 +49,28 @@ export function LibraryTab() {
   const [meal, setMeal] = useState<MealType | ''>('');
   const [q, setQ] = useState('');
   const [open, setOpen] = useState<ComputedRecipe | null>(null);
+  const [showF, setShowF] = useState(false);
+  const [method, setMethod] = useState('');
+  const [maxKcal, setMaxKcal] = useState<number | ''>('');
+  const [maxMin, setMaxMin] = useState<number | ''>('');
+  const [minP, setMinP] = useState<number | ''>('');
+  const [ingQ, setIngQ] = useState('');
+  const [names, setNames] = useState<Record<string, string>>({});
+  useEffect(() => { loadFoodNames().then(setNames).catch(() => undefined); }, []);
+  const ingText = (c: ComputedRecipe) => [...c.lib.ingredients, ...(c.lib.seasonings ?? [])].map((i) => `${i[0]} ${names[i[0]] ?? SEASONING_INFO[i[0]]?.en ?? ''}`).join(' ');
+  const nFilters = [method, maxKcal, maxMin, minP, ingQ].filter((x) => x !== '').length;
   const list = useMemo(() => {
     if (!lib) return [];
     const nq = normalizeText(q);
-    return lib.filter((c) => hasTag(c, tag, meta.favorites) && (!meal || c.lib.meals.includes(meal)) && (!nq || normalizeText(`${c.lib.nameAr} ${c.lib.nameEn} ${c.lib.ingredients.map((i) => i[0]).join(' ')}`).includes(nq)));
-  }, [lib, tag, meal, q, meta]);
+    const ni = normalizeText(ingQ).split(/[,،]\s*/).filter(Boolean);
+    return lib.filter((c) => hasTag(c, tag, meta.favorites) && (!meal || c.lib.meals.includes(meal))
+      && (!nq || normalizeText(`${c.lib.nameAr} ${c.lib.nameEn} ${ingText(c)}`).includes(nq))
+      && (!ni.length || ni.every((w) => normalizeText(ingText(c)).includes(w)))
+      && (!method || (c.lib.methods as string[]).includes(method))
+      && (maxKcal === '' || c.perServing.kcal <= Number(maxKcal))
+      && (minP === '' || c.perServing.protein >= Number(minP))
+      && (maxMin === '' || c.totalTime + (c.lib.marinateMin ?? 0) <= Number(maxMin)));
+  }, [lib, tag, meal, q, meta, method, maxKcal, maxMin, minP, ingQ, names]);
   if (!lib) return <div className="empty">{t('loading')}</div>;
   return (
     <div data-testid="library">
@@ -58,6 +82,23 @@ export function LibraryTab() {
         <div style={{ marginTop: 8 }}>
           <Segmented<MealType | ''> value={meal} options={[{ value: '', label: t('all') }, ...MEALS.map((m) => ({ value: m, label: t(m) }))]} onChange={setMeal} />
         </div>
+        <button className="btn sm ghost" style={{ marginTop: 8 }} onClick={() => setShowF(!showF)} aria-expanded={showF} data-testid="lib-filters-toggle"><Icon name="filter" /> {t('ck_filters')}{nFilters ? ` (${n(nFilters)})` : ''}</button>
+        {showF && (
+          <div className="stack" style={{ marginTop: 8 }} data-testid="lib-filters">
+            <label className="field"><span>{t('ck_fIngredient')}</span><input className="input" value={ingQ} onChange={(e) => setIngQ(e.target.value)} placeholder={t('ck_fIngredientPh')} data-testid="f-ingredient" /></label>
+            <div className="grid3">
+              <NumField label={t('ck_fMaxKcal')} value={maxKcal} onChange={setMaxKcal} testId="f-maxkcal" />
+              <NumField label={t('ck_fMinProtein')} value={minP} onChange={setMinP} testId="f-minprotein" />
+              <NumField label={t('ck_fMaxMin')} value={maxMin} onChange={setMaxMin} testId="f-maxmin" />
+            </div>
+            <label className="field"><span>{t('ck_fMethod')}</span>
+              <select className="input" value={method} onChange={(e) => setMethod(e.target.value)} data-testid="f-method">
+                <option value="">{t('all')}</option>
+                {METHODS.map((m) => <option key={m} value={m}>{t('method_' + m.replace('-', '_'))}</option>)}
+              </select></label>
+            {nFilters > 0 && <button className="btn sm ghost" onClick={() => { setMethod(''); setMaxKcal(''); setMaxMin(''); setMinP(''); setIngQ(''); }} data-testid="f-clear">{t('ck_fClear')}</button>}
+          </div>
+        )}
         <div className="tiny muted" style={{ marginTop: 6 }} data-testid="library-count">{list.length} / {lib.length} · {t('computedFromDb')}</div>
       </Card>
       {list.map((c) => (
@@ -69,7 +110,8 @@ export function LibraryTab() {
             <div className="small num" style={{ marginTop: 4 }} data-testid="card-kcal"><b>{n(c.perServing.kcal)}</b> {t('kcalUnit')} · <MacroLine m={c.perServing} compact /> <span className="tiny muted">· {t('perServingG', { g: n(c.gramsPerServing) })}</span></div>
             {!c.ok && <div className="tiny delta pos">{t('partialNutrition', { list: c.missing.join('، ') })}</div>}
             <div className="row wrap tiny muted" style={{ gap: 6, marginTop: 4 }}>
-              <span className="row" style={{ gap: 3 }}><Icon name="history" /> {c.totalTime} {t('min')}</span>
+              <span className="row" style={{ gap: 3 }}><Icon name="history" /> {c.totalTime} {t('min')}{c.lib.marinateMin ? ` + ${t('ck_marinateShort', { m: n(c.lib.marinateMin) })}` : ''}</span>
+              {(c.lib.tags as string[]).includes('sauce') && <span className="chip">{t('tag_sauce')}</span>}
               {c.derived.map((d) => <span key={d} className="chip good">{t('tag_' + d.replace(/-/g, '_'))}</span>)}
               {c.isEstimate && <span className="chip warn">{t('estimatedBadge')}</span>}
               {c.usda.length > 0 && <span className="chip" data-testid="usda-chip">{t('usdaMatchedN', { n: c.usda.length })}</span>}
@@ -85,40 +127,108 @@ export function LibraryTab() {
   );
 }
 
-export function RecipeDetail({ c, onClose, servingsHint = 1 }: { c: ComputedRecipe; onClose: () => void; servingsHint?: number }) {
-  const { t, lang, n, toast } = useApp();
-  const { meta } = useLibrary();
+/** English (or Arabic) display name of an ingredient: own dictionary → seasoning catalogue → USDA name → Arabic. */
+function useIngredientNames() {
+  const { lang } = useApp();
+  const [dict, setDict] = useState<Record<string, string> | null>(null);
+  useEffect(() => { if (lang === 'en') loadFoodNames().then(setDict).catch(() => setDict({})); }, [lang]);
+  return (ar: string, usdaName?: string) => (lang === 'ar' ? ar : dict?.[ar] ?? SEASONING_INFO[ar]?.en ?? usdaName ?? ar);
+}
+
+export function RecipeDetail({ c: c0, onClose, servingsHint = 1 }: { c: ComputedRecipe; onClose: () => void; servingsHint?: number }) {
+  const { t, lang, n, toast, settings } = useApp();
+  const { meta, foods } = useLibrary();
   const [action, setAction] = useState<'diary' | 'plan' | null>(null);
   const [addFood, setAddFood] = useState<string | null>(null);
   const [approved, setApproved] = useState(false);
+  const [servings, setServings] = useState(c0.lib.servings);
+  const [swaps, setSwaps] = useState<SwapChoice>({});
+  const [swapOpen, setSwapOpen] = useState<number | null>(null);
+  const [showSteps, setShowSteps] = useState(false);
+  const [cooking, setCooking] = useState(false);
+  const stepsRef = useRef<HTMLDivElement>(null);
+  const nameOf = useIngredientNames();
   const { run } = useAsync();
-  const fav = meta.favorites.has(c.lib.id);
-  const rating = meta.ratings[c.lib.id] ?? 0;
-  const L = c.lib;
+  const L0 = c0.lib;
+  const index = useMemo(() => indexFoods(foods ?? []), [foods]);
+  const own = (name: string) => !!findFood(index, name);
+  const swapped = Object.keys(swaps).length > 0;
+  // per-serving nutrition depends only on the substitutions; scaling changes the amounts and totals
+  const base = useMemo(() => (swapped ? variantOf(L0, swaps) : L0), [L0, swaps, swapped]);
+  const L = useMemo(() => variantOf(L0, swaps, servings), [L0, swaps, servings]);
+  const c = useMemo(() => (swapped || servings !== L0.servings ? computeLibraryRecipe(L, index, refById) : c0), [L, index, c0, swapped, servings, L0.servings]);
+  const vKey = variantId(L0, swaps);
+  const saved = useLiveQuery(() => db.recipes.filter((r) => r.libraryId === vKey).toArray(), [vKey], []);
+  const savedCopy = saved.find((r) => !r.deleted);
+  const savedPer = savedCopy ? savedCopy.totals.kcal / savedCopy.servings : null;
+  const fav = meta.favorites.has(L0.id);
+  const rating = meta.ratings[L0.id] ?? 0;
   const steps = lang === 'ar' ? L.stepsAr : L.stepsEn;
   const tips = lang === 'ar' ? L.tipsAr : L.tipsEn;
+  const temps = L.tempC ? [L.tempC] : [...new Set(L.stepsEn.flatMap(stepTemps))].slice(0, 2);
+  const T = targetsFor(today(), settings);
+  const pctOf = (a: number, b: number) => Math.round((a * 100) / Math.max(b, 1));
+  const strict = settings.dietStrategy?.mode === 'keto' || settings.dietStrategy?.mode === 'low_carb' || (T.carbs * 4) / Math.max(T.kcal, 1) < 0.25;
+  const nMain = L.ingredients.length;
+  const marinade = new Set(L.marinade ?? []);
+  const groups: { key: string; title: string; idx: number[] }[] = [
+    { key: 'main', title: t('ck_main'), idx: c.items.map((_, i) => i).filter((i) => i < nMain && !marinade.has(c.items[i].name)) },
+    { key: 'marinade', title: t(L0.tags.includes('pasta') ? 'ck_sauce' : 'ck_marinade'), idx: c.items.map((_, i) => i).filter((i) => marinade.has(c.items[i].name)) },
+    { key: 'season', title: t('ck_seasonings'), idx: c.items.map((_, i) => i).filter((i) => i >= nMain && !marinade.has(c.items[i].name)) }
+  ].filter((g) => g.idx.length);
+  const seasKcal = c.items.filter((i) => i.role === 'seasoning').reduce((a, i) => a + (i.macros?.kcal ?? 0), 0) / L.servings;
+  const notes = (i: number) => { const x = [...L.ingredients, ...(L.seasonings ?? [])][i]; return x ? (lang === 'ar' ? x[2] : x[3]) : undefined; };
+  const materialize = () => materializeLibraryRecipe(L0.id, { approveMatches: true, ...(swapped ? { variant: base, variantKey: vKey } : {}) });
+
   return (
-    <Sheet title={lang === 'ar' ? L.nameAr : L.nameEn} onClose={onClose}>
+    <Sheet title={lang === 'ar' ? L0.nameAr : L0.nameEn} onClose={onClose}>
       <div className="stack" data-testid="recipe-detail">
-        <div className="recipe-cover"><RecipeMosaic ingredients={L.ingredients} size={132} /></div>
-        <div className="tiny muted">{lang === 'ar' ? L.nameEn : L.nameAr}</div>
-        <div className="row wrap small" style={{ gap: 6 }}>
+        <div className="recipe-cover"><RecipeMosaic ingredients={L0.ingredients} size={132} /></div>
+        <div className="tiny muted">{lang === 'ar' ? L0.nameEn : L0.nameAr}</div>
+        <div className="row wrap small" style={{ gap: 6 }} data-testid="detail-chips">
           <span className="chip">{t('prep')} {L.prepMin} {t('min')}</span>
           <span className="chip">{t('cook')} {L.cookMin} {t('min')}</span>
+          {!!L.marinateMin && <span className="chip" data-testid="chip-marinate">{t('ck_marinateMin', { m: n(L.marinateMin) })}</span>}
+          {temps.map((x) => <span key={x} className="chip" data-testid="chip-temp">{n(x)}°{lang === 'ar' ? 'م' : 'C'}</span>)}
           <span className="chip">{t('difficulty')}: {t('diff_' + L.difficulty)}</span>
-          <span className="chip">{t('servingsN', { n: L.servings })}</span>
           {L.methods.map((m) => <span key={m} className="chip">{t('method_' + m.replace('-', '_'))}</span>)}
         </div>
+
+        <div className="row wrap" style={{ gap: 8 }}>
+          <button className="btn grow" onClick={() => { setShowSteps(true); setTimeout(() => stepsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50); }} data-testid="view-instructions"><Icon name="book" /> {t('ck_view')}</button>
+          <button className="btn primary grow" onClick={() => setCooking(true)} data-testid="start-cooking"><Icon name="flame" /> {t('ck_start')}</button>
+        </div>
+
+        <div className="ck-servings" data-testid="servings-scaler">
+          <span className="small bold grow">{t('ck_servings')}</span>
+          <button className="icon-btn" aria-label="−" disabled={servings <= 1} onClick={() => setServings(Math.max(1, servings - 1))} data-testid="serv-minus">−</button>
+          <b className="num" data-testid="serv-value">{n(servings)}</b>
+          <button className="icon-btn" aria-label="+" disabled={servings >= 24} onClick={() => setServings(Math.min(24, servings + 1))} data-testid="serv-plus">+</button>
+          {servings !== L0.servings && <button className="btn sm ghost" onClick={() => setServings(L0.servings)}>{t('ck_reset', { n: n(L0.servings) })}</button>}
+        </div>
+
         <div className="grid2" data-testid="detail-nutrition">
           <div className="stat"><div className="k">{t('perServing')} · {t('perServingG', { g: n(c.gramsPerServing) })}</div><div className="v num" data-testid="detail-kcal">{n(c.perServing.kcal)} {t('kcalUnit')}</div><MacroLine m={c.perServing} />
             <div className="tiny muted">{t('fiber')}: {c.perServing.fiber !== undefined ? `${n(c.perServing.fiber, 1)} ${t('g')}` : t('unknown')}</div></div>
           <div className="stat"><div className="k">{t('total')} · {t('servingsN', { n: L.servings })}</div><div className="v num" data-testid="detail-total">{n(c.totals.kcal)} {t('kcalUnit')}</div><MacroLine m={c.totals} compact />
             <div className="tiny muted">{t('fiber')}: {c.totals.fiber !== undefined ? `${n(c.totals.fiber, 1)} ${t('g')}` : t('unknown')}</div></div>
         </div>
+        <div className="tiny muted" data-testid="seasoning-kcal">{t('ck_seasCounted', { kcal: n(seasKcal, 1) })}</div>
+        {swapped && <div className="banner info small" data-testid="swap-banner">{t('ck_swapped', { n: n(Object.keys(swaps).length) })} <button className="btn sm ghost" onClick={() => setSwaps({})}>{t('ck_undoSwaps')}</button></div>}
+
+        {c.ok && (
+          <div className="ck-fit" data-testid="fits-today">
+            <div className="small bold">{t('ck_fitTitle')}{settings.dietStrategy ? ` · ${t('ds_m_' + settings.dietStrategy.mode)}` : ''}</div>
+            <div className="tiny num">{t('ck_fitLine', { kcal: n(pctOf(c.perServing.kcal, T.kcal)), p: n(pctOf(c.perServing.protein, T.protein)), c: n(pctOf(c.perServing.carbs, T.carbs)), tk: n(T.kcal), tp: n(T.protein) })}</div>
+            {strict && c.perServing.carbs > T.carbs * 0.4 && <div className="tiny delta pos" data-testid="fit-carbs">{t('ck_fitCarbs', { c: n(c.perServing.carbs), t: n(T.carbs) })}</div>}
+            <div className="tiny muted">{t('ck_fitNote')}</div>
+          </div>
+        )}
+
         {!c.ok && <div className="banner error small" data-testid="detail-missing">{t('partialNutrition', { list: c.missing.join('، ') })}</div>}
         {c.usda.length > 0 && !approved && (
           <div className="banner info small" data-testid="usda-approve">
-            <div>{t('usdaMatchesNote', { list: c.usda.join('، ') })}</div>
+            <div>{t('usdaMatchesNote', { list: c.usda.map((x) => nameOf(x)).join(lang === 'ar' ? '، ' : ', ') })}</div>
             <button className="btn sm primary" style={{ marginTop: 6 }} data-testid="approve-matches"
               onClick={async () => { const k = await run(() => approveRecipeMatches(c.usda)); if (k !== undefined) { setApproved(true); toast(t('usdaApproved', { n: k })); } }}>{t('approveMatches')}</button>
           </div>
@@ -131,52 +241,97 @@ export function RecipeDetail({ c, onClose, servingsHint = 1 }: { c: ComputedReci
           <span className="small">{t('rate_')}:</span>
           {[1, 2, 3, 4, 5].map((s) => (
             <button key={s} className="icon-btn" style={{ width: 32, height: 32, color: s <= rating ? 'var(--warn)' : 'var(--muted)' }} aria-label={`${s}`} data-testid={`rate-${s}`}
-              onClick={() => kvSet('recipeRatings', { ...meta.ratings, [L.id]: s === rating ? 0 : s })}><Icon name="star" filled={s <= rating} /></button>
+              onClick={() => kvSet('recipeRatings', { ...meta.ratings, [L0.id]: s === rating ? 0 : s })}><Icon name="star" filled={s <= rating} /></button>
           ))}
           <button className={`chip ${fav ? 'active' : ''}`} data-testid="recipe-fav"
-            onClick={() => { const f = new Set(meta.favorites); if (fav) f.delete(L.id); else f.add(L.id); kvSet('recipeFavorites', [...f]); }}><Icon name="star" filled={fav} /> {t('favorite')}</button>
+            onClick={() => { const f = new Set(meta.favorites); if (fav) f.delete(L0.id); else f.add(L0.id); kvSet('recipeFavorites', [...f]); }}><Icon name="star" filled={fav} /> {t('favorite')}</button>
         </div>
+
         <h3 className="small bold" style={{ margin: '6px 0 0' }}>{t('ingredients')}</h3>
-        <ul className="list" data-testid="ingredient-list">
-          {L.ingredients.map(([name, grams, noteAr, noteEn], i) => {
-            const it = c.items[i];
-            return (
-              <li key={name + i} data-testid="ingredient-row" data-source={it?.source}>
-                <div className="grow"><span className="small">{name}</span> {it?.state && it.state !== 'other' && <StateChip state={it.state as 'raw' | 'cooked'} />}
-                  <span className={`chip tiny ${it?.source === 'missing' ? 'warn' : it?.source === 'usda' ? '' : 'good'}`}>{t('src_' + (it?.source ?? 'missing'))}</span>
-                  {it?.source === 'usda' && <div className="tiny muted" dir="ltr">{it.foodName}</div>}
-                  {(noteAr || noteEn) && <div className="tiny muted">{lang === 'ar' ? noteAr : noteEn}</div>}
-                  {it?.source === 'missing' && <button className="btn sm" style={{ marginTop: 4 }} onClick={() => setAddFood(name)} data-testid="add-missing">{t('addMissingFood')}</button>}</div>
-                <span className="num small" style={{ textAlign: 'end' }}><b>{n(grams)} {t('g')}</b>{it?.macros && <div className="tiny muted">{n(it.macros.kcal)} {t('kcalUnit')}</div>}</span>
-              </li>
-            );
-          })}
-        </ul>
-        <h3 className="small bold" style={{ margin: '6px 0 0' }}>{t('steps')}</h3>
-        <ol className="small" style={{ paddingInlineStart: 20, margin: 0 }}>{steps.map((s, i) => <li key={i} style={{ marginBottom: 6 }}>{s}</li>)}</ol>
-        {tips.length > 0 && <><h3 className="small bold" style={{ margin: '6px 0 0' }}>{t('tips')}</h3><ul className="small" style={{ paddingInlineStart: 20, margin: 0 }}>{tips.map((s, i) => <li key={i}>{s}</li>)}</ul></>}
+        {groups.map((g) => (
+          <div key={g.key} className="ck-group" data-testid={'ing-group-' + g.key}>
+            <div className="tiny bold muted ck-group-h">{g.title}</div>
+            <ul className="list" data-testid="ingredient-list">
+              {g.idx.map((i) => {
+                const it = c.items[i];
+                const alts = swapsFor(L0.ingredients.concat(L0.seasonings ?? [])[i]?.[0] ?? it.name, own);
+                const hm = householdMeasure(it.name, it.grams, lang);
+                const note = notes(i);
+                return (
+                  <li key={it.name + i} data-testid="ingredient-row" data-source={it.source} data-role={it.role}>
+                    <div className="grow" style={{ minWidth: 0 }}>
+                      <span className="small">{nameOf(it.name, it.source === 'usda' ? it.foodName : undefined)}</span> {it.state && it.state !== 'other' && <StateChip state={it.state as 'raw' | 'cooked'} />}
+                      <span className={`chip tiny ${it.source === 'missing' ? 'warn' : it.source === 'usda' ? '' : 'good'}`}>{t('src_' + (it.source ?? 'missing'))}</span>
+                      {swaps[i] && <span className="chip tiny active">{t('ck_swappedChip')}</span>}
+                      {it.source === 'usda' && <div className="tiny muted" dir="ltr">{it.foodName}</div>}
+                      {note && <div className="tiny muted">{note}</div>}
+                      {alts.length > 0 && <button className="link-btn tiny" onClick={() => setSwapOpen(swapOpen === i ? null : i)} data-testid="swap-btn">{t('ck_alternatives', { n: n(alts.length) })}</button>}
+                      {swapOpen === i && (
+                        <div className="ck-swaps" data-testid="swap-options">
+                          {swaps[i] && <button className="chip clickable" onClick={() => { const s = { ...swaps }; delete s[i]; setSwaps(s); setSwapOpen(null); }}>{t('ck_original', { name: nameOf(L0.ingredients.concat(L0.seasonings ?? [])[i][0]) })}</button>}
+                          {alts.filter(([a]) => a !== swaps[i]).map(([a, f, wAr, wEn]) => (
+                            <button key={a} className="chip clickable" data-testid="swap-option" onClick={() => { setSwaps({ ...swaps, [i]: a }); setSwapOpen(null); }}>
+                              {nameOf(a)}{f !== 1 ? ` ×${n(f, 2)}` : ''}{(lang === 'ar' ? wAr : wEn) ? ` — ${lang === 'ar' ? wAr : wEn}` : ''}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                      {it.source === 'missing' && <button className="btn sm" style={{ marginTop: 4 }} onClick={() => setAddFood(it.name)} data-testid="add-missing">{t('addMissingFood')}</button>}
+                    </div>
+                    <span className="num small" style={{ textAlign: 'end' }}><b data-testid="ing-grams">{n(it.grams, it.grams < 10 ? 1 : 0)} {t('g')}</b>
+                      {hm && <div className="tiny muted">{hm}</div>}
+                      {it.macros && <div className="tiny muted">{n(it.macros.kcal, it.macros.kcal < 10 ? 1 : 0)} {t('kcalUnit')}</div>}</span>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+        {!!L.waterMl && <div className="tiny muted" data-testid="water-line">{t('ck_waterLine', { ml: n(L.waterMl) })}</div>}
+        {(L.notCounted ?? []).map(([ar, en]) => <div key={en} className="tiny muted" data-testid="not-counted">{t('ck_notCounted', { what: lang === 'ar' ? ar : en })}</div>)}
+
+        <div ref={stepsRef} />
+        <button className="btn ghost block" onClick={() => setShowSteps(!showSteps)} data-testid="toggle-steps" aria-expanded={showSteps}>{showSteps ? t('ck_hide') : t('ck_view')}</button>
+        {showSteps && (
+          <div className="stack" data-testid="instructions">
+            {!!L.marinateMin && <div className="banner info small">{t('ck_marinateNote', { m: n(L.marinateMin) })}</div>}
+            <ol className="ck-steps">
+              {steps.map((s, i) => {
+                const tm = stepTimers(L.stepsEn[i] ?? '');
+                return <li key={i}><span>{s}</span>{tm.length > 0 && <span className="chip tiny" style={{ marginInlineStart: 6 }}><Icon name="history" /> {tm.map((x) => fmtClock(x.seconds)).join(' · ')}</span>}</li>;
+              })}
+            </ol>
+            <div className="ck-serve small" data-testid="serving-note"><b>{t('ck_serve')}: </b>{(lang === 'ar' ? L.servingAr : L.servingEn) || t('ck_serveDefault', { n: n(L.servings) })}</div>
+            {tips.length > 0 && <><h3 className="small bold" style={{ margin: '6px 0 0' }}>{t('tips')}</h3><ul className="small" style={{ paddingInlineStart: 20, margin: 0 }}>{tips.map((s, i) => <li key={i}>{s}</li>)}</ul></>}
+          </div>
+        )}
+
+        {savedCopy && savedPer !== null && Math.abs(savedPer - c.perServing.kcal) > Math.max(5, c.perServing.kcal * 0.02) && (
+          <div className="banner info tiny" data-testid="saved-copy-note">{t('ck_savedCopy', { saved: n(savedPer), now: n(c.perServing.kcal) })}</div>
+        )}
         {c.ok && (
           <div className="row wrap">
             <button className="btn primary grow" onClick={() => setAction('diary')} data-testid="lib-add-diary">{t('addToDiary')}</button>
             <button className="btn grow" onClick={() => setAction('plan')} data-testid="lib-add-plan">{t('addToPlan')}</button>
-            <button className="btn block" data-testid="lib-save" onClick={() => run(() => materializeLibraryRecipe(L.id, { approveMatches: true }), t('saved'))}>{t('saveToMyRecipes')}</button>
+            <button className="btn block" data-testid="lib-save" onClick={() => run(() => materialize(), t('saved'))}>{t(swapped ? 'ck_saveVariant' : 'saveToMyRecipes')}</button>
             {c.usda.length > 0 && !approved && <div className="tiny muted">{t('saveApprovesNote')}</div>}
           </div>
         )}
         {addFood && <FoodEditor food={null} initialName={addFood} onClose={() => setAddFood(null)} onSaved={() => setAddFood(null)} />}
       </div>
+      {cooking && <CookMode lib={L} nameOf={(a) => nameOf(a)} onClose={() => setCooking(false)} />}
       {action && (
-        <DateMealServingsSheet title={action === 'diary' ? t('addToDiary') : t('addToPlan')} defaultMeal={L.meals[0]} servings={servingsHint} perServing={c.perServing}
+        <DateMealServingsSheet title={action === 'diary' ? t('addToDiary') : t('addToPlan')} defaultMeal={L0.meals[0] ?? 'lunch'} servings={servingsHint} perServing={savedCopy && savedPer !== null ? scaleMacros(savedCopy.totals, 1 / savedCopy.servings) : c.perServing}
           onClose={() => setAction(null)}
-          onConfirm={async (date, meal, servings) => {
-            const r = await run(() => materializeLibraryRecipe(L.id, { approveMatches: true }));
+          onConfirm={async (date, meal, srv) => {
+            const r = await run(() => materialize());
             if (!r) return;
             if (action === 'diary') {
-              const e = await run(() => addRecipeEntry(date, meal, r, servings));
+              const e = await run(() => addRecipeEntry(date, meal, r, srv));
               if (e) toast(t('added'), { label: t('undo'), run: () => deleteEntry(e.id) });
             } else {
               const cur = await db.plannedDays.get(date);
-              await setPlannedDay(date, [...(cur?.items ?? []), { id: uid(), meal, recipeId: r.id, name: r.name, quantity: servings, unit: 'serving' }], cur?.planId);
+              await setPlannedDay(date, [...(cur?.items ?? []), { id: uid(), meal, recipeId: r.id, name: r.name, quantity: srv, unit: 'serving' }], cur?.planId);
               toast(t('saved'));
             }
             setAction(null);
@@ -275,7 +430,6 @@ export function SuggestTab() {
   );
 }
 
-const METHODS = ['air-fryer', 'oven', 'pan', 'pot', 'grill', 'no-cook', 'blender'];
 
 /** «What can I cook today?» — pick what you have; recipes ranked by match, sized to what's left today. */
 export function CookTab() {

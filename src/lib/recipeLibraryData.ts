@@ -8,7 +8,7 @@
 import type { MealType } from './types';
 
 export type Method = 'air-fryer' | 'oven' | 'pan' | 'pot' | 'grill' | 'no-cook' | 'blender';
-export type Tag = 'chicken' | 'eggs' | 'rice' | 'fish' | 'meat' | 'sandwich' | 'quick' | 'meal-prep' | 'high-fiber' | 'vegetarian' | 'breakfast-idea';
+export type Tag = 'chicken' | 'eggs' | 'rice' | 'fish' | 'meat' | 'sandwich' | 'quick' | 'meal-prep' | 'high-fiber' | 'vegetarian' | 'breakfast-idea' | 'sauce' | 'side' | 'pasta' | 'potato';
 
 export interface LibraryRecipe {
   id: string;
@@ -23,8 +23,22 @@ export interface LibraryRecipe {
   servings: number;
   methods: Method[];
   ingredients: [food: string, grams: number, noteAr?: string, noteEn?: string][];
-  /** Seasonings not in the database: [ar, en, approx kcal for the whole recipe] */
+  /** Legacy seasoning groups [ar, en, approx kcal]; converted to exact `seasonings` by recipeEngine (seasonings.ts). */
   uncounted: [string, string, number][];
+  /** Exact seasonings, sauces and marinade items for the whole recipe — counted in the nutrition like any ingredient. */
+  seasonings?: [food: string, grams: number, noteAr?: string, noteEn?: string][];
+  /** Ingredient names (from `ingredients` or `seasonings`) that form the marinade / sauce — shown as their own group. */
+  marinade?: string[];
+  /** Minimum marinating time, minutes (the steps say the maximum). */
+  marinateMin?: number;
+  /** Main cooking temperature, °C. */
+  tempC?: number;
+  /** Water used for cooking/thinning, ml — 0 kcal, listed for completeness. */
+  waterMl?: number;
+  servingAr?: string;
+  servingEn?: string;
+  /** Items deliberately not counted, with the reason (no reference record / removed before eating). */
+  notCounted?: [string, string][];
   stepsAr: string[];
   stepsEn: string[];
   tipsAr: string[];

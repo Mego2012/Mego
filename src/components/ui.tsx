@@ -141,7 +141,7 @@ if (typeof window !== 'undefined') {
   });
 }
 
-export function Sheet({ title, onClose, children, footer }: { title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode }) {
+export function Sheet({ title, onClose, children, footer, className }: { title: ReactNode; onClose: () => void; children: ReactNode; footer?: ReactNode; className?: string }) {
   const { t } = useApp();
   const closeRef = useRef(onClose);
   closeRef.current = onClose;
@@ -164,7 +164,7 @@ export function Sheet({ title, onClose, children, footer }: { title: ReactNode; 
   // Rendered at the document root so no page stacking context can place it under the sticky header.
   const node = (
     <div className="backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined}>
+      <div className={`sheet${className ? ' ' + className : ''}`} role="dialog" aria-modal="true" aria-label={typeof title === 'string' ? title : undefined}>
         <div className="grabber" />
         <div className="sheet-head">
           <h2>{title}</h2>

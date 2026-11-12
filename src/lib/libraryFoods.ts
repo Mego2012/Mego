@@ -10,7 +10,7 @@
 import { db } from './db';
 import { saveLocalBackup } from './localBackup';
 import { preciseMacros, scaleMacros } from './nutrition';
-import { approveRecipeMatches, computeLibraryRecipe, findFood, indexFoods, LIBRARY, type RefResolver } from './recipeEngine';
+import { allIngredients, zeroRef, approveRecipeMatches, computeLibraryRecipe, findFood, indexFoods, LIBRARY, type RefResolver } from './recipeEngine';
 import { RECIPE_REF } from './recipeRefMap';
 import { loadRefFoods, refById } from './refFoods';
 import { createFood, updateFood } from './repo';
@@ -30,21 +30,22 @@ export interface LibraryFoodsPlan { ingredients: IngredientPlan[]; recipes: Reci
 /** Pure: what would be added for this list of foods (no database access). */
 export function planLibraryFoods(foods: Food[], ref: RefResolver): LibraryFoodsPlan {
   const index = indexFoods(foods);
-  const names = [...new Set(LIBRARY.flatMap((l) => l.ingredients.map((i) => i[0])))];
+  const names = [...new Set(LIBRARY.flatMap((l) => allIngredients(l).map((i) => i[0])))];
   const virtual: Food[] = [...foods.filter((f) => !f.archived)];
-  const ingredients: IngredientPlan[] = names.map((name) => {
+  const ingredients: IngredientPlan[] = names.map((name): IngredientPlan | null => {
     const own = findFood(index, name);
     if (own && !own.incomplete) return { name, status: 'exists' };
     const id = RECIPE_REF[name];
     const rf = id ? ref(id) : undefined;
     if (!rf) return { name, status: 'missing' };
+    if (zeroRef(rf)) return null; // salt: 0 kcal, counted in recipes from the reference, nothing to store
     virtual.push({ id: 'virtual:' + name, nameAr: name, nameEn: rf.name, category: rf.category, per100: rf.per100, state: rf.state, stateLabel: '', prep: '', notes: '', servings: [], favorite: false, source: 'usda', incomplete: false, archived: false, version: 1, createdAt: 0, updatedAt: 0, useCount: 0 });
     return { name, status: 'add', refId: rf.id, refName: rf.name, per100: rf.per100 };
-  });
+  }).filter((x): x is IngredientPlan => x !== null);
   const vIndex = indexFoods(virtual);
   const recipes: RecipeFoodPlan[] = LIBRARY.map((lib) => {
     const c = computeLibraryRecipe(lib, vIndex, ref);
-    const total = lib.ingredients.reduce((a, i) => a + i[1], 0);
+    const total = allIngredients(lib).reduce((a, i) => a + i[1], 0);
     const per100 = preciseMacros(scaleMacros(c.totals, total > 0 ? 100 / total : 0));
     const exists = foods.some((f) => !f.archived && (f.sourceRef === recipeFoodRef(lib.id) || f.nameAr === lib.nameAr));
     return {
@@ -86,7 +87,7 @@ export async function completeFoodDatabase(): Promise<{ ingredientsAdded: number
       nameAr: r.nameAr, nameEn: r.nameEn, category: RECIPE_FOOD_CATEGORY, per100: r.per100, state: 'cooked', stateLabel: 'وجبة',
       prep: '', pieceGrams: r.servingGrams, source: 'custom', sourceRef: recipeFoodRef(r.libId),
       notes: `محسوبة من مكونات الوصفة (قيم USDA أو أطعمتك). الحصة = ${r.servingGrams} غ من المكونات قبل الطهي؛ سجّلها بالحصة.` +
-        (r.uncountedKcal ? ` البهارات والتوابل (~${r.uncountedKcal} سعرة/حصة) غير محسوبة.` : ''),
+        (r.uncountedKcal ? ` البهارات والتوابل (~${r.uncountedKcal} سعرة/حصة) غير محسوبة.` : ' البهارات والزيوت والصلصات محسوبة بأوزانها الدقيقة.'),
       servings: [{ id: 'serving', name: 'حصة (وصفة)', grams: r.servingGrams }]
     }, { allowDuplicate: true });
     recipesAdded++;

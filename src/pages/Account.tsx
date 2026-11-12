@@ -6,6 +6,7 @@ import { useApp } from '../app/AppContext';
 import { MegoMark } from '../components/instrument';
 import { Card, NumField, Segmented, TextField, useAsync } from '../components/ui';
 import { accountState, chooseGuest, enterAccount, guestDataSummary, leaveAccount, subscribeAccount, userDbName, type AccountState } from '../lib/account';
+import { saveSettings } from '../lib/repo';
 import { downloadBackup } from '../lib/backup';
 import { SYNC_TABLES } from '../lib/db';
 import { adminListErrors, adminListProfiles, adminListSubmissions, adminReview, adminSetStatus, adminStats, type Submission, AI_RESTRICTED_COUNTRIES, cloud, deleteAccountAuth, emailVerified, login, register, resendVerification, resetPassword, updateMyProfile } from '../lib/firebase';
@@ -28,11 +29,14 @@ const authError = (e: unknown, t: (k: string) => string) => {
 /* ------------------------------------------------------------------ welcome / landing */
 
 export function Welcome() {
-  const { t } = useApp();
+  const { t, lang } = useApp();
   const [mode, setMode] = useState<'start' | 'login' | 'register' | 'reset'>('start');
   return (
     <div className="welcome" data-testid="welcome">
       <div className="welcome-inner">
+        {/* language before any account exists; the choice is carried into a new account */}
+        <button className="lang-switch welcome-lang" onClick={() => saveSettings((x) => { x.lang = lang === 'ar' ? 'en' : 'ar'; })} data-testid="wel-lang"
+          aria-label={t('switchLanguage')}><Icon name="globe" /><span>{lang === 'ar' ? 'English' : 'العربية'}</span></button>
         <div className="welcome-brand"><MegoMark size={56} /><div className="brand-word" style={{ fontSize: 28 }}>MEGO</div></div>
         {mode === 'start' && (
           <>
@@ -104,7 +108,7 @@ function ResetForm({ onBack }: { onBack: () => void }) {
 }
 
 function RegisterFlow({ onBack }: { onBack: () => void }) {
-  const { t, n } = useApp();
+  const { t, n, lang } = useApp();
   const [step, setStep] = useState(1);
   const [a, setA] = useState({ name: '', email: '', pw: '', country: 'SA', age18: false, terms: false });
   const [p, setP] = useState<Pick<Profile, 'sex' | 'age' | 'heightCm' | 'currentWeight' | 'targetWeight' | 'activityLevel' | 'goalType'>>({ sex: 'male', age: 30, heightCm: 170, currentWeight: 75, targetWeight: 70, activityLevel: 'moderate', goalType: 'fat_loss_preserve' });
@@ -176,7 +180,7 @@ function RegisterFlow({ onBack }: { onBack: () => void }) {
               setBusy(true); setErr('');
               try {
                 const u = await register(a.email, a.pw, a.name, a.country === 'OTHER' ? 'ZZ' : a.country, a.age18);
-                try { localStorage.setItem('mego.pendingSetup.' + u.uid, JSON.stringify({ profile: { ...p, name: a.name.trim(), startWeight: p.currentWeight }, targets: tg })); } catch { /* ignore */ }
+                try { localStorage.setItem('mego.pendingSetup.' + u.uid, JSON.stringify({ profile: { ...p, name: a.name.trim(), startWeight: p.currentWeight }, targets: tg, lang })); } catch { /* ignore */ }
                 enterAccount(u.uid, importGuest);
               } catch (x) { setErr(authError(x, t)); setBusy(false); }
             }}>{t('reg_finish')}</button></div>

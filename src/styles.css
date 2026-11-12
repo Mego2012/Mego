@@ -435,3 +435,4 @@ button.chip { min-height: 36px; }
 .lang-switch { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-weight: 700; font-size: 13px; cursor: pointer; margin-inline-start: auto; }
 .lang-switch svg { width: 16px; height: 16px; }
 .header .lang-switch + .sync-chip { margin-inline-start: 6px; }
+.welcome-lang { margin: 0 0 8px auto; display: flex; }

@@ -102,10 +102,11 @@ async function applyPendingSetup(uid: string) {
   const raw = ls.get(key);
   if (!raw) return;
   try {
-    const { profile, targets } = JSON.parse(raw);
+    const { profile, targets, lang } = JSON.parse(raw);
     const { saveSettings } = await import('./repo');
     await saveSettings((s) => {
       s.profile = { ...s.profile, ...profile };
+      if (lang === 'ar' || lang === 'en') s.lang = lang; // the language chosen on the welcome screen
       if (targets) { s.targets.training = { ...targets }; s.targets.rest = { ...targets }; }
     });
   } catch { /* keep defaults */ }

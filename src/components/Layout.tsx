@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
 import { pushNow, subscribeSync, type SyncStatus } from '../lib/sync';
+import { saveSettings } from '../lib/repo';
 import { Icon, type IconName } from './icons';
 import { Sheet } from './ui';
 import { Wordmark } from './instrument';
@@ -49,7 +50,7 @@ export function useOnline() {
 }
 
 export function Layout({ children }: { children: ReactNode }) {
-  const { t } = useApp();
+  const { t, lang } = useApp();
   const loc = useLocation();
   const nav = useNavigate();
   const [more, setMore] = useState(false);
@@ -68,7 +69,7 @@ export function Layout({ children }: { children: ReactNode }) {
 
   return (
     <div className="app">
-      <nav className="side-nav" aria-label="main">
+      <nav className="side-nav" aria-label={t('nav_main')}>
         <div className="brand"><Wordmark /></div>
         {ALL.map((a) => (
           <NavLink key={a.to} to={a.to} end={a.to === '/'} className={({ isActive }) => (isActive ? 'active' : '')}>
@@ -79,6 +80,8 @@ export function Layout({ children }: { children: ReactNode }) {
       <div className="content">
         <header className="header">
           {loc.pathname === '/' ? <h1 aria-label={t('appName')}><Wordmark /></h1> : <h1>{current ? t(current.key) : t('appName')}</h1>}
+          <button className="lang-switch" onClick={() => saveSettings((x) => { x.lang = lang === 'ar' ? 'en' : 'ar'; })} data-testid="lang-switch"
+            aria-label={t('switchLanguage')} title={t('switchLanguage')}><Icon name="globe" /><span>{lang === 'ar' ? 'EN' : 'ع'}</span></button>
           <button className="sync-chip" onClick={() => (sync.state === 'disabled' ? nav('/settings#sync') : pushNow())} data-testid="sync-chip" title={sync.error}>
             <span className={`dot ${state}`} />
             {t('syncState_' + state)}{sync.pending > 0 ? ` · ${sync.pending}` : ''}{sync.state === 'error' && sync.retryIn ? ` · ${t('retryIn', { s: sync.retryIn })}` : ''}
@@ -89,7 +92,7 @@ export function Layout({ children }: { children: ReactNode }) {
           {children}
         </main>
       </div>
-      <nav className="bottom-nav" aria-label="bottom">
+      <nav className="bottom-nav" aria-label={t('nav_main')}>
         {ALL.filter((a) => BOTTOM.includes(a.to)).map((a) => (
           <NavLink key={a.to} to={a.to} end={a.to === '/'} className={({ isActive }) => (isActive ? 'active' : '')} data-testid={`nav-${a.icon}`}>
             <Icon name={a.icon} /> <span>{t(a.key)}</span>

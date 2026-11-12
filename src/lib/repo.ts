@@ -1,3 +1,4 @@
+import { localName } from './localize';
 import { db, type SyncTable } from './db';
 import { defaultSettings } from './defaults';
 import { basisFromFood, isIncompleteMacros, macrosFor, preciseMacros, roundMacros, scaleMacros, sumMacros, validateMacros } from './nutrition';
@@ -104,7 +105,7 @@ export async function createFood(input: FoodInput, opts: { allowDuplicate?: bool
   };
   await db.transaction('rw', db.foods, db.foodChanges, db.outbox, async () => {
     await db.foods.add(food);
-    await logFoodChange({ foodId: food.id, foodName: displayName(food), at: now, action: input.source === 'sheet' ? 'import' : 'create', after: food, origin: input.source === 'sheet' ? 'sheet' : 'app' });
+    await logFoodChange({ foodId: food.id, foodName: storedName(food), at: now, action: input.source === 'sheet' ? 'import' : 'create', after: food, origin: input.source === 'sheet' ? 'sheet' : 'app' });
     await enqueue('foods', food.id, 'upsert', food);
   });
   return food;
@@ -144,7 +145,7 @@ export async function updateFood(id: string, changes: Partial<Food>, origin: Foo
   await db.transaction('rw', db.foods, db.foodChanges, db.outbox, async () => {
     await db.foods.put(after);
     if (meaningful)
-      await logFoodChange({ foodId: id, foodName: displayName(after), at: now, action: origin === 'app' ? 'update' : 'sheet-update', before: diffBefore, after: diffAfter, origin });
+      await logFoodChange({ foodId: id, foodName: storedName(after), at: now, action: origin === 'app' ? 'update' : 'sheet-update', before: diffBefore, after: diffAfter, origin });
     await enqueue('foods', id, 'upsert', after);
   });
   return after;
@@ -156,7 +157,7 @@ export async function archiveFood(id: string) {
   const now = Date.now();
   await db.transaction('rw', db.foods, db.foodChanges, db.outbox, async () => {
     await db.foods.update(id, { archived: true, updatedAt: now });
-    await logFoodChange({ foodId: id, foodName: displayName(f), at: now, action: 'archive', origin: 'app' });
+    await logFoodChange({ foodId: id, foodName: storedName(f), at: now, action: 'archive', origin: 'app' });
     await enqueue('foods', id, 'upsert', { ...f, archived: true, updatedAt: now });
   });
 }
@@ -167,7 +168,7 @@ export async function restoreFood(id: string) {
   const now = Date.now();
   await db.transaction('rw', db.foods, db.foodChanges, db.outbox, async () => {
     await db.foods.update(id, { archived: false, updatedAt: now });
-    await logFoodChange({ foodId: id, foodName: displayName(f), at: now, action: 'restore', origin: 'app' });
+    await logFoodChange({ foodId: id, foodName: storedName(f), at: now, action: 'restore', origin: 'app' });
     await enqueue('foods', id, 'upsert', { ...f, archived: false, updatedAt: now });
   });
 }
@@ -180,9 +181,15 @@ export async function toggleFavoriteFood(id: string) {
   await enqueue('foods', id, 'upsert', next);
 }
 
-export function displayName(f: Pick<Food, 'nameAr' | 'nameEn'>, lang: 'ar' | 'en' = 'ar'): string {
-  if (lang === 'en') return f.nameEn || f.nameAr;
+/** The name as stored on the food record (used for snapshots in diary entries, recipes and logs — never translated). */
+export function storedName(f: Pick<Food, 'nameAr' | 'nameEn'>): string {
   return f.nameAr || f.nameEn;
+}
+
+export function displayName(f: Pick<Food, 'nameAr' | 'nameEn'>, lang: 'ar' | 'en' = 'ar'): string {
+  // a food with only one name is shown through the name dictionaries (the record itself is not changed)
+  if (lang === 'en') return f.nameEn || localName(f.nameAr, 'en');
+  return f.nameAr || localName(f.nameEn, 'ar');
 }
 
 /* ------------------------------------------------------------------ diary */
@@ -206,7 +213,7 @@ export async function addFoodEntry(date: string, meal: MealType, food: Food, qua
   const { grams, macros } = macrosFor(basis, quantity, unit, servingId);
   const now = Date.now();
   const entry: DiaryEntry = {
-    id: uid(), date, meal, foodId: food.id, name: displayName(food), state: food.state,
+    id: uid(), date, meal, foodId: food.id, name: storedName(food), state: food.state,
     quantity, unit, servingId, grams, basis, macros, order: await nextOrder(date, meal), createdAt: now, updatedAt: now
   };
   await db.transaction('rw', db.entries, db.foods, db.outbox, async () => {
@@ -402,7 +409,7 @@ export async function buildIngredient(foodId: string, quantity: number, unit: Un
   if (!f) throw new Error('Food not found');
   if (f.incomplete) throw new Error('INCOMPLETE_FOOD');
   const { grams, macros } = macrosFor(basisFromFood(f), quantity, unit, servingId);
-  return { foodId, name: displayName(f), state: f.state, quantity, unit, servingId, grams, macros };
+  return { foodId, name: storedName(f), state: f.state, quantity, unit, servingId, grams, macros };
 }
 
 export function computeRecipe(ingredients: RecipeIngredient[], servings: number) {

@@ -16,7 +16,7 @@ import { generateInsights } from '../lib/insights';
 import { rollingWeightAverage, monthComparison, weekComparison, type Comparison } from '../lib/reports';
 
 export default function Reports({ kind }: { kind: 'week' | 'month' }) {
-  const { t, n, d, lang } = useApp();
+  const { t, n, d, lang, ln } = useApp();
   const [params, setParams] = useSearchParams();
   const data = useBundle();
   const cardio = useCardio();
@@ -135,7 +135,7 @@ export default function Reports({ kind }: { kind: 'week' | 'month' }) {
         {r.topFoods.length > 0 && (
           <>
             <div className="small bold" style={{ marginTop: 10 }}>{t('topFoods')}</div>
-            <ul className="list" data-testid="top-foods">{r.topFoods.map((f) => <li key={f.name}><span className="grow small">{f.name}</span><span className="tiny muted num">×{f.count}</span><span className="num small">{n(f.kcal)} {t('kcalUnit')} · {n(f.protein)}{t('g')}</span></li>)}</ul>
+            <ul className="list" data-testid="top-foods">{r.topFoods.map((f) => <li key={f.name}><span className="grow small">{ln(f.name)}</span><span className="tiny muted num">×{f.count}</span><span className="num small">{n(f.kcal)} {t('kcalUnit')} · {n(f.protein)}{t('g')}</span></li>)}</ul>
           </>
         )}
       </Card>

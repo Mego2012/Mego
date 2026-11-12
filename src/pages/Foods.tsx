@@ -16,7 +16,7 @@ import { auditFoods, importParsedFoods, parseCSV, parseFoodRows, parseWorkbook, 
 import type { CustomServing, Food, FoodChange, FoodState } from '../lib/types';
 
 export default function Foods() {
-  const { t, n, lang, toast } = useApp();
+  const { t, n, lang, toast, cat } = useApp();
   const foods = useLiveQuery(() => db.foods.toArray(), [], []);
   const [f, setF] = useState<FoodFilter>({ q: '' });
   const [showFilters, setShowFilters] = useState(false);
@@ -56,7 +56,7 @@ export default function Foods() {
       <div className="tool-row cat-row">
         <button className={`chip clickable ${!f.category && !f.favoritesOnly ? 'on' : ''}`} onClick={() => setF({ ...f, category: '', favoritesOnly: false })}>{t('all')}</button>
         <button className={`chip clickable ${f.favoritesOnly ? 'on' : ''}`} onClick={() => setF({ ...f, favoritesOnly: !f.favoritesOnly })}><Icon name="star" filled={!!f.favoritesOnly} /> {t('favorites')}</button>
-        {categories.slice(0, 24).map((c) => <button key={c} className={`chip clickable ${f.category === c ? 'on' : ''}`} onClick={() => setF({ ...f, category: f.category === c ? '' : c })}>{c}</button>)}
+        {categories.slice(0, 24).map((c) => <button key={c} className={`chip clickable ${f.category === c ? 'on' : ''}`} onClick={() => setF({ ...f, category: f.category === c ? '' : c })}>{cat(c)}</button>)}
       </div>
       <Card className="filters-card">
         {showFilters && (
@@ -64,7 +64,7 @@ export default function Foods() {
             <div className="grid2">
               <label className="field"><span>{t('category')}</span>
                 <select className="input" value={f.category ?? ''} onChange={(e) => setF({ ...f, category: e.target.value })}>
-                  <option value="">{t('all')}</option>{categories.map((c) => <option key={c}>{c}</option>)}
+                  <option value="">{t('all')}</option>{categories.map((c) => <option key={c} value={c}>{cat(c)}</option>)}
                 </select></label>
               <label className="field"><span>{t('state')}</span>
                 <select className="input" value={f.state ?? ''} onChange={(e) => setF({ ...f, state: e.target.value as FoodState | '' })} data-testid="foods-state">
@@ -97,7 +97,7 @@ export default function Foods() {
                   {x.incomplete && <span className="chip warn">!</span>}
                 </div>
                 <MacroSplit m={x.per100} />
-                <div className="tiny muted num"><MacroLine m={x.per100} compact /> · <SourceTag source={x.source} />{x.category ? ` · ${x.category}` : ''}</div>
+                <div className="tiny muted num"><MacroLine m={x.per100} compact /> · <SourceTag source={x.source} />{x.category ? ` · ${cat(x.category)}` : ''}</div>
               </div>
               <div className="fr-kcal num">{n(x.per100.kcal)}<small>{t('kcalUnit')} / 100{t('g')}</small></div>
               <button className="icon-btn fr-fav" style={{ color: x.favorite ? 'var(--carbs)' : 'var(--faint)' }} onClick={(e) => { e.stopPropagation(); toggleFavoriteFood(x.id); }} aria-label={t('favorites')}><Icon name="star" filled={x.favorite} /></button>
@@ -317,7 +317,7 @@ export function FoodEditor({ food, onClose, initialName, onSaved }: { food: Food
             : <button className="btn danger block" onClick={() => setConfirm(true)} data-testid="fe-archive">{t('archive')}</button>)}
         </div>
       )}
-      {confirm && food && <Confirm danger message={t('confirmArchive', { name: displayName(food) })} onNo={() => setConfirm(false)} onYes={async () => { await archiveFood(food.id); onClose(); }} />}
+      {confirm && food && <Confirm danger message={t('confirmArchive', { name: displayName(food, lang) })} onNo={() => setConfirm(false)} onYes={async () => { await archiveFood(food.id); onClose(); }} />}
     </Sheet>
   );
 }

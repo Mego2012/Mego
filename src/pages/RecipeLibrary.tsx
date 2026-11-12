@@ -18,6 +18,7 @@ import { CookMode } from '../components/CookMode';
 import { fmtClock, stepTemps, stepTimers, swapsFor, variantId, variantOf, type SwapChoice } from '../lib/cooking';
 import { householdMeasure, SEASONING_INFO } from '../lib/seasonings';
 import { loadFoodNames } from '../lib/foodNames';
+import { joinList } from '../lib/localize';
 import { refById } from '../lib/refFoods';
 import { targetsFor } from '../lib/targets';
 import { MEALS, type MealType } from '../lib/types';
@@ -43,7 +44,7 @@ function hasTag(c: ComputedRecipe, tag: (typeof TAGS)[number], favs: Set<string>
 }
 
 export function LibraryTab() {
-  const { t, lang, n } = useApp();
+  const { t, lang, n, ln } = useApp();
   const { lib, meta } = useLibrary();
   const [tag, setTag] = useState<(typeof TAGS)[number]>('all');
   const [meal, setMeal] = useState<MealType | ''>('');
@@ -106,9 +107,9 @@ export function LibraryTab() {
           <RecipeMosaic ingredients={c.lib.ingredients} size={76} />
           <div className="grow" style={{ minWidth: 0 }}>
             <div className="bold">{lang === 'ar' ? c.lib.nameAr : c.lib.nameEn}</div>
-            <div className="tiny muted">{lang === 'ar' ? c.lib.nameEn : c.lib.nameAr}</div>
+
             <div className="small num" style={{ marginTop: 4 }} data-testid="card-kcal"><b>{n(c.perServing.kcal)}</b> {t('kcalUnit')} · <MacroLine m={c.perServing} compact /> <span className="tiny muted">· {t('perServingG', { g: n(c.gramsPerServing) })}</span></div>
-            {!c.ok && <div className="tiny delta pos">{t('partialNutrition', { list: c.missing.join('، ') })}</div>}
+            {!c.ok && <div className="tiny delta pos">{t('partialNutrition', { list: joinList(c.missing.map(ln), lang) })}</div>}
             <div className="row wrap tiny muted" style={{ gap: 6, marginTop: 4 }}>
               <span className="row" style={{ gap: 3 }}><Icon name="history" /> {c.totalTime} {t('min')}{c.lib.marinateMin ? ` + ${t('ck_marinateShort', { m: n(c.lib.marinateMin) })}` : ''}</span>
               {(c.lib.tags as string[]).includes('sauce') && <span className="chip">{t('tag_sauce')}</span>}
@@ -184,7 +185,7 @@ export function RecipeDetail({ c: c0, onClose, servingsHint = 1 }: { c: Computed
     <Sheet title={lang === 'ar' ? L0.nameAr : L0.nameEn} onClose={onClose}>
       <div className="stack" data-testid="recipe-detail">
         <div className="recipe-cover"><RecipeMosaic ingredients={L0.ingredients} size={132} /></div>
-        <div className="tiny muted">{lang === 'ar' ? L0.nameEn : L0.nameAr}</div>
+
         <div className="row wrap small" style={{ gap: 6 }} data-testid="detail-chips">
           <span className="chip">{t('prep')} {L.prepMin} {t('min')}</span>
           <span className="chip">{t('cook')} {L.cookMin} {t('min')}</span>
@@ -225,7 +226,7 @@ export function RecipeDetail({ c: c0, onClose, servingsHint = 1 }: { c: Computed
           </div>
         )}
 
-        {!c.ok && <div className="banner error small" data-testid="detail-missing">{t('partialNutrition', { list: c.missing.join('، ') })}</div>}
+        {!c.ok && <div className="banner error small" data-testid="detail-missing">{t('partialNutrition', { list: c.missing.map((x) => nameOf(x)).join(lang === 'ar' ? '، ' : ', ') })}</div>}
         {c.usda.length > 0 && !approved && (
           <div className="banner info small" data-testid="usda-approve">
             <div>{t('usdaMatchesNote', { list: c.usda.map((x) => nameOf(x)).join(lang === 'ar' ? '، ' : ', ') })}</div>
@@ -235,8 +236,8 @@ export function RecipeDetail({ c: c0, onClose, servingsHint = 1 }: { c: Computed
         )}
         <div className="tiny muted">{t('recipeWeightsNote')}</div>
         <div className="tiny muted">{t('computedFromDb')}</div>
-        {c.estimatedFoods.length > 0 && <div className="banner info tiny">{t('estimatedNote', { list: c.estimatedFoods.join('، ') })}</div>}
-        {L.uncounted.length > 0 && <div className="tiny muted">{t('uncounted', { list: L.uncounted.map((u) => (lang === 'ar' ? u[0] : u[1])).join('، '), kcal: c.uncountedKcal })}</div>}
+        {c.estimatedFoods.length > 0 && <div className="banner info tiny">{t('estimatedNote', { list: c.estimatedFoods.map((x) => nameOf(x)).join(lang === 'ar' ? '، ' : ', ') })}</div>}
+        {L.uncounted.length > 0 && <div className="tiny muted">{t('uncounted', { list: L.uncounted.map((u) => (lang === 'ar' ? u[0] : u[1])).join(lang === 'ar' ? '، ' : ', '), kcal: c.uncountedKcal })}</div>}
         <div className="row" style={{ gap: 6 }}>
           <span className="small">{t('rate_')}:</span>
           {[1, 2, 3, 4, 5].map((s) => (
@@ -263,7 +264,7 @@ export function RecipeDetail({ c: c0, onClose, servingsHint = 1 }: { c: Computed
                       <span className="small">{nameOf(it.name, it.source === 'usda' ? it.foodName : undefined)}</span> {it.state && it.state !== 'other' && <StateChip state={it.state as 'raw' | 'cooked'} />}
                       <span className={`chip tiny ${it.source === 'missing' ? 'warn' : it.source === 'usda' ? '' : 'good'}`}>{t('src_' + (it.source ?? 'missing'))}</span>
                       {swaps[i] && <span className="chip tiny active">{t('ck_swappedChip')}</span>}
-                      {it.source === 'usda' && <div className="tiny muted" dir="ltr">{it.foodName}</div>}
+                      {it.source === 'usda' && lang === 'en' && <div className="tiny muted" dir="ltr">USDA: {it.foodName}</div>}
                       {note && <div className="tiny muted">{note}</div>}
                       {alts.length > 0 && <button className="link-btn tiny" onClick={() => setSwapOpen(swapOpen === i ? null : i)} data-testid="swap-btn">{t('ck_alternatives', { n: n(alts.length) })}</button>}
                       {swapOpen === i && (
@@ -364,7 +365,7 @@ function DateMealServingsSheet({ title, defaultMeal, servings: s0, perServing, o
 const COMMON_INGREDIENTS = ['بيض كامل', 'بياض بيض', 'صدر دجاج', 'أرز أبيض', 'أرز بسمتي نيء/جاف', 'توست بر (خبز أسمر)', 'زبادي يوناني قليل الدسم', 'زبادي يوناني خالي الدسم', 'سمك تونة (معلب بالماء)', 'سمك بلطي/تلابيا', 'بطاطس', 'طماطم', 'خيار', 'خس', 'بصل', 'فلفل رومي (حلو)', 'زيت زيتون', 'تورتيلا قمح', 'خبز عربي أسمر', 'جبن قريش قليل الدسم', 'موز', 'فراولة', 'لحم بقري قليل الدهن 90/10', 'واي بروتين (سكوب)', 'حليب قليل الدسم', 'حمص مطبوخ', 'جبن موزاريلا قليلة الدسم', 'سبانخ', 'بروكلي', 'كوسا', 'جزر', 'معكرونة نيئة/جافة', 'بطاطا حلوة نيئة', 'تفاح', 'تمر', 'لوز'];
 
 export function SuggestTab() {
-  const { t, n, lang, settings, toast } = useApp();
+  const { t, n, lang, settings, toast, ln } = useApp();
   const data = useBundle();
   const { lib, meta } = useLibrary();
   const userRecipes = useLiveQuery(() => db.recipes.toArray(), [], []);
@@ -397,7 +398,7 @@ export function SuggestTab() {
           <div className="row wrap" style={{ gap: 6 }}>
             {COMMON_INGREDIENTS.map((i) => {
               const on = f.haveIngredients?.includes(i);
-              return <button key={i} className={`chip ${on ? 'active' : ''}`} onClick={() => setF({ ...f, haveIngredients: on ? f.haveIngredients!.filter((x) => x !== i) : [...(f.haveIngredients ?? []), i] })}>{i}</button>;
+              return <button key={i} className={`chip ${on ? 'active' : ''}`} onClick={() => setF({ ...f, haveIngredients: on ? f.haveIngredients!.filter((x) => x !== i) : [...(f.haveIngredients ?? []), i] })}>{ln(i)}</button>;
             })}
           </div>
         )}
@@ -408,7 +409,7 @@ export function SuggestTab() {
           <div className="row">
             {s.computed ? <RecipeMosaic ingredients={s.computed.lib.ingredients} size={56} /> : <span className="food-thumb" style={{ width: 56, height: 56 }}><PhotoPlaceholder group="other" /></span>}
             <div className="grow" style={{ minWidth: 0 }}>
-              <div className="bold">{s.computed ? (lang === 'ar' ? s.computed.lib.nameAr : s.computed.lib.nameEn) : s.name} <span className="small muted">{t('servingsX', { n: n(s.servings, 2) })}</span></div>
+              <div className="bold">{s.computed ? (lang === 'ar' ? s.computed.lib.nameAr : s.computed.lib.nameEn) : ln(s.name)} <span className="small muted">{t('servingsX', { n: n(s.servings, 2) })}</span></div>
               <div className="small num"><b data-testid="suggestion-kcal">{n(s.macros.kcal)}</b> {t('kcalUnit')} · <MacroLine m={s.macros} compact /></div>
               <div className="row wrap" style={{ gap: 4, marginTop: 4 }}>{s.reason.map((r) => <span key={r} className="chip good">{t(r)}</span>)}{s.minutes !== null && <span className="chip">⏱ {s.minutes} {t('min')}</span>}</div>
             </div>
@@ -433,7 +434,7 @@ export function SuggestTab() {
 
 /** «What can I cook today?» — pick what you have; recipes ranked by match, sized to what's left today. */
 export function CookTab() {
-  const { t, n, lang, settings } = useApp();
+  const { t, n, lang, settings, ln, list } = useApp();
   const data = useBundle();
   const { lib } = useLibrary();
   const pantry = useLiveQuery<string[], string[]>(() => kvGet<string[]>('pantry', []), [], []);
@@ -455,10 +456,10 @@ export function CookTab() {
         {/* No inner scroll box: nested scrolling traps touch swipes on small phones. */}
         <div className="row wrap" style={{ gap: 6, marginTop: 8 }} data-testid="pantry">
           {(() => {
-            const filtered = all.filter((i) => !nq || normalizeText(i).includes(nq));
+            const filtered = all.filter((i) => !nq || normalizeText(`${i} ${ln(i)}`).includes(nq));
             const visible = showAll || nq ? filtered : [...pantry.filter((p) => filtered.includes(p)), ...filtered.filter((i) => !pantry.includes(i)).slice(0, 20)];
             return visible.map((i) => (
-              <button key={i} className={`chip ${pantry.includes(i) ? 'active' : ''}`} onClick={() => toggle(i)} data-testid="pantry-chip">{i}</button>
+              <button key={i} className={`chip ${pantry.includes(i) ? 'active' : ''}`} onClick={() => toggle(i)} data-testid="pantry-chip">{ln(i)}</button>
             ));
           })()}
           {!nq && <button className="chip" onClick={() => setShowAll((x) => !x)} data-testid="pantry-more">{showAll ? t('showLess') : t('showAll', { n: all.length })}</button>}
@@ -482,8 +483,8 @@ export function CookTab() {
             <div className="grow" style={{ minWidth: 0 }}>
               <div className="bold">{lang === 'ar' ? r.c.lib.nameAr : r.c.lib.nameEn}</div>
               <div className="small num"><b>{n(r.macros.kcal)}</b> {t('kcalUnit')} · <MacroLine m={r.macros} compact /> {r.servings && r.servings !== 1 ? `· ${t('servingsX', { n: n(r.servings, 2) })}` : ''}</div>
-              <div className="tiny muted">{r.c.totalTime} {t('min')} · {r.c.lib.methods.map((m) => t('method_' + m.replace('-', '_'))).join('، ')}</div>
-              {r.missing.length > 0 && <div className="tiny" data-testid="cook-missing">{t('missingShort')}: {r.missing.map((m) => (m.swap ? `${m.name} → ${m.swap}` : m.name)).join('، ')}</div>}
+              <div className="tiny muted">{r.c.totalTime} {t('min')} · {list(r.c.lib.methods.map((m) => t('method_' + m.replace('-', '_'))))}</div>
+              {r.missing.length > 0 && <div className="tiny" data-testid="cook-missing">{t('missingShort')}: {list(r.missing.map((m) => (m.swap ? `${ln(m.name)} → ${ln(m.swap)}` : ln(m.name))))}</div>}
             </div>
             <span className={`chip ${r.matchPct === 100 ? 'good' : 'warn'}`} data-testid="cook-match">{r.matchPct}%</span>
           </div>

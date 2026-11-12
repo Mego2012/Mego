@@ -20,7 +20,7 @@ import { buildPeriod, progressEstimate, summarizeDay, weekReport, weightTrend } 
 import { MEALS } from '../lib/types';
 
 export default function Dashboard() {
-  const { t, n, d, settings } = useApp();
+  const { t, n, d, settings, lang } = useApp();
   const data = useBundle();
   const cardio = useCardio();
   const training = useTraining();
@@ -58,7 +58,7 @@ export default function Dashboard() {
     <div data-testid="dashboard">
       <section className="home-hero">
         <div className="greeting">
-          <h2 className="hello">{t(greetingKey())}{p.name ? `، ${p.name}` : ''}</h2>
+          <h2 className="hello">{t(greetingKey())}{p.name ? `${lang === 'ar' ? '، ' : ', '}${p.name}` : ''}</h2>
           <div className="date">{d(date, { weekday: 'long', day: 'numeric', month: 'long' })}</div>
           <div className="chips">
             <span className={`chip status-${day.status}`}>{t('status_' + day.status)}</span>

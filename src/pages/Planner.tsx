@@ -19,7 +19,7 @@ import { Confirm, MacroLine, StateChip } from '../components/ui';
 import { ItemsEditor } from './Recipes';
 
 export default function Planner() {
-  const { t, n, d, settings, toast } = useApp();
+  const { t, n, d, settings, toast, ln } = useApp();
   const [anchor, setAnchor] = useState(today());
   const start = startOfWeek(anchor, settings.weekStartsOn);
   const dates = weekDates(start);
@@ -88,7 +88,7 @@ export default function Planner() {
                   {done !== null && <i className="actual" style={{ width: `${Math.min(100, (done / target) * 100)}%` }} />}
                 </div>
               )}
-              {p && <div className="tiny muted pd-items">{plan ? `${t('fromPlan')}: ${plan.name} · ` : ''}{p.items.map((i) => i.name).join(' · ')}</div>}
+              {p && <div className="tiny muted pd-items">{plan ? `${t('fromPlan')}: ${plan.name} · ` : ''}{p.items.map((i) => ln(i.name)).join(' · ')}</div>}
               <div className="row wrap" style={{ gap: 6 }}>
                 <button className="btn sm" onClick={() => setEditDay(dt)} data-testid={`plan-edit-${dt}`}><Icon name="edit" /> {t('edit')}</button>
                 {p && <button className="btn sm" onClick={() => setCopyFrom(dt)}>{t('copyPlanTo')}</button>}
@@ -189,7 +189,7 @@ function GeneratedSheet({ days, lib, onChange, hasExisting, onClose }: { days: G
 }
 
 function ShoppingSheet({ dates, weekKey, onClose }: { dates: string[]; weekKey: string; onClose: () => void }) {
-  const { t, n } = useApp();
+  const { t, n, ln } = useApp();
   const [items, setItems] = useState<ShoppingItem[] | null>(null);
   const checked = useLiveQuery<string[], string[]>(() => kvGet<string[]>(`shopping:${weekKey}`, []), [weekKey], []);
   useEffect(() => { shoppingList(dates).then(setItems); }, [dates.join()]);
@@ -202,7 +202,7 @@ function ShoppingSheet({ dates, weekKey, onClose }: { dates: string[]; weekKey: 
           <li key={i.key}>
             <label className="check grow" style={{ textDecoration: checked.includes(i.key) ? 'line-through' : 'none', opacity: checked.includes(i.key) ? 0.55 : 1 }}>
               <input type="checkbox" checked={checked.includes(i.key)} onChange={() => toggle(i.key)} data-testid="shopping-check" />
-              <span className="grow">{i.name} {i.state !== 'other' && <StateChip state={i.state} />}</span>
+              <span className="grow">{ln(i.name)} {i.state !== 'other' && <StateChip state={i.state} />}</span>
             </label>
             <span className="num bold small">{i.grams >= 1000 ? `${n(i.grams / 1000, 2)} ${t('unit_kg')}` : `${n(i.grams)} ${t('g')}`}</span>
           </li>

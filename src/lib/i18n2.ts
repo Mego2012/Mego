@@ -35,7 +35,7 @@ export const en2: Record<string, string> = {
   pace_stable: 'Weight is stable (< 0.1 kg/week).', pace_healthy: 'Healthy pace (≤ 1% of body weight per week).',
   pace_fast: 'Faster than 1% of body weight per week — risk of muscle loss; consider eating a bit more.', startWaist: 'Starting waist',
   // goals
-  goalType: 'Goal', goal_fat_loss: 'Fat loss (lose weight) — خسارة الدهون والوزن', goal_fat_loss_preserve: 'Fat loss while preserving muscle — خسارة الدهون مع الحفاظ على العضلات',
+  goalType: 'Goal', goal_fat_loss: 'Fat loss (lose weight)', goal_fat_loss_preserve: 'Fat loss while preserving muscle',
   goal_recomp: 'Body recomposition — إعادة تشكيل الجسم', goal_lean_bulk: 'Muscle gain (lean bulk) — زيادة عضلية بأقل دهون',
   goal_bulk: 'Muscle gain (bulk) — زيادة الوزن والكتلة العضلية', goal_maintain: 'Weight maintenance — الحفاظ على الوزن',
   goal_healthy: 'Healthy lifestyle — تحسين الصحة والتغذية', goal_performance: 'Athletic performance — تحسين الأداء الرياضي', goal_custom: 'Custom goal — هدف مخصص',
@@ -268,7 +268,7 @@ export const ar2: Record<string, string> = {
   pace_insufficient: 'نحتاج 6 قياسات وزن على الأقل خلال أسبوعين لتقدير المعدل.', pace_away: 'الاتجاه يبتعد عن الوزن المستهدف.',
   pace_stable: 'الوزن ثابت (أقل من 0.1 كغ/أسبوع).', pace_healthy: 'معدل صحي (≤ 1% من وزن الجسم أسبوعياً).',
   pace_fast: 'أسرع من 1% من وزن الجسم أسبوعياً — خطر فقدان العضل؛ فكّر بزيادة الأكل قليلاً.', startWaist: 'محيط الخصر الابتدائي',
-  goalType: 'الهدف', goal_fat_loss: 'خسارة الدهون والوزن — Fat loss (lose weight)', goal_fat_loss_preserve: 'خسارة الدهون مع الحفاظ على العضلات — Fat loss while preserving muscle',
+  goalType: 'الهدف', goal_fat_loss: 'خسارة الدهون والوزن', goal_fat_loss_preserve: 'خسارة الدهون مع الحفاظ على العضلات',
   goal_recomp: 'إعادة تشكيل الجسم (خسارة الدهون وبناء العضلات) — Body recomposition', goal_lean_bulk: 'زيادة الكتلة العضلية بأقل زيادة ممكنة في الدهون — Lean bulk',
   goal_bulk: 'زيادة الوزن والكتلة العضلية — Bulk', goal_maintain: 'الحفاظ على الوزن الحالي — Weight maintenance',
   goal_healthy: 'تحسين الصحة والتغذية العامة — Healthy lifestyle', goal_performance: 'تحسين الأداء الرياضي — Athletic performance', goal_custom: 'هدف مخصص — Custom goal',

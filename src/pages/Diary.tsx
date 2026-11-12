@@ -24,7 +24,7 @@ import { summarizeDay } from '../lib/reports';
 import { MEALS, type DiaryEntry, type Food, type MealTemplate, type MealType, type Recipe, type Unit } from '../lib/types';
 
 export default function Diary() {
-  const { t, n, settings, toast } = useApp();
+  const { t, n, settings, toast, ln } = useApp();
   const [params, setParams] = useSearchParams();
   const date = isValidISODate(params.get('date') ?? '') ? params.get('date')! : today();
   const setDate = (d: string) => setParams((p) => { p.set('date', d); p.delete('add'); return p; }, { replace: true });
@@ -128,7 +128,7 @@ export default function Diary() {
                   <div key={e.id} className="entry" onClick={() => setEditing(e)} data-testid="entry">
                     <FoodThumb food={{ nameEn: e.name, nameAr: e.name }} size={42} />
                     <div className="grow" style={{ minWidth: 0 }}>
-                      <div className="row" style={{ gap: 6 }}><span className="ellipsis e-name" data-testid="entry-name">{e.name}</span>{e.state !== 'other' && <StateChip state={e.state} />}</div>
+                      <div className="row" style={{ gap: 6 }}><span className="ellipsis e-name" data-testid="entry-name">{ln(e.name)}</span>{e.state !== 'other' && <StateChip state={e.state} />}</div>
                       <div className="tiny muted num">{n(e.quantity, 2)} {t('unit_' + e.unit)}{e.unit !== 'g' && e.grams ? ` (${n(e.grams)} ${t('g')})` : ''} · <MacroLine m={e.macros} compact /></div>
                     </div>
                     <span className="e-kcal num" data-testid="entry-kcal">{n(e.macros.kcal)}</span>
@@ -213,7 +213,7 @@ function WeekStrip({ date, onPick }: { date: string; onPick: (d: string) => void
 }
 
 function AddSheet({ date, meal, onMeal, onClose }: { date: string; meal: MealType; onMeal: (m: MealType) => void; onClose: () => void }) {
-  const { t, toast } = useApp();
+  const { t, toast, ln } = useApp();
   const [food, setFood] = useState<Food | null>(null);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [servings, setServings] = useState<number | ''>(1);
@@ -226,7 +226,7 @@ function AddSheet({ date, meal, onMeal, onClose }: { date: string; meal: MealTyp
   };
   const addHistory = async (e: DiaryEntry) => {
     const r = await logItems(date, [entryToPlanItem(e)], meal);
-    if (r.logged.length) toast(`${t('added')}: ${e.name}`, { label: t('undo'), run: () => deleteEntries(r.logged.map((x) => x.id)) });
+    if (r.logged.length) toast(`${t('added')}: ${ln(e.name)}`, { label: t('undo'), run: () => deleteEntries(r.logged.map((x) => x.id)) });
     else toast(t('error'));
   };
 
@@ -246,7 +246,7 @@ function AddSheet({ date, meal, onMeal, onClose }: { date: string; meal: MealTyp
       )}
       {recipe && (
         <div className="stack">
-          <div className="bold">{recipe.name}</div>
+          <div className="bold">{ln(recipe.name)}</div>
           <NumField label={t('logServings')} value={servings} onChange={setServings} testId="recipe-servings" />
           {servings !== '' && servings > 0 && <div className="stat"><b className="num">{Math.round(recipe.perServing.kcal * servings)} {t('kcalUnit')}</b></div>}
           <div className="row">
@@ -261,7 +261,7 @@ function AddSheet({ date, meal, onMeal, onClose }: { date: string; meal: MealTyp
 }
 
 function EditEntrySheet({ entry, onClose }: { entry: DiaryEntry; onClose: () => void }) {
-  const { t, n, toast } = useApp();
+  const { t, n, toast, ln } = useApp();
   const [copyTo, setCopyTo] = useState(false);
   const [qty, setQty] = useState<number | ''>(entry.quantity);
   const [unit, setUnit] = useState<Unit>(entry.unit);
@@ -273,7 +273,7 @@ function EditEntrySheet({ entry, onClose }: { entry: DiaryEntry; onClose: () => 
   let preview = null;
   try { if (qty !== '') preview = macrosFor(entry.basis, qty, unit, entry.servingId); } catch { /* invalid */ }
   return (
-    <Sheet title={entry.name} onClose={onClose}>
+    <Sheet title={ln(entry.name)} onClose={onClose}>
       <div className="stack" data-testid="edit-entry">
         <div className="tiny muted">{t('snapshotNote')}</div>
         <div className="grid2">
@@ -301,7 +301,7 @@ function EditEntrySheet({ entry, onClose }: { entry: DiaryEntry; onClose: () => 
           <button className="btn danger grow" onClick={() => setConfirm(true)} data-testid="entry-delete"><Icon name="trash" /> {t('delete')}</button>
         </div>
       </div>
-      {confirm && <Confirm danger message={`${t('delete')}: ${entry.name}?`} onNo={() => setConfirm(false)} onYes={async () => {
+      {confirm && <Confirm danger message={`${t('delete')}: ${ln(entry.name)}?`} onNo={() => setConfirm(false)} onYes={async () => {
         const before = structuredClone(entry);
         await deleteEntry(entry.id);
         toast(t('deleted'), { label: t('undo'), run: () => restoreEntries([before]) });

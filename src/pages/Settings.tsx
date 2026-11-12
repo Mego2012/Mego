@@ -198,7 +198,7 @@ function TargetsForm() {
 }
 
 function SyncForm() {
-  const { t, settings, d, n } = useApp();
+  const { t, settings, d, n, list, ln } = useApp();
   const [cfg, setCfg] = useState(settings.sync);
   const [showTok, setShowTok] = useState(false);
   useEffect(() => setCfg((c) => ({ ...settings.sync, url: c.url || settings.sync.url, token: c.token || settings.sync.token })), [settings.sync]);
@@ -279,7 +279,7 @@ function SyncForm() {
             <div className="bold">{t('hubCheckTitle')}</div>
             <div className="small">{t('hubCheckLine', { identical: n(report.check.identical), hub: n(report.check.hubFoods), local: n(report.check.localFoods) })}</div>
             {report.check.onlyInHub.length > 0 && <div className="tiny">{t('hubOnlyInHub', { n: report.check.onlyInHub.length })}</div>}
-            {report.check.onlyOnPhone.length > 0 && <div className="tiny">{t('hubOnlyOnPhone', { n: report.check.onlyOnPhone.length })}: {report.check.onlyOnPhone.slice(0, 5).join('، ')}</div>}
+            {report.check.onlyOnPhone.length > 0 && <div className="tiny">{t('hubOnlyOnPhone', { n: report.check.onlyOnPhone.length })}: {list(report.check.onlyOnPhone.slice(0, 5).map(ln))}</div>}
             {report.check.different.length > 0 && (
               <>
                 <div className="small">{t('hubDifferent', { n: report.check.different.length })}</div>
@@ -412,7 +412,7 @@ function DataSafety() {
 }
 
 function DataCheckCard() {
-  const { t, d, n } = useApp();
+  const { t, d, n, list, ln } = useApp();
   const [r, setR] = useState<import('../lib/dataCheck').DataCheck | null>(null);
   const { run, busy } = useAsync();
   return (
@@ -441,8 +441,8 @@ function DataCheckCard() {
           )}
           {r.suspectFoods.map((f) => (
             <div key={f.id} className="banner error small" data-testid="dc-suspect">
-              {t('dc_suspect', { name: f.name, kcal: n(f.kcal), p: n(f.protein, 1) })}
-              <div className="tiny">{t('dc_affected', { e: f.diaryEntries, r: f.myRecipes.length + f.libraryRecipes.length })}{f.libraryRecipes.length ? ` — ${f.libraryRecipes.join('، ')}` : ''}</div>
+              {t('dc_suspect', { name: ln(f.name), kcal: n(f.kcal), p: n(f.protein, 1) })}
+              <div className="tiny">{t('dc_affected', { e: f.diaryEntries, r: f.myRecipes.length + f.libraryRecipes.length })}{f.libraryRecipes.length ? ` — ${list(f.libraryRecipes.map(ln))}` : ''}</div>
             </div>
           ))}
         </div>

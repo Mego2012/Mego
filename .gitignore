@@ -6,3 +6,4 @@ e2e/screens
 .DS_Store
 tsconfig.tsbuildinfo
 tests/private/
+dist-demo

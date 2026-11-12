@@ -9,7 +9,7 @@ import { Card, Confirm, MacroLine, NumField, Segmented, Sheet, StateChip, TextFi
 import { db } from '../lib/db';
 import { isValidISODate, today } from '../lib/dates';
 import {
-  addRecipeEntry, buildIngredient, computeRecipe, deleteEntries, deleteRecipe, deleteTemplate, duplicateRecipe, logItems, saveRecipe, saveTemplate, totalsForItems, uid, displayName
+  addRecipeEntry, buildIngredient, computeRecipe, deleteEntries, deleteRecipe, deleteTemplate, duplicateRecipe, logItems, saveRecipe, saveTemplate, totalsForItems, uid, storedName
 } from '../lib/repo';
 import { MEALS, type Food, type MealTemplate, type MealType, type PlanItem, type Recipe, type RecipeIngredient } from '../lib/types';
 
@@ -35,7 +35,7 @@ export default function Recipes() {
 }
 
 function RecipeList() {
-  const { t, n, toast } = useApp();
+  const { t, n, toast, ln } = useApp();
   const recipes = useLiveQuery(() => db.recipes.orderBy('updatedAt').reverse().toArray(), [], []);
   const [editing, setEditing] = useState<Recipe | 'new' | null>(null);
   const [logging, setLogging] = useState<Recipe | null>(null);
@@ -43,7 +43,7 @@ function RecipeList() {
     <>
       <button className="btn primary block" onClick={() => setEditing('new')} data-testid="new-recipe" style={{ marginBottom: 12 }}>+ {t('newRecipe')}</button>
       {recipes.map((r) => (
-        <Card key={r.id} title={r.name} actions={<>
+        <Card key={r.id} title={ln(r.name)} actions={<>
           <button className="btn sm" onClick={() => setEditing(r)}>{t('edit')}</button>
           <button className="btn sm" onClick={async () => { await duplicateRecipe(r.id); toast(t('duplicated')); }} data-testid="recipe-duplicate">{t('duplicateRecipe')}</button>
           <button className="btn sm primary" onClick={() => setLogging(r)} data-testid="recipe-add-diary">{t('addToDiary')}</button>
@@ -61,12 +61,12 @@ function RecipeList() {
 }
 
 function LogRecipeSheet({ recipe, onClose }: { recipe: Recipe; onClose: () => void }) {
-  const { t, toast } = useApp();
+  const { t, toast, ln } = useApp();
   const [date, setDate] = useState(today());
   const [meal, setMeal] = useState<MealType>('lunch');
   const [servings, setServings] = useState<number | ''>(1);
   return (
-    <Sheet title={`${t('addToDiary')} — ${recipe.name}`} onClose={onClose} footer={
+    <Sheet title={`${t('addToDiary')} — ${ln(recipe.name)}`} onClose={onClose} footer={
       <button className="btn primary block" disabled={!(Number(servings) > 0) || !isValidISODate(date)} data-testid="recipe-log-confirm"
         onClick={async () => { await addRecipeEntry(date, meal, recipe, Number(servings)); toast(t('added')); onClose(); }}>{t('logFood')}</button>}>
       <div className="stack">
@@ -79,7 +79,7 @@ function LogRecipeSheet({ recipe, onClose }: { recipe: Recipe; onClose: () => vo
 }
 
 function RecipeEditor({ recipe, onClose }: { recipe: Recipe | null; onClose: () => void }) {
-  const { t, n } = useApp();
+  const { t, n, ln } = useApp();
   const [name, setName] = useState(recipe?.name ?? '');
   const [servings, setServings] = useState<number | ''>(recipe?.servings ?? 1);
   const [ings, setIngs] = useState<RecipeIngredient[]>(recipe?.ingredients ?? []);
@@ -91,7 +91,7 @@ function RecipeEditor({ recipe, onClose }: { recipe: Recipe | null; onClose: () 
   const calc = ings.length && Number(servings) > 0 ? computeRecipe(ings, Number(servings)) : null;
 
   return (
-    <Sheet title={recipe ? recipe.name : t('newRecipe')} onClose={onClose}>
+    <Sheet title={recipe ? ln(recipe.name) : t('newRecipe')} onClose={onClose}>
       <div className="stack" data-testid="recipe-editor">
         <TextField label={t('recipeName')} value={name} onChange={setName} testId="recipe-name" />
         <NumField label={t('servings')} value={servings} onChange={setServings} testId="recipe-servings-input" />
@@ -99,7 +99,7 @@ function RecipeEditor({ recipe, onClose }: { recipe: Recipe | null; onClose: () 
         <ul className="list" data-testid="ingredients">
           {ings.map((i, idx) => (
             <li key={idx}>
-              <div className="grow"><div className="row" style={{ gap: 6 }}><span className="bold small">{i.name}</span><StateChip state={i.state} /></div>
+              <div className="grow"><div className="row" style={{ gap: 6 }}><span className="bold small">{ln(i.name)}</span><StateChip state={i.state} /></div>
                 <div className="tiny muted num">{n(i.quantity, 2)} {t('unit_' + i.unit)} ({n(i.grams)} {t('g')}) · {n(i.macros.kcal)} {t('kcalUnit')}</div></div>
               <button className="icon-btn" onClick={() => setIngs(ings.filter((_, j) => j !== idx))} aria-label={t('delete')}><Icon name="trash" /></button>
             </li>
@@ -126,13 +126,13 @@ function RecipeEditor({ recipe, onClose }: { recipe: Recipe | null; onClose: () 
           )}
         </Sheet>
       )}
-      {confirm && recipe && <Confirm danger message={`${t('delete')}: ${recipe.name}?`} onNo={() => setConfirm(false)} onYes={async () => { await deleteRecipe(recipe.id); onClose(); }} />}
+      {confirm && recipe && <Confirm danger message={`${t('delete')}: ${ln(recipe.name)}?`} onNo={() => setConfirm(false)} onYes={async () => { await deleteRecipe(recipe.id); onClose(); }} />}
     </Sheet>
   );
 }
 
 function TemplateList() {
-  const { t, n, toast } = useApp();
+  const { t, n, toast, ln } = useApp();
   const templates = useLiveQuery(() => db.templates.orderBy('updatedAt').reverse().toArray(), [], []);
   const [editing, setEditing] = useState<MealTemplate | 'new' | null>(null);
   const [totals, setTotals] = useState<Record<string, number>>({});
@@ -147,7 +147,7 @@ function TemplateList() {
           <button className="btn sm" onClick={() => setEditing(tp)}>{t('edit')}</button>
           <button className="btn sm primary" onClick={async () => { const r = await logItems(today(), tp.items); toast(t('logged', { n: r.logged.length }), { label: t('undo'), run: () => deleteEntries(r.logged.map((x) => x.id)) }); }}>{t('logMeal')} ({t('today')})</button>
         </>}>
-          <div className="tiny muted">{tp.items.map((i) => i.name).join(' · ')}</div>
+          <div className="tiny muted">{tp.items.map((i) => ln(i.name)).join(' · ')}</div>
           <div className="small num">{n(totals[tp.id])} {t('kcalUnit')}</div>
         </Card>
       ))}
@@ -165,7 +165,7 @@ export function ItemsEditor({ title, initialName, initialItems, onSave, onClose,
   title: string; initialName: string; initialItems: PlanItem[]; onSave: (name: string, items: PlanItem[]) => Promise<void>; onClose: () => void; onDelete?: () => Promise<void>;
   extra?: React.ReactNode;
 }) {
-  const { t, n, lang } = useApp();
+  const { t, n, ln } = useApp();
   const [name, setName] = useState(initialName);
   const [items, setItems] = useState<PlanItem[]>(initialItems);
   const [adding, setAdding] = useState<MealType | null>(null);
@@ -184,7 +184,7 @@ export function ItemsEditor({ title, initialName, initialItems, onSave, onClose,
             <div className="card-head"><h3 className="small">{t(m)}</h3><button className="btn sm" onClick={() => setAdding(m)} data-testid={`items-add-${m}`}>+ {t('add')}</button></div>
             {items.filter((i) => i.meal === m).map((i) => (
               <div key={i.id} className="row small" style={{ padding: '4px 0' }}>
-                <span className="grow">{i.name} <span className="muted num">· {n(i.quantity, 2)} {t('unit_' + i.unit)}</span></span>
+                <span className="grow">{ln(i.name)} <span className="muted num">· {n(i.quantity, 2)} {t('unit_' + i.unit)}</span></span>
                 <span className="num">{n(kcal[i.id])}</span>
                 <input className="input num" style={{ width: 80, minHeight: 34 }} type="number" step="any" value={i.quantity} aria-label={t('quantity')}
                   onChange={(e) => setItems(items.map((x) => (x.id === i.id ? { ...x, quantity: Number(e.target.value) || 0 } : x)))} />
@@ -202,7 +202,7 @@ export function ItemsEditor({ title, initialName, initialItems, onSave, onClose,
             <FoodPicker onPickFood={setFood} onPickRecipe={(r) => { setItems((x) => [...x, { id: uid(), meal: adding, recipeId: r.id, name: r.name, quantity: 1, unit: 'serving' }]); setAdding(null); }} />
           ) : (
             <QuantityForm food={food} submitLabel={t('add')} onBack={() => setFood(null)} onSubmit={(q, u, s) => {
-              setItems((x) => [...x, { id: uid(), meal: adding, foodId: food.id, name: displayName(food, lang), quantity: q, unit: u, servingId: s }]);
+              setItems((x) => [...x, { id: uid(), meal: adding, foodId: food.id, name: storedName(food), quantity: q, unit: u, servingId: s }]);
               setFood(null);
               setAdding(null);
             }} />

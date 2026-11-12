@@ -44,7 +44,7 @@ export default function ExerciseDetailPage() {
         <button className="icon-btn flip" onClick={() => nav('/exercise/' + prev.id, { replace: true })} aria-label={t('previous')} data-testid="exd-prev"><Icon name="back" /></button>
         <div className="label" style={{ textAlign: 'center' }}>
           <div className="bold" data-testid="exd-name">{name(e)}</div>
-          <div className="tiny muted" dir={ar ? 'ltr' : 'rtl'}>{ar ? e.nameEn : e.nameAr}</div>
+          
         </div>
         <button className="icon-btn flip" onClick={() => nav('/exercise/' + next.id, { replace: true })} aria-label={t('next')} data-testid="exd-next"><Icon name="fwd" /></button>
       </div>
@@ -114,7 +114,7 @@ export default function ExerciseDetailPage() {
       </Card>
 
       <Card title={t('lib_alternatives')}>
-        <ul className="list" data-testid="exd-alternatives">{alts.map((a) => <li key={a.id}><Link className="grow small" to={'/exercise/' + a.id} replace>{name(a)}</Link><span className="tiny muted">{a.equipment.map((q) => t('eq_' + q)).join('، ')}</span></li>)}
+        <ul className="list" data-testid="exd-alternatives">{alts.map((a) => <li key={a.id}><Link className="grow small" to={'/exercise/' + a.id} replace>{name(a)}</Link><span className="tiny muted">{a.equipment.map((q) => t('eq_' + q)).join(ar ? '، ' : ', ')}</span></li>)}
           {!alts.length && <li className="empty">—</li>}</ul>
         <button className={`chip clickable ${fav ? 'on' : ''}`} style={{ marginTop: 8 }} onClick={() => kvSet('preferredExercises', fav ? tr.preferred.filter((x) => x !== e.id) : [...tr.preferred, e.id])} data-testid="ex-fav"><Icon name="star" filled={fav} /> {t('lib_preferred')}</button>
       </Card>

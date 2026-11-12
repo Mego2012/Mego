@@ -678,7 +678,10 @@ await check('FOODDB', 'USDA database: Arabic search "صدور فراخ" → chic
   await page.getByTestId('qty-submit').click();
   await page.keyboard.press('Escape');
   await waitText(page.getByTestId('meal-snacks'), /كعك العيد بالتمر/);
-  await waitText(page.getByTestId('meal-snacks'), /Chicken, broilers or fryers, breast/);
+  // shown in Arabic (glossary display name); the stored entry keeps the USDA description unchanged
+  await waitText(page.getByTestId('meal-snacks'), /دجاج — .*صدر/);
+  const storedNames = await page.evaluate(() => new Promise((res) => { const r = indexedDB.open('mego-nutrition'); r.onsuccess = () => { const q = r.result.transaction('entries').objectStore('entries').getAll(); q.onsuccess = () => res(q.result.map((e) => e.name)); }; }));
+  if (!storedNames.some((x) => /Chicken, broilers or fryers, breast/.test(x))) throw new Error('stored entry name changed: ' + storedNames.join(' | '));
   await shot(page, '31-fooddb');
   return first.split('\n')[0];
 });

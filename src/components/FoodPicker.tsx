@@ -36,7 +36,7 @@ export function FoodPicker({ onPickFood, onPickRecipe, onPickTemplate, onPickHis
   /** Re-log a past entry (same food & quantity, current food values). */
   onPickHistory?: (e: DiaryEntry) => void;
 }) {
-  const { t, lang, n, d } = useApp();
+  const { t, lang, n, d, ln, cat } = useApp();
   const [tab, setTab] = useState<Tab>('search');
   const [scan, setScan] = useState(false);
   const history = useLiveQuery(async () => (tab === 'history' ? (await db.entries.orderBy('updatedAt').reverse().limit(600).toArray()) : []), [tab], []);
@@ -173,11 +173,12 @@ export function FoodPicker({ onPickFood, onPickRecipe, onPickTemplate, onPickHis
                 <FoodThumb food={{ nameEn: rf.name, sourceRef: rf.source }} category={rf.category} size={48} />
                 <div className="grow" style={{ minWidth: 0 }}>
                   <div className="row" style={{ gap: 6 }}>
-                    <span className="fr-name bold" dir="ltr" style={{ overflowWrap: 'anywhere' }}>{rf.name}</span>
+                    <span className="fr-name bold" style={{ overflowWrap: 'anywhere' }}>{ln(rf.name)}</span>
                     {rf.state !== 'other' && <StateChip state={rf.state} />}
                   </div>
                   <MacroSplit m={rf.per100} />
-                  <div className="tiny muted num"><MacroLine m={rf.per100} compact /> · {rf.category}</div>
+                  <div className="tiny muted num"><MacroLine m={rf.per100} compact /> · {cat(rf.category)}</div>
+                  {lang === 'ar' && ln(rf.name) !== rf.name && <div className="tiny muted" data-i18n-skip="usda-reference"><span>{t('usdaRefLine')}: </span><span dir="ltr">{rf.name}</span></div>}
                 </div>
                 <div className="fr-kcal num">{n(rf.per100.kcal)}<small>{t('kcalUnit')} / 100{t('g')}</small></div>
               </li>

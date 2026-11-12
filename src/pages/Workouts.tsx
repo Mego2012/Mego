@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
+import { joinList } from '../lib/localize';
 import { useBundle, useCardio, useTraining } from '../app/hooks';
 import { MinutesChart } from '../components/charts';
 import { Icon } from '../components/icons';
@@ -286,16 +287,17 @@ function SessionLogger({ session, list, onClose }: { session: WorkoutSession; li
 }
 
 function SetRow({ k, s, onChange, onDone }: { k: number; s: import('../lib/workouts').SetLog; onChange: (s: import('../lib/workouts').SetLog) => void; onDone: () => void }) {
+  const { t } = useApp();
   const num = (v: string) => (v === '' ? null : Number(v));
   return (
     <>
       <span className="num small">{k + 1}</span>
-      <input className="input num" type="number" inputMode="decimal" step="0.5" value={s.weightKg ?? ''} onChange={(e) => onChange({ ...s, weightKg: num(e.target.value) })} data-testid="set-weight" aria-label="kg" />
-      <input className="input num" type="number" inputMode="numeric" value={s.reps ?? ''} onChange={(e) => onChange({ ...s, reps: num(e.target.value) })} data-testid="set-reps" aria-label="reps" />
+      <input className="input num" type="number" inputMode="decimal" step="0.5" value={s.weightKg ?? ''} onChange={(e) => onChange({ ...s, weightKg: num(e.target.value) })} data-testid="set-weight" aria-label={t('kg')} />
+      <input className="input num" type="number" inputMode="numeric" value={s.reps ?? ''} onChange={(e) => onChange({ ...s, reps: num(e.target.value) })} data-testid="set-reps" aria-label={t('wk_reps')} />
       <select className="input num" value={s.rir ?? ''} onChange={(e) => onChange({ ...s, rir: num(e.target.value) })} data-testid="set-rir" aria-label="RIR">
         <option value="">–</option>{[0, 1, 2, 3, 4, 5].map((x) => <option key={x} value={x}>{x}{x === 5 ? '+' : ''}</option>)}
       </select>
-      <input type="checkbox" checked={s.done} style={{ width: 24, height: 24 }} data-testid="set-done" aria-label="done"
+      <input type="checkbox" checked={s.done} style={{ width: 24, height: 24 }} data-testid="set-done" aria-label={t('wk_setDone')}
         onChange={(e) => { onChange({ ...s, done: e.target.checked }); if (e.target.checked) onDone(); }} />
     </>
   );
@@ -304,7 +306,7 @@ function SetRow({ k, s, onChange, onDone }: { k: number; s: import('../lib/worko
 /* ------------------------------------------------------------------ program editor + generator */
 
 function ProgramTab({ active, programs, list, preferred }: { active: Program; programs: Program[]; list: Exercise[]; preferred: string[] }) {
-  const { t, n, lang, settings } = useApp();
+  const { t, n, lang, settings, ln } = useApp();
   const { run } = useAsync();
   const [p, setP] = useState<Program>(active);
   const [dirty, setDirty] = useState(false);
@@ -321,7 +323,7 @@ function ProgramTab({ active, programs, list, preferred }: { active: Program; pr
     <div data-testid="program-tab">
       <Card title={t('pr_programs')}>
         <div className="row wrap" style={{ gap: 6 }}>
-          {programs.map((x) => <button key={x.id} className={`chip clickable ${x.id === active.id ? 'on' : ''}`} onClick={() => run(() => kvSet('activeProgram', x.id))} data-testid="program-chip">{x.name}</button>)}
+          {programs.map((x) => <button key={x.id} className={`chip clickable ${x.id === active.id ? 'on' : ''}`} onClick={() => run(() => kvSet('activeProgram', x.id))} data-testid="program-chip">{ln(x.name)}</button>)}
         </div>
         <div className="row wrap" style={{ gap: 6, marginTop: 8 }}>
           <button className="btn sm" onClick={() => setGen(true)} data-testid="open-generator"><Icon name="sparkle" /> {t('pr_generate')}</button>
@@ -471,7 +473,7 @@ function LibraryTab({ list, preferred }: { list: Exercise[]; preferred: string[]
       <ul className="list card">{res.map((e) => (
         <li key={e.id} data-testid="ex-row"><button className="grow cardio-row-main" onClick={() => nav('/exercise/' + e.id)}>
           <span className="small bold">{exName(e, lang, e.id)} {preferred.includes(e.id) && <Icon name="star" filled />}</span>
-          <span className="tiny muted">{t('mus_' + e.primary)}{e.secondary.length ? ` + ${e.secondary.map((s) => t('mus_' + s)).join('، ')}` : ''} · {t('cat_' + e.category)} · {e.equipment.map((x) => t('eq_' + x)).join('، ')}</span>
+          <span className="tiny muted">{t('mus_' + e.primary)}{e.secondary.length ? ` + ${joinList(e.secondary.map((s) => t('mus_' + s)), lang)}` : ''} · {t('cat_' + e.category)} · {joinList(e.equipment.map((x) => t('eq_' + x)), lang)}</span>
         </button></li>
       ))}</ul>
       {custom && <CustomExerciseSheet onClose={() => setCustom(false)} />}
@@ -556,7 +558,7 @@ function ExerciseProgressSheet({ id, ctx, list, onClose }: { id: string; ctx: Co
         <MinutesChart days={h.slice(-20).map((p) => ({ date: p.date, minutes: p.bestE1rm }))} label={t('pr_e1rm')} testId="e1rm-chart" />
         <div className="small"><b>{t('pa_' + pg.action)}</b>{pg.weightKg !== null ? ` · ${n(pg.weightKg, 1)} ${t('kg')}` : ''} · {t('conf_' + pg.confidence)}</div>
         <ul className="small energy-why">{pg.reasons.map((r, i) => <li key={i}>{line(r, list)}</li>)}</ul>
-        {pg.alternatives?.length ? <div className="tiny">{t('lib_alternatives')}: {pg.alternatives.map((a) => exName(findExercise(a, list), lang, a)).join('، ')}</div> : null}
+        {pg.alternatives?.length ? <div className="tiny">{t('lib_alternatives')}: {joinList(pg.alternatives.map((a) => exName(findExercise(a, list), lang, a)), lang)}</div> : null}
         <div className="table-wrap"><table className="tbl">
           <thead><tr><th>{t('date')}</th><th>{t('wk_sets')}</th><th>e1RM</th><th>{t('pg_volume')}</th></tr></thead>
           <tbody>{[...h].reverse().map((p) => <tr key={p.sessionId}><td>{p.date}</td><td className="num small">{p.sets.map((s) => `${s.weightKg ?? 0}×${s.reps}${s.rir != null ? `@${s.rir}` : ''}`).join(' · ')}</td><td className="num">{n(p.bestE1rm, 1)}</td><td className="num">{n(p.volume)}</td></tr>)}</tbody>

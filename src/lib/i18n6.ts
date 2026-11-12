@@ -21,7 +21,8 @@ export const en6: Record<string, string> = {
   ck_doneHint: 'Log it from the recipe with “Add to diary” — the amounts are per serving.',
   ck_filters: 'Filters', ck_fIngredient: 'Contains ingredients', ck_fIngredientPh: 'e.g. chicken, garlic', ck_fMaxKcal: 'Max kcal / serving',
   ck_fMinProtein: 'Min protein (g)', ck_fMaxMin: 'Max total time (min)', ck_fMethod: 'Cooking method', ck_fClear: 'Clear filters',
-  tag_sauce: 'Sauces', tag_side: 'Sides', tag_pasta: 'Pasta', tag_potato: 'Potatoes'
+  tag_sauce: 'Sauces', tag_side: 'Sides', tag_pasta: 'Pasta', tag_potato: 'Potatoes',
+  usdaRefLine: 'USDA reference description', nav_main: 'Main navigation', wk_setDone: 'Set completed', switchLanguage: 'العربية — switch to Arabic'
 };
 
 export const ar6: Record<string, string> = {
@@ -46,5 +47,6 @@ export const ar6: Record<string, string> = {
   ck_doneHint: 'سجّلها من الوصفة بزر «أضف لليوميات» — الكميات للحصة الواحدة.',
   ck_filters: 'الفلاتر', ck_fIngredient: 'تحتوي على مكونات', ck_fIngredientPh: 'مثلاً: دجاج، ثوم', ck_fMaxKcal: 'أقصى سعرات للحصة',
   ck_fMinProtein: 'أقل بروتين (غ)', ck_fMaxMin: 'أقصى وقت كلي (دقيقة)', ck_fMethod: 'طريقة الطهي', ck_fClear: 'مسح الفلاتر',
-  tag_sauce: 'صلصات', tag_side: 'أطباق جانبية', tag_pasta: 'معكرونة', tag_potato: 'بطاطس'
+  tag_sauce: 'صلصات', tag_side: 'أطباق جانبية', tag_pasta: 'معكرونة', tag_potato: 'بطاطس',
+  usdaRefLine: 'الوصف المرجعي في USDA', nav_main: 'التنقل الرئيسي', wk_setDone: 'المجموعة مكتملة', switchLanguage: 'English — التبديل إلى الإنجليزية'
 };

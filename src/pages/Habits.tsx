@@ -55,7 +55,7 @@ export function habitStreak(days: { date: string; habits?: Record<string, boolea
 }
 
 function HabitsCard() {
-  const { t, settings } = useApp();
+  const { t, settings, ln } = useApp();
   const date = today();
   const log = useDayLog(date);
   const allDays = useLiveQuery(() => db.days.toArray(), [], []);
@@ -67,7 +67,7 @@ function HabitsCard() {
       {active.map((h) => (
         <label key={h.id} className="check" data-testid="habit-row">
           <input type="checkbox" checked={!!log?.habits?.[h.id]} onChange={() => toggleHabit(date, h.id)} data-testid="habit-check" />
-          <span className="grow">{h.name} <span className="tiny muted" data-testid="habit-streak"><Icon name="flame" /> {t('streak', { n: habitStreak(allDays, h.id) })}</span></span>
+          <span className="grow">{ln(h.name)} <span className="tiny muted" data-testid="habit-streak"><Icon name="flame" /> {t('streak', { n: habitStreak(allDays, h.id) })}</span></span>
           <button className="icon-btn" aria-label={t('delete')} onClick={(e) => { e.preventDefault(); saveSettings((s) => { s.habits = s.habits.map((x) => (x.id === h.id ? { ...x, active: false } : x)); }); }}>×</button>
         </label>
       ))}
@@ -125,7 +125,7 @@ function FastingCard() {
 }
 
 function RemindersCard() {
-  const { t, settings, toast } = useApp();
+  const { t, settings, toast, ln } = useApp();
   const update = (id: string, patch: Partial<Reminder>) => saveSettings((s) => { s.reminders = s.reminders.map((r) => (r.id === id ? { ...r, ...patch } : r)); });
   return (
     <Card title={<><Icon name="bell" />{t('reminders')}</>}>
@@ -133,8 +133,8 @@ function RemindersCard() {
       <button className="btn sm" style={{ marginBottom: 8 }} onClick={async () => { const p = await requestNotificationPermission(); if (p === 'denied') toast(t('notificationsBlocked')); }}>{t('enableNotifications')}</button>
       {settings.reminders.map((r) => (
         <div key={r.id} className="row" style={{ padding: '6px 0' }} data-testid="reminder-row">
-          <input type="checkbox" checked={r.enabled} onChange={(e) => update(r.id, { enabled: e.target.checked })} style={{ width: 20, height: 20 }} aria-label={r.label} />
-          <input className="input grow" value={r.label} onChange={(e) => update(r.id, { label: e.target.value })} />
+          <input type="checkbox" checked={r.enabled} onChange={(e) => update(r.id, { enabled: e.target.checked })} style={{ width: 20, height: 20 }} aria-label={ln(r.label)} />
+          <input className="input grow" value={ln(r.label)} onChange={(e) => update(r.id, { label: e.target.value })} />
           <input className="input" style={{ width: 110 }} type="time" value={r.time} onChange={(e) => update(r.id, { time: e.target.value })} aria-label={t('reminderTime')} />
         </div>
       ))}

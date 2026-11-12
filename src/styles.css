@@ -432,3 +432,6 @@ button.chip { min-height: 36px; }
 .legal h3 { font-size: 15px; margin: 18px 0 4px; text-transform: none; letter-spacing: 0; color: var(--text); }
 .legal p { line-height: 1.7; margin: 0; }
 .welcome .legal, .welcome-inner .legal { padding: 0; }
+.lang-switch { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-weight: 700; font-size: 13px; cursor: pointer; margin-inline-start: auto; }
+.lang-switch svg { width: 16px; height: 16px; }
+.header .lang-switch + .sync-chip { margin-inline-start: 6px; }

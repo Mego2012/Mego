@@ -1,0 +1,124 @@
+/**
+ * Arabic display names for USDA FoodData Central reference descriptions (which exist only in English).
+ * A hand-reviewed glossary of the most frequent main food terms (first part of the description, ~78 % of rows) and
+ * preparation / cut descriptors. The Arabic name is "main term — descriptors"; unknown descriptors are left out and the
+ * official English description stays visible as the source line, so two similar rows are never confused.
+ * Rows whose main term is not in the glossary keep their English description (returns null).
+ */
+const MAIN: Record<string, string> = {
+  beef: 'لحم بقري', pork: 'لحم خنزير', fish: 'سمك', lamb: 'لحم ضأن', beverages: 'مشروبات', chicken: 'دجاج', soup: 'شوربة', bread: 'خبز', rice: 'أرز',
+  snacks: 'وجبات خفيفة', cheese: 'جبن', turkey: 'ديك رومي', candies: 'حلوى', beans: 'فاصوليا', veal: 'لحم عجل', 'cereals ready-to-eat': 'حبوب إفطار جاهزة',
+  potato: 'بطاطس', crackers: 'بسكويت مالح (كراكرز)', cookie: 'كوكيز', 'fast foods': 'وجبات سريعة', nuts: 'مكسرات', cereals: 'حبوب', coffee: 'قهوة',
+  potatoes: 'بطاطس', yogurt: 'زبادي', 'egg omelet or scrambled egg': 'أومليت أو بيض مخفوق', cookies: 'كوكيز', pasta: 'معكرونة', oil: 'زيت', milk: 'حليب',
+  'alcoholic beverage': 'مشروب كحولي', 'salad dressing': 'صلصة سلطة', 'infant formula': 'حليب أطفال رضّع', 'game meat': 'لحم صيد', corn: 'ذرة', cake: 'كيك',
+  restaurant: 'مطعم', egg: 'بيض', pie: 'فطيرة', squash: 'قرع', puddings: 'بودنغ', sauce: 'صلصة', seeds: 'بذور', tea: 'شاي', pizza: 'بيتزا',
+  "mcdonald's": 'ماكدونالدز', cereal: 'حبوب', 'chicken or turkey': 'دجاج أو ديك رومي', peppers: 'فلفل', pretzels: 'بريتزل', spices: 'بهارات', sausage: 'نقانق',
+  roll: 'خبز صغير (رول)', cabbage: 'ملفوف', muffin: 'مافن', mushrooms: 'فطر (مشروم)', carrots: 'جزر', pancakes: 'بان كيك', 'chicken breast': 'صدر دجاج',
+  mollusks: 'رخويات بحرية', broccoli: 'بروكلي', popcorn: 'فشار', 'chicken thigh': 'فخذ دجاج', gravy: 'مرق (غريفي)', 'ice creams': 'آيس كريم',
+  'sweet potato': 'بطاطا حلوة', 'chicken drumstick': 'ساق دجاج', 'cake or cupcake': 'كيك أو كب كيك', spinach: 'سبانخ', crustaceans: 'قشريات بحرية',
+  'soft drink': 'مشروب غازي', 'potato chips': 'شيبس بطاطس', peanuts: 'فول سوداني', onions: 'بصل', peas: 'بازلاء', burrito: 'بوريتو', asparagus: 'هليون',
+  'lima beans': 'فاصوليا ليما', waffle: 'وافل', tomatoes: 'طماطم', 'wheat flour': 'دقيق قمح', kfc: 'كنتاكي', 'hot dog sandwich': 'ساندويتش هوت دوغ',
+  'green beans': 'فاصوليا خضراء', 'frozen novelties': 'حلويات مجمدة', cauliflower: 'قرنبيط', oatmeal: 'شوفان', cherries: 'كرز', rolls: 'خبز صغير (رول)',
+  muffins: 'مافن', taco: 'تاكو', margarine: 'سمن نباتي (مارجرين)', ostrich: 'نعام', 'green peas': 'بازلاء خضراء', noodles: 'نودلز', 'burger king': 'برجر كينج',
+  ravioli: 'رافيولي', 'chicken leg': 'رجل دجاج', candy: 'حلوى', syrups: 'شراب سكري', duck: 'بط', stew: 'يخنة', 'fruit salad': 'سلطة فواكه', apples: 'تفاح',
+  'orange juice': 'عصير برتقال', ham: 'لحم مقدد (هام)', lettuce: 'خس', 'margarine-like': 'دهن شبيه بالمارجرين', 'hot chocolate / cocoa': 'شوكولاتة ساخنة / كاكاو',
+  pineapple: 'أناناس', apricots: 'مشمش', pears: 'كمثرى', beets: 'شمندر', collards: 'كرنب أخضر', cream: 'قشطة', 'pasta with tomato-based sauce': 'معكرونة بصلصة الطماطم',
+  'pie crust': 'عجينة فطيرة', seaweed: 'أعشاب بحرية', cornmeal: 'دقيق ذرة', bologna: 'مرتديلا', frankfurter: 'نقانق فرانكفورتر', peaches: 'خوخ', soybeans: 'فول الصويا',
+  pudding: 'بودنغ', 'peanut butter': 'زبدة الفول السوداني', 'chicken fillet sandwich': 'ساندويتش فيليه دجاج', 'nutritional drink or shake': 'مشروب أو شيك غذائي',
+  cowpeas: 'لوبيا', water: 'ماء', 'formulated bar': 'لوح غذائي', 'chicken wing': 'جناح دجاج', bagel: 'بيغل', 'baby toddler cereal': 'حبوب للرضّع والأطفال',
+  'classic mixed vegetables': 'خضار مشكلة', 'chocolate candy': 'حلوى بالشوكولاتة', pastry: 'معجنات', blueberries: 'توت أزرق', frostings: 'كريمة تزيين',
+  'school lunch': 'غداء مدرسي', popeyes: 'بوبايز', 'cereal or granola bar': 'لوح حبوب أو غرانولا', 'summer squash': 'كوسا', bagels: 'بيغل', "denny's": 'دينيز',
+  'grapefruit juice': 'عصير جريب فروت', 'turnip greens': 'أوراق اللفت', kale: 'كرنب أجعد (كيل)', 'brussels sprouts': 'كرنب بروكسل', 'mustard greens': 'أوراق الخردل',
+  okra: 'بامية', 'potato salad': 'سلطة بطاطس', 'peas and carrots': 'بازلاء وجزر', 'fast food': 'وجبة سريعة', "wendy's": 'ويندي', 'ice cream': 'آيس كريم',
+  'ice cream cone': 'كون آيس كريم', tofu: 'توفو', emu: 'إيمو', grapefruit: 'جريب فروت', 'chocolate milk': 'حليب بالشوكولاتة', 'coffee creamer': 'مبيّض قهوة',
+  doughnut: 'دونات', 'pasta with cream sauce': 'معكرونة بصلصة كريمية', 'frozen coffee drink': 'مشروب قهوة مثلج', 'frozen mocha coffee drink': 'موكا مثلجة',
+  plums: 'برقوق', bacon: 'لحم مقدد (بيكون)', lentils: 'عدس', pickles: 'مخلل', 'tortilla chips': 'رقائق تورتيلا', "applebee's": 'أبلبيز', subway: 'صب واي',
+  'taco bell': 'تاكو بيل', shortening: 'سمن صناعي', tortellini: 'تورتيليني', salami: 'سلامي', 'potato salad with egg': 'سلطة بطاطس بالبيض',
+  'egg substitute': 'بديل البيض', cheeseburger: 'تشيز برجر', hamburger: 'هامبرجر', 'fruit flavored drink': 'مشروب بنكهة الفواكه',
+  'nutritional powder mix': 'مسحوق غذائي', 'cracker barrel': 'كراكر باريل', 'fruit cocktail': 'كوكتيل فواكه', 'tomato products': 'منتجات الطماطم', butter: 'زبدة',
+  'pork sausage': 'نقانق لحم خنزير', 'danish pastry': 'معجنات دنماركية', breadsticks: 'أصابع خبز', grits: 'جريش ذرة', 'burrito bowl': 'وعاء بوريتو',
+  'pizza with pepperoni': 'بيتزا بيبروني', 'energy drink': 'مشروب طاقة', caribou: 'وعل الرنة', raspberries: 'توت العليق', 'apple juice': 'عصير تفاح',
+  'fruit juice smoothie': 'سموذي عصير فواكه', taro: 'قلقاس', wheat: 'قمح', vegetables: 'خضار', eggplant: 'باذنجان', 'macaroni or noodles with cheese': 'معكرونة بالجبن',
+  biscuits: 'بسكويت', doughnuts: 'دونات', 'french toast': 'توست فرنسي', shrimp: 'روبيان (جمبري)', 'chicken or turkey salad': 'سلطة دجاج أو ديك رومي',
+  'tuna salad': 'سلطة تونة', 'double cheeseburger': 'تشيز برجر مزدوج', 'double hamburger': 'هامبرجر مزدوج', 'fish sandwich': 'ساندويتش سمك', 'egg salad': 'سلطة بيض',
+  quesadilla: 'كاساديا', 'macaroni or pasta salad': 'سلطة معكرونة', 'sugar substitute': 'بديل السكر', mayonnaise: 'مايونيز', 'garlic bread': 'خبز بالثوم',
+  sweeteners: 'محليات', pumpkin: 'يقطين', radishes: 'فجل', succotash: 'سكوتاش (ذرة وفاصوليا)', 'mung beans': 'ماش', 'cheese spread': 'جبن قابل للدهن',
+  'sour cream': 'قشطة حامضة', bratwurst: 'نقانق براتفورست', soymilk: 'حليب الصويا', lemonade: 'ليموناضة', 'milk shake': 'ميلك شيك', 'fruit smoothie': 'سموذي فواكه',
+  almonds: 'لوز', 'mixed nuts': 'مكسرات مشكلة', 'peanut butter and jelly sandwich': 'ساندويتش زبدة فول سوداني ومربى', 'white pizza': 'بيتزا بيضاء',
+  'fruit juice drink': 'مشروب عصير فواكه', wine: 'نبيذ', waffles: 'وافل', desserts: 'حلويات', strawberries: 'فراولة', applesauce: 'هريس تفاح',
+  artichokes: 'خرشوف', 'gelatin desserts': 'حلوى جيلاتين', 'corn flour': 'دقيق ذرة', olives: 'زيتون', celery: 'كرفس', 'refried beans': 'فاصوليا مهروسة مقلية',
+  'leavening agents': 'مواد رافعة (خميرة/بيكنج باودر)', figs: 'تين', 'chickpeas (garbanzo beans': 'حمص', 'toddler formula': 'حليب أطفال صغار',
+  'cheese sandwich': 'ساندويتش جبن', 'grilled cheese sandwich': 'ساندويتش جبن محمص', 'egg white omelet': 'أومليت بياض البيض', 'egg white': 'بياض البيض',
+  'black beans': 'فاصوليا سوداء', 'pinto beans': 'فاصوليا بنتو', 'kidney beans': 'فاصوليا حمراء', empanada: 'إمبانادا', nachos: 'ناتشوز',
+  'pizza with meat other than pepperoni': 'بيتزا باللحم', 'turnover or hot pocket': 'فطيرة محشوة', sushi: 'سوشي', 'baby toddler juice': 'عصير للأطفال',
+  'potato tots': 'كرات بطاطس', 'cream puff': 'بروفيترول', tortillas: 'تورتيلا', topping: 'إضافة (توبينغ)', tortilla: 'تورتيلا', 'pineapple juice': 'عصير أناناس',
+  plantains: 'موز الطبخ', gourd: 'قرع', lasagna: 'لازانيا', turnover: 'فطيرة محشوة', blackberries: 'توت أسود', meatballs: 'كرات لحم', 'macaroni and cheese': 'معكرونة بالجبن',
+  turnips: 'لفت', sugar: 'سكر', 'margarine-like spread': 'دهن قابل للدهن', 'light ice cream': 'آيس كريم خفيف', 'fish oil': 'زيت سمك', goose: 'إوز',
+  'luncheon meat': 'لحم معلب للساندويتش', grapes: 'عنب', 'strawberry milk': 'حليب بالفراولة', 'chicken nuggets': 'ناغتس دجاج', 'chicken tenders or strips': 'أصابع دجاج',
+  'hot dog': 'هوت دوغ', clams: 'محار (بطلينوس)', 'white beans': 'فاصوليا بيضاء', chickpeas: 'حمص', cashews: 'كاجو', biscuit: 'بسكويت', tamale: 'تامالي',
+  'pizza with meat and vegetables': 'بيتزا باللحم والخضار', 'stuffed shells': 'معكرونة محشوة', 'lo mein': 'لو مين (نودلز صينية)', 'sushi roll': 'لفافة سوشي',
+  peach: 'خوخ', pear: 'كمثرى', greens: 'خضار ورقية', snowpeas: 'بازلاء ثلجية', 'fruit and vegetable smoothie': 'سموذي فواكه وخضار',
+  'baking chocolate': 'شوكولاتة طبخ', syrup: 'شراب سكري', rhubarb: 'راوند', 'frozen yogurts': 'زبادي مجمد', 'lime juice': 'عصير ليم', 'grape juice': 'عصير عنب',
+  cress: 'رشاد', cucumber: 'خيار', kohlrabi: 'كرنب أبيض (كولرابي)', leeks: 'كراث', 'bamboo shoots': 'براعم الخيزران', 'beet greens': 'أوراق الشمندر',
+  toppings: 'إضافات (توبينغ)', quinoa: 'كينوا', spaghetti: 'سباغيتي', 'rice and vermicelli mix': 'أرز بالشعيرية', mango: 'مانجو', oranges: 'برتقال',
+  'dandelion greens': 'أوراق الهندباء', chard: 'سلق', cranberries: 'توت بري', quail: 'سمان', bulgur: 'برغل', whey: 'مصل اللبن (واي)', 'ice cream bar': 'آيس كريم على عصا',
+  dip: 'غموس', 'ice cream sandwich': 'ساندويتش آيس كريم', vinegar: 'خل', 'frozen yogurt': 'زبادي مجمد', oysters: 'محار', pecans: 'بقان',
+  'peanut butter sandwich': 'ساندويتش زبدة فول سوداني', crepe: 'كريب', 'corn chips': 'رقائق ذرة', congee: 'عصيدة أرز', 'cream of wheat': 'عصيدة سميد',
+  enchilada: 'إنشيلادا', fajita: 'فاهيتا', 'lasagna with meat': 'لازانيا باللحم', plantain: 'موز الطبخ', 'sweet potato fries': 'أصابع بطاطا حلوة مقلية',
+  'toddler meal': 'وجبة أطفال', 'sports drink': 'مشروب رياضي', elk: 'أيل', 'whipped topping': 'كريمة مخفوقة', millet: 'دخن', 'breakfast bar': 'لوح إفطار',
+  'pie fillings': 'حشوات الفطائر', 'lemon juice': 'عصير ليمون', 'cranberry sauce': 'صلصة التوت البري', 'toaster pastries': 'معجنات للتحميص', raisins: 'زبيب',
+  tangerines: 'يوسفي', 'lotus root': 'جذر اللوتس', 'chewing gum': 'علكة', cocoa: 'كاكاو', flan: 'كريم كراميل', sugars: 'سكريات', snack: 'وجبة خفيفة',
+  'pasta mix': 'خلطة معكرونة', 'sandwich spread': 'دهن للساندويتش', papaya: 'بابايا', parsnips: 'جزر أبيض', 'peas and onions': 'بازلاء وبصل', barley: 'شعير',
+  'broccoli raab': 'بروكلي راب', 'tomato juice': 'عصير طماطم', 'cheese food': 'منتج جبن', 'dessert topping': 'إضافة للحلويات', fat: 'دهن', 'chicken patty': 'برجر دجاج',
+  currants: 'زبيب الكشمش', 'cranberry juice cocktail': 'مشروب التوت البري', chili: 'تشيلي', 'soy flour': 'دقيق الصويا', hummus: 'حمص بالطحينة', 'sweet rolls': 'رول حلو',
+  'english muffins': 'مافن إنجليزي', dates: 'تمر', bananas: 'موز', banana: 'موز', avocados: 'أفوكادو', watermelon: 'بطيخ', melons: 'شمام', lemons: 'ليمون',
+  limes: 'ليم', kiwifruit: 'كيوي', pomegranates: 'رمان', guavas: 'جوافة', oats: 'شوفان', couscous: 'كسكس', salmon: 'سلمون', tuna: 'تونة', sardines: 'سردين',
+  'fish, tuna': 'تونة', honey: 'عسل', jams: 'مربى', jellies: 'جيلي', salt: 'ملح', garlic: 'ثوم', ginger: 'زنجبيل', parsley: 'بقدونس', 'coriander (cilantro) leaves': 'كزبرة خضراء',
+  dill: 'شبت', basil: 'ريحان', spearmint: 'نعناع', peppermint: 'نعناع فلفلي', mustard: 'خردل', ketchup: 'كاتشب', catsup: 'كاتشب', tahini: 'طحينة', walnuts: 'جوز',
+  pistachio: 'فستق', 'pistachio nuts': 'فستق حلبي', hazelnuts: 'بندق', sesame: 'سمسم', 'sesame seeds': 'سمسم', 'chia seeds': 'بذور الشيا', flaxseed: 'بذور الكتان',
+  'sunflower seed kernels': 'بذور دوار الشمس', 'pumpkin and squash seed kernels': 'بذور اليقطين', 'egg, whole': 'بيض كامل', 'cottage cheese': 'جبن قريش',
+  'cream cheese': 'جبن كريمي', 'mozzarella cheese': 'جبن موزاريلا', 'feta cheese': 'جبن فيتا', 'cheddar cheese': 'جبن شيدر', 'parmesan cheese': 'جبن بارميزان',
+  'whey protein powder': 'مسحوق بروتين الواي', 'protein powder': 'مسحوق بروتين', 'chicken, broilers or fryers': 'دجاج'
+};
+
+const MOD: Record<string, string> = {
+  cooked: 'مطبوخ', raw: 'نيء', 'separable lean and fat': 'لحم ودهن', 'separable lean only': 'لحم صافٍ', canned: 'معلب', boneless: 'بدون عظم',
+  'trimmed to 0" fat': 'منزوع الدهن', frozen: 'مجمد', 'trimmed to 1/8" fat': 'دهن خفيف', roasted: 'محمّص بالفرن', boiled: 'مسلوق', fresh: 'طازج',
+  choice: 'درجة ممتازة', imported: 'مستورد', drained: 'مصفى', 'all grades': 'كل الدرجات', braised: 'مطهو ببطء', 'without salt': 'بدون ملح', select: 'درجة مختارة',
+  loin: 'خاصرة', 'with salt': 'بالملح', white: 'أبيض', broiled: 'مشوي', 'new zealand': 'نيوزيلندي', grilled: 'مشوي', 'no added fat': 'بدون دهون مضافة',
+  'fat added': 'بدهون مضافة', round: 'فخذ (راوند)', plain: 'سادة', 'bone-in': 'بالعظم', 'meat only': 'لحم فقط', fried: 'مقلي', 'mature seeds': 'حبوب ناضجة',
+  dry: 'جاف', 'dry mix': 'خلطة جافة', steak: 'ستيك', baked: 'مخبوز', whole: 'كامل', chuck: 'كتف (تشك)', 'meat and skin': 'لحم وجلد', chocolate: 'بالشوكولاتة',
+  'broilers or fryers': 'دجاج لاحم', cured: 'مملّح ومعالج', australian: 'أسترالي', cheese: 'بالجبن', ground: 'مفروم', 'solids and liquids': 'مع السائل',
+  shoulder: 'كتف', 'variety meats and by-products': 'أحشاء', regular: 'عادي', dried: 'مجفف', powder: 'مسحوق', rib: 'ضلوع', 'with cheese': 'بالجبن',
+  instant: 'سريع التحضير', 'reduced fat': 'قليل الدسم', 'reduced sodium': 'قليل الصوديوم', green: 'أخضر', light: 'لايت', unprepared: 'غير محضّر',
+  decaffeinated: 'منزوع الكافيين', sweet: 'حلو', 'whole grain': 'حبوب كاملة', toasted: 'محمّص', unsweetened: 'غير محلى', enriched: 'مدعّم', brown: 'بني', red: 'أحمر',
+  leg: 'فخذ', 'trimmed to 1/4" fat': 'بطبقة دهن', coated: 'مغطى', 'mixed species': 'أنواع مختلفة', yellow: 'أصفر', vanilla: 'بالفانيليا', stewed: 'مطهو',
+  'skin eaten': 'مع القشر', 'skin not eaten': 'بدون القشر', 'commercially prepared': 'تجاري', 'ready-to-heat': 'جاهز للتسخين', roast: 'روست', nonfat: 'خالي الدسم',
+  flavored: 'بنكهة', 'composite of trimmed retail cuts': 'قطع مشكلة', condensed: 'مركّز', unheated: 'غير مسخّن', fruit: 'بالفواكه', soft: 'طري',
+  tenderloin: 'فيليه', heated: 'مسخّن', 'prepared with water': 'محضّر بالماء', 'ready-to-eat': 'جاهز للأكل', black: 'أسود', 'prepared from recipe': 'محضّر منزلياً',
+  hard: 'صلب', 'low sodium': 'قليل الصوديوم', drumstick: 'ساق', 'drained solids': 'مصفى', greek: 'يوناني', sweetened: 'محلى', bottled: 'معبأ', 'home recipe': 'وصفة منزلية',
+  thigh: 'فخذ', 'dark meat': 'لحم داكن', 'light meat': 'لحم أبيض', '100%': '100%', 'fat free': 'خالي الدسم', wing: 'جناح', diet: 'دايت', 'from fresh': 'من طازج',
+  iced: 'مثلج', mashed: 'مهروس', brisket: 'صدر (بريسكت)', 'cooked with oil': 'مطبوخ بالزيت', 'cooked with butter or margarine': 'مطبوخ بالزبدة', fluid: 'سائل',
+  brewed: 'مخمّر (منقوع)', rotisserie: 'مشوي على السيخ', salted: 'مملح', smoked: 'مدخن', 'with vegetables': 'بالخضار', prepared: 'محضّر', breast: 'صدر',
+  'skin only': 'جلد فقط', 'with skin': 'بالجلد', 'without skin': 'بدون جلد', skinless: 'بدون جلد', lowfat: 'قليل الدسم', 'low fat': 'قليل الدسم', 'whole milk': 'كامل الدسم',
+  'pan-fried': 'مقلي بالمقلاة', 'pan-browned': 'محمّر بالمقلاة', steamed: 'على البخار', microwaved: 'بالمايكروويف', 'air-fried': 'بالقلاية الهوائية', simmered: 'مطهو على نار هادئة',
+  'with added solution': 'مع محلول مضاف', liver: 'كبد', heart: 'قلب', gizzard: 'قانصة', giblets: 'أحشاء', feet: 'أرجل', 'all classes': 'كل الأنواع',
+  'nfs': '', 'ns as to fat': '', 'ns as to fat type': ''
+};
+
+export function usdaArabicName(en: string): string | null {
+  const parts = en.split(',').map((p) => p.trim()).filter(Boolean);
+  if (!parts.length) return null;
+  let i = 1;
+  let main = MAIN[parts[0].toLowerCase()];
+  // two-part main terms such as "Chicken, broilers or fryers" / "Egg, whole"
+  const two = parts.length > 1 ? MAIN[`${parts[0]}, ${parts[1]}`.toLowerCase()] : undefined;
+  if (two) { main = two; i = 2; }
+  if (!main) return null;
+  const mods: string[] = [];
+  for (const p of parts.slice(i)) {
+    const m = MOD[p.toLowerCase()] ?? MAIN[p.toLowerCase()];
+    if (m && !mods.includes(m)) mods.push(m);
+  }
+  return mods.length ? `${main} — ${mods.join('، ')}` : main;
+}

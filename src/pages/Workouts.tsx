@@ -333,7 +333,7 @@ function ProgramTab({ active, programs, list, preferred }: { active: Program; pr
         <div className="tiny muted" style={{ marginTop: 6 }}>{t('pr_activeNote')}</div>
       </Card>
       <Card>
-        <label className="field"><span>{t('pr_name')}</span><input className="input" dir="auto" value={p.name} onChange={(e) => edit((x) => ({ ...x, name: e.target.value }))} data-testid="program-name" /></label>
+        <label className="field"><span>{t('pr_name')}</span><input className="input" dir="auto" value={ln(p.name)} onChange={(e) => edit((x) => ({ ...x, name: e.target.value }))} data-testid="program-name" /></label>
       </Card>
       {p.days.map((d, di) => (
         <div key={d.id} className="card" data-testid="program-day">

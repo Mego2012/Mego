@@ -30,6 +30,7 @@ export async function applyKcalDelta(delta: number) {
     s.targets = { training: adj(s.targets.training), rest: adj(s.targets.rest) };
     if (s.dietStrategy && s.dietStrategy.mode !== 'custom') s.dietStrategy = { ...s.dietStrategy, kcal: s.targets.training.kcal };
   });
+  await recordCurrent();
 }
 
 /** Target reached: switch the goal to maintenance at the estimated maintenance calories. */
@@ -42,4 +43,12 @@ export async function applyMaintenance(kcal: number, protein: number) {
     s.targets = { training: m, rest: m };
     if (s.dietStrategy && s.dietStrategy.mode !== 'custom') s.dietStrategy = { ...s.dietStrategy, kcal: m.kcal, protein: m.protein };
   });
+  await recordCurrent();
+}
+
+/** A calorie change starts a new evaluation period (same strategy), so its effect is judged before the next change. */
+async function recordCurrent() {
+  const { getSettings } = await import('./repo');
+  const s = await getSettings();
+  await recordStrategyChange(s.dietStrategy?.mode ?? 'none', s.targets.training.kcal);
 }

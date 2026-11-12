@@ -15,7 +15,7 @@
  */
 import { datesBack, totalsFor, type CardioSession } from './cardio';
 import { addDays, today } from './dates';
-import { computeMacros, cycleTargets, defaultSchedule, strategyTargets, type CycleLevel, type DietMode, type DietStrategy } from './dietStrategy';
+import { computeMacros, cycleTargets, dayFloor, defaultSchedule, lowCarbDefault, strategyTargets, type CycleLevel, type DietMode, type DietStrategy } from './dietStrategy';
 import { fitnessOf } from './energy';
 import { bmrOf, GOAL_RULES, tdeeOf } from './goals';
 import type { CheckIn } from './goalAdvisor';
@@ -49,10 +49,18 @@ export interface Signals {
   ratePerWeek: number | null; ratePctPerWeek: number | null; trendWeeks: number;
   hunger: number | null; recovery: number | null; strength: CheckIn['strength'] | null; energy: number | null; sleepH: number | null;
   liftsUp: number; liftsDown: number;
+  /** Waist change over the last 28 days (first vs last measurement), cm. */
+  waistChange: number | null;
+  /** 'current' = the user's own protein target was kept (within 1.6–2.4 g/kg); 'goal' = set from goal and training. */
+  proteinBasis: 'current' | 'goal';
   formulaTdee: number; dataTdee: number | null; tdee: number; tdeeBasis: Basis;
   kcal: number; protein: number; currentKcal: number; kcalFloor: number;
+  /** kept = current target kept; adjusted = current ± a step from your results; formula = from maintenance × goal. */
+  kcalBasis: 'kept' | 'adjusted' | 'formula'; formulaKcal: number;
+  /** Days since the last strategy or calorie change (null = none recorded) and whether its 14-day evaluation is running. */
+  sinceChange: number | null; hold: boolean;
 }
-export interface Trial { mode: DietMode; start: string; day: number; evalDate: string; done: boolean; verdict: 'effective' | 'notEffective' | 'inconclusive' | null }
+export interface Trial { mode: DietMode; start: string; day: number; evalDate: string; done: boolean; verdict: 'effective' | 'notEffective' | 'inconclusive' | 'muscleRisk' | null }
 export interface AdvisorResult {
   signals: Signals; confidence: 'low' | 'medium' | 'high'; recommended: StrategyOption; alternatives: StrategyOption[]; options: StrategyOption[]; adjustments: Adjustment[];
   trial: Trial | null; results: { current: PeriodResult | null; previous: PeriodResult | null };
@@ -145,13 +153,52 @@ export function readSignals(inp: AdvisorInput): Signals {
   const rule = p.goalType === 'custom' ? { adjust: 0 } : GOAL_RULES[p.goalType];
   // safety: never below the floor; a fat-loss deficit stays between 10 % and 25 % of maintenance
   const kcalFloor = calorieFloor(p, weight);
-  let kcal = Math.max(kcalFloor, Math.round((tdee * (1 + rule.adjust)) / 10) * 10);
-  if (goalGroup === 'loss') kcal = Math.max(kcalFloor, Math.ceil((tdee * 0.75) / 10) * 10, Math.min(kcal, Math.floor((tdee * 0.9) / 10) * 10));
+  const lo = goalGroup === 'loss' ? Math.max(kcalFloor, Math.ceil((tdee * 0.75) / 10) * 10) : kcalFloor;
+  const hi = goalGroup === 'loss' ? Math.floor((tdee * 0.9) / 10) * 10 : Infinity;
+  // the minimum always wins over the fat-loss ceiling (small, sedentary people: no deficit below the floor)
+  const clamp = (x: number) => Math.max(lo, Math.min(hi, x));
+  const formulaKcal = clamp(Math.round((tdee * (1 + rule.adjust)) / 10) * 10);
   const currentKcal = s.targets.training.kcal;
-  if (Math.abs(kcal - currentKcal) / Math.max(currentKcal, 1) <= 0.05) kcal = currentKcal; // keep a target that already fits
+  // Calories start from the user's CURRENT target and move only in small, evidence-based steps:
+  //  - with ≥ 3 weekly averages and ≥ 70 % adherence over ≥ 14 logged days, the result decides: on track → keep;
+  //    loss stalled (≥ 4 weeks) → −150; losing > 1 %/week → +150; gain stalled → +150; gaining > 0.5 %/week → −100;
+  //    maintenance drifting > 0.25 kg/week (≥ 4 weeks) → ±100;
+  //  - without that data, a current target within ±15 % of the formula target (and inside the safety limits) is kept;
+  //    otherwise the formula target is proposed.
+  const adherent28 = period.completeDays >= 14 && period.caloriesInRangeDays / period.completeDays >= 0.7;
+  // evaluation window: within 14 days of the last strategy or calorie change, only the safety step (+) is allowed
+  const lastChange = (() => { const h = inp.history ?? []; const open = h.length && !h[h.length - 1].end ? h[h.length - 1].start : null; return open ?? (s.dietStrategy?.appliedAt ? new Date(s.dietStrategy.appliedAt).toISOString().slice(0, 10) : null); })();
+  const sinceChange = lastChange ? Math.round((new Date(date + 'T12:00').getTime() - new Date(lastChange + 'T12:00').getTime()) / 86400000) + 1 : null;
+  const hold = sinceChange !== null && sinceChange < 14;
+  let kcal: number;
+  let kcalBasis: 'kept' | 'adjusted' | 'formula';
+  if (adherent28 && tr.weeks >= 3 && tr.ratePerWeek !== null) {
+    const r = tr.ratePerWeek, pct = (r / weight) * 100;
+    let d = 0;
+    if (goalGroup === 'loss') d = pct < -1 ? 150 : r > -0.1 && tr.weeks >= 4 ? -150 : 0;
+    else if (goalGroup === 'gain') d = r < 0.05 && tr.weeks >= 4 ? 150 : pct > 0.5 ? -100 : 0;
+    else if (Math.abs(r) > 0.25 && tr.weeks >= 4) d = r < 0 ? 100 : -100;
+    if (hold && d < 0) d = 0;
+    // during the 14-day evaluation window the current target stays (only the safety floor / a safety increase applies)
+    kcal = hold && d === 0 ? Math.max(lo, currentKcal) : clamp(currentKcal + d);
+    kcalBasis = d === 0 && kcal === currentKcal ? 'kept' : 'adjusted';
+  } else if (Math.abs(formulaKcal - currentKcal) / Math.max(currentKcal, 1) <= 0.15 && currentKcal === clamp(currentKcal)) {
+    kcal = currentKcal; kcalBasis = 'kept';
+  } else { kcal = formulaKcal; kcalBasis = 'formula'; }
   const bmi = weight / ((p.heightCm / 100) ** 2);
-  const proteinBase = bmi >= 30 ? p.targetWeight || weight : weight; // very high BMI: protein from goal weight
-  const protein = Math.round(proteinBase * (goalGroup === 'loss' ? 2.0 : goalGroup === 'gain' ? 1.8 : 1.6));
+  // protein: a personal target already within 1.6–2.4 g/kg is kept; otherwise from goal and training load
+  // (fat loss while preserving muscle / recomposition or ≥ 3 sessions a week → 2.2 g/kg; other fat loss 2.0;
+  //  maintenance 1.8 with ≥ 4 sessions, else 1.6; gain 1.8). Very high BMI (≥ 30): grams from the goal weight.
+  const proteinBase = bmi >= 30 ? p.targetWeight || weight : weight;
+  const sessions = Math.max(done.length / 4, fit.resistanceDaysPerWeek);
+  const goalPerKg = goalGroup === 'loss' ? (p.goalType === 'fat_loss_preserve' || p.goalType === 'recomp' || sessions >= 3 ? 2.2 : 2.0)
+    : goalGroup === 'gain' ? 1.8 : sessions >= 4 ? 1.8 : 1.6;
+  const curPerKg = s.targets.training.protein / proteinBase;
+  // fat loss while preserving muscle / recomposition: an own target is kept from 1.8 g/kg (else 2.2 is proposed)
+  const keepOwn = curPerKg >= (goalPerKg >= 2.2 ? 1.8 : 1.6) && curPerKg <= 2.4;
+  const protein = keepOwn ? s.targets.training.protein : Math.round(proteinBase * goalPerKg);
+  const w28 = waists.filter((b) => b.date > addDays(date, -28));
+  const waistChange = w28.length >= 2 ? r1(w28[w28.length - 1].waist! - w28[0].waist!) : null;
   return {
     weight: r1(weight), heightCm: p.heightCm, age: p.age, sex: p.sex, bmi: r1(bmi), waist, whtr: waist ? Math.round((waist / p.heightCm) * 100) / 100 : null,
     goal: p.goalType, goalGroup, activity: p.activityLevel ?? 'moderate',
@@ -163,7 +210,7 @@ export function readSignals(inp: AdvisorInput): Signals {
     ratePerWeek: tr.ratePerWeek, ratePctPerWeek: tr.ratePerWeek !== null ? Math.round((tr.ratePerWeek / weight) * 10000) / 100 : null, trendWeeks: tr.weeks,
     hunger: avg(lastTwo.map((c) => c.hunger)), recovery: avg(lastTwo.map((c) => c.recovery)), strength: checks.length ? checks[checks.length - 1].strength : null,
     energy: avg(rec.map((r) => r.energy).filter((x): x is number => x != null)), sleepH: avg(rec.map((r) => r.sleepH).filter((x): x is number => x != null)),
-    liftsUp, liftsDown, formulaTdee, dataTdee, tdee, tdeeBasis: dataTdee ? 'data' : 'guideline', kcal, protein, currentKcal, kcalFloor
+    liftsUp, liftsDown, waistChange, proteinBasis: keepOwn ? 'current' : 'goal', formulaTdee, dataTdee, tdee, tdeeBasis: dataTdee ? 'data' : 'guideline', kcal, protein, currentKcal, kcalFloor, kcalBasis, formulaKcal, sinceChange, hold
   };
 }
 
@@ -208,7 +255,7 @@ function option(mode: DietMode, sg: Signals, inp: AdvisorInput): StrategyOption 
       if (perfDown) add(10, 'da_w_perfDown', 'data', { up: sg.liftsUp, down: sg.liftsDown });
       if (lowAdherence || sg.completeDays < 8) add(-15, 'da_w_complex', 'data', { n: sg.completeDays });
       const schedule = scheduleFromProgram(inp.program, s.trainingWeekdays, s.weekStartsOn);
-      const levels = cycleTargets(sg.kcal, sg.protein, schedule);
+      const levels = cycleTargets(sg.kcal, sg.protein, schedule, {}, dayFloor(s.profile));
       cycle = { schedule, levels };
       targets = strategyTargets({ mode, kcal: sg.kcal, protein: sg.protein, carbs: 0, fat: 0, appliedAt: 0 });
       break;
@@ -218,7 +265,7 @@ function option(mode: DietMode, sg: Signals, inp: AdvisorInput): StrategyOption 
       if (habitLowCarb && adherent) add(15, 'da_w_habitLowCarb', 'data', { pct: sg.carbShare! });
       if (training >= 5) add(-10, 'da_w_carbsForTraining', 'guideline', { n: training });
       if (perfDown) add(-8, 'da_w_perfDownCarbs', 'data');
-      targets = computeMacros('low_carb', sg.kcal, { protein: sg.protein, carbs: 100, fat: 0 }).macros;
+      targets = computeMacros('low_carb', sg.kcal, { protein: sg.protein, carbs: lowCarbDefault(sg.kcal, sg.protein), fat: 0 }).macros;
       break;
     }
     case 'keto': {
@@ -270,11 +317,13 @@ export function adviseDiet(inp: AdvisorInput): AdvisorResult {
     let verdict: Trial['verdict'] = null;
     if (done) {
       const ok = onTrack(curResult, sg.goalGroup, sg.weight);
-      verdict = curResult.adherencePct === null || curResult.adherencePct < 70 || ok === null ? 'inconclusive' : ok ? 'effective' : 'notEffective';
+      const muscleRisk = sg.goalGroup === 'loss' && (curResult.strength.down > curResult.strength.up || (curResult.recovery !== null && curResult.recovery <= 2) || (curResult.proteinPct !== null && curResult.proteinPct < 50));
+      verdict = curResult.adherencePct === null || curResult.adherencePct < 70 || ok === null ? 'inconclusive' : ok ? (muscleRisk ? 'muscleRisk' : 'effective') : 'notEffective';
     }
     trial = { mode: cur.mode as DietMode, start: cur.start, day, evalDate: addDays(cur.start, TRIAL_MIN_DAYS - 1), done, verdict };
   }
   const inTrial = !!trial && !trial.done;
+  const hold = inTrial || sg.hold;
 
   // ---- options, personalised with the user's own history ----
   const past: Partial<Record<DietMode, PeriodResult[]>> = {};
@@ -293,8 +342,24 @@ export function adviseDiet(inp: AdvisorInput): AdvisorResult {
     }
     return o;
   }).sort((a, b) => b.score - a.score);
-  const recommended = options[0];
-  const alternatives = options.slice(1, 3);
+  // Stability: what the user follows now (the active strategy, or the strategy their saved targets correspond to)
+  const tg = s.targets.training;
+  const currentMode: DietMode = current ?? (tg.carbs <= 50 ? 'keto' : (tg.carbs * 4) / Math.max(tg.kcal, 1) < 0.3 ? 'low_carb' : 'flexible');
+  const currentOpt = options.find((o) => o.mode === currentMode)!;
+  // meaningful, data-backed reasons to change strategy (a higher fit score alone is not enough)
+  const perfDownNow = sg.strength === 'down' || (sg.liftsDown >= 2 && sg.liftsDown > sg.liftsUp);
+  const lowCarbNow = (sg.carbShare !== null && sg.carbShare < 35) || currentMode === 'keto' || currentMode === 'low_carb';
+  const switchReasons: Reason[] = [];
+  if (sg.hunger !== null && sg.hunger >= 4) switchReasons.push({ key: 'da_w_reasonHunger', params: { h: r1(sg.hunger) }, basis: 'data' });
+  if (perfDownNow && lowCarbNow) switchReasons.push({ key: 'da_w_reasonPerf', basis: 'data' });
+  if (sg.adherencePct !== null && sg.adherencePct < 60 && sg.completeDays >= 7) switchReasons.push({ key: 'da_w_reasonAdherence', params: { pct: sg.adherencePct }, basis: 'data' });
+  if (trial?.done && (trial.verdict === 'notEffective' || trial.verdict === 'muscleRisk')) switchReasons.push({ key: 'da_w_reasonTrial', params: { days: trial.day }, basis: 'data' });
+  const best = options[0];
+  const change = best.mode !== currentMode && !hold && switchReasons.length > 0 && best.score > currentOpt.score;
+  const recommended = change ? best : currentOpt;
+  if (change) best.why.unshift(...switchReasons);
+  else if (best.mode !== currentMode) currentOpt.why.unshift({ key: inTrial ? 'da_w_stableTrial' : 'da_w_stable', params: { other: best.mode }, basis: 'data' });
+  const alternatives = options.filter((o) => o !== recommended).slice(0, 2);
   const confidence: AdvisorResult['confidence'] = sg.completeDays >= 14 && sg.trendWeeks >= 3 && sg.hunger !== null ? 'high' : sg.completeDays >= 7 && sg.trendWeeks >= 2 ? 'medium' : 'low';
 
   // ---- progress review (continuous adaptation) ----
@@ -306,8 +371,9 @@ export function adviseDiet(inp: AdvisorInput): AdvisorResult {
   if (sg.completeDays < 8) a.push({ id: 'log', key: 'da_r_logMore', params: { n: sg.completeDays }, level: 'info', basis: 'data' });
   if (sg.trendWeeks < 3) a.push({ id: 'weigh', key: 'da_r_trendWait', params: { weeks: sg.trendWeeks, n: sg.weighIns }, level: 'info', basis: 'guideline' });
   if (sg.hunger === null) a.push({ id: 'checkin', key: 'da_r_checkIn', level: 'info', basis: 'data' });
+  if (sg.hold && !(trial && !trial.done)) a.push({ id: 'window', key: 'da_r_window', params: { day: sg.sinceChange ?? 0 }, level: 'info', basis: 'guideline' });
   if (trial && !trial.done) a.push({ id: 'trial', key: 'da_r_trial', params: { day: trial.day, min: TRIAL_MIN_DAYS, full: TRIAL_FULL_DAYS, date: trial.evalDate }, level: 'info', basis: 'guideline' });
-  if (trial && trial.done) a.push({ id: 'trialEval', key: trial.verdict === 'effective' ? 'da_r_trial_effective' : trial.verdict === 'notEffective' ? 'da_r_trial_notEffective' : 'da_r_trial_inconclusive', params: { days: trial.day, rate: curResult?.ratePerWeek ?? '—', pct: curResult?.adherencePct ?? '—' }, level: trial.verdict === 'effective' ? 'good' : trial.verdict === 'notEffective' ? 'warn' : 'info', basis: 'data',
+  if (trial && trial.done) a.push({ id: 'trialEval', key: trial.verdict === 'effective' ? 'da_r_trial_effective' : trial.verdict === 'notEffective' ? 'da_r_trial_notEffective' : trial.verdict === 'muscleRisk' ? 'da_r_trial_muscleRisk' : 'da_r_trial_inconclusive', params: { days: trial.day, rate: curResult?.ratePerWeek ?? '—', pct: curResult?.adherencePct ?? '—' }, level: trial.verdict === 'effective' ? 'good' : trial.verdict === 'notEffective' || trial.verdict === 'muscleRisk' ? 'warn' : 'info', basis: 'data',
     action: trial.verdict === 'notEffective' && recommended.mode !== current ? { kind: 'mode', mode: recommended.mode } : undefined });
   const reached = p.targetWeight > 0 && sg.trendWeeks >= 2 && ((sg.goalGroup === 'loss' && sg.weight <= p.targetWeight + 0.3) || (sg.goalGroup === 'gain' && sg.weight >= p.targetWeight - 0.3));
   if (reached) a.push({ id: 'reached', key: 'da_r_reached', params: { w: sg.weight, target: p.targetWeight }, level: 'good', basis: 'data', action: { kind: 'maintain' } });
@@ -315,33 +381,52 @@ export function adviseDiet(inp: AdvisorInput): AdvisorResult {
   if (!reached && rate !== null && sg.trendWeeks >= 3) {
     if (sg.goalGroup === 'loss') {
       if (pct < -1) a.push({ id: 'fast', key: 'da_r_tooFast', params: { rate, pct }, level: 'warn', basis: 'guideline', action: { kind: 'kcal', delta: 150 } });
-      else if (!inTrial && adherent && rate > -0.1 && sg.trendWeeks >= 4) {
+      else if (!hold && adherent && rate > -0.1 && sg.trendWeeks >= 4) {
         a.push(sg.currentKcal - 150 >= floor
-          ? { id: 'stall', key: 'da_r_stall', params: { rate, days: sg.completeDays, weeks: sg.trendWeeks }, level: 'warn', basis: 'data', action: { kind: 'kcal', delta: -150 } }
+          ? { id: 'stall', key: 'da_r_stall', params: { rate, days: sg.completeDays, weeks: sg.trendWeeks, to: sg.kcal < sg.currentKcal ? sg.kcal : sg.currentKcal - 150 }, level: 'warn', basis: 'data', action: { kind: 'kcal', delta: sg.kcal < sg.currentKcal ? sg.kcal - sg.currentKcal : -150 } }
           : { id: 'stallFloor', key: 'da_r_stallFloor', params: { bmr: floor }, level: 'warn', basis: 'guideline' });
       } else if (rate <= -0.1) a.push({ id: 'onTrack', key: 'da_r_onTrack', params: { rate }, level: 'good', basis: 'data' });
-    } else if (sg.goalGroup === 'gain' && !inTrial) {
+    } else if (sg.goalGroup === 'gain' && !hold) {
       if (adherent && rate < 0.05 && sg.trendWeeks >= 4) a.push({ id: 'gainStall', key: 'da_r_gainStall', params: { rate }, level: 'warn', basis: 'data', action: { kind: 'kcal', delta: 150 } });
       else if (pct > 0.5) a.push({ id: 'gainFast', key: 'da_r_gainFast', params: { rate, pct }, level: 'warn', basis: 'guideline', action: { kind: 'kcal', delta: -100 } });
-    } else if (sg.goalGroup === 'maintain' && !inTrial && adherent && Math.abs(rate) > 0.25 && sg.trendWeeks >= 4) {
+    } else if (sg.goalGroup === 'maintain' && !hold && adherent && Math.abs(rate) > 0.25 && sg.trendWeeks >= 4) {
       a.push({ id: 'drift', key: rate < 0 ? 'da_r_driftDown' : 'da_r_driftUp', params: { rate }, level: 'warn', basis: 'data', action: { kind: 'kcal', delta: rate < 0 ? 100 : -100 } });
+    }
+  }
+  // muscle preservation: weight loss alone is not success — look at strength, protein, recovery and waist as well
+  if (sg.goalGroup === 'loss' && rate !== null && sg.trendWeeks >= 3) {
+    const losing = rate <= -0.1;
+    const strengthOk = !(sg.strength === 'down' || (sg.liftsDown >= 2 && sg.liftsDown > sg.liftsUp));
+    const proteinOk = sg.proteinPerKg === null || sg.proteinPerKg >= 1.6;
+    const recoveryOk = !((sg.recovery !== null && sg.recovery <= 2) || (sg.energy !== null && sg.energy <= 2));
+    const waistDown = sg.waistChange !== null && sg.waistChange <= -1;
+    a.push({ id: 'quality', key: 'da_r_quality', params: {
+      w: losing ? '✓' : '—', s: strengthOk ? '✓' : '✗', p: proteinOk ? '✓' : '✗', r: recoveryOk ? '✓' : '✗', waist: sg.waistChange === null ? '—' : (sg.waistChange > 0 ? '+' : '') + sg.waistChange + ' cm'
+    }, level: losing && strengthOk && proteinOk && recoveryOk ? 'good' : 'info', basis: 'data' });
+    if (losing && (!strengthOk || !proteinOk || !recoveryOk)) a.push({ id: 'muscleRisk', key: 'da_r_muscleRisk', level: 'warn', basis: 'data',
+      action: !hold && proteinOk && sg.currentKcal + 100 <= sg.tdee * 0.9 ? { kind: 'kcal', delta: 100 } : undefined });
+    if (!losing && waistDown && strengthOk) {
+      // weight stable, waist down, strength kept: likely recomposition — do not cut calories
+      a.push({ id: 'recomp', key: 'da_r_recomp', params: { waist: sg.waistChange! }, level: 'good', basis: 'data' });
+      const stall = a.findIndex((x) => x.id === 'stall');
+      if (stall >= 0) a.splice(stall, 1);
     }
   }
   const perfDown = sg.strength === 'down' || (sg.liftsDown >= 2 && sg.liftsDown > sg.liftsUp);
   if (perfDown) {
     const lowCarbNow = (sg.carbShare !== null && sg.carbShare < 35) || current === 'keto' || current === 'low_carb';
     a.push({ id: 'perf', key: lowCarbNow ? 'da_r_perfCarbs' : 'da_r_perf', params: { down: sg.liftsDown, carbs: sg.carbShare ?? '—' }, level: 'warn', basis: 'data',
-      action: inTrial ? undefined : lowCarbNow ? { kind: 'mode', mode: Math.max(sg.trainingPerWeek, sg.plannedTraining) >= 4 ? 'carb_cycling' : 'flexible' } : sg.goalGroup === 'loss' && sg.currentKcal + 100 <= sg.tdee * 0.9 ? { kind: 'kcal', delta: 100 } : undefined });
+      action: hold ? undefined : lowCarbNow ? { kind: 'mode', mode: Math.max(sg.trainingPerWeek, sg.plannedTraining) >= 4 ? 'carb_cycling' : 'flexible' } : sg.goalGroup === 'loss' && sg.currentKcal + 100 <= sg.tdee * 0.9 ? { kind: 'kcal', delta: 100 } : undefined });
   }
   if (sg.hunger !== null && sg.hunger >= 4) a.push({ id: 'hunger', key: 'da_r_hunger', params: { h: r1(sg.hunger) }, level: 'warn', basis: 'data',
-    action: inTrial ? undefined : current !== 'high_protein' ? { kind: 'mode', mode: 'high_protein' } : sg.goalGroup === 'loss' && sg.currentKcal + 100 <= sg.tdee * 0.9 ? { kind: 'kcal', delta: 100 } : undefined });
+    action: hold ? undefined : current !== 'high_protein' ? { kind: 'mode', mode: 'high_protein' } : sg.goalGroup === 'loss' && sg.currentKcal + 100 <= sg.tdee * 0.9 ? { kind: 'kcal', delta: 100 } : undefined });
   // protein consistency, whatever the strategy (keto and low carb included)
   const protPct = curResult?.proteinPct ?? null;
   const tProt = s.targets.training.protein;
   if (tProt < sg.weight * 1.6) a.push({ id: 'proteinTarget', key: 'da_r_proteinTarget', params: { gkg: r1(tProt / sg.weight), grams: Math.round(sg.weight * 1.6) }, level: 'warn', basis: 'guideline' });
   else if (sg.completeDays >= 7 && sg.intake && sg.intake.protein < tProt * 0.9) a.push({ id: 'proteinShort', key: 'da_r_proteinShort', params: { avg: Math.round(sg.intake.protein), target: tProt, pct: protPct ?? '—' }, level: 'warn', basis: 'data' });
   if ((sg.energy !== null && sg.energy <= 2) || (sg.sleepH !== null && sg.sleepH < 6) || (sg.recovery !== null && sg.recovery <= 2)) a.push({ id: 'recovery', key: 'da_r_recovery', params: { sleep: sg.sleepH !== null ? r1(sg.sleepH) : '—' }, level: 'info', basis: 'data' });
-  if (!inTrial && sg.adherencePct !== null && sg.adherencePct < 60 && sg.completeDays >= 7 && (current === 'keto' || current === 'carb_cycling' || current === 'low_carb')) a.push({ id: 'simplify', key: 'da_r_simplify', params: { pct: sg.adherencePct }, level: 'warn', basis: 'data', action: { kind: 'mode', mode: 'flexible' } });
+  if (!hold && sg.adherencePct !== null && sg.adherencePct < 60 && sg.completeDays >= 7 && (current === 'keto' || current === 'carb_cycling' || current === 'low_carb')) a.push({ id: 'simplify', key: 'da_r_simplify', params: { pct: sg.adherencePct }, level: 'warn', basis: 'data', action: { kind: 'mode', mode: 'flexible' } });
   // safety net: never offer a calorie change that would go below the floor or above the fat-loss ceiling
   for (const x of a) if (x.action?.kind === 'kcal') {
     const next = sg.currentKcal + x.action.delta;

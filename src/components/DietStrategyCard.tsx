@@ -3,7 +3,7 @@ import { useApp } from '../app/AppContext';
 import { useTraining } from '../app/hooks';
 import { scheduleFromProgram } from '../lib/dietAdvisor';
 import {
-  computeMacros, CYCLE_LEVELS, cycleWeek, defaultSchedule, DIET_MODES, modeDefaults, strategyTargets,
+  computeMacros, CYCLE_LEVELS, cycleWeek, dayFloor, defaultSchedule, DIET_MODES, modeDefaults, strategyTargets,
   type CycleLevel, type DietMode, type DietStrategy
 } from '../lib/dietStrategy';
 import { WEEKDAY_KEYS } from '../lib/i18n';
@@ -36,7 +36,7 @@ export function DietStrategyCard() {
   const pick = (m: DietMode) => { setMode(m); setV(initial(m, kcal)); };
   const training = useTraining();
   const result = useMemo(() => (mode === 'carb_cycling' ? computeMacros('flexible', kcal, { protein: v.protein, carbs: 0, fat: Math.round(kcal * 0.25 / 9) }, weight) : computeMacros(mode, kcal, v, weight)), [mode, kcal, v, weight]);
-  const week = useMemo(() => (mode === 'carb_cycling' ? cycleWeek(kcal, v.protein, schedule, overrides) : null), [mode, kcal, v.protein, schedule, overrides]);
+  const week = useMemo(() => (mode === 'carb_cycling' ? cycleWeek(kcal, v.protein, schedule, overrides, dayFloor(settings.profile)) : null), [mode, kcal, v.protein, schedule, overrides]);
   const levels = week?.levels ?? null;
   const program = training ? training.programs.find((p) => p.id === training.activeId) ?? training.programs[0] : undefined;
   const next: Macros = mode === 'carb_cycling' ? strategyTargets({ mode, kcal, protein: v.protein, carbs: 0, fat: 0, appliedAt: 0 }) : result!.macros;

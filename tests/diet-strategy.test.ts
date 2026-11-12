@@ -54,7 +54,7 @@ describe('diet strategy engine', () => {
     const avg = schedule.reduce((a, l) => a + lv[l].kcal, 0) / 7;
     expect(Math.abs(avg - 2110)).toBeLessThanOrEqual(10);
     const over = cycleTargets(2110, 158, schedule, { low: { kcal: 1600, protein: 160, carbs: 60, fat: 80 } });
-    expect(over.low).toEqual({ kcal: 1600, protein: 160, carbs: 60, fat: 80 }); // hand-set level kept
+    expect(over.low).toEqual({ kcal: 1600, protein: 160, carbs: 60, fat: 80 }); // hand-set level kept (its grams add up to 1,600)
   });
   it('rebalance keeps the strategy character when calories change (e.g. a Goals recommendation)', () => {
     const keto: DietStrategy = { mode: 'keto', kcal: 2110, protein: 130, carbs: 25, fat: 166, appliedAt: 1 };
@@ -121,8 +121,8 @@ describe('carb cycling stays aligned with the weekly target', () => {
   it('(2) hand-set days: the automatic days absorb the difference so the week still equals 7 × base', async () => {
     const { cycleWeek } = await import('../src/lib/dietStrategy');
     const schedule = defaultSchedule([6, 0, 1, 2, 3, 4], 6);
-    const w = cycleWeek(2110, 158, schedule, { high: { kcal: 2700, protein: 158, carbs: 400, fat: 58 } });
-    expect(w.levels.high.kcal).toBe(2700);
+    const w = cycleWeek(2110, 158, schedule, { high: { kcal: 2754, protein: 158, carbs: 400, fat: 58 } });
+    expect(w.levels.high.kcal).toBe(4 * 158 + 4 * 400 + 9 * 58);
     expect(w.aligned).toBe(true);
     expect(Math.abs(w.weeklyKcal - 7 * 2110)).toBeLessThanOrEqual(7 * 2110 * 0.01);
     const impossible = cycleWeek(2110, 158, schedule, { high: { kcal: 4500, protein: 158, carbs: 800, fat: 58 } });

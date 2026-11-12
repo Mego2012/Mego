@@ -66,6 +66,8 @@ export function DietAdvisor() {
           <li><span>{t('da_s_trend')}</span><b className="num">{sg.ratePerWeek !== null ? t('da_s_trendV', { rate: n(sg.ratePerWeek, 2), n: sg.weighIns }) : t('da_s_trendNone', { n: sg.weighIns })}</b></li>
           <li><span>{t('da_s_feel')}</span><b className="num">{sg.hunger !== null ? t('da_s_feelV', { h: n(sg.hunger, 1), r: n(sg.recovery ?? 0, 1), s: t('ci_' + (sg.strength ?? 'same')) }) : t('da_none')}</b></li>
           <li><span>{t('da_s_lifts')}</span><b className="num">{t('da_s_liftsV', { up: sg.liftsUp, down: sg.liftsDown })}</b></li>
+          <li><span>{t('da_s_kcal')}</span><b className="num" data-testid="adv-kcal">{t(sg.kcalBasis === 'kept' ? 'da_s_kcalKept' : sg.kcalBasis === 'adjusted' ? 'da_s_kcalAdjusted' : 'da_s_kcalFormula', { k: n(sg.kcal), c: n(sg.currentKcal), f: n(sg.formulaKcal) })}</b></li>
+          <li><span>{t('da_s_protein')}</span><b className="num">{t(sg.proteinBasis === 'current' ? 'da_s_proteinCurrent' : 'da_s_proteinGoal', { g: sg.protein, gkg: n(sg.protein / sg.weight, 1) })}</b></li>
           <li><span>{t('da_s_tdee')}</span><b className="num">{n(sg.tdee)} {t('kcalUnit')} · <BasisTag b={sg.tdeeBasis} /></b></li>
         </ul>
         <div className="tiny muted">{sg.dataTdee !== null ? t('da_tdeeData', { data: n(sg.dataTdee), formula: n(sg.formulaTdee) }) : t('da_tdeeFormula', { formula: n(sg.formulaTdee) })}</div>
@@ -118,7 +120,8 @@ function BasisTag({ b }: { b: Basis }) {
 
 function Why({ w }: { w: Reason }) {
   const { t } = useApp();
-  return <li>{t(w.key, w.params)} <BasisTag b={w.basis} /></li>;
+  const params = w.params?.other ? { ...w.params, other: t('ds_m_' + w.params.other) } : w.params;
+  return <li>{t(w.key, params)} <BasisTag b={w.basis} /></li>;
 }
 
 function OptionCard({ o, rec, active, onAccept, order, fmt, busy }: { o: StrategyOption; rec?: boolean; active: boolean; onAccept: () => void; order: number[]; fmt: (m: Macros) => string; busy: boolean }) {

@@ -167,7 +167,7 @@ function GeneratedSheet({ days, lib, onChange, hasExisting, onClose }: { days: G
     <Sheet title={t('generatedPreview')} onClose={onClose} footer={<button className="btn primary block" disabled={busy || !days.length} data-testid="apply-generated" onClick={() => (hasExisting ? setConfirm(true) : apply())}>{t('applyPlan')}</button>}>
       <div className="stack" data-testid="generated-plan">
         {days.map((g) => {
-          const T = settings.targets.training;
+          const T = targetsFor(g.date, settings);
           return (
             <div key={g.date} className="stat">
               <div className="row between"><b>{d(g.date)}</b><span className="small num">{t('dayTotal')}: {n(g.total.kcal)} {t('kcalUnit')} · {t('protein')} {n(g.total.protein)}{t('g')}</span></div>

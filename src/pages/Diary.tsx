@@ -3,6 +3,8 @@ import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
 import { useCardio, useDayLog, useEntries, useTraining } from '../app/hooks';
 import { EnergyCard } from '../components/EnergyCard';
+import { StrategyChip } from '../components/StrategyChip';
+import { targetsFor } from '../lib/targets';
 import { energyFor } from '../lib/energy';
 import { FoodPicker, QuantityForm, UnitOptions } from '../components/FoodPicker';
 import { ScanButtons } from '../components/MealScanner';
@@ -71,6 +73,7 @@ export default function Diary() {
             <div className="day-left num">{n(Math.abs(kTarget - day.totals.kcal))} <span className="unit">{t('kcalUnit')}</span></div>
             <div className="row wrap" style={{ gap: 6, marginTop: 6 }}>
               <span className={`chip status-${day.status}`} data-testid="day-status">{t('status_' + day.status)}</span>
+              <StrategyChip date={date} log={log} />
               <select className="chip-select" value={log?.dayType ?? ''} aria-label={t('dayType')}
                 onChange={(e) => updateDayLog(date, { dayType: (e.target.value || undefined) as never })} data-testid="daytype-select">
                 <option value="">{t(day.dayType)} ({t('useDefault')})</option>
@@ -183,11 +186,14 @@ function WeekStrip({ date, onPick }: { date: string; onPick: (d: string) => void
     for (const e of list) if (!e.deleted) m[e.date] = (m[e.date] ?? 0) + e.macros.kcal;
     return m;
   }, [days[0]], {} as Record<string, number>);
-  const target = settings.targets.training.kcal || 1;
+  // each day's own target (carb cycling and per-day overrides included)
+  const logs = useLiveQuery(() => db.days.where('date').between(days[0], days[6], true, true).toArray(), [days[0]], []);
+  const targetOf = (x: string) => targetsFor(x, settings, logs.find((l) => l.date === x)).kcal || 1;
   const now = today();
   return (
     <div className="week-strip" role="tablist">
       {days.map((x) => {
+        const target = targetOf(x);
         const pct = Math.min(1, (kcal[x] ?? 0) / target);
         const C = 2 * Math.PI * 15;
         return (
@@ -334,7 +340,7 @@ export function NameSheet({ title, label, initial = '', onSave, onClose }: { tit
 function DayTargetsSheet({ date, onClose }: { date: string; onClose: () => void }) {
   const { t, settings } = useApp();
   const log = useDayLog(date);
-  const base = log?.targetsOverride ?? settings.targets[log?.dayType ?? 'training'];
+  const base = targetsFor(date, settings, log); // the day's current target (override, carb-cycling level or day type)
   const [v, setV] = useState({ ...base });
   return (
     <Sheet title={t('targetsForDay')} onClose={onClose} footer={<>

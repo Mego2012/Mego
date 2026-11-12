@@ -1,3 +1,5 @@
+import type { Settings } from '../lib/types';
+import { rebalance } from '../lib/dietStrategy';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
 import { useApp } from '../app/AppContext';
@@ -13,6 +15,13 @@ import { adviseGoals, applyAdvice, CHECKIN_PREFIX, type Advice, type CheckIn } f
 import { kvSet, saveSettings } from '../lib/repo';
 import { progressEstimate, rollingWeightAverage, weekReport } from '../lib/reports';
 import type { Macros } from '../lib/types';
+
+/** A Goals recommendation applied through the active diet strategy (keto keeps its carbs, flexible keeps its fat…). */
+function adviceWithStrategy(targets: Settings['targets'], action: Parameters<typeof applyAdvice>[1], strategy: Settings['dietStrategy']): Settings['targets'] {
+  const next = applyAdvice(targets, action);
+  if (!strategy) return next;
+  return { training: rebalance(strategy, next.training), rest: rebalance(strategy, next.rest) };
+}
 
 export default function Goals() {
   const { t, n, settings } = useApp();
@@ -130,11 +139,15 @@ export default function Goals() {
       </Card>
 
       {confirm?.action && (() => {
-        const next = applyAdvice(settings.targets, confirm.action);
+        const next = adviceWithStrategy(settings.targets, confirm.action, settings.dietStrategy);
         const msg = confirm.action.kind === 'cardio' ? t(confirm.key, confirm.params) : t('applyAdviceQ', { from: fmtT(settings.targets.training), to: fmtT(next.training) });
         return <Confirm message={msg} onNo={() => setConfirm(null)} onYes={async () => {
           const a = confirm; setConfirm(null);
-          await run(() => saveSettings((s) => { s.targets = applyAdvice(s.targets, a.action!); }), t('applied'));
+          await run(() => saveSettings((s) => {
+            s.targets = adviceWithStrategy(s.targets, a.action!, s.dietStrategy);
+            // the strategy follows the new calories/protein, so its preview and carb-cycling days stay in step
+            if (s.dietStrategy && s.dietStrategy.mode !== 'custom') s.dietStrategy = { ...s.dietStrategy, kcal: s.targets.training.kcal, protein: s.targets.training.protein };
+          }), t('applied'));
         }} />;
       })()}
     </div>

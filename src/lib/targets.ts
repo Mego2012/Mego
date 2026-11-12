@@ -1,4 +1,5 @@
 import { weekday } from './dates';
+import { cycleDay } from './dietStrategy';
 import type { DayLog, DayType, Macros, Settings } from './types';
 
 export function dayTypeFor(date: string, settings: Settings, log?: DayLog): DayType {
@@ -9,6 +10,9 @@ export function dayTypeFor(date: string, settings: Settings, log?: DayLog): DayT
 /** Targets for a date: per-date override > day-type targets. Always read from settings (never hardcoded). */
 export function targetsFor(date: string, settings: Settings, log?: DayLog): Macros {
   if (log?.targetsOverride) return log.targetsOverride;
+  // carb cycling: each weekday follows its level (high / moderate / low / rest), see dietStrategy.ts
+  const cycle = cycleDay(date, settings, log);
+  if (cycle) return cycle.targets;
   return settings.targets[dayTypeFor(date, settings, log)];
 }
 

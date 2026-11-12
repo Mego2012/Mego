@@ -18,6 +18,7 @@ import { backupToDrive, downloadBackup, restoreBackup } from '../lib/backup';
 import { db } from '../lib/db';
 import { exportDiaryCSV } from '../lib/exporters';
 import { DICTS, WEEKDAY_KEYS } from '../lib/i18n';
+import { DietStrategyCard } from '../components/DietStrategyCard';
 import { macroCalories } from '../lib/targets';
 import { saveSettings } from '../lib/repo';
 import backendCode from '../../apps-script/Code.gs?raw';
@@ -54,7 +55,7 @@ export default function Settings() {
     <div data-testid="settings-page" className="settings">
       <SettingsHeader />
       <nav className="tool-row settings-index" aria-label={t('nav_settings')}>
-        {([['s-account', 'user', 'acc_title'], ['s-look', 'globe', 'language'], ['s-profile', 'scale', 'profile'], ['s-targets', 'target', 'nutritionTargets'],
+        {([['s-account', 'user', 'acc_title'], ['s-look', 'globe', 'language'], ['s-profile', 'scale', 'profile'], ['s-strategy', 'leaf', 'ds_title'], ['s-targets', 'target', 'nutritionTargets'],
           ['s-diet', 'leaf', 'diet_title'], ['s-sync', 'sync', 'syncTitle'], ['s-ai', 'camera', 'aiScannerStatus'], ['s-data', 'shield', 'dataSafety']] as const).map(([id, icon, key]) => (
           <a key={id} className="chip clickable" href={`#${id}`} onClick={(e) => { e.preventDefault(); document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }}><Icon name={icon} /> {t(key)}</a>
         ))}
@@ -62,6 +63,7 @@ export default function Settings() {
       <div id="s-account"><AccountCardLazy /></div>
       <div id="s-look"><Preferences /></div>
       <div id="s-profile"><ProfileForm key={'p' + settings.updatedAt} /></div>
+      <div id="s-strategy"><DietStrategyCard key={'d' + settings.updatedAt} /></div>
       <div id="s-targets"><TargetsForm key={'t' + settings.updatedAt} /></div>
       <div id="s-diet"><DietForm /></div>
       <div id="s-sync"><SyncForm /></div>

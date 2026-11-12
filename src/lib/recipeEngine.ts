@@ -164,6 +164,8 @@ export interface SuggestFilters {
   /** Only recipes whose every ingredient is among these food names. */
   haveIngredients?: string[];
   favoritesOnly?: boolean;
+  /** Low-carb / keto strategy: never suggest more carbohydrates than the day has left (+5 g). */
+  carbStrict?: boolean;
 }
 
 export interface Suggestion {
@@ -218,6 +220,7 @@ export function suggest(
       if (filters.minProtein && mac.protein < Number(filters.minProtein)) continue;
       if (filters.maxCarbs !== undefined && filters.maxCarbs !== '' && mac.carbs > Number(filters.maxCarbs)) continue;
       if (filters.maxFat !== undefined && filters.maxFat !== '' && mac.fat > Number(filters.maxFat)) continue;
+      if (filters.carbStrict && mac.carbs > Math.max(remaining.carbs, 0) + 5) continue;
       const needP = Math.max(remaining.protein, 0);
       // Must help with protein when protein is still needed.
       if (needP >= 15 && mac.protein < Math.min(needP * 0.35, 20)) continue;
@@ -267,8 +270,12 @@ export function generatePlan(dates: string[], targetsFor: (d: string) => Macros,
     let best: { cost: number; picks: GeneratedDay['picks']; total: Macros } | null = null;
     const B = by('breakfast'), L = by('lunch'), D = by('dinner'), N = by('snacks');
     // Candidates: least-used first, mixing protein-dense and more filling options so days can reach the target.
+    // a low-carb day (carbohydrates < 25 % of calories, e.g. keto, low-carb, carb-cycling low/rest) prefers low-carb recipes
+    const lowCarbDay = (T.carbs * 4) / Math.max(T.kcal, 1) < 0.25;
+    const carbWeight = lowCarbDay ? 2.5 : 0.8;
     const pickOrder = (list: ComputedRecipe[]) => {
       const byUse = (a: ComputedRecipe, b: ComputedRecipe) => (used.get(a.lib.id) ?? 0) - (used.get(b.lib.id) ?? 0);
+      if (lowCarbDay) list = [...list].sort((a, b) => a.perServing.carbs / Math.max(a.perServing.kcal, 1) - b.perServing.carbs / Math.max(b.perServing.kcal, 1)).slice(0, Math.max(6, Math.ceil(list.length / 3)));
       const dense = [...list].sort((a, b) => byUse(a, b) || b.perServing.protein / Math.max(b.perServing.kcal, 1) - a.perServing.protein / Math.max(a.perServing.kcal, 1)).slice(0, 6);
       const filling = [...list].filter((c) => !dense.includes(c)).sort((a, b) => byUse(a, b) || b.perServing.kcal - a.perServing.kcal).slice(0, 3);
       return [...dense, ...filling];
@@ -281,7 +288,7 @@ export function generatePlan(dates: string[], targetsFor: (d: string) => Macros,
         const kcalOver = Math.max(0, t.kcal - T.kcal);
         const kcalUnder = Math.max(0, T.kcal - t.kcal);
         const pUnder = Math.max(0, T.protein - t.protein);
-        const cost = (kcalOver / T.kcal) * 3 + (kcalUnder / T.kcal) * 1.2 + (pUnder / T.protein) * 3 + Math.abs(t.carbs - T.carbs) / T.carbs * 0.8 + Math.abs(t.fat - T.fat) / T.fat * 0.8
+        const cost = (kcalOver / Math.max(T.kcal, 1)) * 3 + (kcalUnder / Math.max(T.kcal, 1)) * 1.2 + (pUnder / Math.max(T.protein, 1)) * 3 + Math.abs(t.carbs - T.carbs) / Math.max(T.carbs, 20) * carbWeight + Math.abs(t.fat - T.fat) / Math.max(T.fat, 10) * 0.8
           + ((used.get(l.lib.id) ?? 0) + (used.get(d.lib.id) ?? 0)) * 0.08 + ((used.get(b.lib.id) ?? 0) + (used.get(n.lib.id) ?? 0)) * 0.03;
         if (!best || cost < best.cost) {
           best = {

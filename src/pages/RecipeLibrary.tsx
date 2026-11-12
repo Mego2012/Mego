@@ -220,7 +220,8 @@ export function SuggestTab() {
   if (!day || !lib) return <div className="empty">{t('loading')}</div>;
   const mealsLeft = Math.max(1, 4 - day.mealsLogged);
   const rem = { ...day.remaining };
-  const list = suggest(rem, mealsLeft, lib, userRecipes, { ...f, haveIngredients: haveMode ? f.haveIngredients : undefined }, meta.favorites, meta.ratings);
+  const strict = settings.dietStrategy?.mode === 'keto' || settings.dietStrategy?.mode === 'low_carb';
+  const list = suggest(rem, mealsLeft, lib, userRecipes, { ...f, haveIngredients: haveMode ? f.haveIngredients : undefined, carbStrict: strict }, meta.favorites, meta.ratings);
   const nextMeal: MealType = (f.meal || MEALS.find((m) => day.byMeal[m].kcal === 0) || 'snacks') as MealType;
   return (
     <div data-testid="suggest">

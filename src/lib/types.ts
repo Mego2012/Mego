@@ -316,6 +316,8 @@ export interface Settings {
   cardioReplenishPct?: number | null;
   /** Fitness goals (Goals screen). */
   fitness?: FitnessGoals;
+  /** Diet strategy (Settings → Diet strategy). Absent = the saved targets are used exactly as they are. */
+  dietStrategy?: import('./dietStrategy').DietStrategy;
   updatedAt: number;
 }
 

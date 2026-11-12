@@ -4,6 +4,7 @@ import { useApp } from '../app/AppContext';
 import { useBundle, useCardio, useTraining } from '../app/hooks';
 import { TrainingCard } from '../components/TrainingCard';
 import { EnergyCard } from '../components/EnergyCard';
+import { StrategyChip } from '../components/StrategyChip';
 import { energyFor } from '../lib/energy';
 import { CaloriesChart } from '../components/charts';
 import { InsightList } from '../components/Insights';
@@ -62,6 +63,7 @@ export default function Dashboard() {
           <div className="chips">
             <span className={`chip status-${day.status}`}>{t('status_' + day.status)}</span>
             <span className="chip">{t(day.dayType)}</span>
+            <StrategyChip date={date} />
           </div>
         </div>
         <Dial value={day.totals.kcal} max={target} testId="calorie-dial">

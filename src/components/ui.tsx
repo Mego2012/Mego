@@ -185,7 +185,7 @@ export function Confirm({ message, onYes, onNo, danger }: { message: string; onY
       <button className="btn grow" onClick={onNo}>{t('cancel')}</button>
       <button className={`btn grow ${danger ? 'danger' : 'primary'}`} onClick={onYes} data-testid="confirm-yes">{t('confirm')}</button>
     </>}>
-      <p>{message}</p>
+      <p style={{ whiteSpace: 'pre-line' }}>{message}</p>
     </Sheet>
   );
 }

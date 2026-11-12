@@ -7,6 +7,7 @@ import type { StrategyOption } from './dietAdvisor';
 import { computeMacros, rebalance } from './dietStrategy';
 import { saveLocalBackup } from './localBackup';
 import { saveSettings } from './repo';
+import { recordStrategyChange } from './dietHistory';
 
 export async function applyDietOption(opt: StrategyOption) {
   await saveLocalBackup('manual');
@@ -15,6 +16,7 @@ export async function applyDietOption(opt: StrategyOption) {
     s.dietStrategy = { ...opt.strategy, appliedAt: Date.now(), previousTargets: s.dietStrategy?.previousTargets ?? s.targets };
     if (!keep) s.targets = { training: { ...opt.targets }, rest: { ...opt.targets } };
   });
+  await recordStrategyChange(opt.mode, opt.targets.kcal);
 }
 
 /** Calorie change through the active strategy (keto keeps its carbs, flexible keeps its fat …). */

@@ -18,7 +18,7 @@ const entries = (days: number, m: Macros): DiaryEntry[] => Array.from({ length: 
 }) as DiaryEntry);
 const weights = (days: number, start: number, perDay: number): BodyEntry[] => Array.from({ length: days }, (_, i) => ({ id: 'b' + i, date: addDays(END, -(days - 1 - i)), weight: Math.round((start + perDay * i) * 100) / 100, notes: '', createdAt: 1, updatedAt: 1 }));
 const input = (o: Partial<AdvisorInput> & { s?: Settings; e?: DiaryEntry[]; b?: BodyEntry[] }): AdvisorInput => ({
-  data: { settings: o.s ?? settings(), entries: o.e ?? [], days: [], body: o.b ?? [] }, workouts: o.workouts ?? [], program: o.program, cardio: [], recovery: o.recovery ?? [], checkins: o.checkins ?? [], date: END
+  data: { settings: o.s ?? settings(), entries: o.e ?? [], days: [], body: o.b ?? [] }, workouts: o.workouts ?? [], program: o.program, cardio: [], recovery: o.recovery ?? [], checkins: o.checkins ?? [], history: o.history, date: END
 });
 const check = (h: number, strength: CheckIn['strength'] = 'same', recovery = 3): CheckIn[] => [addDays(END, -10), addDays(END, -3)].map((week) => ({ week, strength, hunger: h, recovery, resistanceSessions: 6, updatedAt: 1 }));
 
@@ -83,5 +83,79 @@ describe('diet advisor', () => {
   it('a target that already fits within ±5 % is kept (no needless change of the saved 2,110 kcal)', () => {
     const r = adviseDiet(input({ s: settings({ activityLevel: 'moderate', goalType: 'fat_loss_preserve' }) }));
     expect(r.signals.kcal).toBe(2110);
+  });
+});
+
+describe('review improvements: weekly averages, safety, protein, trial, history, personalisation', () => {
+  it('(1) never acts on single weigh-ins: one weigh-in a week → no 7-day-average trend, no calorie suggestion', () => {
+    const sparse = [0, 7, 14, 21].map((k, i) => ({ id: 's' + i, date: addDays(END, -k), weight: 72 - i * 1.5, notes: '', createdAt: 1, updatedAt: 1 }));
+    const r = adviseDiet(input({ s: settings({ targetWeight: 60 }), e: entries(28, { kcal: 2110, protein: 158, carbs: 237, fat: 59 }), b: sparse, checkins: check(3) }));
+    expect(r.signals.trendWeeks).toBe(0);
+    expect(r.signals.ratePerWeek).toBeNull();
+    expect(r.adjustments.some((a) => a.action?.kind === 'kcal')).toBe(false);
+    expect(r.adjustments.find((a) => a.id === 'weigh')).toBeTruthy();
+  });
+  it('(1) lowering calories needs ≥ 3 weeks of weekly averages; 2 weeks of a stall is not enough', () => {
+    const two = adviseDiet(input({ s: settings({ activityLevel: 'moderate', targetWeight: 68 }), e: entries(28, { kcal: 2110, protein: 158, carbs: 237, fat: 59 }), b: weights(14, 72, 0), checkins: check(3) }));
+    expect(two.signals.trendWeeks).toBe(2);
+    expect(two.adjustments.find((a) => a.id === 'stall')).toBeUndefined();
+    const four = adviseDiet(input({ s: settings({ activityLevel: 'moderate', targetWeight: 68 }), e: entries(28, { kcal: 2110, protein: 158, carbs: 237, fat: 59 }), b: weights(28, 72, 0), checkins: check(3) }));
+    expect(four.signals.trendWeeks).toBe(4);
+    expect(four.adjustments.find((a) => a.id === 'stall')?.action).toEqual({ kind: 'kcal', delta: -150 });
+  });
+  it('(6) safety: target never below the resting rate / 1,200–1,500 kcal, deficit never above 25 %', () => {
+    const r = adviseDiet(input({ s: settings({ sex: 'female', age: 45, currentWeight: 50, heightCm: 152, activityLevel: 'sedentary', goalType: 'fat_loss', targetWeight: 45 }) }));
+    expect(r.signals.kcal).toBeGreaterThanOrEqual(1200);
+    expect(r.signals.kcal).toBeGreaterThanOrEqual(Math.ceil(r.signals.tdee * 0.75 / 10) * 10 - 10);
+    for (const o of r.options.filter((x) => x.mode !== 'custom')) expect(o.targets.kcal).toBeGreaterThanOrEqual(1200);
+  });
+  it('(6) a −150 suggestion is withheld when it would cross the safety floor', () => {
+    const s = settings({ activityLevel: 'moderate', targetWeight: 68 });
+    s.targets.training = { ...s.targets.training, kcal: 1700 };
+    const r = adviseDiet(input({ s, e: entries(28, { kcal: 1700, protein: 158, carbs: 140, fat: 55 }), b: weights(28, 72, 0), checkins: check(3) }));
+    const stall = r.adjustments.find((a) => a.id === 'stall' || a.id === 'stallFloor');
+    expect(stall?.action).toBeUndefined();
+  });
+  it('(3) protein is adequate in every strategy, keto and low carb included (≥ 1.6 g/kg)', () => {
+    const r = adviseDiet(input({}));
+    for (const o of r.options.filter((x) => x.mode !== 'custom')) expect(o.targets.protein / r.signals.weight, o.mode).toBeGreaterThanOrEqual(1.6);
+    const low = settings(); low.targets.training = { kcal: 2110, protein: 90, carbs: 300, fat: 60 };
+    expect(adviseDiet(input({ s: low })).adjustments.find((a) => a.id === 'proteinTarget')).toBeTruthy();
+  });
+  it('(5) trial: during the first 14 days no strategy/calorie changes except safety, current strategy favoured', () => {
+    const s = settings({ targetWeight: 65 }); s.dietStrategy = { mode: 'low_carb', kcal: 2110, protein: 144, carbs: 100, fat: 145, appliedAt: 1 };
+    const history = [{ mode: 'low_carb' as const, start: addDays(END, -5), kcal: 2110 }];
+    const r = adviseDiet(input({ s, history, e: entries(21, { kcal: 2110, protein: 144, carbs: 100, fat: 145 }), b: weights(28, 72, 0), checkins: check(5, 'down') }));
+    expect(r.trial).toMatchObject({ mode: 'low_carb', day: 6, done: false });
+    expect(r.adjustments.find((a) => a.id === 'trial')).toBeTruthy();
+    expect(r.adjustments.filter((a) => a.action && a.id !== 'fast')).toEqual([]);
+    expect(r.options.find((o) => o.mode === 'low_carb')!.why.some((w) => w.key === 'da_w_inTrial')).toBe(true);
+  });
+  it('(5) after the trial: effective when the trend matches the goal with good adherence, otherwise not effective', () => {
+    const s = settings({ targetWeight: 65, activityLevel: 'moderate' }); s.dietStrategy = { mode: 'flexible', kcal: 2110, protein: 158, carbs: 237, fat: 59, appliedAt: 1 };
+    const history = [{ mode: 'flexible' as const, start: addDays(END, -20), kcal: 2110 }];
+    const good = adviseDiet(input({ s, history, e: entries(28, { kcal: 2110, protein: 158, carbs: 237, fat: 59 }), b: weights(28, 74, -0.06), checkins: check(3) }));
+    expect(good.trial?.verdict).toBe('effective');
+    const flat = adviseDiet(input({ s, history, e: entries(28, { kcal: 2110, protein: 158, carbs: 237, fat: 59 }), b: weights(28, 72, 0), checkins: check(3) }));
+    expect(flat.trial?.verdict).toBe('notEffective');
+    expect(flat.adjustments.find((a) => a.id === 'trialEval')?.level).toBe('warn');
+  });
+  it('(4) results: previous vs current strategy from the records of each period', () => {
+    const s = settings({ targetWeight: 65 }); s.dietStrategy = { mode: 'high_protein', kcal: 2110, protein: 180, carbs: 200, fat: 59, appliedAt: 1 };
+    const history = [{ mode: 'keto' as const, start: addDays(END, -50), end: addDays(END, -22), kcal: 2110 }, { mode: 'high_protein' as const, start: addDays(END, -21), kcal: 2110 }];
+    const b = weights(56, 76, -0.05);
+    const r = adviseDiet(input({ s, history, e: entries(50, { kcal: 2110, protein: 170, carbs: 200, fat: 60 }), b, checkins: check(3) }));
+    expect(r.results.previous?.period.mode).toBe('keto');
+    expect(r.results.current?.period.mode).toBe('high_protein');
+    expect(r.results.previous!.ratePerWeek).toBeLessThan(0);
+    expect(r.results.current!.adherencePct).not.toBeNull();
+  });
+  it('(7) personalised: a strategy that failed for this user before is ranked down, one that worked is ranked up', () => {
+    const s = settings({ targetWeight: 60, activityLevel: 'moderate' });
+    const hardKeto = adviseDiet(input({ s, history: [{ mode: 'flexible', start: addDays(END, -27), end: addDays(END, -1), kcal: 2110 }, { mode: 'none', start: END, kcal: 2110 }],
+      e: entries(28, { kcal: 2110, protein: 158, carbs: 237, fat: 59 }), b: weights(28, 74, -0.07), checkins: check(3) }));
+    const flex = hardKeto.options.find((o) => o.mode === 'flexible')!;
+    expect(flex.why.some((w) => w.key === 'da_w_workedBefore')).toBe(true);
+    expect(hardKeto.recommended.mode).toBe('flexible');
   });
 });

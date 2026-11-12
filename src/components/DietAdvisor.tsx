@@ -8,6 +8,7 @@ import { adviseDiet, type Adjustment, type Basis, type Reason, type StrategyOpti
 import { applyDietOption, applyKcalDelta, applyMaintenance } from '../lib/dietActions';
 import { CYCLE_LEVELS } from '../lib/dietStrategy';
 import { CHECKIN_PREFIX, type CheckIn } from '../lib/goalAdvisor';
+import { DIET_HISTORY_KEY, type PeriodResult, type StrategyPeriod } from '../lib/dietHistory';
 import { WEEKDAY_KEYS } from '../lib/i18n';
 import type { Macros } from '../lib/types';
 import { Icon } from './icons';
@@ -20,13 +21,14 @@ export function DietAdvisor() {
   const cardio = useCardio();
   const training = useTraining();
   const checkins = useLiveQuery(async () => (await db.kv.where('key').startsWith(CHECKIN_PREFIX).toArray()).map((r) => r.value as CheckIn), [], []);
+  const history = useLiveQuery(async () => ((await db.kv.get(DIET_HISTORY_KEY))?.value as StrategyPeriod[] | undefined) ?? [], [], [] as StrategyPeriod[]);
   const { run, busy } = useAsync();
   const [confirm, setConfirm] = useState<{ msg: string; go: () => Promise<void> } | null>(null);
   const r = useMemo(() => {
     if (!data || !training) return null;
     const program = training.programs.find((p) => p.id === training.activeId) ?? training.programs[0];
-    return adviseDiet({ data, workouts: training.workouts, program, cardio, recovery: training.recovery, checkins });
-  }, [data, training, cardio, checkins]);
+    return adviseDiet({ data, workouts: training.workouts, program, cardio, recovery: training.recovery, checkins, history });
+  }, [data, training, cardio, checkins, history]);
   if (!r) return <Skeleton lines={8} />;
   const sg = r.signals;
   const fmt = (m: Macros) => `${n(m.kcal)} ${t('kcalUnit')} · ${t('protein')} ${n(m.protein)} · ${t('carbs')} ${n(m.carbs)} · ${t('fat')} ${n(m.fat)} ${t('g')}`;
@@ -69,6 +71,13 @@ export function DietAdvisor() {
         <div className="tiny muted">{sg.dataTdee !== null ? t('da_tdeeData', { data: n(sg.dataTdee), formula: n(sg.formulaTdee) }) : t('da_tdeeFormula', { formula: n(sg.formulaTdee) })}</div>
         <div className="tiny muted" data-testid="adv-confidence">{t('da_conf_' + r.confidence)}</div>
       </Card>
+
+      {r.trial && (
+        <div className={`banner small ${r.trial.done ? (r.trial.verdict === 'notEffective' ? 'offline' : 'info') : 'info'}`} data-testid="adv-trial">
+          {r.trial.done ? t('da_trialDone', { mode: t('ds_m_' + r.trial.mode), days: r.trial.day }) : t('da_trialRunning', { mode: t('ds_m_' + r.trial.mode), day: r.trial.day, date: r.trial.evalDate })}
+        </div>
+      )}
+      {(r.results.current || r.results.previous) && <ResultsCard cur={r.results.current} prev={r.results.previous} />}
 
       <OptionCard o={r.recommended} rec active={active === r.recommended.mode} onAccept={() => accept(r.recommended)} order={order} fmt={fmt} busy={busy} />
       <div className="small bold">{t('da_alternatives')}</div>
@@ -132,6 +141,30 @@ function OptionCard({ o, rec, active, onAccept, order, fmt, busy }: { o: Strateg
         {active ? <div className="chip good">{t('da_current')}</div>
           : <button className={`btn ${rec ? 'primary' : ''} block`} disabled={busy} onClick={onAccept} data-testid={'adv-accept-' + o.mode}>{rec ? t('da_accept') : t('da_useInstead')}</button>}
       </div>
+    </Card>
+  );
+}
+
+/** Results of the current strategy next to the previous one (from the user's own records over each period). */
+function ResultsCard({ cur, prev }: { cur: PeriodResult | null; prev: PeriodResult | null }) {
+  const { t, n, d } = useApp();
+  const v = (x: number | null, digits = 1, unit = '') => (x === null ? '—' : `${x > 0 && unit !== '%' ? '+' : ''}${n(x, digits)}${unit}`);
+  const col = (r: PeriodResult | null) => r ? [
+    `${t('ds_m_' + r.period.mode)} · ${d(r.period.start)} → ${r.period.end ? d(r.period.end) : t('today')} (${r.days})`,
+    r.ratePerWeek === null ? t('da_res_needWeeks') : `${v(r.ratePerWeek, 2)} kg/${t('da_week')}`,
+    v(r.waistChange, 1, ' cm'), `${r.strength.up}↑ · ${r.strength.down}↓`,
+    r.hunger === null ? '—' : `${n(r.hunger, 1)}/5`, r.recovery === null ? '—' : `${n(r.recovery, 1)}/5`,
+    r.adherencePct === null ? '—' : `${r.adherencePct}%`, r.proteinPct === null ? '—' : `${r.proteinPct}%`
+  ] : Array(8).fill('—');
+  const rows = ['da_res_period', 'da_res_weight', 'da_res_waist', 'da_res_strength', 'da_res_hunger', 'da_res_recovery', 'da_res_adherence', 'da_res_protein'];
+  const a = col(prev), b = col(cur);
+  return (
+    <Card title={<><Icon name="compare" />{t('da_results')}</>}>
+      <div className="table-wrap"><table className="da-table" data-testid="adv-results">
+        <thead><tr><th></th><th>{t('da_res_previous')}</th><th>{t('da_res_current')}</th></tr></thead>
+        <tbody>{rows.map((k, i) => <tr key={k}><td>{t(k)}</td><td className="num" style={{ whiteSpace: 'normal' }}>{a[i]}</td><td className="num" style={{ whiteSpace: 'normal' }}>{b[i]}</td></tr>)}</tbody>
+      </table></div>
+      <div className="tiny muted">{t('da_resNote')}</div>
     </Card>
   );
 }

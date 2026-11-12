@@ -54,12 +54,24 @@ export function modeDefaults(mode: DietMode, kcal: number, weightKg: number, cur
 }
 
 /** Daily targets for a single-target mode (all modes except carb cycling, whose days come from cycleTargets). */
-export function computeMacros(mode: DietMode, kcalIn: number, input: { protein: number; carbs: number; fat: number }): DietResult {
+/** Minimum daily protein for people who train, across ALL strategies (ISSN position stand: 1.6–2.2 g/kg). */
+export const PROTEIN_MIN_G_PER_KG = 1.6;
+/** Minimum fat for health (≈ 0.6 g/kg; fat also stays ≥ 20 % of calories in the automatic splits). */
+export const FAT_MIN_G_PER_KG = 0.6;
+
+export function computeMacros(mode: DietMode, kcalIn: number, input: { protein: number; carbs: number; fat: number }, weightKg?: number): DietResult {
   const warnings: string[] = [];
   const kcal = clampInt(kcalIn);
   let protein = clampInt(input.protein), carbs = clampInt(input.carbs), fat = clampInt(input.fat);
+  const bodyChecks = (m: Macros) => {
+    if (weightKg && weightKg > 0 && m.protein < weightKg * PROTEIN_MIN_G_PER_KG) warnings.push('diet_w_proteinMin');
+    if (weightKg && weightKg > 0 && m.fat < weightKg * FAT_MIN_G_PER_KG) warnings.push('diet_w_fatMin');
+    if (m.kcal < 1200) warnings.push('diet_w_veryLow');
+  };
   if (mode === 'custom') {
-    return { macros: { kcal: kcalOf(protein, carbs, fat), protein, carbs, fat }, warnings: kcalOf(protein, carbs, fat) < 1000 ? ['diet_w_veryLow'] : [] };
+    const m = { kcal: kcalOf(protein, carbs, fat), protein, carbs, fat };
+    bodyChecks(m);
+    return { macros: m, warnings };
   }
   if (mode === 'low_carb' || mode === 'keto') {
     if (mode === 'keto' && carbs > 50) warnings.push('diet_w_ketoCarbs');
@@ -75,6 +87,7 @@ export function computeMacros(mode: DietMode, kcalIn: number, input: { protein: 
   }
   if (mode === 'high_protein' && (protein * 4) / Math.max(kcal, 1) < 0.25) warnings.push('diet_w_proteinLow');
   if (protein / Math.max(kcal, 1) * 4 > 0.45) warnings.push('diet_w_proteinVeryHigh');
+  bodyChecks({ kcal, protein, carbs, fat });
   return { macros: { kcal, protein, carbs, fat }, warnings };
 }
 
@@ -95,23 +108,45 @@ export function defaultSchedule(trainingWeekdays: number[], weekStartsOn = 6): C
   return s;
 }
 
+/** Lowest calories any single carb-cycling day may get, as a share of the base target (keeps low/rest days sensible). */
+export const CYCLE_MIN_SHARE = 0.7;
+
+export interface CycleWeek {
+  levels: Record<CycleLevel, Macros>;
+  /** Sum of the 7 days of the schedule. */
+  weeklyKcal: number;
+  /** 7 × the base daily target. */
+  weeklyTarget: number;
+  /** true when the week matches the weekly target within 1 % (rounding). */
+  aligned: boolean;
+}
+
 /**
- * Carb-cycling targets per level. Calories per level follow CYCLE_RULES, scaled so the WEEKLY AVERAGE equals the
- * base calorie target for the chosen schedule. Protein stays the same every day; fat is a share of the day's
- * calories; carbohydrates balance. Hand-set targets for a level replace the computed ones.
+ * Carb cycling for a schedule. Protein stays the same every day; fat is a share of each day's calories; carbohydrates
+ * balance. Calories per level follow CYCLE_RULES and are scaled so the WEEK equals 7 × the base target.
+ * Hand-set levels keep their values; the automatic levels absorb the difference so the week still matches
+ * (never below CYCLE_MIN_SHARE of the base — if hand-set levels make that impossible, `aligned` is false).
  */
-export function cycleTargets(baseKcal: number, protein: number, schedule: CycleLevel[], overrides: Partial<Record<CycleLevel, Macros>> = {}): Record<CycleLevel, Macros> {
-  const sum = schedule.reduce((a, l) => a + CYCLE_RULES[l].kcal, 0) || 7;
-  const scale = 7 / sum;
-  const out = {} as Record<CycleLevel, Macros>;
+export function cycleWeek(baseKcal: number, protein: number, schedule: CycleLevel[], overrides: Partial<Record<CycleLevel, Macros>> = {}): CycleWeek {
+  const weeklyTarget = Math.round(baseKcal) * 7;
+  const fixed = schedule.reduce((a, l) => a + (overrides[l] ? overrides[l]!.kcal : 0), 0);
+  const autoWeight = schedule.reduce((a, l) => a + (overrides[l] ? 0 : CYCLE_RULES[l].kcal), 0);
+  const scale = autoWeight > 0 ? (weeklyTarget - fixed) / (baseKcal * autoWeight) : 1;
+  const levels = {} as Record<CycleLevel, Macros>;
   for (const l of CYCLE_LEVELS) {
-    if (overrides[l]) { out[l] = { ...overrides[l]! }; continue; }
-    const kcal = Math.round((baseKcal * CYCLE_RULES[l].kcal * scale) / 10) * 10;
+    if (overrides[l]) { levels[l] = { ...overrides[l]! }; continue; }
+    const kcal = Math.max(Math.round(baseKcal * CYCLE_MIN_SHARE / 10) * 10, Math.round((baseKcal * CYCLE_RULES[l].kcal * scale) / 10) * 10);
     const fat = Math.round((kcal * CYCLE_RULES[l].fatShare) / 9);
     const carbs = Math.max(0, Math.round((kcal - 4 * protein - 9 * fat) / 4));
-    out[l] = { kcal, protein, carbs, fat };
+    levels[l] = { kcal, protein, carbs, fat };
   }
-  return out;
+  const weeklyKcal = schedule.reduce((a, l) => a + levels[l].kcal, 0);
+  return { levels, weeklyKcal, weeklyTarget, aligned: Math.abs(weeklyKcal - weeklyTarget) <= weeklyTarget * 0.01 };
+}
+
+/** Targets per level (see cycleWeek). */
+export function cycleTargets(baseKcal: number, protein: number, schedule: CycleLevel[], overrides: Partial<Record<CycleLevel, Macros>> = {}): Record<CycleLevel, Macros> {
+  return cycleWeek(baseKcal, protein, schedule, overrides).levels;
 }
 
 /** The targets a strategy saves as the app's regular daily targets (carb cycling: its moderate day). */

@@ -1,12 +1,15 @@
 import { useMemo, useState } from 'react';
 import { useApp } from '../app/AppContext';
+import { useTraining } from '../app/hooks';
+import { scheduleFromProgram } from '../lib/dietAdvisor';
 import {
-  computeMacros, CYCLE_LEVELS, cycleTargets, defaultSchedule, DIET_MODES, modeDefaults, strategyTargets,
+  computeMacros, CYCLE_LEVELS, cycleWeek, defaultSchedule, DIET_MODES, modeDefaults, strategyTargets,
   type CycleLevel, type DietMode, type DietStrategy
 } from '../lib/dietStrategy';
 import { WEEKDAY_KEYS } from '../lib/i18n';
 import { saveLocalBackup } from '../lib/localBackup';
 import { saveSettings } from '../lib/repo';
+import { recordStrategyChange } from '../lib/dietHistory';
 import type { Macros } from '../lib/types';
 import { Icon } from './icons';
 import { Card, Confirm, NumField, useAsync } from './ui';
@@ -31,8 +34,11 @@ export function DietStrategyCard() {
   const [confirm, setConfirm] = useState<'apply' | 'undo' | null>(null);
 
   const pick = (m: DietMode) => { setMode(m); setV(initial(m, kcal)); };
-  const result = useMemo(() => (mode === 'carb_cycling' ? null : computeMacros(mode, kcal, v)), [mode, kcal, v]);
-  const levels = useMemo(() => (mode === 'carb_cycling' ? cycleTargets(kcal, v.protein, schedule, overrides) : null), [mode, kcal, v.protein, schedule, overrides]);
+  const training = useTraining();
+  const result = useMemo(() => (mode === 'carb_cycling' ? computeMacros('flexible', kcal, { protein: v.protein, carbs: 0, fat: Math.round(kcal * 0.25 / 9) }, weight) : computeMacros(mode, kcal, v, weight)), [mode, kcal, v, weight]);
+  const week = useMemo(() => (mode === 'carb_cycling' ? cycleWeek(kcal, v.protein, schedule, overrides) : null), [mode, kcal, v.protein, schedule, overrides]);
+  const levels = week?.levels ?? null;
+  const program = training ? training.programs.find((p) => p.id === training.activeId) ?? training.programs[0] : undefined;
   const next: Macros = mode === 'carb_cycling' ? strategyTargets({ mode, kcal, protein: v.protein, carbs: 0, fat: 0, appliedAt: 0 }) : result!.macros;
   const order = Array.from({ length: 7 }, (_, i) => (settings.weekStartsOn + i) % 7);
   const fmt = (m: Macros) => `${n(m.kcal)} ${t('kcalUnit')} · ${t('protein')} ${n(m.protein)} · ${t('carbs')} ${n(m.carbs)} · ${t('fat')} ${n(m.fat)} ${t('g')}`;
@@ -48,11 +54,13 @@ export function DietStrategyCard() {
       ...(mode === 'carb_cycling' ? { cycle: { schedule, ...(Object.keys(overrides).length ? { overrides } : {}) } } : {})
     };
     await saveSettings((s) => { s.dietStrategy = strat; s.targets = { training: { ...next }, rest: { ...next } }; });
+    await recordStrategyChange(mode, next.kcal);
   }, t('saved'));
   const undo = () => run(async () => {
     const prev = active?.previousTargets;
     await saveLocalBackup('manual');
     await saveSettings((s) => { if (prev) s.targets = prev; delete s.dietStrategy; });
+    await recordStrategyChange('none', prev?.training.kcal ?? cur.kcal);
   }, t('saved'));
 
   return (
@@ -80,7 +88,9 @@ export function DietStrategyCard() {
 
         {mode === 'carb_cycling' && levels && (
           <div className="stack" data-testid="ds-cycle">
-            <div className="small bold">{t('ds_schedule')}</div>
+            <div className="row between"><div className="small bold">{t('ds_schedule')}</div>
+              <button className="btn sm ghost" onClick={() => setSchedule(scheduleFromProgram(program, settings.trainingWeekdays, settings.weekStartsOn))} data-testid="ds-from-program">{t('ds_fromProgram')}</button></div>
+            <div className="tiny muted">{t('ds_scheduleHint')}</div>
             <div className="ds-week">
               {order.map((wd) => (
                 <label key={wd} className="field"><span>{t(WEEKDAY_KEYS[wd])}</span>
@@ -107,6 +117,7 @@ export function DietStrategyCard() {
               {order.map((wd) => <li key={wd}><span>{t(WEEKDAY_KEYS[wd])} · {t('ds_l_' + schedule[wd])}</span><b className="num small">{n(levels[schedule[wd]].kcal)} · C {n(levels[schedule[wd]].carbs)} · F {n(levels[schedule[wd]].fat)}</b></li>)}
             </ul>
             <div className="tiny muted">{t('ds_cycleNote', { avg: n(Math.round(order.reduce((a, wd) => a + levels[schedule[wd]].kcal, 0) / 7)) })}</div>
+            <div className={`banner small ${week!.aligned ? 'info' : 'offline'}`} data-testid="ds-week-total">{t(week!.aligned ? 'ds_weekAligned' : 'ds_weekNotAligned', { week: n(week!.weeklyKcal), target: n(week!.weeklyTarget) })}</div>
           </div>
         )}
 

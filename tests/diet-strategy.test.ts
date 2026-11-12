@@ -116,3 +116,36 @@ describe('meal plans and suggestions follow the strategy', () => {
     for (const s of suggest(rem, 1, lib, [], { carbStrict: true })) expect(s.macros.carbs).toBeLessThanOrEqual(20);
   }, 60000);
 });
+
+describe('carb cycling stays aligned with the weekly target', () => {
+  it('(2) hand-set days: the automatic days absorb the difference so the week still equals 7 × base', async () => {
+    const { cycleWeek } = await import('../src/lib/dietStrategy');
+    const schedule = defaultSchedule([6, 0, 1, 2, 3, 4], 6);
+    const w = cycleWeek(2110, 158, schedule, { high: { kcal: 2700, protein: 158, carbs: 400, fat: 58 } });
+    expect(w.levels.high.kcal).toBe(2700);
+    expect(w.aligned).toBe(true);
+    expect(Math.abs(w.weeklyKcal - 7 * 2110)).toBeLessThanOrEqual(7 * 2110 * 0.01);
+    const impossible = cycleWeek(2110, 158, schedule, { high: { kcal: 4500, protein: 158, carbs: 800, fat: 58 } });
+    expect(impossible.aligned).toBe(false); // flagged instead of starving the other days
+    expect(Math.min(impossible.levels.low.kcal, impossible.levels.rest.kcal)).toBeGreaterThanOrEqual(Math.round(2110 * 0.7 / 10) * 10);
+  });
+  it('(3) protein / fat minimum warnings in every mode when the body weight is known', () => {
+    expect(computeMacros('keto', 2110, { protein: 80, carbs: 25, fat: 0 }, 72).warnings).toContain('diet_w_proteinMin');
+    expect(computeMacros('custom', 0, { protein: 160, carbs: 300, fat: 30 }, 72).warnings).toContain('diet_w_fatMin');
+    expect(computeMacros('flexible', 2110, { protein: 158, carbs: 0, fat: 59 }, 72).warnings).toEqual([]);
+  });
+});
+
+describe('strategy history', () => {
+  it('(4) each change closes the open period; a second change on the same day replaces it; nothing else is written', async () => {
+    const { readHistory, recordStrategyChange } = await import('../src/lib/dietHistory');
+    const before = await db.entries.count();
+    await recordStrategyChange('keto', 2110, '2026-10-01');
+    await recordStrategyChange('flexible', 2110, '2026-10-20');
+    await recordStrategyChange('high_protein', 2110, '2026-10-20'); // same day → replaces flexible
+    await recordStrategyChange('none', 2110, '2026-11-05');
+    const h = await readHistory();
+    expect(h.map((x) => [x.mode, x.start, x.end ?? null])).toEqual([['keto', '2026-10-01', '2026-10-19'], ['high_protein', '2026-10-20', '2026-11-04'], ['none', '2026-11-05', null]]);
+    expect(await db.entries.count()).toBe(before);
+  });
+});

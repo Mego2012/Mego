@@ -22,7 +22,7 @@ export const en6: Record<string, string> = {
   ck_filters: 'Filters', ck_fIngredient: 'Contains ingredients', ck_fIngredientPh: 'e.g. chicken, garlic', ck_fMaxKcal: 'Max kcal / serving',
   ck_fMinProtein: 'Min protein (g)', ck_fMaxMin: 'Max total time (min)', ck_fMethod: 'Cooking method', ck_fClear: 'Clear filters',
   tag_sauce: 'Sauces', tag_side: 'Sides', tag_pasta: 'Pasta', tag_potato: 'Potatoes',
-  usdaRefLine: 'USDA reference description', nav_main: 'Main navigation', wk_setDone: 'Set completed', switchLanguage: 'العربية — switch to Arabic'
+  usdaRefLine: 'USDA reference description', nav_main: 'Main navigation', wk_setDone: 'Set completed', switchLanguage: 'العربية — switch to Arabic', targetsRange: 'Not saved yet: calories 800–10,000, protein ≤ 600 g, carbs ≤ 1,500 g, fat ≤ 500 g. Your previous target stays until the value is valid.'
 };
 
 export const ar6: Record<string, string> = {
@@ -48,5 +48,5 @@ export const ar6: Record<string, string> = {
   ck_filters: 'الفلاتر', ck_fIngredient: 'تحتوي على مكونات', ck_fIngredientPh: 'مثلاً: دجاج، ثوم', ck_fMaxKcal: 'أقصى سعرات للحصة',
   ck_fMinProtein: 'أقل بروتين (غ)', ck_fMaxMin: 'أقصى وقت كلي (دقيقة)', ck_fMethod: 'طريقة الطهي', ck_fClear: 'مسح الفلاتر',
   tag_sauce: 'صلصات', tag_side: 'أطباق جانبية', tag_pasta: 'معكرونة', tag_potato: 'بطاطس',
-  usdaRefLine: 'الوصف المرجعي في USDA', nav_main: 'التنقل الرئيسي', wk_setDone: 'المجموعة مكتملة', switchLanguage: 'English — التبديل إلى الإنجليزية'
+  usdaRefLine: 'الوصف المرجعي في USDA', nav_main: 'التنقل الرئيسي', wk_setDone: 'المجموعة مكتملة', switchLanguage: 'English — التبديل إلى الإنجليزية', targetsRange: 'لم يُحفظ بعد: السعرات 800–10,000، والبروتين حتى 600 غ، والكارب حتى 1,500 غ، والدهون حتى 500 غ. يبقى هدفك السابق حتى تصبح القيمة صحيحة.'
 };

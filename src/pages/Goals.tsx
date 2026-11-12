@@ -154,24 +154,33 @@ export default function Goals() {
   );
 }
 
+/** Upper limits that catch typing mistakes (e.g. 21102110 kcal); targets above them are not saved. */
+const TARGET_MAX: Record<keyof Macros, number> = { kcal: 10000, protein: 600, carbs: 1500, fat: 500 } as Record<keyof Macros, number>;
+
 function TargetsEditor() {
   const { t, settings } = useApp();
   const { run } = useAsync();
   const [kind, setKind] = useState<'training' | 'rest'>('training');
+  // what the user is typing: kept locally so a field can be cleared and retyped (e.g. 2110 → 1800); saved once valid
+  const [draft, setDraft] = useState<Partial<Record<keyof Macros, number | ''>>>({});
   const m = settings.targets[kind];
   const set = (k: keyof Macros) => (v: number | '') => {
-    if (v === '' || !(v >= 0) || (k === 'kcal' && v < 800)) return;
+    setDraft((d) => ({ ...d, [k]: v }));
+    if (v === '' || !(v >= 0) || v > TARGET_MAX[k] || (k === 'kcal' && v < 800)) return;
     run(() => saveSettings((s) => { s.targets[kind] = { ...s.targets[kind], [k]: v }; }));
   };
+  const val = (k: keyof Macros) => (draft[k] !== undefined ? draft[k] : m[k]);
+  const invalid = (['kcal', 'protein', 'carbs', 'fat'] as const).filter((k) => { const v = draft[k]; return v !== undefined && (v === '' || v > TARGET_MAX[k] || (k === 'kcal' && v < 800)); });
   return (
     <>
-      <Segmented value={kind} onChange={setKind} options={[{ value: 'training', label: t('trainingDay') }, { value: 'rest', label: t('restDay') }]} />
-      <div className="grid2" style={{ marginTop: 8 }} data-testid="targets-editor">
-        <NumField label={t('kcal')} value={m.kcal} onChange={set('kcal')} testId="goal-kcal" />
-        <NumField label={t('protein')} suffix={t('g')} value={m.protein} onChange={set('protein')} testId="goal-protein" />
-        <NumField label={t('carbs')} suffix={t('g')} value={m.carbs} onChange={set('carbs')} testId="goal-carbs" />
-        <NumField label={t('fat')} suffix={t('g')} value={m.fat} onChange={set('fat')} testId="goal-fat" />
+      <Segmented value={kind} onChange={(x) => { setDraft({}); setKind(x); }} options={[{ value: 'training', label: t('trainingDay') }, { value: 'rest', label: t('restDay') }]} />
+      <div className="grid2" style={{ marginTop: 8 }} data-testid="targets-editor" onBlur={() => setDraft({})}>
+        <NumField label={t('kcal')} value={val('kcal')} onChange={set('kcal')} testId="goal-kcal" />
+        <NumField label={t('protein')} suffix={t('g')} value={val('protein')} onChange={set('protein')} testId="goal-protein" />
+        <NumField label={t('carbs')} suffix={t('g')} value={val('carbs')} onChange={set('carbs')} testId="goal-carbs" />
+        <NumField label={t('fat')} suffix={t('g')} value={val('fat')} onChange={set('fat')} testId="goal-fat" />
       </div>
+      {invalid.length > 0 && <div className="tiny delta pos" data-testid="targets-invalid">{t('targetsRange')}</div>}
     </>
   );
 }

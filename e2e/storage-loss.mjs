@@ -49,8 +49,9 @@ try {
   await p.getByTestId('welcome').waitFor(); console.log('after loss: welcome screen shown');
   await p.getByTestId('wel-login').click(); await p.getByTestId('login-email').fill(email); await p.getByTestId('login-password').fill(PW);
   await p.getByTestId('login-submit').click(); await p.getByTestId('dashboard').waitFor();
-  await p.waitForTimeout(8000);
-  const n = await entries(), k = await kcalTarget();
+  // the download from the cloud can take longer on a busy machine: wait until it is complete (up to 30 s)
+  let n = 0, k = 0;
+  for (let i = 0; i < 30; i++) { await p.waitForTimeout(1000); n = await entries(); k = await kcalTarget(); if (i >= 7 && n >= 2 && k === 2110) break; }
   const weight = await p.evaluate(() => new Promise((res) => { const r = indexedDB.open('mego-u-' + localStorage.getItem('mego.activeUid')); r.onsuccess = () => { const q = r.result.transaction('body').objectStore('body').getAll(); q.onsuccess = () => res(q.result.map((b) => b.date + ':' + b.weight).join(',')); }; }));
   console.log('after sign-in: weigh-ins', weight, '(newer copy of 2026-11-01 expected: 80.1)');
   if (!weight.includes('2026-11-01:80.1') || n < 2) failed = true;

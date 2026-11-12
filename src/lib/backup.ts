@@ -37,7 +37,7 @@ export async function backupToDrive() {
   return callScript<{ file: string; url: string }>(s.sync, 'backup', { snapshot: await snapshot() });
 }
 
-/** Restores a backup by merging records (newer updatedAt wins). Never deletes existing data. */
+/** Restores a backup by merging records (newer updatedAt wins, settings included). Never deletes existing data. */
 export async function restoreBackup(text: string): Promise<Record<string, number>> {
   let data: { format?: string; tables?: Record<string, Record<string, unknown>[]> };
   try {
@@ -62,8 +62,12 @@ export async function restoreBackup(text: string): Promise<Record<string, number
       let n = 0;
       for (const row of rows) {
         if (table === 'settings') {
-          await db.settings.put({ ...(row as unknown as Settings), sync: localSettings.sync });
-          n++;
+          // same rule as every other table: an older backup never replaces newer settings (targets, profile, language)
+          const cur = (await db.settings.get((row as { id?: string }).id ?? 'main')) as { updatedAt?: number } | undefined;
+          if (!cur || ((row.updatedAt as number) ?? 0) > (cur.updatedAt ?? 0)) {
+            await db.settings.put({ ...(row as unknown as Settings), sync: localSettings.sync });
+            n++;
+          }
           continue;
         }
         const local = (await db.table(table).get(row[keyName] as never)) as { updatedAt?: number } | undefined;

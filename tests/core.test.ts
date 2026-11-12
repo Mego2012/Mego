@@ -235,6 +235,23 @@ describe('templates, insights, backup', () => {
     expect(all[0]).toMatchObject({ weight: 71.8, waist: 82 });
     await expect(saveBodyEntry('2026-10-02', { weight: 7 })).rejects.toThrow();
   });
+  it('restoring an OLD backup never overwrites newer data (targets 2,110 / 160 kept, newer entry kept, nothing deleted)', async () => {
+    const { saveSettings, getSettings, updateEntry } = await import('../src/lib/repo');
+    const e = await addFoodEntry(today(), 'lunch', await food('صدر دجاج'), 100, 'g');
+    await saveSettings((s) => { s.targets.training = { kcal: 2000, protein: 150, carbs: 200, fat: 60 }; });
+    const old = await snapshot();                                   // backup taken now
+    await new Promise((r) => setTimeout(r, 5));
+    await saveSettings((s) => { s.targets.training = { kcal: 2110, protein: 160, carbs: 235, fat: 59 }; s.lang = 'en'; });
+    await updateEntry(e.id, { quantity: 150 });                     // newer edit after the backup
+    const extra = await addFoodEntry(today(), 'dinner', await food('صدر دجاج'), 80, 'g'); // added after the backup
+    const counts = await restoreBackup(JSON.stringify(old));
+    const s = await getSettings();
+    expect(s.targets.training).toMatchObject({ kcal: 2110, protein: 160 });
+    expect(s.lang).toBe('en');
+    expect(counts.settings).toBe(0);
+    expect((await db.entries.get(e.id))!.quantity).toBe(150);
+    expect(await db.entries.get(extra.id)).toBeTruthy();
+  });
   it('backup → restore into an empty database', async () => {
     await addFoodEntry(today(), 'lunch', await food('صدر دجاج'), 100, 'g');
     const snap = await snapshot();

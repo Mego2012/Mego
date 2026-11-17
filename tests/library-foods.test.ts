@@ -30,9 +30,11 @@ describe('complete my food database from the recipe library', () => {
     const all = await db.foods.toArray();
     expect(all.filter((f) => f.nameAr === 'تمر')).toHaveLength(1);
     expect((await db.foods.get(mine.id))!.per100.kcal).toBe(282); // own food never changed
-    const meal = all.find((f) => f.category === RECIPE_FOOD_CATEGORY)!;
-    expect(meal.nameEn).toBeTruthy();
-    expect(meal.servings[0].grams).toBeGreaterThan(50);
+    // every ready meal has an English name and a real serving weight (sauces are small: 17–38 g; main meals are larger)
+    const meals = all.filter((f) => f.category === RECIPE_FOOD_CATEGORY);
+    expect(meals.length).toBe(LIBRARY.length - 1);
+    for (const m of meals) { expect(m.nameEn).toBeTruthy(); expect(m.servings[0].grams).toBeGreaterThan(10); }
+    expect(meals.filter((m) => m.servings[0].grams > 50).length).toBeGreaterThan(meals.length * 0.9);
     const chicken = all.find((f) => f.nameAr === 'صدر دجاج مشوي');
     if (chicken) expect(chicken.nameEn).toBe(names['صدر دجاج مشوي']); // short English name, not the USDA description
     expect(await db.backups.where('reason').equals('pre-import').count()).toBeGreaterThan(0);

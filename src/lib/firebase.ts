@@ -26,19 +26,28 @@ let app: FirebaseApp | null = null;
 let auth: Auth | null = null;
 let fs: Firestore | null = null;
 
-/** Reads ./firebase-config.json once. Returns null in guest-only deployments. */
+const CFG_CACHE = 'mego:cloudConfig';
+/**
+ * Reads ./firebase-config.json once. Returns null in guest-only deployments.
+ * The last good config is remembered on the device: offline (or on a failed request) a signed-in user must still open
+ * THEIR account database — never fall back to the guest database, where offline entries would land in the wrong place.
+ */
 export async function loadCloudConfig(): Promise<CloudConfig | null> {
   if (cfg) return cfg;
+  const cached = (): CloudConfig | null => { try { const v = localStorage.getItem(CFG_CACHE); const j = v ? (JSON.parse(v) as CloudConfig) : null; return j?.apiKey && j.projectId ? j : null; } catch { return null; } };
   try {
     const base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
     const r = await fetch(base + 'firebase-config.json', { cache: 'no-cache' });
-    if (!r.ok) return null;
+    if (r.status === 404) return null; // a guest-only deployment (no config file at all)
+    if (!r.ok) { cfg = cached(); return cfg; }
     const j = (await r.json()) as CloudConfig;
     if (!j.apiKey || !j.projectId) return null;
     cfg = j;
+    try { localStorage.setItem(CFG_CACHE, JSON.stringify(j)); } catch { /* storage blocked: online only */ }
     return cfg;
   } catch {
-    return null;
+    cfg = cached(); // offline / network error: use the config this device saw last time
+    return cfg;
   }
 }
 

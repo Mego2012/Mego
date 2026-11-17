@@ -69,7 +69,7 @@ export const LIBRARY_4: LibraryRecipe[] = [
     id: 'lib4-airfryer-chicken-potato-bowl', nameAr: 'بول الدجاج والبطاطس بالقلاية الهوائية مع صوص الثوم والأعشاب', nameEn: 'Air-fryer chicken & potato bowl with garlic-herb yogurt', emoji: '🥣',
     meals: ['lunch', 'dinner'], tags: ['chicken', 'potato', 'quick'], prepMin: 10, cookMin: 25, difficulty: 'easy', servings: 1, methods: ['air-fryer', 'no-cook'], ...FRIDGE2,
     ingredients: ing(['صدر دجاج', 180, 'نيء، مكعبات 3 سم', 'raw, 3 cm cubes'], ['بطاطس', 220, 'نيئة، مكعبات 2 سم', 'raw, 2 cm cubes'], ['زيت زيتون', 8, '2 ملعقة صغيرة', '2 tsp'], ['خيار', 80], ['طماطم', 80], ['زبادي يوناني خالي الدسم', 80, 'للصوص', 'for the sauce']),
-    seasonings: ing(['ثوم', 3, 'فص مهروس للصوص', '1 clove, crushed, for the sauce'], ['عصير ليمون', 10], ['شبت طازج', 4], ['بقدونس طازج', 4], ['ملح', 3], ['فلفل أسود مطحون', 1], ['بابريكا', 3], ['بودرة ثوم', 2], ['كمون مطحون', 1]),
+    seasonings: ing(['ثوم', 3, 'فص مهروس للصوص', '1 clove, crushed, for the sauce'], ['عصير ليمون', 10], ['شبت طازج', 4], ['بقدونس طازج', 4], ['ملح', 2], ['فلفل أسود مطحون', 1], ['بابريكا', 3], ['بودرة ثوم', 2], ['كمون مطحون', 1]),
     marinade: ['زبادي يوناني خالي الدسم', 'ثوم', 'عصير ليمون', 'شبت طازج', 'بقدونس طازج'],
     tempC: 200,
     stepsAr: [
@@ -132,7 +132,7 @@ export const LIBRARY_4: LibraryRecipe[] = [
     id: 'lib4-wedges-seasoned-chicken', nameAr: 'أصابع بطاطس مقرمشة مع شرائح دجاج متبلة', nameEn: 'Crispy potato wedges with seasoned chicken strips', emoji: '🍟',
     meals: ['lunch', 'dinner'], tags: ['chicken', 'potato', 'quick'], prepMin: 10, cookMin: 25, difficulty: 'easy', servings: 1, methods: ['air-fryer', 'oven'], ...FRIDGE2,
     ingredients: ing(['صدر دجاج', 180, 'شرائح 2 سم', '2 cm strips'], ['بطاطس', 250, 'أصابع (ودجز) بقشرها', 'wedges, skin on'], ['زيت زيتون', 8], ['نشا ذرة', 6, 'لقرمشة البطاطس', 'for crisp wedges'], ['زبادي يوناني خالي الدسم', 60, 'للغموس', 'for dipping']),
-    seasonings: ing(['ملح', 3], ['بابريكا', 4], ['بودرة ثوم', 2], ['بودرة بصل', 1], ['فلفل أسود مطحون', 1], ['أوريجانو مجفف', 1], ['صلصة حارة (سريراتشا)', 8, 'للغموس', 'for the dip']),
+    seasonings: ing(['ملح', 2], ['بابريكا', 4], ['بودرة ثوم', 2], ['بودرة بصل', 1], ['فلفل أسود مطحون', 1], ['أوريجانو مجفف', 1], ['صلصة حارة (سريراتشا)', 8, 'للغموس', 'for the dip']),
     tempC: 200,
     stepsAr: [
       'انقع أصابع البطاطس في ماء بارد 10 دقائق ثم جففها تماماً.',
@@ -323,7 +323,7 @@ export const LIBRARY_4: LibraryRecipe[] = [
     id: 'lib4-protein-breakfast-wrap', nameAr: 'راب الإفطار عالي البروتين', nameEn: 'High-protein breakfast wrap', emoji: '🌯',
     meals: ['breakfast'], tags: ['eggs', 'sandwich', 'quick', 'breakfast-idea'], prepMin: 5, cookMin: 7, difficulty: 'easy', servings: 1, methods: ['pan'], ...FRESH,
     ingredients: ing(['تورتيلا قمح', 70, 'رغيف كبير', '1 large wrap'], ['بيض كامل', 100, 'بيضتان', '2 eggs'], ['بياض بيض', 99, 'بياض 3 بيضات', '3 egg whites'], ['جبن موزاريلا قليلة الدسم', 30], ['فلفل رومي (حلو)', 50], ['سبانخ', 30], ['زيت زيتون', 4]),
-    seasonings: ing(['ملح', 1.5], ['فلفل أسود مطحون', 0.5], ['بابريكا', 1], ['صلصة حارة (سريراتشا)', 5, 'اختياري', 'optional']),
+    seasonings: ing(['ملح', 0.5, 'رشة — الجبن والتورتيلا مالحة', 'a pinch — the cheese and wrap are already salty'], ['فلفل أسود مطحون', 0.5], ['بابريكا', 1], ['صلصة حارة (سريراتشا)', 5, 'اختياري', 'optional']),
     stepsAr: [
       'سخّن الزيت وقلّب الفلفل المقطع دقيقتين ثم السبانخ 30 ثانية.',
       'اخفق البيض والبياض مع الملح والفلفل والبابريكا، صبه وحرّك برفق دقيقتين حتى يتماسك طرياً.',
@@ -343,7 +343,7 @@ export const LIBRARY_4: LibraryRecipe[] = [
     id: 'lib4-baked-eggs-cheese-tomato', nameAr: 'بيض مخبوز بالجبن في صلصة الطماطم', nameEn: 'Baked eggs with cheese in tomato sauce', emoji: '🍅',
     meals: ['breakfast', 'dinner'], tags: ['eggs', 'vegetarian', 'breakfast-idea'], prepMin: 5, cookMin: 18, difficulty: 'easy', servings: 2, methods: ['oven', 'pan'], ...FRESH,
     ingredients: ing(['بيض كامل', 250, '5 بيضات', '5 eggs'], ['طماطم مهروسة معلبة', 300], ['فلفل رومي (حلو)', 100], ['بصل', 60], ['جبن موزاريلا قليلة الدسم', 50], ['جبن قريش قليل الدسم', 100], ['زيت زيتون', 7], ['خبز عربي أسمر', 60, 'للتقديم', 'to serve']),
-    seasonings: ing(['ثوم', 6], ['ملح', 3], ['كمون مطحون', 1], ['بابريكا', 2], ['شطة مطحونة (فلفل أحمر حار)', 0.3], ['ريحان طازج', 5]),
+    seasonings: ing(['ثوم', 6], ['ملح', 1, 'الطماطم المعلبة والجبن مالحة', 'canned tomatoes and cheese are already salty'], ['كمون مطحون', 1], ['بابريكا', 2], ['شطة مطحونة (فلفل أحمر حار)', 0.3], ['ريحان طازج', 5]),
     tempC: 200,
     stepsAr: [
       'سخّن الفرن 200°م. في مقلاة تصلح للفرن قلّب البصل والفلفل بالزيت 4 دقائق، ثم الثوم والبهارات.',

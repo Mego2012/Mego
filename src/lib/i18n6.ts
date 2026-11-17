@@ -85,7 +85,7 @@ export const en6: Record<string, string> = {
   fp_yogurt: 'Yogurt per day (170 g containers)', fp_noLimit: 'No limit', fp_containers: 'At most {n}', fp_meals: 'Meals per day in generated plans', fp_meals3: '3 meals (breakfast, lunch, dinner)', fp_meals4: '3 meals + a snack',
   fp_excludedCard: 'Not suggested — contains: {list}', sg_method: 'Cooking method', sg_prefsOn: 'Your food preferences are applied (Goals → Food preferences).',
   tr_highProtein: 'High protein', tr_lowCarb: 'Low carb', tr_lowCalorie: 'Low calorie', tr_highFiber: 'High fiber', tr_vegetarian: 'Vegetarian', why_fiber: 'adds the fiber you still need',
-  ck_storage: 'Storage & reheating'
+  ck_storage: 'Storage & reheating', ck_storageGeneric: 'general food-safety guidance', a11y_progress: 'Progress'
 };
 
 export const ar6: Record<string, string> = {
@@ -174,5 +174,5 @@ export const ar6: Record<string, string> = {
   fp_yogurt: 'الزبادي في اليوم (علبة 170 غ)', fp_noLimit: 'بدون حد', fp_containers: '{n} كحد أقصى', fp_meals: 'عدد الوجبات في الخطط المولّدة', fp_meals3: '3 وجبات (فطور وغداء وعشاء)', fp_meals4: '3 وجبات + وجبة خفيفة',
   fp_excludedCard: 'لا تُقترح — تحتوي على: {list}', sg_method: 'طريقة الطبخ', sg_prefsOn: 'يتم تطبيق تفضيلاتك الغذائية (الأهداف ← التفضيلات الغذائية).',
   tr_highProtein: 'عالي البروتين', tr_lowCarb: 'قليل الكربوهيدرات', tr_lowCalorie: 'قليل السعرات', tr_highFiber: 'غني بالألياف', tr_vegetarian: 'نباتي', why_fiber: 'يضيف الألياف التي تحتاجها',
-  ck_storage: 'الحفظ وإعادة التسخين'
+  ck_storage: 'الحفظ وإعادة التسخين', ck_storageGeneric: 'إرشاد عام لسلامة الغذاء', a11y_progress: 'التقدم'
 };

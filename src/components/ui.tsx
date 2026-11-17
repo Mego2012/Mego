@@ -20,10 +20,11 @@ export function Card({ title, actions, children, className = '' }: { title?: Rea
   );
 }
 
-export function ProgressBar({ value, max, color }: { value: number; max: number; color: string }) {
+export function ProgressBar({ value, max, color, label }: { value: number; max: number; color: string; label?: string }) {
+  const { t } = useApp();
   const pct = max > 0 ? Math.min(100, (value / max) * 100) : 0;
   return (
-    <div className={`bar ${value > max ? 'over' : ''}`} role="progressbar" aria-valuenow={Math.round(value)} aria-valuemax={Math.round(max)}>
+    <div className={`bar ${value > max ? 'over' : ''}`} role="progressbar" aria-label={label ?? t('a11y_progress')} aria-valuenow={Math.round(value)} aria-valuemax={Math.round(max)}>
       <i style={{ width: `${pct}%`, background: color }} />
     </div>
   );
@@ -258,7 +259,7 @@ export function DateNav({ date, onChange, testId }: { date: string; onChange: (d
       <button className="btn ghost label" onClick={() => ref.current?.showPicker?.() ?? ref.current?.click()} data-testid={testId}>
         <Icon name="calendar" /> {label}
       </button>
-      <input ref={ref} type="date" value={date} onChange={(e) => e.target.value && onChange(e.target.value)} data-testid="date-input" />
+      <input ref={ref} type="date" value={date} aria-label={t('date')} onChange={(e) => e.target.value && onChange(e.target.value)} data-testid="date-input" />
       <button className="icon-btn flip" onClick={() => onChange(addDays(date, 1))} aria-label={t('next')} data-testid="date-next"><Icon name="fwd" /></button>
     </div>
   );

@@ -312,7 +312,7 @@ export function RecipeDetail({ c: c0, onClose, servingsHint = 1 }: { c: Computed
             </ol>
             <div className="ck-serve small" data-testid="serving-note"><b>{t('ck_serve')}: </b>{(lang === 'ar' ? L.servingAr : L.servingEn) || t('ck_serveDefault', { n: n(L.servings) })}</div>
             {tips.length > 0 && <><h3 className="small bold" style={{ margin: '6px 0 0' }}>{t('tips')}</h3><ul className="small" style={{ paddingInlineStart: 20, margin: 0 }}>{tips.map((s, i) => <li key={i}>{s}</li>)}</ul></>}
-            {(lang === 'ar' ? L.storageAr : L.storageEn) && <><h3 className="small bold" style={{ margin: '6px 0 0' }}>{t('ck_storage')}</h3><p className="small" style={{ margin: 0 }} data-testid="recipe-storage">{lang === 'ar' ? L.storageAr : L.storageEn}</p></>}
+            {(lang === 'ar' ? L.storageAr : L.storageEn) && <><h3 className="small bold" style={{ margin: '6px 0 0' }}>{t('ck_storage')}</h3><p className="small" style={{ margin: 0 }} data-testid="recipe-storage">{lang === 'ar' ? L.storageAr : L.storageEn}{L.storageGeneric ? <span className="tiny muted"> ({t('ck_storageGeneric')})</span> : null}</p></>}
           </div>
         )}
 

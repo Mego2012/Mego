@@ -112,9 +112,9 @@ function Overview({ program, list }: { program: Program; list: Exercise[] }) {
       </Card>
       <Card title={t('ov_today')}>
         <div className="row between small"><span>{t('kcal')}</span><b className="num">{n(view.day.totals.kcal)} / {n(view.day.target.kcal)}</b></div>
-        <ProgressBar value={view.day.totals.kcal} max={view.day.target.kcal} color="var(--kcal)" />
+        <ProgressBar value={view.day.totals.kcal} max={view.day.target.kcal} color="var(--kcal)" label={t('kcal')} />
         <div className="row between small" style={{ marginTop: 6 }}><span>{t('protein')}</span><b className="num">{n(view.day.totals.protein)} / {n(view.day.target.protein)} {t('g')}</b></div>
-        <ProgressBar value={view.day.totals.protein} max={view.day.target.protein} color="var(--protein)" />
+        <ProgressBar value={view.day.totals.protein} max={view.day.target.protein} color="var(--protein)" label={t('protein')} />
       </Card>
       <Card title={t('ov_week')}>
         <div className="stack">

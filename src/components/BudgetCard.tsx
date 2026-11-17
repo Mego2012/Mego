@@ -15,8 +15,9 @@ export function useTargetHistory(): TargetHistoryEntry[] {
 }
 
 function Meter({ used, total, over, testId }: { used: number; total: number; over: boolean; testId?: string }) {
+  const { t } = useApp();
   const pct = total > 0 ? Math.min(100, (used / total) * 100) : 0;
-  return <div className={`bar budget-bar ${over ? 'over' : ''}`} role="progressbar" aria-valuenow={Math.round(used)} aria-valuemax={Math.round(total)} data-testid={testId}><i style={{ width: `${pct}%` }} /></div>;
+  return <div className={`bar budget-bar ${over ? 'over' : ''}`} role="progressbar" aria-label={t('bu_title')} aria-valuenow={Math.round(used)} aria-valuemax={Math.round(total)} data-testid={testId}><i style={{ width: `${pct}%` }} /></div>;
 }
 
 function Stat({ k, v, testId, tone }: { k: string; v: string; testId?: string; tone?: 'good' | 'warn' }) {

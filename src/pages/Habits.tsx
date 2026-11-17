@@ -31,7 +31,7 @@ function WaterCard() {
   return (
     <Card title={<><Icon name="water" />{t('water')}</>}>
       <div className="big num center" data-testid="water-total">{n(water)} <span className="small muted">/ {n(settings.waterTargetMl)} {t('ml')}</span></div>
-      <div style={{ margin: '8px 0' }}><ProgressBar value={water} max={settings.waterTargetMl} color="var(--info)" /></div>
+      <div style={{ margin: '8px 0' }}><ProgressBar value={water} max={settings.waterTargetMl} color="var(--info)" label={t('water')} /></div>
       <div className="row wrap" style={{ gap: 6, justifyContent: 'center' }}>
         {[150, 250, 330, 500, 750].map((ml) => <button key={ml} className="btn sm" onClick={() => run(() => addWater(date, ml))} data-testid={`h-water-${ml}`}>+{ml}</button>)}
         <button className="btn sm ghost" onClick={() => run(() => addWater(date, -250))} data-testid="h-water-minus">−250</button>

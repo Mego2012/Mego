@@ -70,6 +70,18 @@ describe('meal plan with preferences', () => {
       expect(d.total.protein).toBeGreaterThan(130);
     }
   });
+  it('a 7-day plan is varied and realistic: no dish twice, ≤ 1.5 servings, calories within 5 %, protein not far above target', () => {
+    const T = { kcal: 2110, protein: 160, carbs: 235, fat: 59 };
+    const days = generatePlan(['2026-11-21', '2026-11-22', '2026-11-23', '2026-11-24', '2026-11-25', '2026-11-26', '2026-11-27'], () => T, lib, undefined, { prefs: ME });
+    const ids = days.flatMap((d) => d.picks.map((p) => p.libId));
+    expect(new Set(ids).size).toBe(ids.length); // 21 different dishes
+    for (const d of days) {
+      for (const p of d.picks) expect(p.servings).toBeLessThanOrEqual(1.5);
+      expect(Math.abs(d.total.kcal - 2110)).toBeLessThanOrEqual(2110 * 0.05);
+      expect(d.total.protein).toBeGreaterThanOrEqual(150);
+      expect(d.total.protein).toBeLessThanOrEqual(160 * 1.2);
+    }
+  });
 });
 
 describe('part 4 recipes', () => {
@@ -90,5 +102,14 @@ describe('part 4 recipes', () => {
       const p = lib.find((x) => x.lib.id === l.id)!.perServing;
       expect(p.kcal).toBeGreaterThan(450); expect(p.kcal).toBeLessThan(700); expect(p.protein).toBeGreaterThanOrEqual(35);
     }
+  });
+});
+
+describe('storage guidance for every recipe', () => {
+  it('148/148 have storage & reheating text; the 121 older recipes are marked as general food-safety guidance', () => {
+    expect(LIBRARY.every((l) => !!l.storageAr && !!l.storageEn)).toBe(true);
+    expect(LIBRARY.filter((l) => l.storageGeneric).length).toBe(LIBRARY.length - LIBRARY_4.length);
+    const fish = LIBRARY.find((l) => l.id === 'lib-salmon-rice')!;
+    if (fish.storageGeneric) expect(fish.storageEn).toMatch(/2 days/);
   });
 });

@@ -9,7 +9,7 @@
   --bg: #eef1ed; --bg-2: #f5f7f4; --surface: #ffffff; --surface-2: #eff3ee; --surface-3: #e3e9e2; --elev: #ffffff;
   --text: #121715; --muted: #5f6b66; --faint: #8b958f; --border: #d6ded7; --hairline: rgba(18, 23, 21, .08);
   --primary: #117336; --primary-2: #4fae2e; --primary-ink: #ffffff; --primary-soft: #dcefdf; --glow: rgba(17, 115, 54, .18);
-  --danger: #c2402c; --danger-soft: #f8e1dc; --good: #13804a; --warn: #a8650b; --info: #1f5fbf;
+  --danger: #c2402c; --danger-soft: #f8e1dc; --good: #117336; --warn: #a8650b; --info: #1f5fbf;
   --fiber: #7a6a12; --kcal: #117336; --protein: #d0553a; --carbs: #b47b08; --fat: #6b54d6;
   --dial-track: #dde4dc; --tick: rgba(18, 23, 21, .28); --tick-faint: rgba(18, 23, 21, .12);
   --hero-bg: radial-gradient(120% 90% at 50% 0%, #ffffff 0%, #f0f4ef 60%, #e8ede7 100%);

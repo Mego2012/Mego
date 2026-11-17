@@ -14,7 +14,23 @@ import { seasoningsFromGroups } from './seasonings';
  * Converts the legacy seasoning groups of a recipe into exact, counted seasoning lines (seasonings.ts).
  * Recipes that already list exact `seasonings` are returned unchanged.
  */
-export function prepareLibraryRecipe(l: LibraryRecipe): LibraryRecipe {
+/**
+ * General food-safety storage guidance (USDA leftovers guidance: cooked meat & poultry 3–4 days, fish 2 days, cool
+ * rice within 1 hour; reheat to 74°C). Used only for recipes that have no recipe-specific storage text; marked as
+ * general guidance in the recipe (storageGeneric).
+ */
+export function genericStorage(l: LibraryRecipe): { storageAr: string; storageEn: string } {
+  const names = allIngredients(l).map((i) => i[0]).join(' ');
+  if ((l.tags as string[]).includes('sauce')) return { storageAr: 'في علبة محكمة بالثلاجة حتى 3–4 أيام. حرّكه قبل الاستخدام.', storageEn: 'Airtight in the fridge for 3–4 days. Stir before using.' };
+  const noCook = l.methods.every((m) => m === 'no-cook' || m === 'blender');
+  if (noCook) return { storageAr: 'يُؤكل طازجاً. إن لزم، يُحفظ مغطى بالثلاجة حتى يوم واحد.', storageEn: 'Best eaten fresh. If needed, keep covered in the fridge for up to 1 day.' };
+  if (/سمك|تونة|سلمون|بلطي|ماكريل|قاروس|روبيان/.test(names)) return { storageAr: 'بالثلاجة في علبة محكمة حتى يومين. سخّنه بلطف حتى يسخن جيداً (74°م) — لا تُعد تسخينه أكثر من مرة.', storageEn: 'Airtight in the fridge for up to 2 days. Reheat gently until piping hot (74°C) — reheat only once.' };
+  const rice = /أرز/.test(names) ? { ar: ' برّد الأرز خلال ساعة من الطبخ.', en: ' Cool rice within 1 hour of cooking.' } : { ar: '', en: '' };
+  return { storageAr: 'بالثلاجة في علبة محكمة حتى 3 أيام. سخّنه حتى يسخن جيداً (74°م).' + rice.ar, storageEn: 'Airtight in the fridge for up to 3 days. Reheat until piping hot (74°C).' + rice.en };
+}
+
+export function prepareLibraryRecipe(l0: LibraryRecipe): LibraryRecipe {
+  const l: LibraryRecipe = l0.storageAr ? l0 : { ...l0, ...genericStorage(l0), storageGeneric: true };
   if (l.seasonings) return l;
   const s = seasoningsFromGroups(l.uncounted, l.servings);
   const known = l.uncounted.filter((u) => !s.unknown.includes(u[1]));
@@ -354,7 +370,8 @@ export function generatePlan(dates: string[], targetsFor: (d: string) => Macros,
   const by = (meal: MealType) => ok.filter((c) => c.lib.meals.includes(meal));
   const used = new Map<string, number>();
   const days: GeneratedDay[] = [];
-  const mults = [0.75, 1, 1.25, 1.5, 1.75, 2];
+  // portions stay realistic: at most 1.5 servings of one dish (never a doubled plate of the same recipe)
+  const mults = [0.75, 1, 1.25, 1.5];
   const snackMults = [1, 1.5];
   for (const date of dates) {
     const T = targetsFor(date);
@@ -384,8 +401,13 @@ export function generatePlan(dates: string[], targetsFor: (d: string) => Macros,
         const kcalOver = Math.max(0, t.kcal - T.kcal);
         const kcalUnder = Math.max(0, T.kcal - t.kcal);
         const pUnder = Math.max(0, T.protein - t.protein);
-        const cost = (kcalOver / Math.max(T.kcal, 1)) * 3 + (kcalUnder / Math.max(T.kcal, 1)) * 1.2 + (pUnder / Math.max(T.protein, 1)) * 3 + Math.abs(t.carbs - T.carbs) / Math.max(T.carbs, 20) * carbWeight + Math.abs(t.fat - T.fat) / Math.max(T.fat, 10) * 0.8
-          + ((used.get(l.lib.id) ?? 0) + (used.get(d.lib.id) ?? 0)) * 0.08 + ((used.get(b.lib.id) ?? 0) + (n ? used.get(n.lib.id) ?? 0 : 0)) * 0.03;
+        // protein far above the target is not a goal in itself: mild penalty beyond +15 % (variety matters more)
+        const pOver = Math.max(0, t.protein - T.protein * 1.15);
+        const cost = (kcalOver / Math.max(T.kcal, 1)) * 3 + (kcalUnder / Math.max(T.kcal, 1)) * 1.2 + (pUnder / Math.max(T.protein, 1)) * 3 + (pOver / Math.max(T.protein, 1)) * 1.5 + Math.abs(t.carbs - T.carbs) / Math.max(T.carbs, 20) * carbWeight + Math.abs(t.fat - T.fat) / Math.max(T.fat, 10) * 0.8
+          // variety: repeating a lunch / dinner dish within the plan costs more than a small macro miss
+          + ((used.get(l.lib.id) ?? 0) + (used.get(d.lib.id) ?? 0)) * 0.25 + ((used.get(b.lib.id) ?? 0) + (n ? used.get(n.lib.id) ?? 0 : 0)) * 0.08
+          // and lunch + dinner on the same staple (pasta & pasta, rice & rice) makes a monotonous day
+          + (l.lib.tags.includes('pasta') && d.lib.tags.includes('pasta') ? 0.15 : 0) + (l.lib.tags.includes('rice') && d.lib.tags.includes('rice') ? 0.1 : 0);
         if (!best || cost < best.cost) {
           best = {
             cost, total: roundMacros(sumMacros([b.perServing, scaleMacros(l.perServing, ml), scaleMacros(d.perServing, md), ...(n ? [scaleMacros(n.perServing, mn)] : [])])),

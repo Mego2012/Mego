@@ -46,6 +46,8 @@ export interface LibraryRecipe {
   /** Storage and reheating instructions. */
   storageAr?: string;
   storageEn?: string;
+  /** true when the storage text is general food-safety guidance (not written for this recipe) */
+  storageGeneric?: boolean;
 }
 
 const S = {

@@ -32,7 +32,7 @@ export default defineConfig({
         ]
       },
       workbox: {
-        globPatterns: ['**/*.{js,css,html,svg,png,woff2}', 'fooddb/usda.json'],
+        globPatterns: ['**/*.{js,css,html,svg,png,woff2}', 'fooddb/usda.json', 'fooddb/micros.json'],
         // the shared food database (~2 MB, ~0.5 MB compressed) must work offline
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         navigateFallback: 'index.html',

@@ -1,4 +1,5 @@
 import { fiberTargetOf } from './fiber';
+import { microCoverage, type MicroKey } from './micros';
 import { addDays, addMonths, monthDates, startOfWeek, today, weekDates } from './dates';
 import { round, roundMacros, sumMacros } from './nutrition';
 import { dayTypeFor, targetsFor } from './targets';
@@ -24,6 +25,8 @@ export interface DaySummary {
   waterMl: number;
   /** How many entries carry each optional nutrient (fiber/sugar/sodium are often unknown). */
   coverage: Record<OptionalNutrient, number>;
+  /** How many entries carry each micronutrient (vitamins, minerals…). */
+  microCoverage: Record<MicroKey, number>;
 }
 
 export interface DataBundle {
@@ -67,6 +70,7 @@ export function summarizeDay(date: string, entries: DiaryEntry[], log: DayLog | 
     ? Math.round(([calorieInRange, proteinHit, within(totals.carbs, target.carbs), within(totals.fat, target.fat)].filter(Boolean).length / 4) * 100)
     : 0;
   const coverage = Object.fromEntries(OPTIONAL_NUTRIENTS.map((k) => [k, list.filter((e) => typeof e.macros[k] === 'number').length])) as Record<OptionalNutrient, number>;
+  const microCov = microCoverage(list.map((e) => e.macros.micro));
   return {
     date, status: dayStatus(date, list.length, log, settings, now, totals.kcal, target.kcal), dayType: dayTypeFor(date, settings, log), totals, target,
     entryCount: list.length, mealsLogged: (Object.keys(byMeal) as MealType[]).filter((m) => list.some((e) => e.meal === m)).length,
@@ -76,7 +80,8 @@ export function summarizeDay(date: string, entries: DiaryEntry[], log: DayLog | 
       carbs: round(target.carbs - totals.carbs, 1), fat: round(target.fat - totals.fat, 1)
     },
     waterMl: log?.waterMl ?? 0,
-    coverage
+    coverage,
+    microCoverage: microCov
   };
 }
 

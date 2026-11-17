@@ -14,6 +14,7 @@ const Recipes = lazy(() => import('./pages/Recipes'));
 const Planner = lazy(() => import('./pages/Planner'));
 const Progress = lazy(() => import('./pages/Progress'));
 const Reports = lazy(() => import('./pages/Reports'));
+const Nutrients = lazy(() => import('./pages/Nutrients'));
 const SettingsPage = lazy(() => import('./pages/Settings'));
 const Habits = lazy(() => import('./pages/Habits'));
 const Cardio = lazy(() => import('./pages/Cardio'));
@@ -60,6 +61,7 @@ function Routed() {
           <Route path="/workouts" element={<Workouts />} />
           <Route path="/exercise/:id" element={<ExerciseDetail />} />
           <Route path="/coach" element={<Coach />} />
+          <Route path="/nutrients" element={<Nutrients />} />
           <Route path="/admin" element={<AccountPages view="admin" />} />
           <Route path="/privacy" element={<AccountPages view="privacy" />} />
           <Route path="/terms" element={<AccountPages view="terms" />} />

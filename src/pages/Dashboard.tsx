@@ -82,6 +82,7 @@ export default function Dashboard() {
         <div data-testid="macro-bars"><MacroBars totals={day.totals} target={day.target} /></div>
         <FiberBar p={fiberProgress(day, fiberTargetOf(settings))} />
         <OptionalNutrientsLine m={day.totals} coverage={day.coverage} total={day.entryCount} omitFiber />
+        <Link to="/nutrients" className="link-btn tiny" data-testid="open-nutrients">{t('nut_open')} →</Link>
         <Link to="/recipes?tab=suggest" className="btn block" style={{ marginTop: 14, flexDirection: 'column', gap: 2 }} data-testid="what-to-eat">
           <span>{t('suggestions')}</span>
           <span className="tiny muted" style={{ fontWeight: 400 }}>{t('remainingNow', { kcal: n(Math.max(0, day.remaining.kcal)), p: n(Math.max(0, day.remaining.protein)), c: n(Math.max(0, day.remaining.carbs)), f: n(Math.max(0, day.remaining.fat)) })}</span>

@@ -1,7 +1,12 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../app/AppContext';
-import type { RecipeFiber } from '../lib/fiber';
+import { fiberTargetOf, type RecipeFiber } from '../lib/fiber';
+import { excludedBy, yogurtLeftG } from '../lib/foodPrefs';
+import type { Method } from '../lib/recipeLibraryData';
+const TRAITS = ['highProtein', 'lowCarb', 'lowCalorie', 'highFiber', 'vegetarian'] as const;
+import { MICRO_GROUPS, MICRO_KEYS, MICRO_UNIT } from '../lib/micros';
+import type { Macros } from '../lib/types';
 import { useBundle } from '../app/hooks';
 import { Icon } from '../components/icons';
 import { PhotoPlaceholder, RecipeMosaic } from '../components/FoodThumb';
@@ -9,7 +14,7 @@ import { Card, MacroLine, NumField, Segmented, Sheet, StateChip, useAsync } from
 import { db } from '../lib/db';
 import { isValidISODate, today } from '../lib/dates';
 import { round, roundMacros, scaleMacros } from '../lib/nutrition';
-import { allLibraryIngredients, approveRecipeMatches, computeLibrary, computeLibraryRecipe, findFood, indexFoods, materializeLibraryRecipe, recipeMeta, suggest, whatCanICook, type ComputedRecipe, type SuggestFilters, type Suggestion } from '../lib/recipeEngine';
+import { allIngredients, allLibraryIngredients, approveRecipeMatches, computeLibrary, computeLibraryRecipe, findFood, indexFoods, materializeLibraryRecipe, recipeMeta, suggest, whatCanICook, type ComputedRecipe, type SuggestFilters, type Suggestion } from '../lib/recipeEngine';
 import { kvGet } from '../lib/repo';
 import { addRecipeEntry, deleteEntry, kvSet, setPlannedDay, uid } from '../lib/repo';
 import { summarizeDay } from '../lib/reports';
@@ -45,7 +50,7 @@ function hasTag(c: ComputedRecipe, tag: (typeof TAGS)[number], favs: Set<string>
 }
 
 export function LibraryTab() {
-  const { t, lang, n, ln } = useApp();
+  const { t, lang, n, ln, settings } = useApp();
   const { lib, meta } = useLibrary();
   const [tag, setTag] = useState<(typeof TAGS)[number]>('all');
   const [meal, setMeal] = useState<MealType | ''>('');
@@ -111,6 +116,7 @@ export function LibraryTab() {
 
             <div className="small num" style={{ marginTop: 4 }} data-testid="card-kcal"><b>{n(c.perServing.kcal)}</b> {t('kcalUnit')} · <MacroLine m={c.perServing} compact /> <span className="tiny muted">· {t('perServingG', { g: n(c.gramsPerServing) })}</span></div>
             {!c.ok && <div className="tiny delta pos">{t('partialNutrition', { list: joinList(c.missing.map(ln), lang) })}</div>}
+            {settings.foodPrefs && excludedBy(allIngredients(c.lib).map((i) => i[0]), settings.foodPrefs).length > 0 && <div className="tiny muted" data-testid="card-excluded">{t('fp_excludedCard', { list: joinList(excludedBy(allIngredients(c.lib).map((i) => i[0]), settings.foodPrefs).map((x) => t('fp_x_' + x)), lang) })}</div>}
             <div className="row wrap tiny muted" style={{ gap: 6, marginTop: 4 }}>
               <span className="row" style={{ gap: 3 }}><Icon name="history" /> {c.totalTime} {t('min')}{c.lib.marinateMin ? ` + ${t('ck_marinateShort', { m: n(c.lib.marinateMin) })}` : ''}</span>
               {(c.lib.tags as string[]).includes('sauce') && <span className="chip">{t('tag_sauce')}</span>}
@@ -214,6 +220,7 @@ export function RecipeDetail({ c: c0, onClose, servingsHint = 1 }: { c: Computed
           <div className="stat"><div className="k">{t('total')} · {t('servingsN', { n: L.servings })}</div><div className="v num" data-testid="detail-total">{n(c.totals.kcal)} {t('kcalUnit')}</div><MacroLine m={c.totals} compact /></div>
         </div>
         <RecipeFiberBox f={c.fiber} />
+        <NutrientBreakdown m={c.perServing} />
         <div className="tiny muted" data-testid="seasoning-kcal">{t('ck_seasCounted', { kcal: n(seasKcal, 1) })}</div>
         {swapped && <div className="banner info small" data-testid="swap-banner">{t('ck_swapped', { n: n(Object.keys(swaps).length) })} <button className="btn sm ghost" onClick={() => setSwaps({})}>{t('ck_undoSwaps')}</button></div>}
 
@@ -305,6 +312,7 @@ export function RecipeDetail({ c: c0, onClose, servingsHint = 1 }: { c: Computed
             </ol>
             <div className="ck-serve small" data-testid="serving-note"><b>{t('ck_serve')}: </b>{(lang === 'ar' ? L.servingAr : L.servingEn) || t('ck_serveDefault', { n: n(L.servings) })}</div>
             {tips.length > 0 && <><h3 className="small bold" style={{ margin: '6px 0 0' }}>{t('tips')}</h3><ul className="small" style={{ paddingInlineStart: 20, margin: 0 }}>{tips.map((s, i) => <li key={i}>{s}</li>)}</ul></>}
+            {(lang === 'ar' ? L.storageAr : L.storageEn) && <><h3 className="small bold" style={{ margin: '6px 0 0' }}>{t('ck_storage')}</h3><p className="small" style={{ margin: 0 }} data-testid="recipe-storage">{lang === 'ar' ? L.storageAr : L.storageEn}</p></>}
           </div>
         )}
 
@@ -378,7 +386,11 @@ export function SuggestTab() {
   const mealsLeft = Math.max(1, 4 - day.mealsLogged);
   const rem = { ...day.remaining };
   const strict = settings.dietStrategy?.mode === 'keto' || settings.dietStrategy?.mode === 'low_carb';
-  const list = suggest(rem, mealsLeft, lib, userRecipes, { ...f, haveIngredients: haveMode ? f.haveIngredients : undefined, carbStrict: strict }, meta.favorites, meta.ratings);
+  const prefs = settings.foodPrefs;
+  const todays = data!.entries.filter((e) => e.date === today());
+  const fiberComplete = day.entryCount > 0 && day.coverage.fiber === day.entryCount;
+  const fiberGap = fiberComplete ? Math.max(0, fiberTargetOf(settings) - (day.totals.fiber ?? 0)) : undefined;
+  const list = suggest(rem, mealsLeft, lib, userRecipes, { ...f, haveIngredients: haveMode ? f.haveIngredients : undefined, carbStrict: strict, prefs, yogurtLeftG: prefs ? yogurtLeftG(prefs, todays) : undefined, fiberGap }, meta.favorites, meta.ratings);
   const nextMeal: MealType = (f.meal || MEALS.find((m) => day.byMeal[m].kcal === 0) || 'snacks') as MealType;
   return (
     <div data-testid="suggest">
@@ -394,6 +406,18 @@ export function SuggestTab() {
           <NumField label={t('maxFat')} value={f.maxFat} onChange={(v) => setF({ ...f, maxFat: v })} />
           <NumField label={t('maxMinutes')} value={f.maxMinutes} onChange={(v) => setF({ ...f, maxMinutes: v })} />
         </div>
+        <div className="row wrap" style={{ gap: 6, marginTop: 8 }} data-testid="sg-traits">
+          {TRAITS.map((tr) => {
+            const on = f.traits?.includes(tr);
+            return <button key={tr} className={`chip clickable ${on ? 'active' : ''}`} aria-pressed={!!on} data-testid={'sg-trait-' + tr} onClick={() => setF({ ...f, traits: on ? f.traits!.filter((x) => x !== tr) : [...(f.traits ?? []), tr] })}>{t('tr_' + tr)}</button>;
+          })}
+        </div>
+        <label className="field" style={{ marginTop: 8 }}><span>{t('sg_method')}</span>
+          <select className="input" value={f.method ?? ''} onChange={(e) => setF({ ...f, method: e.target.value as Method | '' })} data-testid="sg-method">
+            <option value="">{t('all')}</option>
+            {METHODS.map((m) => <option key={m} value={m}>{t('method_' + m.replace('-', '_'))}</option>)}
+          </select></label>
+        {prefs && (prefs.exclude.length > 0 || prefs.yogurtPerDay !== undefined) && <div className="tiny muted" data-testid="sg-prefs">{t('sg_prefsOn')}</div>}
         <label className="check"><input type="checkbox" checked={haveMode} onChange={(e) => setHaveMode(e.target.checked)} />{t('haveIngredients')}</label>
         {haveMode && (
           <div className="row wrap" style={{ gap: 6 }}>
@@ -510,6 +534,33 @@ export function RecipeFiberBox({ f, cooked }: { f: RecipeFiber; cooked?: boolean
         </div>
       ) : (
         <div className="tiny muted" data-testid="fiber-unknown">{t('fib_recipeUnknown', { list: list(f.unknown.map((x) => ln(x))), g: n(f.knownSum, 1) })}</div>
+      )}
+    </div>
+  );
+}
+
+/** Per-serving nutrient breakdown of a recipe: sugars, saturated fat, sodium and every vitamin / mineral known for
+ *  ALL ingredients (strict); the others are listed as unknown instead of being under-counted. */
+export function NutrientBreakdown({ m }: { m: Macros }) {
+  const { t, n, list } = useApp();
+  const [open, setOpen] = useState(false);
+  const known = MICRO_KEYS.filter((k) => typeof m.micro?.[k] === 'number' && k !== 'water');
+  const unknown = MICRO_KEYS.filter((k) => typeof m.micro?.[k] !== 'number' && k !== 'water');
+  const fmt = (v: number, unit: string) => `${n(v, unit === 'g' ? 1 : v < 10 ? 2 : 0)} ${t('unit_' + (unit === 'µg' ? 'ug' : unit))}`;
+  return (
+    <div className="ck-breakdown" data-testid="nutrient-breakdown">
+      <button className="link-btn small" onClick={() => setOpen(!open)} aria-expanded={open} data-testid="breakdown-toggle">{t('nb_title')} {open ? '▲' : '▼'}</button>
+      {open && (
+        <div className="stack" style={{ gap: 6, marginTop: 6 }}>
+          <div className="tiny num">
+            {t('sugar')}: {typeof m.sugar === 'number' ? fmt(m.sugar, 'g') : t('unknown')} · {t('satFat')}: {typeof m.satFat === 'number' ? fmt(m.satFat, 'g') : t('unknown')} · {t('sodium')}: {typeof m.sodium === 'number' ? fmt(m.sodium, 'mg') : t('unknown')}
+          </div>
+          {MICRO_GROUPS.map((g) => {
+            const items = g.items.filter((k) => known.includes(k));
+            return items.length ? <div key={g.key} className="tiny num" data-testid={'nb-' + g.key}><b>{t('nut_g_' + g.key)}:</b> {items.map((k) => `${t('nut_' + k)} ${fmt(m.micro![k]!, MICRO_UNIT[k])}`).join(' · ')}</div> : null;
+          })}
+          {unknown.length > 0 && <div className="tiny muted" data-testid="nb-unknown">{t('nb_unknown', { list: list(unknown.map((k) => t('nut_' + k))) })}</div>}
+        </div>
       )}
     </div>
   );

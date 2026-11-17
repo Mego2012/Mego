@@ -1,3 +1,4 @@
+import { addMicros, MICRO_KEYS, roundMicros, sumMicrosStrict, type Micros } from './micros';
 import { OPTIONAL_NUTRIENTS, type CustomServing, type EntryBasis, type Food, type Macros, type Unit } from './types';
 
 export const ZERO: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
@@ -13,12 +14,21 @@ export function round(n: number, digits = 1): number {
 
 function withOptional(out: Macros, src: Macros, fn: (v: number) => number): Macros {
   for (const k of OPTIONAL_NUTRIENTS) if (typeof src[k] === 'number') out[k] = fn(src[k]!);
+  if (src.micro) {
+    const m: Micros = {};
+    for (const k of MICRO_KEYS) if (typeof src.micro[k] === 'number') m[k] = fn(src.micro[k]!);
+    if (Object.keys(m).length) out.micro = m;
+  }
   return out;
 }
 
 /** Display rounding: whole kcal, 0.1 g macros. */
 export function roundMacros(m: Macros): Macros {
-  return withOptional({ kcal: round(m.kcal, 0), protein: round(m.protein, 1), carbs: round(m.carbs, 1), fat: round(m.fat, 1) }, m, (v) => round(v, 1));
+  const out = withOptional({ kcal: round(m.kcal, 0), protein: round(m.protein, 1), carbs: round(m.carbs, 1), fat: round(m.fat, 1) }, { ...m, micro: undefined }, (v) => round(v, 1));
+  // micronutrients keep 3 decimals (e.g. 0.215 mg vitamin B6 must not become 0.2)
+  const micro = roundMicros(m.micro, 3);
+  if (micro && Object.keys(micro).length) out.micro = micro;
+  return out;
 }
 
 /**
@@ -26,13 +36,18 @@ export function roundMacros(m: Macros): Macros {
  * drift; rounding to whole kcal happens only when displaying.
  */
 export function preciseMacros(m: Macros): Macros {
-  return withOptional({ kcal: round(m.kcal, 2), protein: round(m.protein, 2), carbs: round(m.carbs, 2), fat: round(m.fat, 2) }, m, (v) => round(v, 2));
+  const out = withOptional({ kcal: round(m.kcal, 2), protein: round(m.protein, 2), carbs: round(m.carbs, 2), fat: round(m.fat, 2) }, { ...m, micro: undefined }, (v) => round(v, 2));
+  const micro = roundMicros(m.micro, 4);
+  if (micro && Object.keys(micro).length) out.micro = micro;
+  return out;
 }
 
 /** Adds two nutrient sets. Optional nutrients stay "unknown" unless present in a or b. */
 export function addMacros(a: Macros, b: Macros): Macros {
   const out: Macros = { kcal: a.kcal + b.kcal, protein: a.protein + b.protein, carbs: a.carbs + b.carbs, fat: a.fat + b.fat };
   for (const k of OPTIONAL_NUTRIENTS) if (typeof a[k] === 'number' || typeof b[k] === 'number') out[k] = (a[k] ?? 0) + (b[k] ?? 0);
+  const micro = addMicros(a.micro, b.micro);
+  if (micro && Object.keys(micro).length) out.micro = micro;
   return out;
 }
 
@@ -52,6 +67,8 @@ export function sumMacros(list: Macros[]): Macros {
 export function sumMacrosStrict(list: Macros[]): Macros {
   const out = sumMacros(list);
   for (const k of OPTIONAL_NUTRIENTS) if (list.some((m) => typeof m[k] !== 'number')) delete out[k];
+  const micro = sumMicrosStrict(list.map((m) => m.micro));
+  if (micro) out.micro = micro; else delete out.micro;
   return out;
 }
 

@@ -19,6 +19,7 @@ const ALL: { to: string; key: string; icon: IconName }[] = [
   { to: '/workouts', key: 'nav_workouts', icon: 'flame' },
   { to: '/cardio', key: 'nav_cardio', icon: 'pulse' },
   { to: '/habits', key: 'nav_habits', icon: 'water' },
+  { to: '/nutrients', key: 'nav_nutrients', icon: 'leaf' },
   { to: '/reports/week', key: 'nav_weekly', icon: 'weekly' },
   { to: '/reports/month', key: 'nav_monthly', icon: 'monthly' },
   { to: '/settings', key: 'nav_settings', icon: 'settings' }

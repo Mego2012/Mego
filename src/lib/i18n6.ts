@@ -59,7 +59,33 @@ export const en6: Record<string, string> = {
   fib_per100Raw: '{v} g per 100 g of ingredients (before cooking)', fib_per100Cooked: '{v} g per 100 g of the cooked dish',
   fib_recipeUnknown: 'Fiber unknown: no fiber data for {list}. The other ingredients give {g} g.', fib_cookedWeight: 'Cooked weight of the whole dish (optional)',
   fib_avgPct: '{pct}% of target on average', fib_daysMet: 'target reached on {k} of {n} measured days', fib_lowDays: 'Lower-fiber days: {list}',
-  fib_noMeasured: 'No day with complete fiber data yet', fib_notMeasured: '{n} days not measured (entries without fiber data)'
+  fib_noMeasured: 'No day with complete fiber data yet', fib_notMeasured: '{n} days not measured (entries without fiber data)',
+  // nutrition details (vitamins, minerals, fat & carbohydrate details)
+  nb_title: 'Full nutrition per serving (vitamins & minerals)', nb_unknown: 'Not shown because at least one ingredient has no data: {list}.',
+  nav_nutrients: 'Nutrition details', nut_open: 'Vitamins, minerals & nutrition details', unit_mg: 'mg', unit_ug: 'µg',
+  nut_g_carbDetails: 'Carbohydrate details', nut_g_fatDetails: 'Fat details', nut_g_minerals: 'Minerals', nut_g_vitamins: 'Vitamins',
+  nut_water: 'Water in food', nut_starch: 'Starch', nut_addedSugar: 'Added sugars', nut_sugarAlcohol: 'Sugar alcohols',
+  nut_transFat: 'Trans fat', nut_mufa: 'Monounsaturated fat', nut_pufa: 'Polyunsaturated fat', nut_omega3: 'Omega-3', nut_omega6: 'Omega-6', nut_cholesterol: 'Cholesterol',
+  nut_potassium: 'Potassium', nut_calcium: 'Calcium', nut_magnesium: 'Magnesium', nut_iron: 'Iron', nut_zinc: 'Zinc', nut_phosphorus: 'Phosphorus',
+  nut_selenium: 'Selenium', nut_copper: 'Copper', nut_manganese: 'Manganese', nut_iodine: 'Iodine',
+  nut_vitA: 'Vitamin A (RAE)', nut_vitC: 'Vitamin C', nut_vitD: 'Vitamin D', nut_vitE: 'Vitamin E', nut_vitK: 'Vitamin K',
+  nut_b1: 'Vitamin B1 (thiamin)', nut_b2: 'Vitamin B2 (riboflavin)', nut_b3: 'Vitamin B3 (niacin)', nut_b5: 'Vitamin B5 (pantothenic acid)',
+  nut_b6: 'Vitamin B6', nut_b7: 'Vitamin B7 (biotin)', nut_folate: 'Vitamin B9 (folate, DFE)', nut_b12: 'Vitamin B12',
+  nut_pct: '{pct}% of reference', nut_remaining: '{v} {u} to go', nut_kind_RDA: 'reference: RDA', nut_kind_AI: 'reference: AI', nut_kind_limit: 'upper guide (< 10 % of calories)', nut_kind_none: '',
+  nut_custom: 'your own target', nut_noTarget: 'no daily target', nut_partial: 'based on {k} of {n} entries with data', nut_noData: 'no data for today’s entries',
+  nut_ul: 'upper limit {v} {u}/day', nut_ulSupp: 'upper limit {v} {u} from supplements / fortified foods only', nut_aboveUl: 'Today’s food is above the upper limit — more is not better. Check supplements and very large portions.',
+  nut_edit: 'Change target', nut_target: 'Daily target', nut_resetRef: 'Use the reference value', nut_targetNote: 'Reference values are for healthy adults; your doctor or dietitian may advise a different amount.',
+  nut_note: 'Amounts come only from foods with data (USDA FoodData Central). More is not always better: upper limits are shown where they exist. Pregnancy and breastfeeding are not covered.',
+  nut_empty: 'Nothing logged on this day yet.',
+  nut_sources: 'Reference intakes: U.S. National Academies DRIs (NIH Office of Dietary Supplements), adults by sex and age. Sodium 2,300 mg (CDRR). Added sugars < 10 % of calories. Added sugars, sugar alcohols, iodine and biotin are not in the USDA data: they are shown only for foods whose label you entered.',
+  // food preferences & recommendation filters
+  fp_title: 'Food preferences', fp_note: 'Used only for suggestions and generated meal plans — never for calories, targets or your logged meals. Recipes are never deleted; excluded ones are just not suggested.',
+  fp_exclude: 'Do not suggest recipes with:', fp_x_whey: 'Whey protein', fp_x_oats: 'Oats', fp_x_fish: 'Fish', fp_x_shellfish: 'Shrimp / shellfish', fp_x_beef: 'Beef', fp_x_liver: 'Liver',
+  fp_x_nuts: 'Nuts', fp_x_eggs: 'Eggs', fp_x_dairy: 'Dairy', fp_x_gluten: 'Wheat / gluten',
+  fp_yogurt: 'Yogurt per day (170 g containers)', fp_noLimit: 'No limit', fp_containers: 'At most {n}', fp_meals: 'Meals per day in generated plans', fp_meals3: '3 meals (breakfast, lunch, dinner)', fp_meals4: '3 meals + a snack',
+  fp_excludedCard: 'Not suggested — contains: {list}', sg_method: 'Cooking method', sg_prefsOn: 'Your food preferences are applied (Goals → Food preferences).',
+  tr_highProtein: 'High protein', tr_lowCarb: 'Low carb', tr_lowCalorie: 'Low calorie', tr_highFiber: 'High fiber', tr_vegetarian: 'Vegetarian', why_fiber: 'adds the fiber you still need',
+  ck_storage: 'Storage & reheating'
 };
 
 export const ar6: Record<string, string> = {
@@ -122,5 +148,31 @@ export const ar6: Record<string, string> = {
   fib_per100Raw: '{v} غ لكل 100 غ من المكونات (قبل الطبخ)', fib_per100Cooked: '{v} غ لكل 100 غ من الطبق المطبوخ',
   fib_recipeUnknown: 'الألياف غير معروفة: لا توجد بيانات ألياف لـ {list}. بقية المكونات تعطي {g} غ.', fib_cookedWeight: 'وزن الطبق كاملاً بعد الطبخ (اختياري)',
   fib_avgPct: '{pct}% من الهدف في المتوسط', fib_daysMet: 'تم بلوغ الهدف في {k} من {n} أيام مقاسة', fib_lowDays: 'أيام أقل أليافاً: {list}',
-  fib_noMeasured: 'لا يوجد يوم ببيانات ألياف كاملة بعد', fib_notMeasured: '{n} أيام غير مقاسة (مدخلات بلا بيانات ألياف)'
+  fib_noMeasured: 'لا يوجد يوم ببيانات ألياف كاملة بعد', fib_notMeasured: '{n} أيام غير مقاسة (مدخلات بلا بيانات ألياف)',
+  // تفاصيل التغذية (الفيتامينات والمعادن وتفاصيل الدهون والكربوهيدرات)
+  nb_title: 'التغذية الكاملة للحصة (الفيتامينات والمعادن)', nb_unknown: 'غير معروضة لأن مكوناً واحداً على الأقل بلا بيانات: {list}.',
+  nav_nutrients: 'تفاصيل التغذية', nut_open: 'الفيتامينات والمعادن وتفاصيل التغذية', unit_mg: 'ملغ', unit_ug: 'ميكروغرام',
+  nut_g_carbDetails: 'تفاصيل الكربوهيدرات', nut_g_fatDetails: 'تفاصيل الدهون', nut_g_minerals: 'المعادن', nut_g_vitamins: 'الفيتامينات',
+  nut_water: 'الماء في الطعام', nut_starch: 'النشا', nut_addedSugar: 'السكريات المضافة', nut_sugarAlcohol: 'الكحولات السكرية',
+  nut_transFat: 'الدهون المتحولة', nut_mufa: 'الدهون الأحادية غير المشبعة', nut_pufa: 'الدهون المتعددة غير المشبعة', nut_omega3: 'أوميغا 3', nut_omega6: 'أوميغا 6', nut_cholesterol: 'الكوليسترول',
+  nut_potassium: 'البوتاسيوم', nut_calcium: 'الكالسيوم', nut_magnesium: 'المغنيسيوم', nut_iron: 'الحديد', nut_zinc: 'الزنك', nut_phosphorus: 'الفوسفور',
+  nut_selenium: 'السيلينيوم', nut_copper: 'النحاس', nut_manganese: 'المنغنيز', nut_iodine: 'اليود',
+  nut_vitA: 'فيتامين أ (مكافئ الريتينول)', nut_vitC: 'فيتامين ج (C)', nut_vitD: 'فيتامين د (D)', nut_vitE: 'فيتامين هـ (E)', nut_vitK: 'فيتامين ك (K)',
+  nut_b1: 'فيتامين ب1 (الثيامين)', nut_b2: 'فيتامين ب2 (الريبوفلافين)', nut_b3: 'فيتامين ب3 (النياسين)', nut_b5: 'فيتامين ب5 (حمض البانتوثينيك)',
+  nut_b6: 'فيتامين ب6', nut_b7: 'فيتامين ب7 (البيوتين)', nut_folate: 'فيتامين ب9 (الفولات)', nut_b12: 'فيتامين ب12',
+  nut_pct: '{pct}% من القيمة المرجعية', nut_remaining: 'متبقٍ {v} {u}', nut_kind_RDA: 'المرجع: الكمية الموصى بها', nut_kind_AI: 'المرجع: الكمية الكافية', nut_kind_limit: 'حد إرشادي أعلى (أقل من 10% من السعرات)', nut_kind_none: '',
+  nut_custom: 'هدفك الخاص', nut_noTarget: 'لا يوجد هدف يومي', nut_partial: 'بناءً على {k} من {n} مدخلات فيها بيانات', nut_noData: 'لا توجد بيانات لمدخلات اليوم',
+  nut_ul: 'الحد الأعلى {v} {u} يومياً', nut_ulSupp: 'الحد الأعلى {v} {u} من المكملات أو الأطعمة المدعّمة فقط', nut_aboveUl: 'طعام اليوم تجاوز الحد الأعلى — الأكثر ليس أفضل. راجع المكملات والحصص الكبيرة جداً.',
+  nut_edit: 'تغيير الهدف', nut_target: 'الهدف اليومي', nut_resetRef: 'استخدام القيمة المرجعية', nut_targetNote: 'القيم المرجعية للبالغين الأصحاء؛ قد ينصحك الطبيب أو أخصائي التغذية بكمية مختلفة.',
+  nut_note: 'الكميات محسوبة فقط من الأطعمة التي لها بيانات (قاعدة USDA). الأكثر ليس دائماً أفضل: يظهر الحد الأعلى حيث يوجد. لا تشمل الحمل والرضاعة.',
+  nut_empty: 'لم يُسجَّل شيء في هذا اليوم بعد.',
+  nut_sources: 'القيم المرجعية: المتناول الغذائي المرجعي للأكاديميات الوطنية الأمريكية (مكتب المكملات الغذائية NIH) للبالغين حسب الجنس والعمر. الصوديوم 2300 ملغ. السكريات المضافة أقل من 10% من السعرات. السكريات المضافة والكحولات السكرية واليود والبيوتين غير موجودة في بيانات USDA، وتظهر فقط للأطعمة التي أدخلت ملصقها.',
+  // التفضيلات الغذائية وفلاتر الاقتراحات
+  fp_title: 'التفضيلات الغذائية', fp_note: 'تُستخدم فقط في الاقتراحات وخطط الوجبات المولّدة — لا تؤثر أبداً على السعرات أو الأهداف أو وجباتك المسجلة. لا تُحذف أي وصفة؛ المستبعدة فقط لا تُقترح.',
+  fp_exclude: 'لا تقترح وصفات تحتوي على:', fp_x_whey: 'بروتين الواي', fp_x_oats: 'الشوفان', fp_x_fish: 'السمك', fp_x_shellfish: 'الروبيان والمحار', fp_x_beef: 'اللحم البقري', fp_x_liver: 'الكبدة',
+  fp_x_nuts: 'المكسرات', fp_x_eggs: 'البيض', fp_x_dairy: 'منتجات الألبان', fp_x_gluten: 'القمح والغلوتين',
+  fp_yogurt: 'الزبادي في اليوم (علبة 170 غ)', fp_noLimit: 'بدون حد', fp_containers: '{n} كحد أقصى', fp_meals: 'عدد الوجبات في الخطط المولّدة', fp_meals3: '3 وجبات (فطور وغداء وعشاء)', fp_meals4: '3 وجبات + وجبة خفيفة',
+  fp_excludedCard: 'لا تُقترح — تحتوي على: {list}', sg_method: 'طريقة الطبخ', sg_prefsOn: 'يتم تطبيق تفضيلاتك الغذائية (الأهداف ← التفضيلات الغذائية).',
+  tr_highProtein: 'عالي البروتين', tr_lowCarb: 'قليل الكربوهيدرات', tr_lowCalorie: 'قليل السعرات', tr_highFiber: 'غني بالألياف', tr_vegetarian: 'نباتي', why_fiber: 'يضيف الألياف التي تحتاجها',
+  ck_storage: 'الحفظ وإعادة التسخين'
 };

@@ -8,6 +8,7 @@ import { db } from './db';
 import { expandQuery, NameIndex, stem } from './foodSearch';
 import { normalizeText } from './normalize';
 import { createFood } from './repo';
+import { microsFromRow } from './micros';
 import type { Food, FoodState, Macros } from './types';
 
 /** [id, name, categoryIndex, kcal, protein, carbs, fat, fiber, sugar, satFat, sodiumMg, portions, energyFlag] */
@@ -36,7 +37,7 @@ export function loadRefFoods(): Promise<RefDb> {
     const base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
     loading = fetch(base + 'fooddb/usda.json')
       .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() as Promise<RefDb>; })
-      .then((d) => { if (d?.meta?.format !== 'mego-fooddb') throw new Error('bad food database'); setRefData(d); return d; })
+      .then((d) => { if (d?.meta?.format !== 'mego-fooddb') throw new Error('bad food database'); setRefData(d); loadMicros().catch(() => undefined); return d; })
       .catch((e) => { loading = null; throw e; });
   }
   return loading;
@@ -70,11 +71,32 @@ export function toRefFood(r: RefRow, meta: RefMeta = data!.meta): RefFood {
   if (r[8] !== null) per100.sugar = r[8];
   if (r[9] !== null) per100.satFat = r[9];
   if (r[10] !== null) per100.sodium = r[10];
+  const micro = microData ? microsFromRow(microData.meta.columns, microData.rows[r[0]]) : undefined;
+  if (micro) per100.micro = micro;
   const src = meta.sources.find((s) => s.id === r[0][0]);
   return {
     id: r[0], name: r[1], category: meta.categories[r[2]] ?? '', per100, portions: r[11].map(([label, grams]) => ({ label, grams })),
     state: inferState(r[1]), source: `USDA FDC ${r[0].slice(1)} (${src?.name.split('— ')[1] ?? 'USDA'})`, energyFlag: r[12] === 1
   };
+}
+
+/* ------------------------------------------------------------------ micronutrients (lazy, separate file) */
+export interface MicroDb { meta: { format: string; version: number; builtAt: string; columns: string[]; units: Record<string, string>; coverage: Record<string, number>; foods: number; sources: RefMeta['sources']; notes: Record<string, string> }; rows: Record<string, (number | null)[]> }
+let microData: MicroDb | null = null;
+let microLoading: Promise<MicroDb> | null = null;
+export function setMicroData(d: MicroDb | null) { microData = d; }
+export const microsLoaded = () => !!microData;
+/** Loads vitamins / minerals / fat details for the reference foods (public/fooddb/micros.json). Fails softly. */
+export function loadMicros(): Promise<MicroDb> {
+  if (microData) return Promise.resolve(microData);
+  if (!microLoading) {
+    const base = (import.meta as { env?: { BASE_URL?: string } }).env?.BASE_URL ?? '/';
+    microLoading = fetch(base + 'fooddb/micros.json')
+      .then((r) => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json() as Promise<MicroDb>; })
+      .then((d) => { if (d?.meta?.format !== 'mego-micros') throw new Error('bad micros file'); microData = d; return d; })
+      .catch((e) => { microLoading = null; throw e; });
+  }
+  return microLoading;
 }
 
 export interface RefFilter { minProtein?: number; maxKcal?: number; maxCarbs?: number; maxFat?: number; category?: string; state?: FoodState | '' }
@@ -123,7 +145,10 @@ export function searchRefFoods(q: string, f: RefFilter = {}, limit = 40): RefFoo
 }
 
 /** Copies a reference food into the user's own food list once (reused on later picks). Values are not changed. */
-export async function materializeRefFood(rf: RefFood): Promise<Food> {
+export async function materializeRefFood(rf0: RefFood): Promise<Food> {
+  // copy WITH vitamins & minerals: load them first (soft — without them the food is still correct, just less detailed)
+  if (!microData) await loadMicros().catch(() => undefined);
+  const rf = microData && !rf0.per100.micro ? refById(rf0.id) ?? rf0 : rf0;
   const existing = (await db.foods.toArray()).find((f) => f.source === 'usda' && f.sourceRef === rf.source && !f.archived);
   if (existing) return existing;
   return createFood({

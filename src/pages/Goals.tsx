@@ -2,6 +2,7 @@ import type { Settings } from '../lib/types';
 import { rebalance } from '../lib/dietStrategy';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
+import { EXCLUDE_OPTIONS, NO_PREFS, type FoodPrefs } from '../lib/foodPrefs';
 import { DEFAULT_FIBER_TARGET, FIBER_TARGET_MAX, FIBER_TARGET_MIN, fiberCoverage, fiberMigrationRecord, fiberTargetOf, validFiberTarget } from '../lib/fiber';
 import { useApp } from '../app/AppContext';
 import { useBundle, useCardio } from '../app/hooks';
@@ -101,6 +102,7 @@ export default function Goals() {
       </Card>
 
       <BudgetSettingsCard />
+      <FoodPrefsCard />
 
       <Card title={t('goalsFitness')}>
         <div className="grid3">
@@ -159,21 +161,22 @@ export default function Goals() {
 }
 
 /** Upper limits that catch typing mistakes (e.g. 21102110 kcal); targets above them are not saved. */
-const TARGET_MAX: Record<keyof Macros, number> = { kcal: 10000, protein: 600, carbs: 1500, fat: 500 } as Record<keyof Macros, number>;
+type TargetKey = 'kcal' | 'protein' | 'carbs' | 'fat';
+const TARGET_MAX: Record<TargetKey, number> = { kcal: 10000, protein: 600, carbs: 1500, fat: 500 };
 
 function TargetsEditor() {
   const { t, settings } = useApp();
   const { run } = useAsync();
   const [kind, setKind] = useState<'training' | 'rest'>('training');
   // what the user is typing: kept locally so a field can be cleared and retyped (e.g. 2110 → 1800); saved once valid
-  const [draft, setDraft] = useState<Partial<Record<keyof Macros, number | ''>>>({});
+  const [draft, setDraft] = useState<Partial<Record<TargetKey, number | ''>>>({});
   const m = settings.targets[kind];
-  const set = (k: keyof Macros) => (v: number | '') => {
+  const set = (k: TargetKey) => (v: number | '') => {
     setDraft((d) => ({ ...d, [k]: v }));
     if (v === '' || !(v >= 0) || v > TARGET_MAX[k] || (k === 'kcal' && v < 800)) return;
     run(() => saveSettings((s) => { s.targets[kind] = { ...s.targets[kind], [k]: v }; }));
   };
-  const val = (k: keyof Macros) => (draft[k] !== undefined ? draft[k] : m[k]);
+  const val = (k: TargetKey) => (draft[k] !== undefined ? draft[k] : m[k]);
   const invalid = (['kcal', 'protein', 'carbs', 'fat'] as const).filter((k) => { const v = draft[k]; return v !== undefined && (v === '' || v > TARGET_MAX[k] || (k === 'kcal' && v < 800)); });
   return (
     <>
@@ -232,6 +235,41 @@ function CheckInCard({ checkins }: { checkins: CheckIn[] }) {
         </div>
         <button className="btn primary" data-testid="ci-save" onClick={() => run(() => kvSet(CHECKIN_PREFIX + week, { ...v, week, updatedAt: Date.now() }), t('ci_saved'))}>{t('save')}</button>
         {cur && <div className="tiny muted">✓ {addDays(week, 0)}</div>}
+      </div>
+    </Card>
+  );
+}
+
+/** Food preferences: used ONLY by suggestions and generated plans (never by the nutrition maths or targets). */
+function FoodPrefsCard() {
+  const { t, settings } = useApp();
+  const { run } = useAsync();
+  const prefs: FoodPrefs = settings.foodPrefs ?? NO_PREFS;
+  const save = (next: FoodPrefs) => run(() => saveSettings((s) => { s.foodPrefs = next; }));
+  return (
+    <Card title={<><Icon name="leaf" />{t('fp_title')}</>}>
+      <div className="tiny muted">{t('fp_note')}</div>
+      <div className="small bold" style={{ marginTop: 8 }}>{t('fp_exclude')}</div>
+      <div className="row wrap" style={{ gap: 6 }} data-testid="fp-exclude">
+        {EXCLUDE_OPTIONS.map((id) => {
+          const on = prefs.exclude.includes(id);
+          return <button key={id} className={`chip clickable ${on ? 'active' : ''}`} aria-pressed={on} data-testid={'fp-' + id}
+            onClick={() => save({ ...prefs, exclude: on ? prefs.exclude.filter((x) => x !== id) : [...prefs.exclude, id] })}>{t('fp_x_' + id)}</button>;
+        })}
+      </div>
+      <div className="grid2" style={{ marginTop: 10 }}>
+        <label className="field"><span>{t('fp_yogurt')}</span>
+          <select className="input" value={prefs.yogurtPerDay ?? ''} data-testid="fp-yogurt"
+            onChange={(e) => save({ ...prefs, yogurtPerDay: e.target.value === '' ? undefined : Number(e.target.value) })}>
+            <option value="">{t('fp_noLimit')}</option>
+            {[1, 2, 3].map((x) => <option key={x} value={x}>{t('fp_containers', { n: x })}</option>)}
+          </select></label>
+        <label className="field"><span>{t('fp_meals')}</span>
+          <select className="input" value={prefs.mealsPerDay ?? 4} data-testid="fp-meals"
+            onChange={(e) => save({ ...prefs, mealsPerDay: Number(e.target.value) as 3 | 4 })}>
+            <option value={3}>{t('fp_meals3')}</option>
+            <option value={4}>{t('fp_meals4')}</option>
+          </select></label>
       </div>
     </Card>
   );

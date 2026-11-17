@@ -69,10 +69,10 @@ describe('3–5. recipes', () => {
     expect(sumMacrosStrict(parts).fiber).toBeUndefined();
     expect({ ...sumMacrosStrict(parts) }).toEqual({ kcal: 2, protein: 2, carbs: 2, fat: 2 });
   });
-  it('library: 116 of 121 recipes have complete fiber data; the rest name the missing ingredient', () => {
+  it('library: 143 of 148 recipes have complete fiber data; the rest name the missing ingredient', () => {
     const rs = LIBRARY.map((l) => computeLibraryRecipe(l, new Map(), refById));
     const known = rs.filter((r) => r.fiber.total !== undefined);
-    expect(known.length).toBe(116);
+    expect(known.length).toBe(143); // all 27 recipes of part 4 are complete
     for (const r of known) {
       expect(r.totals.fiber).toBeCloseTo(r.fiber.total!, 1);
       expect(r.perServing.fiber! * r.lib.servings).toBeCloseTo(r.totals.fiber!, 1); // whole recipe first, then ÷ servings

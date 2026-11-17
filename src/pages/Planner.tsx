@@ -53,7 +53,7 @@ export default function Planner() {
 
       <div className="plan-actions">
         <button className="btn primary grow" disabled={!lib} data-testid="generate-plan"
-          onClick={() => lib && setGenerated(generatePlan(dates.filter((x) => x >= today()), (dt) => targetsFor(dt, settings, data?.days.find((y) => y.date === dt)), lib))}><Icon name="sparkle" /> {t('generatePlan')}</button>
+          onClick={() => lib && setGenerated(generatePlan(dates.filter((x) => x >= today()), (dt) => targetsFor(dt, settings, data?.days.find((y) => y.date === dt)), lib, undefined, { prefs: settings.foodPrefs }))}><Icon name="sparkle" /> {t('generatePlan')}</button>
         <button className="btn grow" onClick={() => setShopping(true)} data-testid="open-shopping"><Icon name="clipboard" /> {t('shoppingList')}</button>
         <button className="btn grow" data-testid="copy-last-week" onClick={async () => {
           let c = 0;

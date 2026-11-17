@@ -41,8 +41,8 @@ async function boot() {
   }
   startReminders();
   autoDailyBackup().catch(() => {});
-  // dietary fiber: fill missing values from verified sources once (backup first; never overwrites; diary untouched)
-  setTimeout(() => { import('./lib/fiberMigration').then((m) => m.runFiberMigration()).catch((e) => console.warn('fiber migration skipped', e)); }, 4000);
+  // fiber, then vitamins & minerals: fill missing values from verified sources once (backup first; never overwrites; diary untouched)
+  setTimeout(() => { import('./lib/fiberMigration').then((m) => m.runFiberMigration()).then(() => import('./lib/microMigration')).then((m) => m.runMicroMigration()).catch((e) => console.warn('nutrient migration skipped', e)); }, 4000);
   registerSW({ immediate: true });
 }
 

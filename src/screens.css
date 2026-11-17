@@ -473,3 +473,10 @@ input.input:not([type="number"]):not([dir]) { unicode-bidi: plaintext; text-alig
 .budget-days li { gap: 10px; align-items: center; }
 .budget-days li.today { background: var(--surface-2); border-radius: 10px; }
 .budget-diff { min-width: 52px; text-align: end; }
+
+/* ---------- nutrition details (vitamins & minerals) */
+.nut-list { display: grid; gap: 14px; }
+.nut-row { display: grid; gap: 5px; }
+.nut-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.nut-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.nut-row .gauge { height: 6px; }

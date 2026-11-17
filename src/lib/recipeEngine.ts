@@ -1,9 +1,12 @@
 import { db } from './db';
 import { macrosFor, preciseMacros, roundMacros, scaleMacros, sumMacros, sumMacrosStrict, basisFromFood } from './nutrition';
 import { recipeFiber, type RecipeFiber } from './fiber';
+import { excludedBy, YOGURT, YOGURT_CONTAINER_G, yogurtPerServingG, type FoodPrefs } from './foodPrefs';
+const ZERO_M: Macros = { kcal: 0, protein: 0, carbs: 0, fat: 0 };
 import { buildIngredient, saveRecipe, setPlannedDay, uid, kvGet } from './repo';
-import { LIBRARY as LIB1, type LibraryRecipe } from './recipeLibraryData';
+import { LIBRARY as LIB1, type LibraryRecipe, type Method } from './recipeLibraryData';
 import { LIBRARY_2 } from './recipeLibraryData2';
+import { LIBRARY_4 } from './recipeLibraryData4';
 import { LIBRARY_3 } from './recipeLibraryData3';
 import { seasoningsFromGroups } from './seasonings';
 
@@ -25,7 +28,7 @@ export function prepareLibraryRecipe(l: LibraryRecipe): LibraryRecipe {
   };
 }
 
-export const LIBRARY: LibraryRecipe[] = [...LIB1, ...LIBRARY_2, ...LIBRARY_3].map(prepareLibraryRecipe);
+export const LIBRARY: LibraryRecipe[] = [...LIB1, ...LIBRARY_2, ...LIBRARY_3, ...LIBRARY_4].map(prepareLibraryRecipe);
 
 /** Every counted line of a recipe: main ingredients, then seasonings / sauces (each counted once). */
 export function allIngredients(l: LibraryRecipe): [string, number, string?, string?][] {
@@ -37,7 +40,7 @@ export const isSauce = (l: LibraryRecipe) => (l.tags as string[]).includes('sauc
 export const isSide = (l: LibraryRecipe) => (l.tags as string[]).includes('side');
 import { normalizeText } from './search';
 import { RECIPE_REF } from './recipeRefMap';
-import { loadRefFoods, refById, type RefFood } from './refFoods';
+import { loadMicros, loadRefFoods, refById, type RefFood } from './refFoods';
 import { createFood } from './repo';
 import type { Food, Macros, MealType, PlanItem, Recipe } from './types';
 
@@ -144,6 +147,7 @@ export function computeLibraryRecipe(lib: LibraryRecipe, index: Map<string, Food
 export async function computeLibrary(): Promise<ComputedRecipe[]> {
   const index = indexFoods(await db.foods.toArray());
   await loadRefFoods().catch(() => null); // offline without a cached copy: own foods only
+  await loadMicros().catch(() => null); // vitamins & minerals (soft: without them the macros are still exact)
   return LIBRARY.map((l) => computeLibraryRecipe(l, index, refById));
 }
 
@@ -216,6 +220,27 @@ export interface SuggestFilters {
   favoritesOnly?: boolean;
   /** Low-carb / keto strategy: never suggest more carbohydrates than the day has left (+5 g). */
   carbStrict?: boolean;
+  /** Cooking method (library recipes). */
+  method?: Method | '';
+  /** Dietary characteristics that must all apply (per suggested portion). */
+  traits?: Trait[];
+  /** Food preferences: excluded ingredients and the yogurt still allowed today (grams). */
+  prefs?: FoodPrefs;
+  yogurtLeftG?: number;
+  /** Fiber still missing today (g) — fiber-rich meals get a small bonus; only when today's fiber data is complete. */
+  fiberGap?: number;
+}
+
+export type Trait = 'highProtein' | 'lowCarb' | 'lowCalorie' | 'highFiber' | 'vegetarian';
+/** Characteristic of one portion (macros) of a recipe. */
+export function hasTrait(t: Trait, mac: Macros, tags: string[] = []): boolean {
+  switch (t) {
+    case 'highProtein': return mac.protein >= 25 && (mac.protein * 4) / Math.max(mac.kcal, 1) >= 0.3;
+    case 'lowCarb': return mac.carbs <= 20;
+    case 'lowCalorie': return mac.kcal <= 400;
+    case 'highFiber': return (mac.fiber ?? 0) >= 6;
+    case 'vegetarian': return tags.includes('vegetarian');
+  }
 }
 
 export interface Suggestion {
@@ -249,9 +274,12 @@ export function suggest(
 ): Suggestion[] {
   if (remaining.kcal < 60) return [];
   const ideal = Math.max(remaining.kcal / Math.max(mealsLeft, 1), Math.min(remaining.kcal, 250));
-  const pool: { kind: 'library' | 'user'; id: string; name: string; emoji: string; per: Macros; minutes: number | null; meals: MealType[] | null; ingredients: string[]; computed?: ComputedRecipe; recipe?: Recipe }[] = [];
-  for (const c of library) if (c.ok && !isSauce(c.lib)) pool.push({ kind: 'library', id: c.lib.id, name: c.lib.nameAr, emoji: c.lib.emoji, per: c.perServing, minutes: c.totalTime, meals: c.lib.meals, ingredients: c.lib.ingredients.map((i) => i[0]), computed: c });
-  for (const r of userRecipes) if (!r.deleted && !r.libraryId) pool.push({ kind: 'user', id: r.id, name: r.name, emoji: '🍽️', per: scaleMacros(r.totals, 1 / r.servings), minutes: null, meals: null, ingredients: r.ingredients.map((i) => i.name), recipe: r });
+  const pool: { kind: 'library' | 'user'; id: string; name: string; emoji: string; per: Macros; minutes: number | null; meals: MealType[] | null; ingredients: string[]; all: string[]; yogurtG: number; methods: Method[] | null; tags: string[]; computed?: ComputedRecipe; recipe?: Recipe }[] = [];
+  for (const c of library) if (c.ok && !isSauce(c.lib)) {
+    const all = allIngredients(c.lib);
+    pool.push({ kind: 'library', id: c.lib.id, name: c.lib.nameAr, emoji: c.lib.emoji, per: c.perServing, minutes: c.totalTime, meals: c.lib.meals, ingredients: c.lib.ingredients.map((i) => i[0]), all: all.map((i) => i[0]), yogurtG: yogurtPerServingG(all, c.lib.servings), methods: c.lib.methods, tags: c.lib.tags, computed: c });
+  }
+  for (const r of userRecipes) if (!r.deleted && !r.libraryId) pool.push({ kind: 'user', id: r.id, name: r.name, emoji: '🍽️', per: scaleMacros(r.totals, 1 / r.servings), minutes: null, meals: null, ingredients: r.ingredients.map((i) => i.name), all: r.ingredients.map((i) => i.name), yogurtG: r.ingredients.filter((i) => YOGURT.test(i.name)).reduce((a, i) => a + i.grams, 0) / Math.max(r.servings, 1), methods: null, tags: [], recipe: r });
 
   const out: Suggestion[] = [];
   for (const p of pool) {
@@ -262,6 +290,8 @@ export function suggest(
       if (!p.ingredients.every((i) => have.has(i))) continue;
     }
     if (filters.favoritesOnly && !favorites.has(p.id)) continue;
+    if (filters.prefs && excludedBy(p.all, filters.prefs).length) continue;
+    if (filters.method && (!p.methods || !p.methods.includes(filters.method))) continue;
     let best: Suggestion | null = null;
     for (const m of MULTS) {
       const mac = roundMacros(scaleMacros(p.per, m));
@@ -271,6 +301,8 @@ export function suggest(
       if (filters.maxCarbs !== undefined && filters.maxCarbs !== '' && mac.carbs > Number(filters.maxCarbs)) continue;
       if (filters.maxFat !== undefined && filters.maxFat !== '' && mac.fat > Number(filters.maxFat)) continue;
       if (filters.carbStrict && mac.carbs > Math.max(remaining.carbs, 0) + 5) continue;
+      if (filters.traits?.length && !filters.traits.every((t) => hasTrait(t, mac, p.tags))) continue;
+      if (filters.yogurtLeftG !== undefined && p.yogurtG * m > filters.yogurtLeftG + 0.5) continue;
       const needP = Math.max(remaining.protein, 0);
       // Must help with protein when protein is still needed.
       if (needP >= 15 && mac.protein < Math.min(needP * 0.35, 20)) continue;
@@ -280,7 +312,9 @@ export function suggest(
       const fatOver = Math.max(0, mac.fat - Math.max(remaining.fat, 0));
       const density = (mac.protein * 4) / Math.max(mac.kcal, 1);
       const score = 50 * pFill - 30 * kcalErr - 25 * (carbOver / Math.max(remaining.carbs, 25)) - 25 * (fatOver / Math.max(remaining.fat, 10)) + 15 * density
-        + (favorites.has(p.id) ? 4 : 0) + (ratings[p.id] ? (ratings[p.id] - 3) * 2 : 0) - (m !== 1 ? 2 : 0);
+        + (favorites.has(p.id) ? 4 : 0) + (ratings[p.id] ? (ratings[p.id] - 3) * 2 : 0) - (m !== 1 ? 2 : 0)
+        // fiber is one more factor (never the only one): up to +8 when the portion covers the day's fiber gap
+        + (filters.fiberGap && filters.fiberGap > 0 && typeof mac.fiber === 'number' ? 8 * Math.min(1, mac.fiber / Math.min(filters.fiberGap, 10)) : 0);
       if (!best || score > best.score) {
         const reason: string[] = [];
         if (needP > 0 && mac.protein >= needP * 0.4) reason.push('why_protein');
@@ -288,6 +322,7 @@ export function suggest(
         if (carbOver === 0) reason.push('why_carbsOk');
         if (fatOver === 0) reason.push('why_fatOk');
         if (p.minutes !== null && p.minutes <= 20) reason.push('why_quick');
+        if (filters.fiberGap && filters.fiberGap > 0 && (mac.fiber ?? 0) >= Math.min(filters.fiberGap, 6)) reason.push('why_fiber');
         best = { kind: p.kind, id: p.id, name: p.name, emoji: p.emoji, servings: m, macros: mac, score, minutes: p.minutes, reason, computed: p.computed, recipe: p.recipe };
       }
     }
@@ -308,8 +343,14 @@ export interface GeneratedDay {
  * Picks breakfast / lunch / dinner / snack library recipes per day so the day total is close to the
  * targets (protein never far under, calories not over), avoiding repeating the same lunch/dinner.
  */
-export function generatePlan(dates: string[], targetsFor: (d: string) => Macros, library: ComputedRecipe[], avoidIds: Set<string> = new Set()): GeneratedDay[] {
-  const ok = library.filter((c) => c.ok && !avoidIds.has(c.lib.id) && !isSauce(c.lib) && !isSide(c.lib));
+export interface PlanOptions { prefs?: FoodPrefs }
+export function generatePlan(dates: string[], targetsFor: (d: string) => Macros, library: ComputedRecipe[], avoidIds: Set<string> = new Set(), opts: PlanOptions = {}): GeneratedDay[] {
+  const prefs = opts.prefs;
+  const ok = library.filter((c) => c.ok && !avoidIds.has(c.lib.id) && !isSauce(c.lib) && !isSide(c.lib) && !(prefs && excludedBy(allIngredients(c.lib).map((i) => i[0]), prefs).length));
+  // yogurt grams per serving, and the daily yogurt allowance (containers × 170 g)
+  const yog = new Map(ok.map((c) => [c.lib.id, yogurtPerServingG(allIngredients(c.lib), c.lib.servings)]));
+  const yogMax = prefs?.yogurtPerDay !== undefined ? prefs.yogurtPerDay * YOGURT_CONTAINER_G + 0.5 : Infinity;
+  const threeMeals = prefs?.mealsPerDay === 3;
   const by = (meal: MealType) => ok.filter((c) => c.lib.meals.includes(meal));
   const used = new Map<string, number>();
   const days: GeneratedDay[] = [];
@@ -318,7 +359,7 @@ export function generatePlan(dates: string[], targetsFor: (d: string) => Macros,
   for (const date of dates) {
     const T = targetsFor(date);
     let best: { cost: number; picks: GeneratedDay['picks']; total: Macros } | null = null;
-    const B = by('breakfast'), L = by('lunch'), D = by('dinner'), N = by('snacks');
+    const B = by('breakfast'), L = by('lunch'), D = by('dinner'), N: (ComputedRecipe | null)[] = threeMeals ? [null] : by('snacks');
     // Candidates: least-used first, mixing protein-dense and more filling options so days can reach the target.
     // a low-carb day (carbohydrates < 25 % of calories, e.g. keto, low-carb, carb-cycling low/rest) prefers low-carb recipes
     const lowCarbDay = (T.carbs * 4) / Math.max(T.kcal, 1) < 0.25;
@@ -332,9 +373,10 @@ export function generatePlan(dates: string[], targetsFor: (d: string) => Macros,
     };
     for (const b of pickOrder(B)) for (const l of pickOrder(L)) for (const d of pickOrder(D)) {
       if (l.lib.id === d.lib.id) continue;
-      for (const n of pickOrder(N)) for (const ml of mults) for (const md of mults) for (const mn of snackMults) {
+      for (const n of threeMeals ? [null] : pickOrder(N as ComputedRecipe[])) for (const ml of mults) for (const md of mults) for (const mn of n ? snackMults : [0]) {
         // plain arithmetic (no object allocation): this loop runs ~470k times per day
-        const B0 = b.perServing, L0 = l.perServing, D0 = d.perServing, N0 = n.perServing;
+        const B0 = b.perServing, L0 = l.perServing, D0 = d.perServing, N0 = n ? n.perServing : ZERO_M;
+        if (yogMax !== Infinity && (yog.get(b.lib.id) ?? 0) + (yog.get(l.lib.id) ?? 0) * ml + (yog.get(d.lib.id) ?? 0) * md + (n ? (yog.get(n.lib.id) ?? 0) * mn : 0) > yogMax) continue;
         const t = {
           kcal: B0.kcal + L0.kcal * ml + D0.kcal * md + N0.kcal * mn, protein: B0.protein + L0.protein * ml + D0.protein * md + N0.protein * mn,
           carbs: B0.carbs + L0.carbs * ml + D0.carbs * md + N0.carbs * mn, fat: B0.fat + L0.fat * ml + D0.fat * md + N0.fat * mn
@@ -343,15 +385,15 @@ export function generatePlan(dates: string[], targetsFor: (d: string) => Macros,
         const kcalUnder = Math.max(0, T.kcal - t.kcal);
         const pUnder = Math.max(0, T.protein - t.protein);
         const cost = (kcalOver / Math.max(T.kcal, 1)) * 3 + (kcalUnder / Math.max(T.kcal, 1)) * 1.2 + (pUnder / Math.max(T.protein, 1)) * 3 + Math.abs(t.carbs - T.carbs) / Math.max(T.carbs, 20) * carbWeight + Math.abs(t.fat - T.fat) / Math.max(T.fat, 10) * 0.8
-          + ((used.get(l.lib.id) ?? 0) + (used.get(d.lib.id) ?? 0)) * 0.08 + ((used.get(b.lib.id) ?? 0) + (used.get(n.lib.id) ?? 0)) * 0.03;
+          + ((used.get(l.lib.id) ?? 0) + (used.get(d.lib.id) ?? 0)) * 0.08 + ((used.get(b.lib.id) ?? 0) + (n ? used.get(n.lib.id) ?? 0 : 0)) * 0.03;
         if (!best || cost < best.cost) {
           best = {
-            cost, total: roundMacros(sumMacros([b.perServing, scaleMacros(l.perServing, ml), scaleMacros(d.perServing, md), scaleMacros(n.perServing, mn)])),
+            cost, total: roundMacros(sumMacros([b.perServing, scaleMacros(l.perServing, ml), scaleMacros(d.perServing, md), ...(n ? [scaleMacros(n.perServing, mn)] : [])])),
             picks: [
               { meal: 'breakfast', libId: b.lib.id, servings: 1, macros: roundMacros(b.perServing) },
               { meal: 'lunch', libId: l.lib.id, servings: ml, macros: roundMacros(scaleMacros(l.perServing, ml)) },
               { meal: 'dinner', libId: d.lib.id, servings: md, macros: roundMacros(scaleMacros(d.perServing, md)) },
-              { meal: 'snacks', libId: n.lib.id, servings: mn, macros: roundMacros(scaleMacros(n.perServing, mn)) }
+              ...(n ? [{ meal: 'snacks' as MealType, libId: n.lib.id, servings: mn, macros: roundMacros(scaleMacros(n.perServing, mn)) }] : [])
             ]
           };
         }

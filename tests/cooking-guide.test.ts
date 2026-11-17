@@ -4,6 +4,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { allIngredients, computeLibraryRecipe, generatePlan, indexFoods, isSauce, LIBRARY, suggest, whatCanICook } from '../src/lib/recipeEngine';
 import { LIBRARY as LIB1 } from '../src/lib/recipeLibraryData';
 import { LIBRARY_2 } from '../src/lib/recipeLibraryData2';
+import { LIBRARY_4 } from '../src/lib/recipeLibraryData4';
 import { LIBRARY_3 } from '../src/lib/recipeLibraryData3';
 import { RECIPE_REF } from '../src/lib/recipeRefMap';
 import { refById, setRefData, type RefDb } from '../src/lib/refFoods';
@@ -18,9 +19,10 @@ const none = indexFoods([]);
 const kcalOf = (m: Macros) => 4 * m.protein + 4 * m.carbs + 9 * m.fat;
 
 describe('library data', () => {
-  it('contains the original 101 recipes plus the flavour recipes, all with unique ids', () => {
+  it('contains the original 101 recipes plus the flavour recipes and part 4, all with unique ids', () => {
     expect(LIB1.length + LIBRARY_2.length).toBe(101);
-    expect(LIBRARY.length).toBe(101 + LIBRARY_3.length);
+    expect(LIBRARY.length).toBe(101 + LIBRARY_3.length + LIBRARY_4.length);
+    expect(LIBRARY_4.length).toBe(27);
     expect(LIBRARY_3.length).toBeGreaterThanOrEqual(19);
     expect(new Set(LIBRARY.map((l) => l.id)).size).toBe(LIBRARY.length);
   });

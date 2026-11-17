@@ -21,6 +21,8 @@ export interface Macros {
   sodium?: number;
   /** Saturated fat, g */
   satFat?: number;
+  /** Vitamins, minerals, fat & carbohydrate details (see micros.ts). Absent key = unknown. */
+  micro?: import('./micros').Micros;
 }
 
 export const OPTIONAL_NUTRIENTS = ['fiber', 'sugar', 'sodium', 'satFat'] as const;
@@ -318,6 +320,10 @@ export interface Settings {
   budget?: import('./budget').BudgetSettings;
   /** Daily dietary fiber target in grams (default 25 g — see fiber.ts). Not part of the calorie budget. */
   fiberTarget?: number;
+  /** Custom daily targets for vitamins / minerals (override the reference intakes in dri.ts). */
+  microTargets?: Partial<Record<import('./micros').MicroKey, number>>;
+  /** Food preferences for suggestions and generated plans (never used by the nutrition maths). */
+  foodPrefs?: import('./foodPrefs').FoodPrefs;
   /** Share of justified extra cardio energy added back (0–100 %). Empty = automatic by goal. */
   cardioReplenishPct?: number | null;
   /** Fitness goals (Goals screen). */

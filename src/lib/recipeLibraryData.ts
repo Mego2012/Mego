@@ -8,7 +8,7 @@
 import type { MealType } from './types';
 
 export type Method = 'air-fryer' | 'oven' | 'pan' | 'pot' | 'grill' | 'no-cook' | 'blender';
-export type Tag = 'chicken' | 'eggs' | 'rice' | 'fish' | 'meat' | 'sandwich' | 'quick' | 'meal-prep' | 'high-fiber' | 'vegetarian' | 'breakfast-idea' | 'sauce' | 'side' | 'pasta' | 'potato';
+export type Tag = 'chicken' | 'eggs' | 'rice' | 'fish' | 'meat' | 'sandwich' | 'quick' | 'meal-prep' | 'high-fiber' | 'vegetarian' | 'breakfast-idea' | 'sauce' | 'side' | 'pasta' | 'potato' | 'dessert';
 
 export interface LibraryRecipe {
   id: string;
@@ -43,6 +43,9 @@ export interface LibraryRecipe {
   stepsEn: string[];
   tipsAr: string[];
   tipsEn: string[];
+  /** Storage and reheating instructions. */
+  storageAr?: string;
+  storageEn?: string;
 }
 
 const S = {

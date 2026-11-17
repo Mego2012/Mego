@@ -191,6 +191,7 @@ const MAIN: Record<string, string> = {
   'grape leaves': 'ورق عنب',
   'horseradish': 'فجل حار',
   'olive oil': 'زيت زيتون',
+  'zucchini': 'كوسا',
   'whey protein powder': 'مسحوق بروتين الواي', 'protein powder': 'مسحوق بروتين', 'chicken, broilers or fryers': 'دجاج'
 };
 

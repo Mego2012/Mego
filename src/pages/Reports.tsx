@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
 import { useBundle, useCardio } from '../app/hooks';
 import { TrainingReport } from '../components/TrainingReport';
+import { BudgetReport } from '../components/BudgetCard';
 import { cardioReport } from '../lib/cardio';
 import { fitnessOf } from '../lib/energy';
 import { CaloriesChart, MacrosChart, WeightChart } from '../components/charts';
@@ -110,6 +111,7 @@ export default function Reports({ kind }: { kind: 'week' | 'month' }) {
         </ul>
       </div>
 
+      <BudgetReport data={data} dates={r.dates} kind={kind} />
       <Card title={t('weight')}>
         <div className="grid2">
           <Stat k={t('weightStart')} v={n(r.weight.start, 1)} testId="w-start" />

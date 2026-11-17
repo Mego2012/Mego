@@ -312,6 +312,8 @@ export interface Settings {
   backupPhotos: boolean;
   /** Cardio → calorie target: 'smart' (only justified extra cardio, see energy.ts) or 'off'. Saved targets never change. */
   cardioCalorieMode?: 'smart' | 'off';
+  /** Flexible calorie budget preferences (see budget.ts); undefined = defaults. */
+  budget?: import('./budget').BudgetSettings;
   /** Share of justified extra cardio energy added back (0–100 %). Empty = automatic by goal. */
   cardioReplenishPct?: number | null;
   /** Fitness goals (Goals screen). */

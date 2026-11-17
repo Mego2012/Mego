@@ -18,6 +18,7 @@ import { generateInsights } from '../lib/insights';
 import { addWater } from '../lib/repo';
 import { buildPeriod, progressEstimate, summarizeDay, weekReport, weightTrend } from '../lib/reports';
 import { MEALS } from '../lib/types';
+import { BudgetCard } from '../components/BudgetCard';
 
 export default function Dashboard() {
   const { t, n, d, settings, lang } = useApp();
@@ -85,6 +86,7 @@ export default function Dashboard() {
         </Link>
       </section>
 
+      <BudgetCard data={data!} />
       <EnergyCard e={energy} />
       <TrainingCard />
 

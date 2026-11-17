@@ -462,3 +462,14 @@ input.input:not([type="number"]):not([dir]) { unicode-bidi: plaintext; text-alig
 .cook-checklist li { align-items: center; }
 .cook-nav { display: flex; gap: 10px; margin-top: auto; position: sticky; bottom: 0; padding-top: 10px; background: var(--elev); }
 .cook-nav .btn { min-height: 52px; font-size: 16px; }
+
+/* ---------- Calorie budget */
+.budget-bar { height: 10px; }
+.budget-bar > i { background: var(--primary); }
+.budget-bar.over > i { background-color: var(--warn); }
+.budget-stat .v { font-size: var(--fs-lg); }
+.budget-ok { color: var(--good); }
+.budget-over { color: var(--warn); }
+.budget-days li { gap: 10px; align-items: center; }
+.budget-days li.today { background: var(--surface-2); border-radius: 10px; }
+.budget-diff { min-width: 52px; text-align: end; }

@@ -1,4 +1,5 @@
 import { localName } from './localize';
+import { TARGET_HISTORY_KEY, targetsChanged, withTargetChange, type TargetHistoryEntry } from './budget';
 import { db, type SyncTable } from './db';
 import { defaultSettings } from './defaults';
 import { basisFromFood, isIncompleteMacros, macrosFor, preciseMacros, roundMacros, scaleMacros, sumMacros, validateMacros } from './nutrition';
@@ -52,6 +53,11 @@ export async function saveSettings(update: (s: Settings) => Settings | void): Pr
   await db.settings.put(next);
   // Sync config (token) is device-local and is never uploaded.
   await enqueue('settings', 'main', 'upsert', { ...next, sync: undefined });
+  // keep the targets that applied before a change, so earlier weeks and months keep their own budget (budget.ts)
+  if (targetsChanged(current, next)) {
+    const hist = await kvGet<TargetHistoryEntry[]>(TARGET_HISTORY_KEY, []);
+    await kvSet(TARGET_HISTORY_KEY, withTargetChange(hist, current, next));
+  }
   return next;
 }
 

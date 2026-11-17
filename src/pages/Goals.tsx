@@ -15,6 +15,7 @@ import { adviseGoals, applyAdvice, CHECKIN_PREFIX, type Advice, type CheckIn } f
 import { kvSet, saveSettings } from '../lib/repo';
 import { progressEstimate, rollingWeightAverage, weekReport } from '../lib/reports';
 import type { Macros } from '../lib/types';
+import { BudgetSettingsCard } from '../components/BudgetCard';
 
 /** A Goals recommendation applied through the active diet strategy (keto keeps its carbs, flexible keeps its fat…). */
 function adviceWithStrategy(targets: Settings['targets'], action: Parameters<typeof applyAdvice>[1], strategy: Settings['dietStrategy']): Settings['targets'] {
@@ -97,6 +98,8 @@ export default function Goals() {
             onChange={(v) => v !== '' && Math.abs(v) <= 1.5 && run(() => saveSettings((s) => { s.profile.weeklyChangeKg = v; }))} />
         </div>
       </Card>
+
+      <BudgetSettingsCard />
 
       <Card title={t('goalsFitness')}>
         <div className="grid3">

@@ -31,7 +31,7 @@ const pw = require('playwright'); const { spawn } = require('child_process');
   await p.goto(B + '#/recipes?tab=library'); await p.reload(); await p.getByTestId('library').waitFor();
   await p.waitForFunction(() => document.querySelectorAll('[data-testid="library-card"]').length > 50);
   const count = await p.getByTestId('library-count').innerText();
-  check('library shows all 121 recipes (101 + 20 new)', /^121 \/ 121|١٢١ \/ ١٢١/.test(count), count);
+  check('library shows all 148 recipes (101 + 20 flavour + 27 part 4)', /^148 \/ 148|١٤٨ \/ ١٤٨/.test(count), count);
   await p.getByTestId('tag-sauce').click();
   check('sauce filter lists the 6 healthy sauces', (await p.getByTestId('library-card').count()) === 6);
   await p.getByTestId('tag-all').click();

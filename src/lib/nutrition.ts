@@ -44,6 +44,17 @@ export function sumMacros(list: Macros[]): Macros {
   return list.reduce(addMacros, { ...ZERO });
 }
 
+/**
+ * Sum for a recipe or meal whose total must be exact: an optional nutrient (fiber, sugar…) is known only when it is
+ * known for EVERY part. One ingredient without fiber data makes the recipe's fiber unknown instead of silently
+ * under-counting it. Core macros are summed exactly as sumMacros does.
+ */
+export function sumMacrosStrict(list: Macros[]): Macros {
+  const out = sumMacros(list);
+  for (const k of OPTIONAL_NUTRIENTS) if (list.some((m) => typeof m[k] !== 'number')) delete out[k];
+  return out;
+}
+
 export class UnitError extends Error {
   constructor(public code: 'needsPieceWeight' | 'needsServing' | 'invalidQuantity' | 'needsRecipe', message: string) {
     super(message);

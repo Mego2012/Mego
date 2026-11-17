@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useApp } from '../app/AppContext';
+import type { RecipeFiber } from '../lib/fiber';
 import { useBundle } from '../app/hooks';
 import { Icon } from '../components/icons';
 import { PhotoPlaceholder, RecipeMosaic } from '../components/FoodThumb';
@@ -209,11 +210,10 @@ export function RecipeDetail({ c: c0, onClose, servingsHint = 1 }: { c: Computed
         </div>
 
         <div className="grid2" data-testid="detail-nutrition">
-          <div className="stat"><div className="k">{t('perServing')} · {t('perServingG', { g: n(c.gramsPerServing) })}</div><div className="v num" data-testid="detail-kcal">{n(c.perServing.kcal)} {t('kcalUnit')}</div><MacroLine m={c.perServing} />
-            <div className="tiny muted">{t('fiber')}: {c.perServing.fiber !== undefined ? `${n(c.perServing.fiber, 1)} ${t('g')}` : t('unknown')}</div></div>
-          <div className="stat"><div className="k">{t('total')} · {t('servingsN', { n: L.servings })}</div><div className="v num" data-testid="detail-total">{n(c.totals.kcal)} {t('kcalUnit')}</div><MacroLine m={c.totals} compact />
-            <div className="tiny muted">{t('fiber')}: {c.totals.fiber !== undefined ? `${n(c.totals.fiber, 1)} ${t('g')}` : t('unknown')}</div></div>
+          <div className="stat"><div className="k">{t('perServing')} · {t('perServingG', { g: n(c.gramsPerServing) })}</div><div className="v num" data-testid="detail-kcal">{n(c.perServing.kcal)} {t('kcalUnit')}</div><MacroLine m={c.perServing} /></div>
+          <div className="stat"><div className="k">{t('total')} · {t('servingsN', { n: L.servings })}</div><div className="v num" data-testid="detail-total">{n(c.totals.kcal)} {t('kcalUnit')}</div><MacroLine m={c.totals} compact /></div>
         </div>
+        <RecipeFiberBox f={c.fiber} />
         <div className="tiny muted" data-testid="seasoning-kcal">{t('ck_seasCounted', { kcal: n(seasKcal, 1) })}</div>
         {swapped && <div className="banner info small" data-testid="swap-banner">{t('ck_swapped', { n: n(Object.keys(swaps).length) })} <button className="btn sm ghost" onClick={() => setSwaps({})}>{t('ck_undoSwaps')}</button></div>}
 
@@ -281,7 +281,8 @@ export function RecipeDetail({ c: c0, onClose, servingsHint = 1 }: { c: Computed
                     </div>
                     <span className="num small" style={{ textAlign: 'end' }}><b data-testid="ing-grams">{n(it.grams, it.grams < 10 ? 1 : 0)} {t('g')}</b>
                       {hm && <div className="tiny muted">{hm}</div>}
-                      {it.macros && <div className="tiny muted">{n(it.macros.kcal, it.macros.kcal < 10 ? 1 : 0)} {t('kcalUnit')}</div>}</span>
+                      {it.macros && <div className="tiny muted">{n(it.macros.kcal, it.macros.kcal < 10 ? 1 : 0)} {t('kcalUnit')}</div>}
+                      {it.macros && <div className="tiny muted" data-testid="ing-fiber">{t('fib_short')} {typeof it.macros.fiber === 'number' ? `${n(it.macros.fiber, 1)} ${t('g')}` : t('unknown')}</div>}</span>
                   </li>
                 );
               })}
@@ -492,6 +493,24 @@ export function CookTab() {
       ))}
       {pantry.length > 0 && !results.length && <div className="empty">{t('suggestNone')}</div>}
       {open && <RecipeDetail c={open.c} servingsHint={open.s} onClose={() => setOpen(null)} />}
+    </div>
+  );
+}
+
+/** Fiber of a recipe: per serving, total, per 100 g — or "unknown" with the ingredients that lack data and the known part. */
+export function RecipeFiberBox({ f, cooked }: { f: RecipeFiber; cooked?: boolean }) {
+  const { t, n, ln, list } = useApp();
+  return (
+    <div className="ck-fiber" data-testid="recipe-fiber">
+      <div className="small bold">{t('fib_title')}</div>
+      {f.total !== undefined ? (
+        <div className="tiny num">
+          <span data-testid="fiber-serving">{t('fib_perServing')}: <b>{n(f.perServing ?? 0, 1)} {t('g')}</b></span> · <span data-testid="fiber-total">{t('total')}: {n(f.total, 1)} {t('g')}</span>
+          {f.per100 !== undefined && <> · <span data-testid="fiber-per100">{t(cooked ? 'fib_per100Cooked' : 'fib_per100Raw', { v: n(f.per100, 1) })}</span></>}
+        </div>
+      ) : (
+        <div className="tiny muted" data-testid="fiber-unknown">{t('fib_recipeUnknown', { list: list(f.unknown.map((x) => ln(x))), g: n(f.knownSum, 1) })}</div>
+      )}
     </div>
   );
 }

@@ -127,6 +127,8 @@ export interface Recipe {
   totals: Macros;
   perServing: Macros;
   totalGrams: number;
+  /** Optional weight of the finished dish (g), when the user weighed it — used for per-100 g of the prepared recipe. */
+  cookedGrams?: number;
   notes: string;
   favorite: boolean;
   /** Set when created from the built-in library. */
@@ -314,6 +316,8 @@ export interface Settings {
   cardioCalorieMode?: 'smart' | 'off';
   /** Flexible calorie budget preferences (see budget.ts); undefined = defaults. */
   budget?: import('./budget').BudgetSettings;
+  /** Daily dietary fiber target in grams (default 25 g — see fiber.ts). Not part of the calorie budget. */
+  fiberTarget?: number;
   /** Share of justified extra cardio energy added back (0–100 %). Empty = automatic by goal. */
   cardioReplenishPct?: number | null;
   /** Fitness goals (Goals screen). */

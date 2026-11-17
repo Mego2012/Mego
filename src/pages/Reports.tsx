@@ -17,7 +17,7 @@ import { generateInsights } from '../lib/insights';
 import { rollingWeightAverage, monthComparison, weekComparison, type Comparison } from '../lib/reports';
 
 export default function Reports({ kind }: { kind: 'week' | 'month' }) {
-  const { t, n, d, lang, ln } = useApp();
+  const { t, n, d, lang, ln, list } = useApp();
   const [params, setParams] = useSearchParams();
   const data = useBundle();
   const cardio = useCardio();
@@ -128,11 +128,18 @@ export default function Reports({ kind }: { kind: 'week' | 'month' }) {
 
       <TrainingReport dates={r.dates} prevDates={p.dates} />
 
-      <Card title={`${t('macroSplit')} · ${t('water')} · ${t('fiberIndicator')}`}>
+      <Card title={`${t('macroSplit')} · ${t('water')} · ${t('fib_title')}`}>
         <div className="grid3 report-extra" data-testid="report-extra">
           <div className="stat"><div className="k">{t('macroSplit')}</div>{r.macroSplit && <span className="macro-split" style={{ width: '100%', height: 8 }}><i style={{ flexGrow: r.macroSplit.protein, background: 'var(--protein)' }} /><i style={{ flexGrow: r.macroSplit.carbs, background: 'var(--carbs)' }} /><i style={{ flexGrow: r.macroSplit.fat, background: 'var(--fat)' }} /></span>}<div className="small num">{r.macroSplit ? `${t('pShort')} ${r.macroSplit.protein}% · ${t('cShort')} ${r.macroSplit.carbs}% · ${t('fShort')} ${r.macroSplit.fat}%` : '—'}</div></div>
           <div className="stat"><div className="k">{t('avgWater')}</div><div className="v num">{r.avgWaterMl === null ? '—' : `${n(r.avgWaterMl)} ${t('ml')}`}</div><div className="tiny muted">{r.waterDays} / {r.dates.length}</div></div>
-          <div className="stat"><div className="k">{t('fiberIndicator')}</div><div className="tiny">{r.avgFiber !== null ? (r.avgFiber < 25 ? t('fiberLow', { v: n(r.avgFiber, 1) }) : t('fiberOk', { v: n(r.avgFiber, 1) })) : t('fiberUnknown', { pct: r.fiberCoveragePct })}</div></div>
+          <div className="stat" data-testid="report-fiber"><div className="k">{t('fib_title')}</div>
+            {r.fiber.avg !== null ? <>
+              <div className="v num" data-testid="report-fiber-avg">{n(r.fiber.avg, 1)} <small>/ {n(r.fiber.target)} {t('g')}</small></div>
+              <div className="tiny num">{t('fib_avgPct', { pct: n(r.fiber.pctOfTarget ?? 0) })} · {t('fib_daysMet', { k: n(r.fiber.daysMet), n: n(r.fiber.measuredDays) })}</div>
+              {r.fiber.lowDays.length > 0 && <div className="tiny muted" data-testid="report-fiber-low">{t('fib_lowDays', { list: list(r.fiber.lowDays.map((x) => d(x, { weekday: 'short', day: 'numeric' }))) })}</div>}
+            </> : <div className="tiny muted">{t('fib_noMeasured')}</div>}
+            {r.fiber.notMeasuredDays > 0 && <div className="tiny muted" data-testid="report-fiber-unmeasured">{t('fib_notMeasured', { n: n(r.fiber.notMeasuredDays) })}</div>}
+          </div>
         </div>
         {r.topFoods.length > 0 && (
           <>

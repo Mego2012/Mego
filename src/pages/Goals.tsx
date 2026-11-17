@@ -2,6 +2,7 @@ import type { Settings } from '../lib/types';
 import { rebalance } from '../lib/dietStrategy';
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
+import { DEFAULT_FIBER_TARGET, FIBER_TARGET_MAX, FIBER_TARGET_MIN, fiberCoverage, fiberMigrationRecord, fiberTargetOf, validFiberTarget } from '../lib/fiber';
 import { useApp } from '../app/AppContext';
 import { useBundle, useCardio } from '../app/hooks';
 import { WeightChart } from '../components/charts';
@@ -184,7 +185,28 @@ function TargetsEditor() {
         <NumField label={t('fat')} suffix={t('g')} value={val('fat')} onChange={set('fat')} testId="goal-fat" />
       </div>
       {invalid.length > 0 && <div className="tiny delta pos" data-testid="targets-invalid">{t('targetsRange')}</div>}
+      <FiberTargetField />
     </>
+  );
+}
+
+/** Daily dietary fiber target (one value for every day; not part of the calorie budget). */
+function FiberTargetField() {
+  const { t, n, settings } = useApp();
+  const { run } = useAsync();
+  const [draft, setDraft] = useState<number | '' | undefined>();
+  const cur = fiberTargetOf(settings);
+  const cov = useLiveQuery(async () => fiberCoverage(await db.foods.toArray()), []);
+  const mig = useMemo(() => fiberMigrationRecord(db.name), [cov]);
+  const bad = draft !== undefined && !validFiberTarget(draft);
+  return (
+    <div className="stack" style={{ marginTop: 12, gap: 6 }} data-testid="fiber-target">
+      <NumField label={t('fib_target')} suffix={t('g')} value={draft !== undefined ? draft : cur} testId="goal-fiber"
+        onChange={(v) => { setDraft(v); if (validFiberTarget(v)) { const x = v; run(() => saveSettings((s) => { s.fiberTarget = x; })); } }} />
+      {bad && <div className="tiny delta pos" data-testid="fiber-invalid">{t('fib_range', { min: n(FIBER_TARGET_MIN), max: n(FIBER_TARGET_MAX) })}</div>}
+      <div className="tiny muted">{t('fib_targetNote', { d: n(DEFAULT_FIBER_TARGET) })}</div>
+      {cov && cov.total > 0 && <div className="tiny muted" data-testid="fiber-coverage">{t('fib_coverage', { k: n(cov.known), n: n(cov.total), u: n(cov.unknown) })}{mig && mig.filled > 0 ? ` · ${t('fib_migrated', { n: n(mig.filled) })}` : ''}</div>}
+    </div>
   );
 }
 

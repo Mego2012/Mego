@@ -2,7 +2,7 @@ import { localName } from './localize';
 import { TARGET_HISTORY_KEY, targetsChanged, withTargetChange, type TargetHistoryEntry } from './budget';
 import { db, type SyncTable } from './db';
 import { defaultSettings } from './defaults';
-import { basisFromFood, isIncompleteMacros, macrosFor, preciseMacros, roundMacros, scaleMacros, sumMacros, validateMacros } from './nutrition';
+import { basisFromFood, isIncompleteMacros, macrosFor, preciseMacros, roundMacros, scaleMacros, sumMacros, sumMacrosStrict, validateMacros } from './nutrition';
 import type {
   BodyEntry, DayLog, DayPlan, DayType, DiaryEntry, Food, FoodChange, Macros, MealTemplate, MealType, PlanItem,
   PlannedDay, Recipe, RecipeIngredient, Settings, Unit
@@ -420,13 +420,14 @@ export async function buildIngredient(foodId: string, quantity: number, unit: Un
 
 export function computeRecipe(ingredients: RecipeIngredient[], servings: number) {
   if (!(servings > 0)) throw new Error('Servings must be > 0');
-  const totals = preciseMacros(sumMacros(ingredients.map((i) => i.macros)));
+  // strict: a recipe's fiber is known only when every ingredient has fiber data (never under-counted)
+  const totals = preciseMacros(sumMacrosStrict(ingredients.map((i) => i.macros)));
   const perServing = preciseMacros(scaleMacros(totals, 1 / servings));
   const totalGrams = Math.round(ingredients.reduce((s, i) => s + i.grams, 0));
   return { totals, perServing, totalGrams };
 }
 
-export async function saveRecipe(r: { id?: string; name: string; servings: number; ingredients: RecipeIngredient[]; notes?: string; favorite?: boolean }) {
+export async function saveRecipe(r: { id?: string; name: string; servings: number; ingredients: RecipeIngredient[]; notes?: string; favorite?: boolean; cookedGrams?: number }) {
   if (!r.name.trim()) throw new Error('Name is required');
   if (!r.ingredients.length) throw new Error('Add at least one ingredient');
   const now = Date.now();
@@ -434,6 +435,7 @@ export async function saveRecipe(r: { id?: string; name: string; servings: numbe
   const calc = computeRecipe(r.ingredients, r.servings);
   const rec: Recipe = {
     id: r.id ?? uid(), name: r.name.trim(), servings: r.servings, ingredients: r.ingredients, ...calc, notes: r.notes ?? '',
+    ...(r.cookedGrams && r.cookedGrams > 0 ? { cookedGrams: r.cookedGrams } : {}),
     favorite: r.favorite ?? existing?.favorite ?? false, createdAt: existing?.createdAt ?? now, updatedAt: now
   };
   await db.recipes.put(rec);

@@ -48,7 +48,18 @@ export const en6: Record<string, string> = {
   // brand (MEGO is never translated)
   brand_tagline: 'Eat Smart. Train Hard. Live Better.',
   about_title: 'About MEGO',
-  about_text: 'MEGO is your personal nutrition and fitness companion. Track your calories and macros, plan your meals, monitor your progress, and build healthier habits through smarter decisions.'
+  about_text: 'MEGO is your personal nutrition and fitness companion. Track your calories and macros, plan your meals, monitor your progress, and build healthier habits through smarter decisions.',
+  // dietary fiber
+  fib_title: 'Dietary Fiber', fib_short: 'Fiber', fib_target: 'Fiber Target (g per day)', fib_consumed: 'Fiber Consumed', fib_remaining: 'Fiber Remaining',
+  fib_perServing: 'Fiber per Serving', fib_highFoods: 'High-Fiber Foods',
+  fib_pct: '{pct}% of daily target', fib_reached: 'Target reached', fib_noData: 'No fiber data for today’s entries',
+  fib_partial: 'based on {k} of {n} entries with fiber data',
+  fib_range: 'Enter a target between {min} and {max} g.', fib_targetNote: 'Default {d} g/day (WHO: adults at least 25 g/day). One value for every day; not part of the calorie budget.',
+  fib_coverage: '{k} of your {n} foods have fiber data · {u} unknown (never counted as 0)', fib_migrated: '{n} filled from verified sources',
+  fib_per100Raw: '{v} g per 100 g of ingredients (before cooking)', fib_per100Cooked: '{v} g per 100 g of the cooked dish',
+  fib_recipeUnknown: 'Fiber unknown: no fiber data for {list}. The other ingredients give {g} g.', fib_cookedWeight: 'Cooked weight of the whole dish (optional)',
+  fib_avgPct: '{pct}% of target on average', fib_daysMet: 'target reached on {k} of {n} measured days', fib_lowDays: 'Lower-fiber days: {list}',
+  fib_noMeasured: 'No day with complete fiber data yet', fib_notMeasured: '{n} days not measured (entries without fiber data)'
 };
 
 export const ar6: Record<string, string> = {
@@ -100,5 +111,16 @@ export const ar6: Record<string, string> = {
   // العلامة (اسم MEGO لا يُترجم)
   brand_tagline: 'كُل بذكاء. تمرّن بقوة. عِش أفضل.',
   about_title: 'عن MEGO',
-  about_text: 'MEGO هو رفيقك الشخصي للتغذية واللياقة البدنية. تابع سعراتك الحرارية والعناصر الغذائية، وخطط وجباتك، وراقب تقدمك، وابنِ عادات صحية من خلال قرارات أكثر ذكاءً.'
+  about_text: 'MEGO هو رفيقك الشخصي للتغذية واللياقة البدنية. تابع سعراتك الحرارية والعناصر الغذائية، وخطط وجباتك، وراقب تقدمك، وابنِ عادات صحية من خلال قرارات أكثر ذكاءً.',
+  // الألياف الغذائية
+  fib_title: 'الألياف الغذائية', fib_short: 'ألياف', fib_target: 'هدف الألياف (غ يومياً)', fib_consumed: 'الألياف المستهلكة', fib_remaining: 'الألياف المتبقية',
+  fib_perServing: 'الألياف لكل حصة', fib_highFoods: 'أطعمة غنية بالألياف',
+  fib_pct: '{pct}% من الهدف اليومي', fib_reached: 'تم بلوغ الهدف', fib_noData: 'لا توجد بيانات ألياف لمدخلات اليوم',
+  fib_partial: 'بناءً على {k} من {n} مدخلات فيها بيانات ألياف',
+  fib_range: 'أدخل هدفاً بين {min} و{max} غ.', fib_targetNote: 'الافتراضي {d} غ يومياً (منظمة الصحة العالمية: 25 غ على الأقل للبالغين). قيمة واحدة لكل الأيام، وليست جزءاً من ميزانية السعرات.',
+  fib_coverage: '{k} من أطعمتك الـ{n} فيها بيانات ألياف · {u} غير معروفة (لا تُحسب صفراً أبداً)', fib_migrated: 'تمت إضافة {n} من مصادر موثقة',
+  fib_per100Raw: '{v} غ لكل 100 غ من المكونات (قبل الطبخ)', fib_per100Cooked: '{v} غ لكل 100 غ من الطبق المطبوخ',
+  fib_recipeUnknown: 'الألياف غير معروفة: لا توجد بيانات ألياف لـ {list}. بقية المكونات تعطي {g} غ.', fib_cookedWeight: 'وزن الطبق كاملاً بعد الطبخ (اختياري)',
+  fib_avgPct: '{pct}% من الهدف في المتوسط', fib_daysMet: 'تم بلوغ الهدف في {k} من {n} أيام مقاسة', fib_lowDays: 'أيام أقل أليافاً: {list}',
+  fib_noMeasured: 'لا يوجد يوم ببيانات ألياف كاملة بعد', fib_notMeasured: '{n} أيام غير مقاسة (مدخلات بلا بيانات ألياف)'
 };

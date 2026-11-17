@@ -3,6 +3,7 @@
  * preferences). Nothing is shown when the data is insufficient; "general guidance" messages are labelled as such
  * and carry their source. Suggestions never change targets or diary entries.
  */
+import { DEFAULT_FIBER_TARGET, fiberTargetOf } from './fiber';
 import { addDays } from './dates';
 import { excludedTags, tagsOf, type DietTag } from './intelCatalog';
 import { goalClass, rankFoods, type IntelFood } from './foodIntel';
@@ -14,8 +15,8 @@ export type CoachLevel = 'good' | 'warn' | 'info';
 export interface CoachMessage { id: string; level: CoachLevel; key: string; params: Record<string, string | number>; basis: 'data' | 'guidance'; sourceKey?: string; foods?: FoodSuggestion[] }
 export interface FoodSuggestion { food: IntelFood; grams: number; macros: Macros; reasonKey: string }
 
-/** WHO (2023) guideline: adults ≥ 25 g naturally occurring dietary fibre per day. */
-export const FIBER_TARGET_G = 25;
+/** WHO (2023) guideline: adults ≥ 25 g naturally occurring dietary fibre per day — the DEFAULT of the configurable target. */
+export const FIBER_TARGET_G = DEFAULT_FIBER_TARGET;
 const r0 = (x: number) => Math.round(x);
 const r1 = (x: number) => Math.round(x * 10) / 10;
 
@@ -45,6 +46,29 @@ export function proteinOptions(gapTotal: number, kcalLeft: number, foods: IntelF
     const m = contribution(f, grams);
     if (kcalLeft > 0 && m.kcal > kcalLeft * 1.05) continue;
     out.push({ food: f, grams, macros: m, reasonKey: maxFat !== undefined ? 'why_leanProtein' : 'why_proteinGap' });
+    if (out.length >= n) break;
+  }
+  return out;
+}
+
+/**
+ * Fiber-rich foods that also fit the rest of the day: a portion giving up to 8 g fiber, ≤ 35 % of the calories left
+ * (and ≤ 250 kcal), never high in sugar (> 15 g/100 g) or saturated fat (> 5 g/100 g). Only foods with real fiber data.
+ */
+export function fiberOptions(gapTotal: number, kcalLeft: number, foods: IntelFood[], goal: ReturnType<typeof goalClass>, n = 5): FoodSuggestion[] {
+  const out: FoodSuggestion[] = [];
+  const gap = Math.min(gapTotal, 8);
+  const kcalCap = Math.min(250, kcalLeft > 0 ? kcalLeft * 0.35 : 250);
+  for (const r of rankFoods(foods, 'fiber', goal)) {
+    const f = r.food;
+    if (f.fiber === undefined || f.fiber < 3) continue;
+    if ((f.sugar ?? 0) > 15 || (f.satFat ?? 0) > 5) continue;
+    let grams = roundG((gap / f.fiber) * 100);
+    if (grams > 300) grams = 300;
+    let m = contribution(f, grams);
+    if (m.kcal > kcalCap) { grams = roundG((kcalCap / Math.max(f.kcal, 1)) * 100); m = contribution(f, grams); }
+    if (grams < 15 || (m.fiber ?? 0) < 1.5) continue;
+    out.push({ food: f, grams, macros: m, reasonKey: 'why_fiberGap' });
     if (out.length >= n) break;
   }
   return out;
@@ -116,8 +140,9 @@ export function dailyCoach(data: DataBundle, date: string, foods: IntelFood[]): 
   }
   if (rem.kcal < -50) out.push({ id: 'over', level: 'warn', key: 'co_overCalories', params: { kcal: r0(-rem.kcal) }, basis: 'data' });
   if (fiberKnown(day)) {
-    const fib = day.totals.fiber ?? 0;
-    if (fib < FIBER_TARGET_G) out.push({ id: 'fiber', level: 'info', key: 'co_fiberToday', params: { g: r1(fib), t: FIBER_TARGET_G }, basis: 'data', sourceKey: 'src_whoCarb' });
+    const fib = day.totals.fiber ?? 0, ft = fiberTargetOf(s);
+    if (fib < ft) out.push({ id: 'fiber', level: 'info', key: 'co_fiberToday', params: { g: r1(fib), t: ft }, basis: 'data', sourceKey: 'src_whoCarb',
+      foods: fiberOptions(ft - fib, Math.max(0, rem.kcal), allowed, goal, 4) });
   } else if (day.entryCount) {
     out.push({ id: 'fiber-unknown', level: 'info', key: 'co_fiberUnknown', params: { n: day.coverage.fiber, total: day.entryCount }, basis: 'data' });
   }
@@ -140,7 +165,8 @@ export function weeklyCoach(data: DataBundle, date: string): WeeklyReview {
   if (report.proteinHitDays < n / 2) msgs.push({ id: 'w-prot', level: 'warn', key: 'co_weekProteinLow', params: { hit: report.proteinHitDays, n }, basis: 'data' });
   else msgs.push({ id: 'w-prot', level: 'good', key: 'co_weekProteinOk', params: { hit: report.proteinHitDays, n }, basis: 'data' });
   if (report.avgFiber !== null) {
-    msgs.push({ id: 'w-fib', level: report.avgFiber >= FIBER_TARGET_G ? 'good' : 'warn', key: report.avgFiber >= FIBER_TARGET_G ? 'co_weekFiberOk' : 'co_weekFiberLow', params: { g: r1(report.avgFiber), t: FIBER_TARGET_G }, basis: 'data', sourceKey: 'src_whoCarb' });
+    const ft = report.fiber.target;
+    msgs.push({ id: 'w-fib', level: report.avgFiber >= ft ? 'good' : 'warn', key: report.avgFiber >= ft ? 'co_weekFiberOk' : 'co_weekFiberLow', params: { g: r1(report.avgFiber), t: ft }, basis: 'data', sourceKey: 'src_whoCarb' });
   }
   // diversity from the complete days' entries
   const completeDates = new Set(report.days.filter((d) => d.status === 'complete').map((d) => d.date));

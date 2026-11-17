@@ -1,8 +1,9 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CookTab, LibraryTab, SuggestTab } from './RecipeLibrary';
+import { CookTab, LibraryTab, RecipeFiberBox, SuggestTab } from './RecipeLibrary';
 import { useApp } from '../app/AppContext';
+import { recipeFiber } from '../lib/fiber';
 import { FoodPicker, QuantityForm } from '../components/FoodPicker';
 import { Icon } from '../components/icons';
 import { Card, Confirm, MacroLine, NumField, Segmented, Sheet, StateChip, TextField, useAsync } from '../components/ui';
@@ -84,11 +85,13 @@ function RecipeEditor({ recipe, onClose }: { recipe: Recipe | null; onClose: () 
   const [servings, setServings] = useState<number | ''>(recipe?.servings ?? 1);
   const [ings, setIngs] = useState<RecipeIngredient[]>(recipe?.ingredients ?? []);
   const [notes, setNotes] = useState(recipe?.notes ?? '');
+  const [cooked, setCooked] = useState<number | ''>(recipe?.cookedGrams ?? '');
   const [picking, setPicking] = useState(false);
   const [food, setFood] = useState<Food | null>(null);
   const [confirm, setConfirm] = useState(false);
   const { run } = useAsync();
   const calc = ings.length && Number(servings) > 0 ? computeRecipe(ings, Number(servings)) : null;
+  const fib = calc ? recipeFiber(ings.map((i) => ({ name: i.name, grams: i.grams, fiber: i.macros.fiber })), Number(servings), Number(cooked) || undefined) : null;
 
   return (
     <Sheet title={recipe ? ln(recipe.name) : t('newRecipe')} onClose={onClose}>
@@ -100,7 +103,7 @@ function RecipeEditor({ recipe, onClose }: { recipe: Recipe | null; onClose: () 
           {ings.map((i, idx) => (
             <li key={idx}>
               <div className="grow"><div className="row" style={{ gap: 6 }}><span className="bold small">{ln(i.name)}</span><StateChip state={i.state} /></div>
-                <div className="tiny muted num">{n(i.quantity, 2)} {t('unit_' + i.unit)} ({n(i.grams)} {t('g')}) · {n(i.macros.kcal)} {t('kcalUnit')}</div></div>
+                <div className="tiny muted num">{n(i.quantity, 2)} {t('unit_' + i.unit)} ({n(i.grams)} {t('g')}) · {n(i.macros.kcal)} {t('kcalUnit')} · <span data-testid="ing-fiber">{t('fib_short')} {typeof i.macros.fiber === 'number' ? `${n(i.macros.fiber, 1)} ${t('g')}` : t('unknown')}</span></div></div>
               <button className="icon-btn" onClick={() => setIngs(ings.filter((_, j) => j !== idx))} aria-label={t('delete')}><Icon name="trash" /></button>
             </li>
           ))}
@@ -111,9 +114,11 @@ function RecipeEditor({ recipe, onClose }: { recipe: Recipe | null; onClose: () 
             <div className="stat"><div className="k">{t('perServing')}</div><div className="v num" data-testid="recipe-serving-kcal">{n(calc.perServing.kcal)}</div><MacroLine m={calc.perServing} compact /></div>
           </div>
         )}
+        {fib && <RecipeFiberBox f={fib} cooked={Number(cooked) > 0} />}
+        {calc && <NumField label={t('fib_cookedWeight')} suffix={t('g')} value={cooked} onChange={setCooked} testId="recipe-cooked-g" />}
         <label className="field"><span>{t('notes')}</span><textarea className="input" rows={2} value={notes} onChange={(e) => setNotes(e.target.value)} /></label>
         <button className="btn primary block" disabled={!name.trim() || !ings.length || !(Number(servings) > 0)} data-testid="recipe-save"
-          onClick={async () => { if (await run(() => saveRecipe({ id: recipe?.id, name, servings: Number(servings), ingredients: ings, notes }), t('saved'))) onClose(); }}>{t('save')}</button>
+          onClick={async () => { if (await run(() => saveRecipe({ id: recipe?.id, name, servings: Number(servings), ingredients: ings, notes, cookedGrams: Number(cooked) || undefined }), t('saved'))) onClose(); }}>{t('save')}</button>
         {recipe && <button className="btn danger block" onClick={() => setConfirm(true)}>{t('delete')}</button>}
       </div>
       {picking && (

@@ -11,7 +11,8 @@ import { InsightList } from '../components/Insights';
 import { Dial, greetingKey, MealGlyph, useCountUp } from '../components/instrument';
 import { ScanButtons } from '../components/MealScanner';
 import { Icon } from '../components/icons';
-import { Card, MacroBars, MacroLine, OptionalNutrientsLine, useAsync } from '../components/ui';
+import { Card, MacroBars, FiberBar, MacroLine, OptionalNutrientsLine, useAsync } from '../components/ui';
+import { fiberProgress, fiberTargetOf } from '../lib/fiber';
 import { dailyCoach, tipOfDay } from '../lib/coach';
 import { addDays, today } from '../lib/dates';
 import { generateInsights } from '../lib/insights';
@@ -79,7 +80,8 @@ export default function Dashboard() {
         </div>
         <div className="hr" />
         <div data-testid="macro-bars"><MacroBars totals={day.totals} target={day.target} /></div>
-        <OptionalNutrientsLine m={day.totals} coverage={day.coverage} total={day.entryCount} />
+        <FiberBar p={fiberProgress(day, fiberTargetOf(settings))} />
+        <OptionalNutrientsLine m={day.totals} coverage={day.coverage} total={day.entryCount} omitFiber />
         <Link to="/recipes?tab=suggest" className="btn block" style={{ marginTop: 14, flexDirection: 'column', gap: 2 }} data-testid="what-to-eat">
           <span>{t('suggestions')}</span>
           <span className="tiny muted" style={{ fontWeight: 400 }}>{t('remainingNow', { kcal: n(Math.max(0, day.remaining.kcal)), p: n(Math.max(0, day.remaining.protein)), c: n(Math.max(0, day.remaining.carbs)), f: n(Math.max(0, day.remaining.fat)) })}</span>

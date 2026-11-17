@@ -12,7 +12,8 @@ import { Icon } from '../components/icons';
 import { FoodThumb } from '../components/FoodThumb';
 import { MealGlyph } from '../components/instrument';
 import { useLiveQuery } from 'dexie-react-hooks';
-import { Confirm, DateNav, Ring, MacroBars, MacroLine, NumField, OptionalNutrientsLine, Segmented, Sheet, StateChip, useAsync } from '../components/ui';
+import { Confirm, DateNav, Ring, MacroBars, FiberBar, MacroLine, NumField, OptionalNutrientsLine, Segmented, Sheet, StateChip, useAsync } from '../components/ui';
+import { fiberProgress, fiberTargetOf } from '../lib/fiber';
 import { addDays, isValidISODate, startOfWeek, today, weekDates } from '../lib/dates';
 import { availableUnits, macrosFor } from '../lib/nutrition';
 import { db } from '../lib/db';
@@ -84,7 +85,8 @@ export default function Diary() {
           </div>
         </div>
         <MacroBars totals={day.totals} target={day.target} keys={['protein', 'carbs', 'fat']} />
-        <OptionalNutrientsLine m={day.totals} coverage={day.coverage} total={day.entryCount} />
+        <FiberBar p={fiberProgress(day, fiberTargetOf(settings))} />
+        <OptionalNutrientsLine m={day.totals} coverage={day.coverage} total={day.entryCount} omitFiber />
         <div className="water-line">
           <Icon name="water" />
           <span className="small"><b className="num" data-testid="diary-water">{n(day.waterMl)}</b> <span className="muted">/ {n(settings.waterTargetMl)} {t('ml')}</span></span>
@@ -118,7 +120,7 @@ export default function Diary() {
                 <MealGlyph meal={m} />
                 <div className="grow" style={{ minWidth: 0 }}>
                   <h2>{t(m)}</h2>
-                  <div className="tiny muted num">{list.length ? <MacroLine m={mm} compact /> : t('noEntries')}</div>
+                  <div className="tiny muted num">{list.length ? <MacroLine m={list.every((e) => typeof e.macros.fiber === 'number') ? mm : { ...mm, fiber: undefined }} compact fiber /> : t('noEntries')}</div>
                 </div>
                 <span className="meal-kcal num">{n(mm.kcal)}<small> {t('kcalUnit')}</small></span>
                 <button className="add-fab" onClick={() => setAddMeal(m)} data-testid={`add-${m}`} aria-label={`${t('add')} — ${t(m)}`}><Icon name="plus" /><span>{t('add')}</span></button>
@@ -129,7 +131,7 @@ export default function Diary() {
                     <FoodThumb food={{ nameEn: e.name, nameAr: e.name }} size={42} />
                     <div className="grow" style={{ minWidth: 0 }}>
                       <div className="row" style={{ gap: 6 }}><span className="ellipsis e-name" data-testid="entry-name">{ln(e.name)}</span>{e.state !== 'other' && <StateChip state={e.state} />}</div>
-                      <div className="tiny muted num">{n(e.quantity, 2)} {t('unit_' + e.unit)}{e.unit !== 'g' && e.grams ? ` (${n(e.grams)} ${t('g')})` : ''} · <MacroLine m={e.macros} compact /></div>
+                      <div className="tiny muted num">{n(e.quantity, 2)} {t('unit_' + e.unit)}{e.unit !== 'g' && e.grams ? ` (${n(e.grams)} ${t('g')})` : ''} · <MacroLine m={e.macros} compact fiber /></div>
                     </div>
                     <span className="e-kcal num" data-testid="entry-kcal">{n(e.macros.kcal)}</span>
                   </div>

@@ -1,5 +1,6 @@
 import { db } from './db';
-import { macrosFor, preciseMacros, roundMacros, scaleMacros, sumMacros, basisFromFood } from './nutrition';
+import { macrosFor, preciseMacros, roundMacros, scaleMacros, sumMacros, sumMacrosStrict, basisFromFood } from './nutrition';
+import { recipeFiber, type RecipeFiber } from './fiber';
 import { buildIngredient, saveRecipe, setPlannedDay, uid, kvGet } from './repo';
 import { LIBRARY as LIB1, type LibraryRecipe } from './recipeLibraryData';
 import { LIBRARY_2 } from './recipeLibraryData2';
@@ -55,6 +56,8 @@ export interface IngredientResolution {
 
 export interface ComputedRecipe {
   lib: LibraryRecipe;
+  /** Fiber total / per serving / per 100 g and each ingredient's contribution (unknown when any ingredient lacks data). */
+  fiber: RecipeFiber;
   ok: boolean;
   items: IngredientResolution[];
   /** Ingredients computed from a USDA reference match that the user has not approved into their foods yet. */
@@ -123,8 +126,10 @@ export function computeLibraryRecipe(lib: LibraryRecipe, index: Map<string, Food
     missing.push(name);
     items.push({ name, grams, source: 'missing', role });
   }
-  const totals = preciseMacros(sumMacros(parts));
+  // strict: fiber/sugar… are known only when every ingredient has data (no silent under-count); core macros unchanged
+  const totals = preciseMacros(sumMacrosStrict(parts));
   const perServing = preciseMacros(scaleMacros(totals, 1 / lib.servings));
+  const fiber = recipeFiber(items.filter((i) => i.source !== 'missing').map((i) => ({ name: i.name, grams: i.grams, fiber: i.macros?.fiber })), lib.servings);
   const uncountedKcal = lib.uncounted.reduce((s, u) => s + u[2], 0) / lib.servings;
   const derived: ComputedRecipe['derived'] = [];
   if (perServing.protein >= 25 && (perServing.protein * 4) / Math.max(perServing.kcal, 1) >= 0.3) derived.push('high-protein');
@@ -132,7 +137,7 @@ export function computeLibraryRecipe(lib: LibraryRecipe, index: Map<string, Food
   if (perServing.carbs <= 20) derived.push('low-carb');
   return {
     lib, ok: missing.length === 0, items, usda, gramsPerServing: Math.round(allIngredients(lib).reduce((a, i) => a + i[1], 0) / lib.servings), missing, estimatedFoods, uncountedKcal: Math.round(uncountedKcal), totals, perServing,
-    totalTime: lib.prepMin + lib.cookMin, derived, isEstimate: estimatedFoods.length > 0 || uncountedKcal >= 5
+    totalTime: lib.prepMin + lib.cookMin, derived, fiber, isEstimate: estimatedFoods.length > 0 || uncountedKcal >= 5
   };
 }
 

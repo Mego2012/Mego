@@ -97,7 +97,7 @@ export default function Foods() {
                   {x.incomplete && <span className="chip warn">!</span>}
                 </div>
                 <MacroSplit m={x.per100} />
-                <div className="tiny muted num"><MacroLine m={x.per100} compact /> · <SourceTag source={x.source} />{x.category ? ` · ${cat(x.category)}` : ''}</div>
+                <div className="tiny muted num"><MacroLine m={x.per100} compact fiber /> · <SourceTag source={x.source} />{x.category ? ` · ${cat(x.category)}` : ''}</div>
               </div>
               <div className="fr-kcal num">{n(x.per100.kcal)}<small>{t('kcalUnit')} / 100{t('g')}</small></div>
               <button className="icon-btn fr-fav" style={{ color: x.favorite ? 'var(--carbs)' : 'var(--faint)' }} onClick={(e) => { e.stopPropagation(); toggleFavoriteFood(x.id); }} aria-label={t('favorites')}><Icon name="star" filled={x.favorite} /></button>

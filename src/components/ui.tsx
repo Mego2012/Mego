@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useApp } from '../app/AppContext';
+import type { FiberProgress } from '../lib/fiber';
 import { addDays, today } from '../lib/dates';
 import type { FoodState, Macros } from '../lib/types';
 import { Icon } from './icons';
@@ -76,10 +77,34 @@ export function MacroBars({ totals, target, keys = ['protein', 'carbs', 'fat'] }
   );
 }
 
-/** Fiber / sugar / sodium line — only shown for nutrients that have data. */
-export function OptionalNutrientsLine({ m, coverage, total }: { m: Macros; coverage?: Record<string, number>; total?: number }) {
+/** Dietary fiber progress: consumed / target, % of target, remaining — same gauge style as the macros.
+ *  Entries without fiber data are never counted as 0: the line says how many entries the number is based on. */
+export function FiberBar({ p }: { p: FiberProgress }) {
   const { t, n } = useApp();
-  const parts = (['fiber', 'sugar', 'satFat', 'sodium'] as const).filter((k) => typeof m[k] === 'number' && (coverage ? coverage[k] > 0 : true));
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { const id = requestAnimationFrame(() => setMounted(true)); return () => cancelAnimationFrame(id); }, []);
+  const pct = Math.min(100, p.pct);
+  return (
+    <div className="gauges fiber-gauge" data-testid="fiber-bar">
+      <div className="macro-row" data-macro="fiber" style={{ ['--c' as string]: 'var(--fiber)' }}>
+        <span className="m-name">{t('fib_title')}</span>
+        <span className="m-val num" data-testid="fiber-val">{p.unknown ? <b>—</b> : <b>{n(p.consumed, 1)}</b>} / {n(p.target)} {t('g')}</span>
+        <div className="gauge" role="progressbar" aria-label={t('fib_title')} aria-valuenow={Math.round(p.consumed)} aria-valuemax={Math.round(p.target)}>
+          <i style={{ width: `${mounted && !p.unknown ? pct : 0}%` }} />
+        </div>
+        <span className="m-left tiny num muted" data-testid="fiber-left">
+          {p.unknown ? t('fib_noData') : `${t('fib_pct', { pct: n(p.pct) })} · ${p.consumed >= p.target ? t('fib_reached') : `${t('fib_remaining')} ${n(p.remaining, 1)} ${t('g')}`}`}
+          {!p.complete && !p.unknown && <span data-testid="fiber-partial"> · {t('fib_partial', { k: n(p.known), n: n(p.entries) })}</span>}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+/** Fiber / sugar / sodium line — only shown for nutrients that have data. */
+export function OptionalNutrientsLine({ m, coverage, total, omitFiber }: { m: Macros; coverage?: Record<string, number>; total?: number; omitFiber?: boolean }) {
+  const { t, n } = useApp();
+  const parts = (['fiber', 'sugar', 'satFat', 'sodium'] as const).filter((k) => !(omitFiber && k === 'fiber') && typeof m[k] === 'number' && (coverage ? coverage[k] > 0 : true));
   if (!parts.length) return null;
   return (
     <div className="tiny muted num">
@@ -88,17 +113,19 @@ export function OptionalNutrientsLine({ m, coverage, total }: { m: Macros; cover
   );
 }
 
-export function MacroLine({ m, compact }: { m: Macros; compact?: boolean }) {
+export function MacroLine({ m, compact, fiber }: { m: Macros; compact?: boolean; fiber?: boolean }) {
   const { t, n } = useApp();
+  // fiber is shown only when asked for and known (unknown is never shown as 0)
+  const fib = fiber && typeof m.fiber === 'number';
   if (compact)
     return (
       <span className="tiny muted num">
-        {t('pShort')} {n(m.protein, 1)} · {t('cShort')} {n(m.carbs, 1)} · {t('fShort')} {n(m.fat, 1)}
+        {t('pShort')} {n(m.protein, 1)} · {t('cShort')} {n(m.carbs, 1)} · {t('fShort')} {n(m.fat, 1)}{fib ? ` · ${t('fib_short')} ${n(m.fiber, 1)}` : ''}
       </span>
     );
   return (
     <span className="small muted num">
-      {t('protein')} {n(m.protein, 1)}{t('g')} · {t('carbs')} {n(m.carbs, 1)}{t('g')} · {t('fat')} {n(m.fat, 1)}{t('g')}
+      {t('protein')} {n(m.protein, 1)}{t('g')} · {t('carbs')} {n(m.carbs, 1)}{t('g')} · {t('fat')} {n(m.fat, 1)}{t('g')}{fib ? ` · ${t('fiber')} ${n(m.fiber, 1)}${t('g')}` : ''}
     </span>
   );
 }

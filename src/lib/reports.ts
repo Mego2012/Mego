@@ -1,3 +1,4 @@
+import { fiberTargetOf } from './fiber';
 import { addDays, addMonths, monthDates, startOfWeek, today, weekDates } from './dates';
 import { round, roundMacros, sumMacros } from './nutrition';
 import { dayTypeFor, targetsFor } from './targets';
@@ -138,9 +139,11 @@ export interface PeriodReport {
   waterDays: number;
   /** % of calories from protein / carbs / fat (from average macros). */
   macroSplit: { protein: number; carbs: number; fat: number } | null;
-  /** Average fiber over complete days, only when every entry of those days had fiber data. */
+  /** Average fiber over complete days whose entries ALL have fiber data (null when there is no such day). */
   avgFiber: number | null;
   fiberCoveragePct: number;
+  /** Fiber vs the configured daily target. Days with entries lacking fiber data are "not measured", never 0. */
+  fiber: { target: number; measuredDays: number; notMeasuredDays: number; daysMet: number; lowDays: string[]; avg: number | null; pctOfTarget: number | null };
   topFoods: { name: string; count: number; kcal: number; protein: number }[];
 }
 
@@ -174,7 +177,15 @@ export function buildPeriod(kind: 'week' | 'month', label: string, dates: string
   const completeEntries = complete.flatMap((d) => byDate.get(d.date) ?? []);
   const withFiber = completeEntries.filter((e) => typeof e.macros.fiber === 'number').length;
   const fiberCoveragePct = completeEntries.length ? Math.round((withFiber / completeEntries.length) * 100) : 0;
-  const avgFiber = n && fiberCoveragePct === 100 ? round(avg(complete.map((d) => d.totals.fiber ?? 0))!, 1) : null;
+  const fiberTarget = fiberTargetOf(data.settings);
+  const measured = complete.filter((d) => d.entryCount > 0 && d.coverage.fiber === d.entryCount);
+  const avgFiber = measured.length ? round(avg(measured.map((d) => d.totals.fiber ?? 0))!, 1) : null;
+  const fiber = {
+    target: fiberTarget, measuredDays: measured.length, notMeasuredDays: complete.length - measured.length,
+    daysMet: measured.filter((d) => (d.totals.fiber ?? 0) >= fiberTarget).length,
+    lowDays: measured.filter((d) => (d.totals.fiber ?? 0) < fiberTarget).map((d) => d.date),
+    avg: avgFiber, pctOfTarget: avgFiber === null ? null : Math.round((avgFiber / fiberTarget) * 100)
+  };
   const foodMap = new Map<string, { name: string; count: number; kcal: number; protein: number }>();
   for (const d of dates) for (const e of byDate.get(d) ?? []) {
     const k = e.name;
@@ -193,6 +204,7 @@ export function buildPeriod(kind: 'week' | 'month', label: string, dates: string
     macroSplit: split,
     avgFiber,
     fiberCoveragePct,
+    fiber,
     topFoods,
     completeDays: n,
     partialDays: days.filter((d) => d.status === 'partial').length,

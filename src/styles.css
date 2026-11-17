@@ -10,7 +10,7 @@
   --text: #121715; --muted: #5f6b66; --faint: #8b958f; --border: #d6ded7; --hairline: rgba(18, 23, 21, .08);
   --primary: #117336; --primary-2: #4fae2e; --primary-ink: #ffffff; --primary-soft: #dcefdf; --glow: rgba(17, 115, 54, .18);
   --danger: #c2402c; --danger-soft: #f8e1dc; --good: #13804a; --warn: #a8650b; --info: #1f5fbf;
-  --kcal: #117336; --protein: #d0553a; --carbs: #b47b08; --fat: #6b54d6;
+  --fiber: #7a6a12; --kcal: #117336; --protein: #d0553a; --carbs: #b47b08; --fat: #6b54d6;
   --dial-track: #dde4dc; --tick: rgba(18, 23, 21, .28); --tick-faint: rgba(18, 23, 21, .12);
   --hero-bg: radial-gradient(120% 90% at 50% 0%, #ffffff 0%, #f0f4ef 60%, #e8ede7 100%);
   --shadow-1: 0 1px 1px rgba(18, 23, 21, .04), 0 2px 8px rgba(18, 23, 21, .05);
@@ -35,7 +35,7 @@
     --text: #eef2ee; --muted: #97a39d; --faint: #66726c; --border: #27302c; --hairline: rgba(238, 242, 238, .07);
     --primary: #b8f23e; --primary-2: #5fd88a; --primary-ink: #14200a; --primary-soft: rgba(184, 242, 62, .13); --glow: rgba(184, 242, 62, .3);
     --danger: #ff6f5e; --danger-soft: rgba(255, 111, 94, .14); --good: #6fe08a; --warn: #f5ae55; --info: #6cb6ff;
-    --kcal: #b8f23e; --protein: #ff8f70; --carbs: #f5c451; --fat: #a897ff;
+    --fiber: #d9c45a; --kcal: #b8f23e; --protein: #ff8f70; --carbs: #f5c451; --fat: #a897ff;
     --dial-track: #202925; --tick: rgba(238, 242, 238, .34); --tick-faint: rgba(238, 242, 238, .12);
     --hero-bg: radial-gradient(120% 90% at 50% -10%, #1d2622 0%, #131916 55%, #111614 100%);
     --shadow-1: 0 0 0 1px rgba(255, 255, 255, .035) inset; --shadow-2: 0 0 0 1px rgba(255, 255, 255, .05) inset, 0 18px 40px rgba(0, 0, 0, .45);
@@ -49,7 +49,7 @@
   --text: #eef2ee; --muted: #97a39d; --faint: #66726c; --border: #27302c; --hairline: rgba(238, 242, 238, .07);
   --primary: #b8f23e; --primary-2: #5fd88a; --primary-ink: #14200a; --primary-soft: rgba(184, 242, 62, .13); --glow: rgba(184, 242, 62, .3);
   --danger: #ff6f5e; --danger-soft: rgba(255, 111, 94, .14); --good: #6fe08a; --warn: #f5ae55; --info: #6cb6ff;
-  --kcal: #b8f23e; --protein: #ff8f70; --carbs: #f5c451; --fat: #a897ff;
+  --fiber: #d9c45a; --kcal: #b8f23e; --protein: #ff8f70; --carbs: #f5c451; --fat: #a897ff;
   --dial-track: #202925; --tick: rgba(238, 242, 238, .34); --tick-faint: rgba(238, 242, 238, .12);
   --hero-bg: radial-gradient(120% 90% at 50% -10%, #1d2622 0%, #131916 55%, #111614 100%);
   --shadow-1: 0 0 0 1px rgba(255, 255, 255, .035) inset; --shadow-2: 0 0 0 1px rgba(255, 255, 255, .05) inset, 0 18px 40px rgba(0, 0, 0, .45);

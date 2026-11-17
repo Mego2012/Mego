@@ -7,3 +7,9 @@ e2e/screens
 tsconfig.tsbuildinfo
 tests/private/
 dist-demo
+
+# emulator logs
+firestore-debug.log
+firebase-debug.log
+ui-debug.log
+e2e/.profile/

@@ -1,21 +1,22 @@
 /* =====================================================================================================
    MEGO design system — "Calibrated".
    Concept: nutrition as a precision instrument. Graduated scales, a single luminous accent, depth through
-   layered surfaces instead of borders. Two art-directed themes: Graphite (dark) and Mineral (light).
+   layered surfaces instead of borders. Two themes: Charcoal (dark) and Mist (light), from the MEGO brand palette.
    Type: Readex Pro (display + all numerals), IBM Plex Sans Arabic (text).
    ===================================================================================================== */
 :root {
-  /* Mineral — cool stone surfaces, deep jade accent */
-  --bg: #e9eeec; --bg-2: #f3f6f5; --surface: #ffffff; --surface-2: #eef3f1; --surface-3: #e2e9e6; --elev: #ffffff;
-  --text: #0c1a1b; --muted: #5a6b68; --faint: #8a9a97; --border: #d5dfdc; --hairline: rgba(12, 26, 27, .08);
-  --primary: #0a7c63; --primary-2: #19a986; --primary-ink: #ffffff; --primary-soft: #d3ece4; --glow: rgba(10, 124, 99, .18);
+  /* Mist — neutral green-grey surfaces, deep MEGO green accent (brand palette: brand/BRAND-GUIDELINES.md) */
+  --bg: #eef1ed; --bg-2: #f5f7f4; --surface: #ffffff; --surface-2: #eff3ee; --surface-3: #e3e9e2; --elev: #ffffff;
+  --text: #121715; --muted: #5f6b66; --faint: #8b958f; --border: #d6ded7; --hairline: rgba(18, 23, 21, .08);
+  --primary: #117336; --primary-2: #4fae2e; --primary-ink: #ffffff; --primary-soft: #dcefdf; --glow: rgba(17, 115, 54, .18);
   --danger: #c2402c; --danger-soft: #f8e1dc; --good: #13804a; --warn: #a8650b; --info: #1f5fbf;
-  --kcal: #0a7c63; --protein: #d0553a; --carbs: #b47b08; --fat: #6b54d6;
-  --dial-track: #dbe4e1; --tick: rgba(12, 26, 27, .28); --tick-faint: rgba(12, 26, 27, .12);
-  --hero-bg: radial-gradient(120% 90% at 50% 0%, #ffffff 0%, #eef4f2 60%, #e6eeeb 100%);
-  --shadow-1: 0 1px 1px rgba(12, 26, 27, .04), 0 2px 8px rgba(12, 26, 27, .05);
-  --shadow-2: 0 2px 4px rgba(12, 26, 27, .05), 0 14px 34px rgba(12, 26, 27, .09);
+  --kcal: #117336; --protein: #d0553a; --carbs: #b47b08; --fat: #6b54d6;
+  --dial-track: #dde4dc; --tick: rgba(18, 23, 21, .28); --tick-faint: rgba(18, 23, 21, .12);
+  --hero-bg: radial-gradient(120% 90% at 50% 0%, #ffffff 0%, #f0f4ef 60%, #e8ede7 100%);
+  --shadow-1: 0 1px 1px rgba(18, 23, 21, .04), 0 2px 8px rgba(18, 23, 21, .05);
+  --shadow-2: 0 2px 4px rgba(18, 23, 21, .05), 0 14px 34px rgba(18, 23, 21, .09);
   --nav-bg: rgba(255, 255, 255, .82);
+  --brand-tile: #121715; --brand-on-tile: #ffffff; --brand-dot: #b8f23e;
   --font-display: "Readex Pro", "IBM Plex Sans Arabic", system-ui, sans-serif;
   --font-text: "IBM Plex Sans Arabic", "Readex Pro", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans Arabic", Tahoma, sans-serif;
   /* type scale (1.2) and spacing (4 px grid) */
@@ -29,29 +30,31 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    /* Graphite — deep ink, luminous jade, instrument glow */
-    --bg: #080d0f; --bg-2: #0b1214; --surface: #10181b; --surface-2: #162125; --surface-3: #1d2a2f; --elev: #141e22;
-    --text: #e8f1ef; --muted: #91a4a1; --faint: #62746f; --border: #22323a; --hairline: rgba(232, 241, 239, .07);
-    --primary: #3ddcb0; --primary-2: #5cc7ff; --primary-ink: #03211a; --primary-soft: rgba(61, 220, 176, .13); --glow: rgba(61, 220, 176, .35);
-    --danger: #ff6f5e; --danger-soft: rgba(255, 111, 94, .14); --good: #4fe08f; --warn: #f5ae55; --info: #6cb6ff;
-    --kcal: #3ddcb0; --protein: #ff8f70; --carbs: #f5c451; --fat: #a897ff;
-    --dial-track: #1b282d; --tick: rgba(232, 241, 239, .34); --tick-faint: rgba(232, 241, 239, .12);
-    --hero-bg: radial-gradient(120% 90% at 50% -10%, #17282b 0%, #0e171a 55%, #0b1214 100%);
+    /* Charcoal — deep neutral charcoal, MEGO lime accent */
+    --bg: #0d1110; --bg-2: #111614; --surface: #151b18; --surface-2: #1b221f; --surface-3: #232c28; --elev: #18201c;
+    --text: #eef2ee; --muted: #97a39d; --faint: #66726c; --border: #27302c; --hairline: rgba(238, 242, 238, .07);
+    --primary: #b8f23e; --primary-2: #5fd88a; --primary-ink: #14200a; --primary-soft: rgba(184, 242, 62, .13); --glow: rgba(184, 242, 62, .3);
+    --danger: #ff6f5e; --danger-soft: rgba(255, 111, 94, .14); --good: #6fe08a; --warn: #f5ae55; --info: #6cb6ff;
+    --kcal: #b8f23e; --protein: #ff8f70; --carbs: #f5c451; --fat: #a897ff;
+    --dial-track: #202925; --tick: rgba(238, 242, 238, .34); --tick-faint: rgba(238, 242, 238, .12);
+    --hero-bg: radial-gradient(120% 90% at 50% -10%, #1d2622 0%, #131916 55%, #111614 100%);
     --shadow-1: 0 0 0 1px rgba(255, 255, 255, .035) inset; --shadow-2: 0 0 0 1px rgba(255, 255, 255, .05) inset, 0 18px 40px rgba(0, 0, 0, .45);
-    --nav-bg: rgba(16, 24, 27, .78);
+    --nav-bg: rgba(21, 27, 24, .8);
+    --brand-tile: #26302b; --brand-on-tile: #ffffff; --brand-dot: #b8f23e;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
-  --bg: #080d0f; --bg-2: #0b1214; --surface: #10181b; --surface-2: #162125; --surface-3: #1d2a2f; --elev: #141e22;
-  --text: #e8f1ef; --muted: #91a4a1; --faint: #62746f; --border: #22323a; --hairline: rgba(232, 241, 239, .07);
-  --primary: #3ddcb0; --primary-2: #5cc7ff; --primary-ink: #03211a; --primary-soft: rgba(61, 220, 176, .13); --glow: rgba(61, 220, 176, .35);
-  --danger: #ff6f5e; --danger-soft: rgba(255, 111, 94, .14); --good: #4fe08f; --warn: #f5ae55; --info: #6cb6ff;
-  --kcal: #3ddcb0; --protein: #ff8f70; --carbs: #f5c451; --fat: #a897ff;
-  --dial-track: #1b282d; --tick: rgba(232, 241, 239, .34); --tick-faint: rgba(232, 241, 239, .12);
-  --hero-bg: radial-gradient(120% 90% at 50% -10%, #17282b 0%, #0e171a 55%, #0b1214 100%);
+  --bg: #0d1110; --bg-2: #111614; --surface: #151b18; --surface-2: #1b221f; --surface-3: #232c28; --elev: #18201c;
+  --text: #eef2ee; --muted: #97a39d; --faint: #66726c; --border: #27302c; --hairline: rgba(238, 242, 238, .07);
+  --primary: #b8f23e; --primary-2: #5fd88a; --primary-ink: #14200a; --primary-soft: rgba(184, 242, 62, .13); --glow: rgba(184, 242, 62, .3);
+  --danger: #ff6f5e; --danger-soft: rgba(255, 111, 94, .14); --good: #6fe08a; --warn: #f5ae55; --info: #6cb6ff;
+  --kcal: #b8f23e; --protein: #ff8f70; --carbs: #f5c451; --fat: #a897ff;
+  --dial-track: #202925; --tick: rgba(238, 242, 238, .34); --tick-faint: rgba(238, 242, 238, .12);
+  --hero-bg: radial-gradient(120% 90% at 50% -10%, #1d2622 0%, #131916 55%, #111614 100%);
   --shadow-1: 0 0 0 1px rgba(255, 255, 255, .035) inset; --shadow-2: 0 0 0 1px rgba(255, 255, 255, .05) inset, 0 18px 40px rgba(0, 0, 0, .45);
-  --nav-bg: rgba(16, 24, 27, .78);
+  --nav-bg: rgba(21, 27, 24, .8);
+  --brand-tile: #26302b; --brand-on-tile: #ffffff; --brand-dot: #b8f23e;
   color-scheme: dark;
 }
 
@@ -79,9 +82,9 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing:
 }
 .header::after { content: ""; position: absolute; inset-inline: 0; bottom: 0; height: 1px; background: var(--hairline); }
 .header h1 { font-size: var(--fs-lg); margin: 0; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-weight: 600; }
-.brand-mark { display: inline-flex; align-items: center; gap: 8px; color: var(--text); text-decoration: none; }
-.brand-mark svg { width: 26px; height: 26px; color: var(--primary); flex: none; }
-.brand-word { font-family: var(--font-display); font-weight: 700; letter-spacing: .22em; font-size: 15px; }
+.brand-mark { display: inline-flex; align-items: center; gap: 10px; color: var(--text); text-decoration: none; }
+.brand-mark svg { flex: none; display: block; }
+.brand-word { color: var(--text); }
 .main { flex: 1; width: 100%; max-width: 760px; margin: 0 auto; padding: 16px 16px calc(var(--nav-h) + 40px + env(safe-area-inset-bottom)); }
 .main > * { animation: rise .32s var(--ease); } /* no fill-mode: a retained animation would create a stacking context */
 @keyframes rise { from { opacity: .001; transform: translateY(6px); } to { opacity: 1; transform: none; } }
@@ -116,6 +119,8 @@ h1, h2, h3 { font-family: var(--font-display); font-weight: 600; letter-spacing:
   .side-nav a.active { background: var(--surface); color: var(--text); box-shadow: var(--shadow-1); }
   .side-nav a.active svg { color: var(--primary); }
   .side-nav svg { width: 20px; height: 20px; }
+  .side-nav .brand .mego-mark { width: 30px; height: 30px; }
+  .side-nav .brand .brand-word { width: auto; height: 16px; }
   .main { padding-bottom: 40px; }
 }
 
@@ -418,6 +423,7 @@ button.chip { min-height: 36px; }
 .welcome-inner { width: 100%; max-width: 440px; }
 .welcome-brand { display: flex; align-items: center; gap: 12px; color: var(--primary); margin-bottom: 26px; }
 .welcome-brand .brand-word { color: var(--text); }
+.welcome-tagline { color: var(--muted); font-family: var(--font-display); font-size: 13px; letter-spacing: .02em; margin-top: 6px; }
 .welcome-title { font-size: clamp(28px, 7vw, 38px); line-height: 1.12; letter-spacing: -0.025em; margin: 0 0 10px; font-weight: 600; }
 .welcome-sub { color: var(--muted); font-size: 16px; line-height: 1.6; margin: 0 0 18px; max-width: 60ch; }
 .welcome-points { list-style: none; padding: 0; margin: 0 0 24px; display: grid; gap: 10px; }
@@ -436,3 +442,8 @@ button.chip { min-height: 36px; }
 .lang-switch svg { width: 16px; height: 16px; }
 .header .lang-switch + .sync-chip { margin-inline-start: 6px; }
 .welcome-lang { margin: 0 0 8px auto; display: flex; }
+
+/* ---------- about MEGO */
+.about-brand { display: flex; align-items: center; gap: 14px; }
+.about-tagline { color: var(--muted); font-family: var(--font-display); font-size: 13px; margin-top: 6px; }
+.about-text { color: var(--text); line-height: 1.7; margin: 14px 0 0; max-width: 62ch; }

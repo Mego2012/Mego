@@ -29,7 +29,7 @@ function defaultShow(label: string) {
   try {
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
       navigator.serviceWorker?.ready
-        .then((reg) => reg.showNotification(label, { body: 'Mego Nutrition', icon: 'icon-192.png', tag: 'mego-' + label }))
+        .then((reg) => reg.showNotification(label, { body: 'MEGO', icon: 'icon-192.png', tag: 'mego-' + label }))
         .catch(() => new Notification(label));
       return;
     }

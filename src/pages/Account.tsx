@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { collection, deleteDoc, doc, getDocs, query, where } from 'firebase/firestore';
 import { Icon } from '../components/icons';
 import { useApp } from '../app/AppContext';
-import { MegoMark } from '../components/instrument';
+import { MegoMark, MegoWord } from '../components/instrument';
 import { Card, NumField, Segmented, TextField, useAsync } from '../components/ui';
 import { accountState, chooseGuest, enterAccount, guestDataSummary, leaveAccount, subscribeAccount, userDbName, type AccountState } from '../lib/account';
 import { saveSettings } from '../lib/repo';
@@ -37,7 +37,7 @@ export function Welcome() {
         {/* language before any account exists; the choice is carried into a new account */}
         <button className="lang-switch welcome-lang" onClick={() => saveSettings((x) => { x.lang = lang === 'ar' ? 'en' : 'ar'; })} data-testid="wel-lang"
           aria-label={t('switchLanguage')}><Icon name="globe" /><span>{lang === 'ar' ? 'English' : 'العربية'}</span></button>
-        <div className="welcome-brand"><MegoMark size={56} /><div className="brand-word" style={{ fontSize: 28 }}>MEGO</div></div>
+        <div className="welcome-brand"><MegoMark size={56} /><div><MegoWord height={26} /><div className="welcome-tagline" data-testid="wel-tagline">{t('brand_tagline')}</div></div></div>
         {mode === 'start' && (
           <>
             <h1 className="welcome-title">{t('wel_title')}</h1>

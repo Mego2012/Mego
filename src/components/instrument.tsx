@@ -6,20 +6,32 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { MealType } from '../lib/types';
 
 /** The MEGO mark: a 270° calibrated arc with a target notch — the same geometry as the Dial. */
+/** MEGO symbol on its tile — a geometric M that is also a figure with raised arms; the dot is the head.
+ *  Same drawing as brand/svg/mego-app-icon.svg; colours come from the --brand-* tokens (light / dark). */
 export function MegoMark({ size = 26 }: { size?: number }) {
   return (
-    <svg viewBox="0 0 32 32" width={size} height={size} aria-hidden="true" fill="none">
-      <circle cx="16" cy="16" r="11.5" stroke="currentColor" strokeOpacity=".22" strokeWidth="3.2" strokeDasharray="54.2 72.3" transform="rotate(135 16 16)" strokeLinecap="round" />
-      <circle cx="16" cy="16" r="11.5" stroke="currentColor" strokeWidth="3.2" strokeDasharray="36 72.3" transform="rotate(135 16 16)" strokeLinecap="round" />
-      <circle cx="16" cy="16" r="2.6" fill="currentColor" />
-      <path d="M16 16 L23.2 9.6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    <svg className="mego-mark" viewBox="0 0 64 64" width={size} height={size} aria-hidden="true">
+      <rect width="64" height="64" rx="14" fill="var(--brand-tile)" />
+      <g transform="translate(5.6 2.4) scale(.825)">
+        <path d="M15 50V18L32 37.5L49 18V50" fill="none" stroke="var(--brand-on-tile)" strokeWidth="8.5" strokeLinejoin="round" />
+        <circle cx="32" cy="15.5" r="6" fill="var(--brand-dot)" />
+      </g>
+    </svg>
+  );
+}
+
+/** The MEGO wordmark: drawn letters (brand/svg/mego-wordmark-*.svg), never translated, in the current text colour. */
+export function MegoWord({ height = 15 }: { height?: number }) {
+  return (
+    <svg className="brand-word" viewBox="0 -1 175 42" height={height} width={(height * 175) / 42} role="img" aria-label="MEGO">
+      <path d="M3.5 40V3.5L20 22.5L36.5 3.5V40M77 3.5H52.5V36.5H77M52.5 20H73M118.56 8.69A16.9 16.9 0 1 0 122.9 20H107.5M138.1 20a16.9 16.9 0 1 0 33.8 0a16.9 16.9 0 1 0 -33.8 0Z" fill="none" stroke="currentColor" strokeWidth="7" strokeLinejoin="round" />
     </svg>
   );
 }
 
 export function Wordmark() {
   return (
-    <span className="brand-mark"><MegoMark /><span className="brand-word">MEGO</span></span>
+    <span className="brand-mark"><MegoMark /><MegoWord /></span>
   );
 }
 

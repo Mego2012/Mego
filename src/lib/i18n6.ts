@@ -44,7 +44,11 @@ export const en6: Record<string, string> = {
   bu_flexOn: 'Show a daily flexibility guideline', bu_flexKcal: 'Daily flexibility (kcal above the target)', bu_weekMethod: 'Weekly budget', bu_monthMethod: 'Monthly budget',
   bu_methodWeekAuto: 'Automatic — sum of each day’s target (daily × 7)', bu_methodMonthAuto: 'Automatic — sum of each day’s target (daily × days in the month)', bu_methodCustom: 'Custom number',
   bu_suggestionsOn: 'Show an optional suggested daily amount for the rest of the week / month',
-  bu_settingsNote: 'These settings never change your daily targets or your logged meals. Protein stays a daily target. Exercise calories are not added to the budget.'
+  bu_settingsNote: 'These settings never change your daily targets or your logged meals. Protein stays a daily target. Exercise calories are not added to the budget.',
+  // brand (MEGO is never translated)
+  brand_tagline: 'Eat Smart. Train Hard. Live Better.',
+  about_title: 'About MEGO',
+  about_text: 'MEGO is your personal nutrition and fitness companion. Track your calories and macros, plan your meals, monitor your progress, and build healthier habits through smarter decisions.'
 };
 
 export const ar6: Record<string, string> = {
@@ -92,5 +96,9 @@ export const ar6: Record<string, string> = {
   bu_flexOn: 'إظهار إرشاد المرونة اليومية', bu_flexKcal: 'المرونة اليومية (سعرات فوق الهدف)', bu_weekMethod: 'ميزانية الأسبوع', bu_monthMethod: 'ميزانية الشهر',
   bu_methodWeekAuto: 'تلقائي — مجموع هدف كل يوم (اليومي × 7)', bu_methodMonthAuto: 'تلقائي — مجموع هدف كل يوم (اليومي × أيام الشهر)', bu_methodCustom: 'رقم مخصص',
   bu_suggestionsOn: 'إظهار كمية يومية مقترحة اختيارية لبقية الأسبوع / الشهر',
-  bu_settingsNote: 'هذه الإعدادات لا تغيّر أهدافك اليومية ولا وجباتك المسجلة أبداً. البروتين يبقى هدفاً يومياً. سعرات التمرين لا تُضاف إلى الميزانية.'
+  bu_settingsNote: 'هذه الإعدادات لا تغيّر أهدافك اليومية ولا وجباتك المسجلة أبداً. البروتين يبقى هدفاً يومياً. سعرات التمرين لا تُضاف إلى الميزانية.',
+  // العلامة (اسم MEGO لا يُترجم)
+  brand_tagline: 'كُل بذكاء. تمرّن بقوة. عِش أفضل.',
+  about_title: 'عن MEGO',
+  about_text: 'MEGO هو رفيقك الشخصي للتغذية واللياقة البدنية. تابع سعراتك الحرارية والعناصر الغذائية، وخطط وجباتك، وراقب تقدمك، وابنِ عادات صحية من خلال قرارات أكثر ذكاءً.'
 };

@@ -2,6 +2,7 @@ import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Icon } from '../components/icons';
+import { MegoMark, MegoWord } from '../components/instrument';
 import { FoodThumb } from '../components/FoodThumb';
 import { loadPhotoManifest, type PhotoCredit } from '../lib/foodPhotos';
 import { useApp } from '../app/AppContext';
@@ -70,6 +71,7 @@ export default function Settings() {
       <div id="s-ai"><AiScannerCard /></div>
       <div id="s-data"><DataSafety /><DataCheckCard /><LocalBackups /></div>
       <PhotoCredits />
+      <AboutCard />
     </div>
   );
 }
@@ -525,6 +527,20 @@ function PhotoCredits() {
           ))}
         </ul>
       )}
+    </Card>
+  );
+}
+
+/** About MEGO: brand lockup, tagline and the About text (AR / EN). */
+function AboutCard() {
+  const { t } = useApp();
+  return (
+    <Card title={<><Icon name="info" />{t('about_title')}</>}>
+      <div className="about-brand" data-testid="about-mego">
+        <MegoMark size={48} />
+        <div><MegoWord height={20} /><div className="about-tagline" data-testid="about-tagline">{t('brand_tagline')}</div></div>
+      </div>
+      <p className="about-text">{t('about_text')}</p>
     </Card>
   );
 }

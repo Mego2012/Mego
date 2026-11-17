@@ -12,15 +12,15 @@ export default defineConfig({
     VitePWA({
       registerType: 'autoUpdate',
       injectRegister: 'auto',
-      includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png', 'apple-touch-icon.png'],
+      includeAssets: ['icon.svg', 'icon-192.png', 'icon-512.png', 'icon-maskable-512.png', 'apple-touch-icon.png'],
       manifest: {
-        name: 'MEGO — Nutrition',
+        name: 'MEGO',
         short_name: 'MEGO',
-        description: 'Personal nutrition, calorie, macro and body-progress tracker',
+        description: 'MEGO | Nutrition & Fitness. Eat Smart. Train Hard. Live Better.',
         lang: 'ar',
         dir: 'auto',
-        theme_color: '#080d0f',
-        background_color: '#080d0f',
+        theme_color: '#0d1110',
+        background_color: '#0d1110',
         display: 'standalone',
         orientation: 'portrait',
         start_url: base,
@@ -28,7 +28,7 @@ export default defineConfig({
         icons: [
           { src: 'icon-192.png', sizes: '192x192', type: 'image/png' },
           { src: 'icon-512.png', sizes: '512x512', type: 'image/png' },
-          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
+          { src: 'icon-maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' }
         ]
       },
       workbox: {

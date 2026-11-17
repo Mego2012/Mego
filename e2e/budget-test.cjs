@@ -6,7 +6,7 @@ const iso = (d) => d.toISOString().slice(0, 10);
 const add = (s, n) => { const d = new Date(s + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() + n); return iso(d); };
 (async () => {
   const srv = spawn('node_modules/.bin/vite', ['preview', '--port', '4191', '--strictPort'], { stdio: 'ignore' }); await new Promise((r) => setTimeout(r, 2500));
-  const B = 'http://localhost:4191/'; const b = await pw.chromium.launch(); let failed = 0, total = 0;
+  const B = process.env.BASE_URL || 'http://localhost:4191/'; const b = await pw.chromium.launch(); let failed = 0, total = 0;
   const check = (n, ok, d = '') => { total++; if (!ok) failed++; console.log(`${ok ? 'PASS' : 'FAIL'}  ${n}${d ? ' — ' + d : ''}`); };
   const ctx = await b.newContext({ viewport: { width: 390, height: 844 } }); const p = await ctx.newPage(); p.setDefaultTimeout(15000);
   const errs = []; p.on('pageerror', (e) => errs.push(e.message));

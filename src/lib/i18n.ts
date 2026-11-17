@@ -8,7 +8,7 @@ import { ar6, en6 } from './i18n6';
 type Dict = Record<string, string>;
 
 const en: Dict = {
-  appName: 'Mego Nutrition',
+  appName: 'MEGO',
   nav_dashboard: 'Dashboard', nav_diary: 'Diary', nav_foods: 'Foods', nav_planner: 'Meal Planner', nav_recipes: 'Recipes',
   nav_progress: 'Progress', nav_weekly: 'Weekly Report', nav_monthly: 'Monthly Report', nav_settings: 'Settings', nav_more: 'More',
   breakfast: 'Breakfast', lunch: 'Lunch', dinner: 'Dinner', snacks: 'Snacks',
@@ -118,7 +118,7 @@ const en: Dict = {
 };
 
 const ar: Dict = {
-  appName: 'ميقو للتغذية',
+  appName: 'MEGO',
   nav_dashboard: 'الرئيسية', nav_diary: 'اليوميات', nav_foods: 'الأطعمة', nav_planner: 'مخطط الوجبات', nav_recipes: 'الوصفات',
   nav_progress: 'التقدم', nav_weekly: 'التقرير الأسبوعي', nav_monthly: 'التقرير الشهري', nav_settings: 'الإعدادات', nav_more: 'المزيد',
   breakfast: 'الفطور', lunch: 'الغداء', dinner: 'العشاء', snacks: 'وجبات خفيفة',

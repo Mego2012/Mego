@@ -9,9 +9,9 @@ import { joinList, localCategory, localName, namesVersion, registerNames, setUsd
 /** Loads the name dictionaries used to show stored names in the display language (recipes, exercises, USDA glossary). */
 let dictsLoading: Promise<void> | null = null;
 function loadNameDicts() {
-  if (!dictsLoading) dictsLoading = Promise.all([import('../lib/recipeLibraryData'), import('../lib/recipeLibraryData2'), import('../lib/recipeLibraryData3'), import('../lib/exercises'), import('../lib/usdaGlossary')])
-    .then(([a, b, c, ex, g]) => {
-      registerNames([...a.LIBRARY, ...b.LIBRARY_2, ...c.LIBRARY_3].map((r) => [r.nameAr, r.nameEn] as [string, string]));
+  if (!dictsLoading) dictsLoading = Promise.all([import('../lib/recipeLibraryData'), import('../lib/recipeLibraryData2'), import('../lib/recipeLibraryData3'), import('../lib/recipeLibraryData4'), import('../lib/exercises'), import('../lib/usdaGlossary')])
+    .then(([a, b, c, d, ex, g]) => {
+      registerNames([...a.LIBRARY, ...b.LIBRARY_2, ...c.LIBRARY_3, ...d.LIBRARY_4].map((r) => [r.nameAr, r.nameEn] as [string, string]));
       registerNames(ex.EXERCISES.map((e) => [e.nameAr, e.nameEn] as [string, string]));
       setUsdaTranslator(g.usdaArabicName);
     }).catch(() => undefined);

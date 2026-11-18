@@ -39,7 +39,8 @@ async function register(page, name, email) {
   await page.getByTestId('reg-name').fill(name); await page.getByTestId('reg-email').fill(email); await page.getByTestId('reg-password').fill(PW);
   await page.getByTestId('reg-country').selectOption('SA'); await page.getByTestId('reg-age18').check(); await page.getByTestId('reg-terms').check();
   await page.getByTestId('reg-next1').click(); await page.getByTestId('reg-weight').fill('80'); await page.getByTestId('reg-next2').click();
-  await page.getByTestId('reg-t-kcal').fill('2000'); await page.getByTestId('reg-submit').click();
+  // 1,999 differs from the guest default (2,000), so the offline check can tell the two databases apart
+  await page.getByTestId('reg-t-kcal').fill('1999'); await page.getByTestId('reg-submit').click();
   await page.getByTestId('dashboard').waitFor({ timeout: 30000 });
 }
 async function login(page, email) {
@@ -104,13 +105,23 @@ await check('LOGOUT and LOGIN again: data intact', async () => {
   return 'diary restored after sign-in';
 });
 await check('OFFLINE: a signed-in user reopens THEIR account (not the guest database)', async () => {
-  await A.page.goto(BASE + '#/'); await A.page.getByTestId('dashboard').waitFor(); await A.page.waitForTimeout(3000);
-  const online = await A.page.getByTestId('kcal-target').innerText();
-  await A.ctx.setOffline(true); await A.page.reload().catch(() => {}); await A.page.getByTestId('dashboard').waitFor({ timeout: 20000 });
-  const offline = await A.page.getByTestId('kcal-target').innerText(); const t = await diary(A.page);
-  await A.ctx.setOffline(false); await A.page.reload(); await A.page.getByTestId('dashboard').waitFor();
-  if (offline !== online || !/Audit chicken/.test(t)) throw new Error(`online target ${online}, offline ${offline}, diary ok ${/Audit chicken/.test(t)}`);
-  return `offline: same target (${offline} kcal) and the account's diary`;
+  let step = 'open dashboard online';
+  try {
+    await A.page.goto(BASE + '#/'); await A.page.getByTestId('dashboard').waitFor(); await A.page.waitForTimeout(3000);
+    const online = await A.page.getByTestId('kcal-target').innerText();
+    step = 'reload offline'; await A.ctx.setOffline(true); await A.page.reload().catch(() => {});
+    step = 'dashboard offline'; await A.page.getByTestId('dashboard').waitFor({ timeout: 20000 });
+    const offline = await A.page.getByTestId('kcal-target').innerText();
+    step = 'diary offline'; await A.page.evaluate(() => { location.hash = '#/diary'; }); await A.page.getByTestId('diary').waitFor({ timeout: 15000 }); await A.page.waitForTimeout(800);
+    const t = await A.page.getByTestId('diary').innerText();
+    step = 'back online'; await A.ctx.setOffline(false); await A.page.reload(); await A.page.getByTestId('dashboard').waitFor({ timeout: 30000 }).catch(() => A.page.getByTestId('diary').waitFor());
+    if (offline !== online || !/Audit chicken/.test(t)) throw new Error(`online target ${online}, offline ${offline}, diary ok ${/Audit chicken/.test(t)}`);
+    return `offline: same target (${offline} kcal) and the account's diary`;
+  } catch (e) {
+    const ids = await A.page.evaluate(() => [...document.querySelectorAll('[data-testid]')].slice(0, 5).map((x) => x.getAttribute('data-testid')).join(',')).catch(() => '?');
+    await A.ctx.setOffline(false);
+    throw new Error(`at step "${step}" (screen: ${ids}): ${String(e.message).split('\n')[0]}`);
+  }
 });
 await check('PASSWORD RESET request accepted', async () => {
   const R = await device(); await R.page.goto(BASE); await R.page.getByTestId('wel-login').click(); await R.page.getByTestId('forgot').click();

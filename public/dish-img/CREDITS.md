@@ -18,6 +18,7 @@ Freely licensed photos from Wikimedia Commons, cropped to a square and resized (
 | lib-egg-fried-rice | [Egg Fried Rice.jpg](https://commons.wikimedia.org/wiki/File:Egg_Fried_Rice.jpg) | Gaurav Dhwaj Khadka | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
 | lib-fajita | [Chicken fajitas - La Hacienda - Sarah Stierch.jpg](https://commons.wikimedia.org/wiki/File:Chicken_fajitas_-_La_Hacienda_-_Sarah_Stierch.jpg) | Missvain | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0) |
 | lib-ful | [Ful medames.jpg](https://commons.wikimedia.org/wiki/File:Ful_medames.jpg) | Zachbe at en.wikipedia | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0) |
+| lib-kabsa | [Kabsa.jpg](https://commons.wikimedia.org/wiki/File:Kabsa.jpg) | Basel15 at en.wikipedia | [Public domain](https://commons.wikimedia.org/wiki/File:Kabsa.jpg) |
 | lib-kofta | [Kafta shish kebab and grilled vegetables on salad - Cambridge, MA.jpg](https://commons.wikimedia.org/wiki/File:Kafta_shish_kebab_and_grilled_vegetables_on_salad_-_Cambridge,_MA.jpg) | Daderot | [CC0](http://creativecommons.org/publicdomain/zero/1.0/deed.en) |
 | lib-lentil-soup | [Homemade Lentil Soup - Lavash 2025-02-10.jpg](https://commons.wikimedia.org/wiki/File:Homemade_Lentil_Soup_-_Lavash_2025-02-10.jpg) | Andy Li | [CC0](http://creativecommons.org/publicdomain/zero/1.0/deed.en) |
 | lib-masala-omelette | [Indian Omelette Odisha.jpg](https://commons.wikimedia.org/wiki/File:Indian_Omelette_Odisha.jpg) | Saileshpat | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |

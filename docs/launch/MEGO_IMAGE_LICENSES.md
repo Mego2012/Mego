@@ -1,6 +1,6 @@
 # MEGO — Image licences
 
-Generated from the repository on 18 November 2026. 37 dish photos and 74 single-food photos ship with the app.
+Generated from the repository on 18 November 2026. 38 dish photos and 74 single-food photos ship with the app.
 
 ## Rules applied
 
@@ -30,6 +30,7 @@ Generated from the repository on 18 November 2026. 37 dish photos and 74 single-
 | `lib-egg-fried-rice` | Healthy egg fried rice / رز مقلي صحي بالبيض والخضار | [Egg Fried Rice.jpg](https://commons.wikimedia.org/wiki/File:Egg_Fried_Rice.jpg) | Gaurav Dhwaj Khadka | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
 | `lib-fajita` | Chicken fajitas / فاهيتا دجاج بالفلفل | [Chicken fajitas - La Hacienda - Sarah Stierch.jpg](https://commons.wikimedia.org/wiki/File:Chicken_fajitas_-_La_Hacienda_-_Sarah_Stierch.jpg) | Missvain | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0) |
 | `lib-ful` | Ful medames with tahini & lemon / فول مدمس بالطحينة والليمون | [Ful medames.jpg](https://commons.wikimedia.org/wiki/File:Ful_medames.jpg) | Zachbe at en.wikipedia | [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0) |
+| `lib-kabsa` | Healthy chicken kabsa / كبسة دجاج صحية | [Kabsa.jpg](https://commons.wikimedia.org/wiki/File:Kabsa.jpg) | Basel15 at en.wikipedia | [Public domain](https://commons.wikimedia.org/wiki/File:Kabsa.jpg) |
 | `lib-kofta` | Air-fryer beef kofta with bread & salad / كفتة لحم بالقلاية الهوائية مع خبز وسلطة | [Kafta shish kebab and grilled vegetables on salad - Cambridge, MA.jpg](https://commons.wikimedia.org/wiki/File:Kafta_shish_kebab_and_grilled_vegetables_on_salad_-_Cambridge,_MA.jpg) | Daderot | [CC0](http://creativecommons.org/publicdomain/zero/1.0/deed.en) |
 | `lib-lentil-soup` | Cumin lentil soup / شوربة عدس بالكمون | [Homemade Lentil Soup - Lavash 2025-02-10.jpg](https://commons.wikimedia.org/wiki/File:Homemade_Lentil_Soup_-_Lavash_2025-02-10.jpg) | Andy Li | [CC0](http://creativecommons.org/publicdomain/zero/1.0/deed.en) |
 | `lib-masala-omelette` | Masala omelette / أومليت مسالا بالبصل والطماطم | [Indian Omelette Odisha.jpg](https://commons.wikimedia.org/wiki/File:Indian_Omelette_Odisha.jpg) | Saileshpat | [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0) |
@@ -58,7 +59,6 @@ Generated from the repository on 18 November 2026. 37 dish photos and 74 single-
 
 | Recipe id | Recipe | Why not |
 | --- | --- | --- |
-| `lib-kabsa` | Healthy chicken kabsa | Wikimedia Commons search was rate-limited (HTTP 429) every time it was tried on 18 Nov 2026; no candidate could be reviewed |
 | `lib-fish-tacos` | Air-fryer fish tacos | every freely licensed candidate showed meat tacos (carnitas / al pastor), not fish |
 | `lib-hummus-veg` | Hummus with veggie sticks | rejected after review: the square crop shows only the vegetable sticks, the hummus is cut off |
 | `lib4-egyptian-chicken-rice` | Egyptian-style chicken with vermicelli rice | search failed (rate limit); a photo of plain vermicelli rice alone would not show the dish |

@@ -10,7 +10,6 @@ dish = json.loads((ROOT / 'public/dish-img/manifest.json').read_text())
 food = json.loads((ROOT / 'public/food-img/manifest.json').read_text())
 sel = {k: v for k, v in json.loads((HERE / 'selection.json').read_text()).items() if not k.startswith('_')}
 REASON = {
- 'lib-kabsa': 'Wikimedia Commons search was rate-limited (HTTP 429) every time it was tried on 18 Nov 2026; no candidate could be reviewed',
  'lib-fish-tacos': 'every freely licensed candidate showed meat tacos (carnitas / al pastor), not fish',
  'lib4-egyptian-chicken-rice': 'search failed (rate limit); a photo of plain vermicelli rice alone would not show the dish',
  'lib4-creamy-chicken-mozzarella-pasta': 'best candidate is a mushroom cream pasta; the recipe has spinach and no mushrooms',

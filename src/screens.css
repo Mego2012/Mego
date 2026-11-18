@@ -480,7 +480,7 @@ input.input:not([type="number"]):not([dir]) { unicode-bidi: plaintext; text-alig
 .nut-head { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .nut-meta { display: flex; flex-wrap: wrap; gap: 4px 10px; }
 .nut-row .gauge { height: 6px; }
-.dish-note { text-align: center; max-width: 46ch; margin: -4px auto 0; line-height: 1.5; }
+.dish-note { text-align: center; max-width: 46ch; margin: 2px auto 0; line-height: 1.5; }
 .dish-note a { color: inherit; text-decoration: underline; }
 .food-thumb.dish img { object-fit: cover; }
 /* About card: legal links (separate, finger-sized targets) */

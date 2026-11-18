@@ -44,6 +44,9 @@ export default defineConfig({
           // food photos: fetched once when first shown, then served from the device (offline too)
           { urlPattern: /food-img\/[a-z0-9-]+\.webp$/, handler: 'CacheFirst', options: { cacheName: 'mego-food-img', expiration: { maxEntries: 200, maxAgeSeconds: 31536000 }, cacheableResponse: { statuses: [0, 200] } } },
           { urlPattern: /food-img\/manifest\.json$/, handler: 'StaleWhileRevalidate', options: { cacheName: 'mego-food-img-manifest' } },
+          // dish photos (recipe example photos): same policy
+          { urlPattern: /dish-img\/[a-z0-9-]+\.webp$/, handler: 'CacheFirst', options: { cacheName: 'mego-dish-img', expiration: { maxEntries: 100, maxAgeSeconds: 31536000 }, cacheableResponse: { statuses: [0, 200] } } },
+          { urlPattern: /dish-img\/manifest\.json$/, handler: 'StaleWhileRevalidate', options: { cacheName: 'mego-dish-img-manifest' } },
           { urlPattern: /^https:\/\/fonts\.googleapis\.com\//, handler: 'StaleWhileRevalidate', options: { cacheName: 'google-fonts-css' } },
           { urlPattern: /^https:\/\/fonts\.gstatic\.com\//, handler: 'CacheFirst', options: { cacheName: 'google-fonts', expiration: { maxEntries: 20, maxAgeSeconds: 31536000 }, cacheableResponse: { statuses: [0, 200] } } }
         ]

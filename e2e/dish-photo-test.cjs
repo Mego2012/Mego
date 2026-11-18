@@ -42,6 +42,9 @@ const pw = require('playwright'); const { spawn } = require('child_process'); co
     check(`${lang}: no horizontal overflow`, await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1));
     await p.goto(B + '#/settings'); await p.getByTestId('photo-credits-toggle').click(); await p.getByTestId('dish-credits').waitFor();
     check(`${lang}: Settings → Photo credits lists all ${n} dish photos`, (await p.getByTestId('dish-credits').locator('li').count()) === n);
+    const links = await p.evaluate(() => [...document.querySelectorAll('[data-testid="about-legal"] a')].map((a) => { const r = a.getBoundingClientRect(); return { l: r.left, r: r.right, t: r.top, h: r.height }; }));
+    const apart = links.length === 2 && (links[0].t !== links[1].t || Math.max(links[0].l, links[1].l) - Math.min(links[0].r, links[1].r) >= 12);
+    check(`${lang}: About → privacy and terms links are separate, finger-sized targets`, apart && links.every((x) => x.h >= 44), JSON.stringify(links.map((x) => Math.round(x.h))));
     check(`${lang}: no page errors`, errs.length === 0, errs.join(' | '));
     await ctx.close();
   }

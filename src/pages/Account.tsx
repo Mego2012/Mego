@@ -389,7 +389,7 @@ export function LegalPage({ kind }: { kind: 'privacy' | 'terms' }) {
     <div className="legal" data-testid={`legal-${kind}`}>
       <h1>{t(kind)}</h1>
       <p className="tiny muted">{t('legal_version')} · {t('legal_draft')}</p>
-      {keys.map((k) => <section key={k}><h3>{t(k + '_h')}</h3><p>{t(k)}</p></section>)}
+      {keys.map((k) => <section key={k}><h2>{t(k + '_h')}</h2><p>{t(k)}</p></section>)}
       <Link to="/" className="btn">{t('previous')}</Link>
     </div>
   );

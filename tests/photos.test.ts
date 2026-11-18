@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { photoKeyFor, PHOTO_KEYS } from '../src/lib/foodPhotos';
+import { LIBRARY } from '../src/lib/recipeEngine';
 
 describe('Food photos — only honest matches', () => {
   it('matches single foods in Arabic and English', () => {
@@ -34,5 +35,27 @@ describe('Food photos — only honest matches', () => {
       expect(c.source).toMatch(/^https:\/\/commons\.wikimedia\.org\//);
       expect(c.author.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('Dish photos — licensed, documented, matched to a real recipe', () => {
+  const mf = new URL('../public/dish-img/manifest.json', import.meta.url);
+  const m = JSON.parse(readFileSync(mf, 'utf8')) as Record<string, { file: string; title: string; author: string; license: string; licenseUrl: string; source: string }>;
+  it('every dish photo belongs to an existing library recipe, exists on disk and has full attribution', () => {
+    const ids = new Set(LIBRARY.map((r) => r.id));
+    expect(Object.keys(m).length).toBeGreaterThan(0);
+    for (const [id, c] of Object.entries(m)) {
+      expect(ids.has(id), id).toBe(true);
+      expect(c.file).toBe(id + '.webp');
+      expect(existsSync(new URL('../public/dish-img/' + c.file, import.meta.url)), c.file).toBe(true);
+      expect(c.license, id).toMatch(/^(CC0|CC BY|CC-BY|Public domain|PD)/);
+      expect(c.license, id).not.toMatch(/NC|ND/);
+      expect(c.source).toMatch(/^https:\/\/commons\.wikimedia\.org\//);
+      expect(c.author.length).toBeGreaterThan(0);
+    }
+  });
+  it('the licence document lists every shipped dish photo', () => {
+    const doc = readFileSync(new URL('../docs/launch/MEGO_IMAGE_LICENSES.md', import.meta.url), 'utf8');
+    for (const [id, c] of Object.entries(m)) { expect(doc, id).toContain(id); expect(doc, id).toContain(c.source); }
   });
 });

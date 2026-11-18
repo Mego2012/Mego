@@ -34,7 +34,7 @@
 /** The original Hub file (Excel). Kept untouched as the backup after conversion. */
 var SOURCE_ID = '1mxqBI9_oiXCVpta2aRCDutYh9as_2NuI';
 var HUB_NAME = 'MEGO Nutrition Hub';
-var SCRIPT_VERSION = 9;
+var SCRIPT_VERSION = 10;
 /**
  * One-time automated install (scripts/laptop-setup.mjs). Empty in the public repository = disabled.
  * The laptop setup writes the SHA-256 of a random secret here only in YOUR private copy of the script; the
@@ -980,12 +980,23 @@ function analyzeMeal_(req) {
  */
 var AI_RESTRICTED = ['AT','BE','BG','HR','CY','CZ','DK','EE','FI','FR','DE','GR','HU','IE','IT','LV','LT','LU','MT','NL','PL','PT','RO','SK','SI','ES','SE','IS','LI','NO','CH','GB'];
 
+/*
+ * API-key restrictions (v10): the public web key may be restricted to the app's web address (HTTP referrer). Requests
+ * from Apps Script carry no browser referrer, so:
+ *  - preferred: a separate SERVER key in Script Properties (FIREBASE_SERVER_KEY, restricted to the Identity Toolkit
+ *    API only, never shown in the app) is used when present;
+ *  - otherwise the web key is used with the app's address as Referer (APP_ORIGIN, default the GitHub Pages address),
+ *    so a referrer-restricted web key keeps working.
+ */
+var DEFAULT_APP_ORIGIN = 'https://mego2012.github.io/Mego/';
 function verifyFirebaseUser_(idToken) {
   var props = PropertiesService.getScriptProperties();
-  var key = props.getProperty('FIREBASE_API_KEY');
+  var serverKey = props.getProperty('FIREBASE_SERVER_KEY');
+  var key = serverKey || props.getProperty('FIREBASE_API_KEY');
   if (!key) return { ok: false, error: 'CLOUD_NOT_CONFIGURED' };
+  var headers = serverKey ? {} : { Referer: props.getProperty('APP_ORIGIN') || DEFAULT_APP_ORIGIN };
   var r = UrlFetchApp.fetch('https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=' + encodeURIComponent(key), {
-    method: 'post', contentType: 'application/json', payload: JSON.stringify({ idToken: String(idToken) }), muteHttpExceptions: true
+    method: 'post', contentType: 'application/json', headers: headers, payload: JSON.stringify({ idToken: String(idToken) }), muteHttpExceptions: true
   });
   if (r.getResponseCode() !== 200) return { ok: false, error: 'unauthorized' };
   var u = (JSON.parse(r.getContentText()).users || [])[0];

@@ -435,7 +435,7 @@ button.chip { min-height: 36px; }
 .steps i.on { background: var(--primary); }
 .legal { max-width: 68ch; margin: 0 auto; padding: 8px 0 24px; }
 .legal h1 { font-size: var(--fs-2xl); margin: 8px 0; }
-.legal h3 { font-size: 15px; margin: 18px 0 4px; text-transform: none; letter-spacing: 0; color: var(--text); }
+.legal h2 { font-size: 15px; margin: 18px 0 4px; text-transform: none; letter-spacing: 0; color: var(--text); }
 .legal p { line-height: 1.7; margin: 0; }
 .welcome .legal, .welcome-inner .legal { padding: 0; }
 .lang-switch { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--border); background: var(--surface); color: var(--text); font-weight: 700; font-size: 13px; cursor: pointer; margin-inline-start: auto; }

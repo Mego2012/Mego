@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { useApp } from '../app/AppContext';
+import { dishCredit, dishManifestNow, dishPhotoUrl, loadDishManifest } from '../lib/dishPhotos';
 import { groupFromText, loadPhotoManifest, photoGroupOf, photoKeyFor, photoManifestNow, photoUrl, type PhotoGroup } from '../lib/foodPhotos';
 
 /** Placeholder glyphs per food group: drawn, never a stand-in photo. */
@@ -51,7 +53,8 @@ export function FoodThumb({ food, photoKey, size = 44, className = '', category 
 }
 
 /**
- * A recipe's cover: photos of its own main ingredients (largest by weight first), never a stock "dish" photo.
+ * A recipe's ingredient mosaic: photos of its own main ingredients (largest by weight first). It is never presented as a
+ * photo of the dish; real dish photos come only from RecipeCover's curated, labelled example photos.
  * Falls back to a drawn placeholder when fewer than two ingredients have a photo.
  */
 export function RecipeMosaic({ ingredients, size = 72 }: { ingredients: [string, number, ...unknown[]][]; size?: number }) {
@@ -71,5 +74,43 @@ export function RecipeMosaic({ ingredients, size = 72 }: { ingredients: [string,
     <span className={`food-thumb mosaic n${shown.length}`} style={{ width: size, height: size }} aria-hidden="true">
       {shown.map((k) => <img key={k} src={photoUrl(k)!} alt="" loading="lazy" decoding="async" draggable={false} className="in" />)}
     </span>
+  );
+}
+
+/**
+ * A library recipe's picture: its curated example dish photo when one exists (labelled as an example, with alt text
+ * in the current language), otherwise — or if the photo fails to load — the ingredient mosaic.
+ */
+export function RecipeCover({ recipeId, name, ingredients, size = 72 }: {
+  recipeId: string; name: string; ingredients: [string, number, ...unknown[]][]; size?: number;
+}) {
+  const { t } = useApp();
+  const [ready, setReady] = useState(!!dishManifestNow());
+  const [failed, setFailed] = useState(false);
+  const [loaded, setLoaded] = useState(false);
+  useEffect(() => { if (!ready) loadDishManifest().then(() => setReady(true)); }, [ready]);
+  const url = ready ? dishPhotoUrl(recipeId) : null;
+  if (!url || failed) return <RecipeMosaic ingredients={ingredients} size={size} />;
+  return (
+    <span className="food-thumb dish" style={{ width: size, height: size }} data-testid="dish-photo">
+      {!loaded && <PhotoPlaceholder group="other" />}
+      <img src={url} alt={t('dishPhotoAlt', { name })} width={size} height={size} loading="lazy" decoding="async" draggable={false} className={loaded ? 'in' : ''}
+        onLoad={() => setLoaded(true)} onError={() => setFailed(true)} />
+    </span>
+  );
+}
+
+/** Under a recipe's cover: says the photo is an example of this kind of dish, and credits its author and licence. */
+export function DishPhotoNote({ recipeId }: { recipeId: string }) {
+  const { t } = useApp();
+  const [ready, setReady] = useState(!!dishManifestNow());
+  useEffect(() => { if (!ready) loadDishManifest().then(() => setReady(true)); }, [ready]);
+  const c = ready ? dishCredit(recipeId) : null;
+  if (!c) return null;
+  return (
+    <div className="tiny muted dish-note" data-testid="dish-photo-note">
+      {t('dishPhotoNote')}{' '}
+      <a href={c.source} target="_blank" rel="noreferrer"><bdi>{t('dishPhotoBy', { author: c.author, license: c.license })}</bdi></a>
+    </div>
   );
 }

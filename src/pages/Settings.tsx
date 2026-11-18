@@ -1,6 +1,7 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useEffect, useRef, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
+import { dishPhotoUrl, loadDishManifest } from '../lib/dishPhotos';
 import { Icon } from '../components/icons';
 import { MegoMark, MegoWord } from '../components/instrument';
 import { FoodThumb } from '../components/FoodThumb';
@@ -510,7 +511,12 @@ function PhotoCredits() {
   const { t } = useApp();
   const [open, setOpen] = useState(false);
   const [list, setList] = useState<[string, PhotoCredit][]>([]);
-  useEffect(() => { if (open) loadPhotoManifest().then((m) => setList(Object.entries(m).sort())); }, [open]);
+  const [dishes, setDishes] = useState<[string, PhotoCredit][]>([]);
+  useEffect(() => {
+    if (!open) return;
+    loadPhotoManifest().then((m) => setList(Object.entries(m).sort()));
+    loadDishManifest().then((m) => setDishes(Object.entries(m).sort()));
+  }, [open]);
   return (
     <Card title={<><Icon name="image" />{t('photoCredits')}</>} actions={<button className="btn sm ghost" onClick={() => setOpen(!open)} data-testid="photo-credits-toggle">{open ? t('close') : t('show')}</button>}>
       <div className="tiny muted">{t('photoCreditsNote')}</div>
@@ -527,6 +533,23 @@ function PhotoCredits() {
           ))}
         </ul>
       )}
+      {open && dishes.length > 0 && (
+        <>
+          <div className="small bold" style={{ marginTop: 12 }}>{t('dishPhotosTitle')}</div>
+          <div className="tiny muted">{t('dishPhotoNote')}</div>
+          <ul className="list credits" data-testid="dish-credits">
+            {dishes.map(([key, c]) => (
+              <li key={key}>
+                <span className="food-thumb" style={{ width: 40, height: 40 }}><img className="in" src={dishPhotoUrl(key) ?? ''} alt="" width={40} height={40} loading="lazy" /></span>
+                <div className="grow" style={{ minWidth: 0 }} dir="ltr">
+                  <a className="small bold" href={c.source} target="_blank" rel="noreferrer" style={{ overflowWrap: 'anywhere' }}>{c.title}</a>
+                  <div className="tiny muted">{c.author} · {c.licenseUrl ? <a href={c.licenseUrl} target="_blank" rel="noreferrer">{c.license}</a> : c.license}</div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </Card>
   );
 }
@@ -541,6 +564,10 @@ function AboutCard() {
         <div><MegoWord height={20} /><div className="about-tagline" data-testid="about-tagline">{t('brand_tagline')}</div></div>
       </div>
       <p className="about-text">{t('about_text')}</p>
+      <nav className="about-links" aria-label={t('about_title')} data-testid="about-legal">
+        <Link to="/privacy" data-testid="about-privacy">{t('privacy')}</Link>
+        <Link to="/terms" data-testid="about-terms">{t('terms')}</Link>
+      </nav>
     </Card>
   );
 }

@@ -324,6 +324,46 @@ describe('AI meal scanner', () => {
   });
 });
 
+describe('API-key restriction (backend v10): token check keeps working after the web key is referrer-restricted', () => {
+  /** Identity Toolkit that enforces a referrer restriction on 'web-key' (only https://mego2012.github.io/*) and an
+   *  API-only restriction on 'server-key' (any caller). */
+  function restrictedGas(props: Record<string, string>) {
+    const seen: { key: string; referer?: string }[] = [];
+    const gas = createGas({
+      token: TOKEN, scriptProps: { GEMINI_API_KEY: KEY, FIREBASE_PROJECT_ID: 'mego-prod', AI_USER_DAILY_LIMIT: '5', ...props },
+      ai: (req) => {
+        if (req.url.startsWith('https://identitytoolkit.googleapis.com/')) {
+          const key = new URL(req.url).searchParams.get('key') ?? '';
+          const referer = (req.headers ?? {}).Referer;
+          seen.push({ key, referer });
+          const allowed = key === 'server-key' || (key === 'web-key' && typeof referer === 'string' && referer.startsWith('https://mego2012.github.io/'));
+          if (!allowed) return { code: 403, json: { error: { status: 'PERMISSION_DENIED', message: 'Requests from referer <empty> are blocked.' } } };
+          return req.body.idToken === 'tok-alice' ? { json: { users: [{ localId: 'alice' }] } } : { code: 400, json: { error: { message: 'INVALID_ID_TOKEN' } } };
+        }
+        if (req.url.startsWith('https://firestore.googleapis.com/')) return { json: { fields: { status: { stringValue: 'active' }, country: { stringValue: 'SA' } } } };
+        return gemini(scenarioFromNote)(req);
+      }
+    });
+    return { gas, seen };
+  }
+  const body = (idToken: string) => ({ action: 'analyzeMeal', idToken, image: IMG, foods: buildCatalog(foods).lines, note: 'SCENARIO:salad' });
+  it('web key only: the backend sends the app address as Referer, so a referrer-restricted key still verifies the user', () => {
+    const { gas, seen } = restrictedGas({ FIREBASE_API_KEY: 'web-key' });
+    const r = gas.post(body('tok-alice'));
+    expect(r.ok).toBe(true);
+    expect(seen[0]).toEqual({ key: 'web-key', referer: 'https://mego2012.github.io/Mego/' });
+  });
+  it('server key present: it is preferred (no referrer needed) and the web key is not used', () => {
+    const { gas, seen } = restrictedGas({ FIREBASE_API_KEY: 'web-key', FIREBASE_SERVER_KEY: 'server-key' });
+    expect(gas.post(body('tok-alice')).ok).toBe(true);
+    expect(seen.every((x) => x.key === 'server-key')).toBe(true);
+  });
+  it('an invalid sign-in token is still refused', () => {
+    const { gas } = restrictedGas({ FIREBASE_API_KEY: 'web-key' });
+    expect(gas.post(body('tok-forged')).ok).toBe(false);
+  });
+});
+
 describe('public accounts: AI proxy with Firebase sign-in tokens (real Code.gs)', () => {
   /** Emulates Google Identity Toolkit + Firestore REST (with the user's token) + Gemini behind UrlFetchApp. */
   function publicGas(opts: { country?: string; status?: string; admins?: string[]; userLimit?: string } = {}) {

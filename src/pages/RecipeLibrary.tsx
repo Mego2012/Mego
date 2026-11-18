@@ -9,7 +9,7 @@ import { MICRO_GROUPS, MICRO_KEYS, MICRO_UNIT } from '../lib/micros';
 import type { Macros } from '../lib/types';
 import { useBundle } from '../app/hooks';
 import { Icon } from '../components/icons';
-import { PhotoPlaceholder, RecipeMosaic } from '../components/FoodThumb';
+import { DishPhotoNote, PhotoPlaceholder, RecipeCover } from '../components/FoodThumb';
 import { Card, MacroLine, NumField, Segmented, Sheet, StateChip, useAsync } from '../components/ui';
 import { db } from '../lib/db';
 import { isValidISODate, today } from '../lib/dates';
@@ -110,7 +110,7 @@ export function LibraryTab() {
       </Card>
       {list.map((c) => (
         <div key={c.lib.id} className="card row clickable" style={{ cursor: 'pointer', alignItems: 'flex-start' }} onClick={() => setOpen(c)} data-testid="library-card">
-          <RecipeMosaic ingredients={c.lib.ingredients} size={76} />
+          <RecipeCover recipeId={c.lib.id} name={lang === 'ar' ? c.lib.nameAr : c.lib.nameEn} ingredients={c.lib.ingredients} size={76} />
           <div className="grow" style={{ minWidth: 0 }}>
             <div className="bold">{lang === 'ar' ? c.lib.nameAr : c.lib.nameEn}</div>
 
@@ -191,7 +191,8 @@ export function RecipeDetail({ c: c0, onClose, servingsHint = 1 }: { c: Computed
   return (
     <Sheet title={lang === 'ar' ? L0.nameAr : L0.nameEn} onClose={onClose}>
       <div className="stack" data-testid="recipe-detail">
-        <div className="recipe-cover"><RecipeMosaic ingredients={L0.ingredients} size={132} /></div>
+        <div className="recipe-cover"><RecipeCover recipeId={L0.id} name={lang === 'ar' ? L0.nameAr : L0.nameEn} ingredients={L0.ingredients} size={132} /></div>
+        <DishPhotoNote recipeId={L0.id} />
 
         <div className="row wrap small" style={{ gap: 6 }} data-testid="detail-chips">
           <span className="chip">{t('prep')} {L.prepMin} {t('min')}</span>
@@ -432,7 +433,7 @@ export function SuggestTab() {
       {list.map((s) => (
         <div key={s.kind + s.id} className="card" data-testid="suggestion">
           <div className="row">
-            {s.computed ? <RecipeMosaic ingredients={s.computed.lib.ingredients} size={56} /> : <span className="food-thumb" style={{ width: 56, height: 56 }}><PhotoPlaceholder group="other" /></span>}
+            {s.computed ? <RecipeCover recipeId={s.computed.lib.id} name={lang === 'ar' ? s.computed.lib.nameAr : s.computed.lib.nameEn} ingredients={s.computed.lib.ingredients} size={56} /> : <span className="food-thumb" style={{ width: 56, height: 56 }}><PhotoPlaceholder group="other" /></span>}
             <div className="grow" style={{ minWidth: 0 }}>
               <div className="bold">{s.computed ? (lang === 'ar' ? s.computed.lib.nameAr : s.computed.lib.nameEn) : ln(s.name)} <span className="small muted">{t('servingsX', { n: n(s.servings, 2) })}</span></div>
               <div className="small num"><b data-testid="suggestion-kcal">{n(s.macros.kcal)}</b> {t('kcalUnit')} · <MacroLine m={s.macros} compact /></div>
@@ -504,7 +505,7 @@ export function CookTab() {
       {pantry.length > 0 && results.slice(0, 30).map((r) => (
         <div key={r.c.lib.id} className="card clickable" style={{ cursor: 'pointer' }} onClick={() => setOpen({ c: r.c, s: r.servings ?? 1 })} data-testid="cook-result">
           <div className="row">
-            <RecipeMosaic ingredients={r.c.lib.ingredients} size={60} />
+            <RecipeCover recipeId={r.c.lib.id} name={lang === 'ar' ? r.c.lib.nameAr : r.c.lib.nameEn} ingredients={r.c.lib.ingredients} size={60} />
             <div className="grow" style={{ minWidth: 0 }}>
               <div className="bold">{lang === 'ar' ? r.c.lib.nameAr : r.c.lib.nameEn}</div>
               <div className="small num"><b>{n(r.macros.kcal)}</b> {t('kcalUnit')} · <MacroLine m={r.macros} compact /> {r.servings && r.servings !== 1 ? `· ${t('servingsX', { n: n(r.servings, 2) })}` : ''}</div>

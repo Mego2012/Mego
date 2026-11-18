@@ -5,25 +5,25 @@ import type { EnergyBreakdown } from '../lib/energy';
 import { Icon } from './icons';
 import { Card } from './ui';
 
-/** Transparent breakdown: base → cardio → extra allowed → adjusted target → eaten → remaining, with the reasons. */
+/** Today's food budget next to the exercise done. Exercise calories are shown for information and never added. */
 export function EnergyCard({ e }: { e: EnergyBreakdown }) {
   const { t, n } = useApp();
   const [why, setWhy] = useState(false);
-  const rows: [string, string, string?][] = [
+  const burned = e.cardioKcal + e.workoutNetKcal;
+  const rows: [string, string, string][] = [
     ['en_base', n(e.base), 'en-base'],
-    ['en_cardio', e.cardioKcal ? `≈ ${n(e.cardioKcal)}` : '0', 'en-cardio'],
-    ['en_allowed', `+${n(e.allowed)}`, 'en-allowed'],
-    ['en_adjusted', n(e.adjusted), 'en-adjusted'],
+    ['en_cardio', burned ? `≈ ${n(burned)}` : '0', 'en-cardio'],
     ['en_consumed', n(e.consumed), 'en-consumed'],
     ['en_remaining', n(e.remaining), 'en-remaining']
   ];
   return (
-    <Card title={<><Icon name="pulse" />{t('en_title')}</>} actions={<Link className="btn sm ghost" to="/cardio">{t('nav_cardio')}</Link>}>
+    <Card title={<><Icon name="pulse" />{t('en_title')}</>} actions={<Link className="btn sm ghost" to="/cardio?tab=goals">{t('nav_cardio')}</Link>}>
       <ul className="adherence energy-rows" data-testid="energy-card">
         {rows.map(([k, v, id]) => (
-          <li key={k} className={k === 'en_adjusted' || k === 'en_remaining' ? 'bold' : ''}><span>{t(k)}</span><b className="num" data-testid={id}>{v}</b></li>
+          <li key={k} className={k === 'en_remaining' ? 'bold' : ''}><span>{t(k)}</span><b className="num" data-testid={id}>{v}</b></li>
         ))}
       </ul>
+      <div className="tiny muted" data-testid="en-not-added">{t('en_notAddedShort')}</div>
       <button className="btn sm ghost" onClick={() => setWhy((x) => !x)} data-testid="en-why" aria-expanded={why}>{t('en_why')}</button>
       {why && <EnergyReasons e={e} />}
     </Card>

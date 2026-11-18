@@ -2,7 +2,7 @@
 // Records page errors, console errors, failed requests, missing translation keys shown on screen, horizontal
 // overflow and the load time of the first screen. Usage: npx vite build && node e2e/audit-crawl.cjs
 const pw = require('playwright'); const { spawn } = require('child_process');
-const ROUTES = ['/', '/diary', '/foods', '/recipes', '/recipes?tab=library', '/planner', '/progress', '/reports/week', '/reports/month', '/habits', '/goals', '/cardio',
+const ROUTES = ['/', '/diary', '/foods', '/recipes', '/recipes?tab=library', '/planner', '/progress', '/reports/week', '/reports/month', '/habits', '/goals', '/cardio', '/cardio?tab=log', '/cardio?tab=reports',
   '/workouts', '/workouts?tab=today', '/workouts?tab=program', '/workouts?tab=library', '/workouts?tab=progress', '/workouts?tab=coach', '/exercise/squat',
   '/coach', '/coach?tab=advisor', '/coach?tab=week', '/coach?tab=month', '/coach?tab=foods', '/coach?tab=learn', '/settings', '/privacy', '/terms', '/admin'];
 (async () => {

@@ -34,7 +34,7 @@ export default function Diary() {
   const day = useMemo(() => summarizeDay(date, entries, log, settings), [date, entries, log, settings]);
   const cardio = useCardio();
   const training = useTraining();
-  // same cardio / extra-training adjustment as the home page, for whichever day is open (see energy.ts)
+  // the saved calorie target for the open day; exercise is shown for information only (see energy.ts)
   const energy = useMemo(() => energyFor(date, day.target.kcal, day.totals.kcal, cardio, settings, training?.workouts ?? []), [date, day, cardio, settings, training]);
   const kTarget = energy.adjusted;
   const [addMeal, setAddMeal] = useState<MealType | null>(params.get('add') ? (params.get('meal') as MealType) || 'breakfast' : null);
@@ -97,7 +97,7 @@ export default function Diary() {
         {day.status === 'empty' && <div className="tiny muted">{t('dayIsEmpty')}</div>}
       </section>
 
-      {(energy.cardioKcal > 0 || energy.allowed > 0) && <EnergyCard e={energy} />}
+      {(energy.cardioKcal > 0 || energy.workoutNetKcal > 0) && <EnergyCard e={energy} />}
 
       <div className="scan-strip"><ScanButtons date={date} /></div>
 

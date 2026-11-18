@@ -15,6 +15,7 @@ import { tdeeOf } from './goals';
 import { buildPeriod, progressEstimate, rollingWeightAverage, type DataBundle } from './reports';
 import { totalsFor, type CardioSession } from './cardio';
 import { fitnessOf } from './energy';
+import { cardioGoalsOf } from './cardioGoals';
 import {
   dayFor, doneSets, isCompleted, SETS_RANGE, type LoggedExercise, type Program, type ProgramExercise, type RecoveryLog, type SetLog, type WorkoutSession
 } from './workouts';
@@ -227,7 +228,7 @@ export function recoveryIndicators(c: CoachContext): Indicator[] {
   const ids = [...new Set(c.workouts.flatMap((w) => w.exercises.map((x) => x.exerciseId)))];
   const declining = ids.filter((id) => exerciseTrend(exerciseHistory(id, c.workouts, c.exercises)).trend === 'declining');
   if (declining.length >= 2) out.push({ key: 'rc_perfDown', level: 'warn', params: { n: declining.length } });
-  const plan = fit.cardioSessionsPerWeek * fit.cardioMinPerSession;
+  const plan = cardioGoalsOf(c.data.settings).weeklyMin;
   const cardioMin = totalsFor(c.cardio, week).minutes;
   if (plan > 0 && cardioMin > plan * 2 && declining.some((id) => findExercise(id, c.exercises)?.lower)) out.push({ key: 'rc_cardioInterference', level: 'warn', params: { min: cardioMin, plan } });
   if (!out.some((x) => x.level === 'warn') && logs.length) out.push({ key: 'rc_allOk', level: 'good' });
@@ -386,9 +387,8 @@ export function weeklyReview(c: CoachContext, end = c.date ?? today()): WeeklyRe
   const st = trainingStats(c.workouts, dates, c.program, c.exercises);
   obs.push({ key: 'wr_training', params: { done: st.sessions, planned: st.planned, sets: st.sets } });
   // 6 cardio
-  const fit = fitnessOf(s);
   const cw = totalsFor(c.cardio, dates), cp = totalsFor(c.cardio, prevDates);
-  obs.push({ key: 'wr_cardio', params: { min: cw.minutes, goal: fit.cardioSessionsPerWeek * fit.cardioMinPerSession, sessions: cw.sessions, prev: cp.minutes } });
+  obs.push({ key: 'wr_cardio', params: { min: cw.minutes, goal: cardioGoalsOf(s).weeklyMin, sessions: cw.sessions, prev: cp.minutes } });
   // 7 recovery
   const ind = recoveryIndicators({ ...c, date: end });
   obs.push({ key: 'wr_recovery', params: { warn: ind.filter((i) => i.level === 'warn').length } });
@@ -410,7 +410,7 @@ export function weeklyReview(c: CoachContext, end = c.date ?? today()): WeeklyRe
   const nt = nutritionForTraining({ ...c, date: end });
   if (nt.some((i) => i.key === 'nt_rateFast')) rec.push({ key: 'wrr_rateFast' });
   if (nt.some((i) => i.key === 'nt_rateSlow') && nut.completeDays >= 5) rec.push({ key: 'wrr_rateSlow' });
-  if (cw.minutes < fit.cardioSessionsPerWeek * fit.cardioMinPerSession) rec.push({ key: 'wrr_cardio' });
+  if (cw.minutes < cardioGoalsOf(s).weeklyMin) rec.push({ key: 'wrr_cardio' });
   if (!rec.length) rec.push({ key: 'wrr_keep' });
   return { from: dates[0], to: end, observations: obs, recommendations: rec };
 }

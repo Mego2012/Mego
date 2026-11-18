@@ -9,10 +9,12 @@ import { useBundle, useCardio } from '../app/hooks';
 import { WeightChart } from '../components/charts';
 import { Icon } from '../components/icons';
 import { Card, Confirm, NumField, ProgressBar, Segmented, useAsync } from '../components/ui';
-import { datesBack, totalsFor } from '../lib/cardio';
 import { addDays, startOfWeek, today } from '../lib/dates';
 import { db } from '../lib/db';
-import { autoReplenishPct, fitnessOf } from '../lib/energy';
+import { datesBack } from '../lib/cardio';
+import { fitnessOf } from '../lib/energy';
+import { cardioGoalsOf, weekProgress } from '../lib/cardioGoals';
+import { CardioGoalsSummary } from '../components/CardioGoals';
 import { adviseGoals, applyAdvice, CHECKIN_PREFIX, type Advice, type CheckIn } from '../lib/goalAdvisor';
 import { kvSet, saveSettings } from '../lib/repo';
 import { progressEstimate, rollingWeightAverage, weekReport } from '../lib/reports';
@@ -40,7 +42,7 @@ export default function Goals() {
       week: weekReport(date, data),
       advice: adviseGoals(data, cardio, checkins, date),
       est: progressEstimate(data.body, settings.profile.targetWeight, date),
-      cardioWeek: totalsFor(cardio, datesBack(7, date))
+      cardioWeek: weekProgress(cardio, cardioGoalsOf(settings), date, settings.weekStartsOn ?? 6)
     };
   }, [data, cardio, checkins, date, settings]);
   if (!data || !view) return null;
@@ -51,15 +53,14 @@ export default function Goals() {
   const span = p.startWeight - p.targetWeight;
   const weightPct = Math.abs(span) >= 0.1 ? Math.max(0, Math.min(100, ((p.startWeight - current) / span) * 100)) : null;
   const waist = [...data.body].filter((b) => b.waist && !b.deleted).pop()?.waist;
-  const goalMin = fit.cardioSessionsPerWeek * fit.cardioMinPerSession;
   const w = view.week;
   const fmtT = (m: Macros) => `${n(m.kcal)} ${t('kcalUnit')} · P ${n(m.protein)} · C ${n(m.carbs)} · F ${n(m.fat)}`;
 
   const bars: [string, number, number, string][] = ([
     ['gp_calories', w.caloriesInRangeDays, Math.max(1, w.completeDays), `${w.caloriesInRangeDays} / ${w.completeDays}`],
     ['gp_protein', w.proteinHitDays, Math.max(1, w.completeDays), `${w.proteinHitDays} / ${w.completeDays}`],
-    ['gp_cardio', view.cardioWeek.minutes, Math.max(1, goalMin), `${n(view.cardioWeek.minutes)} / ${n(goalMin)}`],
-    ['gp_sessions', view.cardioWeek.sessions, Math.max(1, fit.cardioSessionsPerWeek), `${view.cardioWeek.sessions} / ${fit.cardioSessionsPerWeek}`],
+    ['gp_cardio', view.cardioWeek.minutes.done, Math.max(1, view.cardioWeek.minutes.target), `${n(view.cardioWeek.minutes.done)} / ${n(view.cardioWeek.minutes.target)}`],
+    ['gp_sessions', view.cardioWeek.sessions.done, Math.max(1, view.cardioWeek.sessions.target), `${n(view.cardioWeek.sessions.done)} / ${n(view.cardioWeek.sessions.target)}`],
     weightPct === null ? null : ['gp_weight', weightPct, 100, `${n(weightPct)}%`]
   ] as ([string, number, number, string] | null)[]).filter((x): x is [string, number, number, string] => x !== null);
 
@@ -104,33 +105,15 @@ export default function Goals() {
       <BudgetSettingsCard />
       <FoodPrefsCard />
 
+      <CardioGoalsSummary />
+
       <Card title={t('goalsFitness')}>
-        <div className="grid3">
+        <div className="grid2">
           <NumField label={t('resistanceDays')} value={fit.resistanceDaysPerWeek} min={0} testId="goal-resistance"
             onChange={(v) => v !== '' && v >= 0 && v <= 14 && run(() => saveSettings((s) => { s.fitness = { ...fitnessOf(s), resistanceDaysPerWeek: v }; }))} />
-          <NumField label={t('cardioSessionsGoal')} value={fit.cardioSessionsPerWeek} min={0} testId="goal-cardio-sessions"
-            onChange={(v) => v !== '' && v >= 0 && v <= 21 && run(() => saveSettings((s) => { s.fitness = { ...fitnessOf(s), cardioSessionsPerWeek: v }; }))} />
-          <NumField label={t('cardioMinGoal')} value={fit.cardioMinPerSession} min={0} testId="goal-cardio-min"
-            onChange={(v) => v !== '' && v >= 0 && v <= 300 && run(() => saveSettings((s) => { s.fitness = { ...fitnessOf(s), cardioMinPerSession: v }; }))} />
         </div>
-        <div className="small bold" style={{ marginTop: 6 }} data-testid="goal-weekly-cardio">{t('weeklyCardioGoal', { n: n(goalMin) })}</div>
-        <div className="tiny muted" data-testid="goal-cardio-source">{settings.fitness?.cardioSessionsPerWeek === undefined ? t('fit_default', { min: fit.cardioMinPerSession, n: fit.resistanceDaysPerWeek }) : t('fit_saved', { s: fit.cardioSessionsPerWeek, min: fit.cardioMinPerSession })}</div>
         <div className="tiny muted">{t('stepsNotSupported')}</div>
-        <div className="field" style={{ marginTop: 10 }}>
-          <span>{t('en_mode')}</span>
-          <Segmented value={settings.cardioCalorieMode ?? 'smart'} onChange={(v) => run(() => saveSettings((s) => { s.cardioCalorieMode = v; }))}
-            options={[{ value: 'smart', label: t('en_modeSmart') }, { value: 'off', label: t('en_modeOff') }]} />
-        </div>
-        {(settings.cardioCalorieMode ?? 'smart') === 'smart' && (
-          <label className="field">
-            <span>{t('en_pct')}</span>
-            <select className="input" value={settings.cardioReplenishPct ?? ''} data-testid="goal-replenish"
-              onChange={(e) => run(() => saveSettings((s) => { s.cardioReplenishPct = e.target.value === '' ? null : Number(e.target.value); }))}>
-              <option value="">{t('en_pctAuto', { pct: autoReplenishPct(p.goalType) })}</option>
-              {[0, 25, 50, 75, 100].map((x) => <option key={x} value={x}>{x}%</option>)}
-            </select>
-          </label>
-        )}
+        <div className="tiny muted" style={{ marginTop: 6 }} data-testid="goal-exercise-budget">{t('cg_budgetNote')}</div>
       </Card>
 
       <Card title={t('goalsBody')}>

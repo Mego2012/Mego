@@ -6,9 +6,8 @@ import {
 } from '../src/lib/cardio';
 import { addDays, today } from '../src/lib/dates';
 import { db, useDatabase } from '../src/lib/db';
-import { autoReplenishPct, energyFor, MAX_DAILY_ADD } from '../src/lib/energy';
+import { energyFor } from '../src/lib/energy';
 import { adviseGoals, applyAdvice, type CheckIn } from '../src/lib/goalAdvisor';
-import { tdeeOf } from '../src/lib/goals';
 import { APP_RELEASE, preUpdateBackup } from '../src/lib/localBackup';
 import { computeLibraryRecipe, indexFoods, LIBRARY, approveRecipeMatches, materializeLibraryRecipe } from '../src/lib/recipeEngine';
 import { RECIPE_REF } from '../src/lib/recipeRefMap';
@@ -131,77 +130,36 @@ describe('cardio: daily, weekly, monthly statistics', () => {
   });
 });
 
-describe('smart cardio → calorie target (no double counting)', () => {
+describe('exercise never changes the food budget (cardio-goals release)', () => {
+  // Requirement: cardio calories burned must NOT increase the daily calorie allowance; targets stay independent of exercise.
   const sess = (date: string, min: number, net: number, time = '08:00'): CardioSession => ({ ...buildSession(base({ date, durationMin: min, time }), 72), netKcal: net, kcal: net + 12 });
   it('no cardio → target unchanged', async () => {
     const e = energyFor(today(), 2000, 1500, [], await getSettings());
     expect(e).toMatchObject({ allowed: 0, adjusted: 2000, remaining: 500 });
   });
-  it('default plan = the owner routine: 10 min after each of the 6 training days → 6 × 10 = 60 min/week, all covered', async () => {
-    const s = await getSettings();
+  it('any amount of cardio, on any goal and activity level, adds nothing: allowance = saved target', async () => {
     const d = today();
-    const six = Array.from({ length: 6 }, (_, i) => sess(addDays(d, i - 5), 10, 67));
-    const e = energyFor(d, 2110, 0, six, s);
-    expect(e.plannedWeeklyMin).toBe(60);
-    expect(e.allowed).toBe(0);
-    expect(e.adjusted).toBe(2110);
-  });
-  it('a saved fitness goal is respected (never overwritten by the default)', async () => {
-    const s = await settingsWith((x) => { x.fitness = { resistanceDaysPerWeek: 6, cardioSessionsPerWeek: 3, cardioMinPerSession: 15 }; });
-    expect(energyFor(today(), 2110, 0, [], s).plannedWeeklyMin).toBe(45);
-  });
-  it('planned routine is already inside the target → nothing added, however often it is logged within the plan', async () => {
-    const s = await settingsWith((x) => { x.fitness = { resistanceDaysPerWeek: 6, cardioSessionsPerWeek: 3, cardioMinPerSession: 10 }; });
-    const d = today();
-    const e = energyFor(d, 2000, 0, [sess(addDays(d, -2), 10, 67), sess(d, 10, 67)], s);
-    expect(e.plannedWeeklyMin).toBe(30);
-    expect(e.allowed).toBe(0);
-    expect(e.adjusted).toBe(2000);
-    expect(e.reasons.map((r) => r.key)).toContain('en_withinPlan');
-  });
-  it('only cardio beyond the plan counts, as NET energy × goal share (50 % for fat loss)', async () => {
-    const s = await settingsWith((x) => { x.fitness = { resistanceDaysPerWeek: 6, cardioSessionsPerWeek: 3, cardioMinPerSession: 10 }; });
-    const d = today();
-    // 30 planned min already used by earlier sessions this week; today's 40-min session is all extra
-    const prev = [sess(addDays(d, -3), 15, 100), sess(addDays(d, -1), 15, 100)];
-    const e = energyFor(d, 2000, 1200, [...prev, sess(d, 40, 300)], s);
-    expect(autoReplenishPct(s.profile.goalType)).toBe(50);
-    expect(e.extraNetKcal).toBe(300);
-    expect(e.allowed).toBe(150);
-    expect(e.adjusted).toBe(2150);
-    expect(e.remaining).toBe(950);
-  });
-  it('partly covered session: only the uncovered minutes count', async () => {
-    const s = await settingsWith((x) => { x.fitness = { resistanceDaysPerWeek: 6, cardioSessionsPerWeek: 3, cardioMinPerSession: 10 }; });
-    const d = today();
-    const e = energyFor(d, 2000, 0, [sess(addDays(d, -1), 20, 100), sess(d, 20, 200)], s); // 10 of 20 min covered
-    expect(e.extraNetKcal).toBe(100);
-    expect(e.allowed).toBe(50);
-  });
-  it('sedentary level: no exercise included, so all net cardio is extra; cap and off mode respected', async () => {
-    const s = await settingsWith((x) => { x.profile.activityLevel = 'sedentary'; x.profile.goalType = 'maintain'; x.cardioReplenishPct = 100; });
-    const d = today();
-    expect(energyFor(d, 2000, 0, [sess(d, 30, 200)], s).allowed).toBe(200);
-    expect(energyFor(d, 2000, 0, [sess(d, 120, 900)], s).allowed).toBe(MAX_DAILY_ADD);
-    const off = await settingsWith((x) => { x.cardioCalorieMode = 'off'; });
-    expect(energyFor(d, 2000, 0, [sess(d, 120, 900)], off)).toMatchObject({ allowed: 0, adjusted: 2000 });
-  });
-  it('fat-loss safeguard: the adjusted target always keeps ≥ 10 % deficit vs. the day\'s expenditure', async () => {
-    const s = await settingsWith((x) => { x.profile.goalType = 'fat_loss_preserve'; x.profile.activityLevel = 'sedentary'; x.cardioReplenishPct = 100; });
-    const tdee = tdeeOf(s.profile);
-    const d = today();
-    for (const base of [Math.round(tdee * 0.8), Math.round(tdee * 0.88), Math.round(tdee * 0.95), tdee]) {
-      for (const net of [100, 300, 900]) {
-        const e = energyFor(d, base, 0, [sess(d, 60, net)], s);
-        expect(e.adjusted, `base ${base} net ${net}`).toBeLessThanOrEqual(Math.max(base, 0.9 * (tdee + net)));
-        expect(e.allowed).toBeGreaterThanOrEqual(0);
-        expect(e.adjusted).toBeGreaterThanOrEqual(base); // never lowers the saved target either
+    for (const goalType of ['fat_loss', 'fat_loss_preserve', 'maintain', 'lean_bulk', 'performance'] as const) {
+      for (const activityLevel of ['sedentary', 'moderate', 'active'] as const) {
+        const s = await settingsWith((x) => { x.profile.goalType = goalType; x.profile.activityLevel = activityLevel; });
+        for (const [min, net] of [[10, 67], [60, 450], [180, 1500]]) {
+          const e = energyFor(d, 2110, 900, [sess(d, min, net)], s);
+          expect(e, `${goalType}/${activityLevel}/${min}`).toMatchObject({ allowed: 0, adjusted: 2110, remaining: 1210 });
+        }
       }
     }
-    // owner-like case: active, 2,110 kcal, an extra 30-min run (≈ 300 kcal net) → +150 (50 %), well inside the ceiling
-    const o = await settingsWith((x) => { x.profile.activityLevel = 'active'; x.cardioReplenishPct = null; x.fitness = { resistanceDaysPerWeek: 6, cardioSessionsPerWeek: 6, cardioMinPerSession: 10 }; });
-    const six = Array.from({ length: 6 }, (_, i) => sess(addDays(d, i - 6), 10, 67));
-    expect(energyFor(d, 2110, 0, [...six, sess(d, 30, 300)], o)).toMatchObject({ allowed: 150, adjusted: 2260 });
+  });
+  it('a legacy stored "smart" mode (older version) is ignored', async () => {
+    const s = await settingsWith((x) => { x.cardioCalorieMode = 'smart'; x.cardioReplenishPct = 100; x.profile.activityLevel = 'sedentary'; });
+    const d = today();
+    expect(energyFor(d, 2000, 0, [sess(d, 120, 900)], s)).toMatchObject({ allowed: 0, adjusted: 2000 });
+  });
+  it('burned calories are still reported for information (cardio and completed training)', async () => {
+    const d = today();
+    const e = energyFor(d, 2110, 0, [sess(d, 30, 200)], await getSettings());
+    expect(e.cardioKcal).toBe(212);
+    expect(e.cardioNetKcal).toBe(200);
+    expect(e.reasons.map((r) => r.key)).toEqual(['en_notAdded', 'en_net']);
   });
   it('never changes saved targets or nutrition calculations', async () => {
     const before = await getSettings();

@@ -219,9 +219,20 @@ export async function saveCardio(input: CardioInput, weightKg: number, id?: stri
   const prev = id ? ((await db.kv.get(CARDIO_PREFIX + id))?.value as CardioSession | undefined) : undefined;
   if (id && !prev) throw new Error('Cardio session not found');
   const rec = buildSession(input, weightKg, prev);
+  if (!prev) {
+    // A second identical save within a minute (double tap on Save / "Log routine") is the same session, not a new one.
+    const dup = (await listCardio()).find((x) => isSameSession(x, rec) && Math.abs(rec.createdAt - x.createdAt) < DUPLICATE_WINDOW_MS);
+    if (dup) return dup;
+  }
   await kvSet(CARDIO_PREFIX + rec.id, rec);
   return rec;
 }
+
+export const DUPLICATE_WINDOW_MS = 60_000;
+/** Same activity, start, duration and treadmill / distance values. */
+export const isSameSession = (a: CardioSession, b: CardioSession) =>
+  a.activity === b.activity && a.date === b.date && a.time === b.time && a.durationMin === b.durationMin &&
+  a.distanceKm === b.distanceKm && a.speedKmh === b.speedKmh && a.inclinePct === b.inclinePct && (a.customName ?? '') === (b.customName ?? '');
 
 /** Deletes one cardio session (only that kv record — nothing else is touched). */
 export async function deleteCardio(id: string) {

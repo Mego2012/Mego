@@ -188,12 +188,12 @@ export function WeightChart({ points, avg, target }: { points: { date: string; w
 }
 
 /** Cardio minutes per day (bars). Same axis rules as the calorie chart; time follows reading direction. */
-export function MinutesChart({ days, label, testId }: { days: { date: string; minutes: number }[]; label: string; testId?: string }) {
+export function MinutesChart({ days, label, testId, labelOf, goal }: { days: { date: string; minutes: number }[]; label: string; testId?: string; labelOf?: (date: string) => string; goal?: number }) {
   const { d, n, dir } = useApp();
   const mounted = useMounted();
   const H = 150;
   const ordered = dir === 'rtl' ? [...days].reverse() : days;
-  const { top, steps } = niceScale(Math.max(10, ...days.map((x) => x.minutes)) * 1.05);
+  const { top, steps } = niceScale(Math.max(10, goal ?? 0, ...days.map((x) => x.minutes)) * 1.05);
   const plotH = H - PAD_T - PAD_B;
   const y = (v: number) => PAD_T + plotH * (1 - v / top);
   const slot = (W - PAD_L - PAD_R) / Math.max(1, ordered.length);
@@ -210,6 +210,7 @@ export function MinutesChart({ days, label, testId }: { days: { date: string; mi
             <text className="lbl" x={dir === 'rtl' ? W - 2 : 2} y={y(v) + 3.5} textAnchor={dir === 'rtl' ? 'end' : 'start'}>{n(v)}</text>
           </g>
         ))}
+        {goal !== undefined && goal > 0 && <line x1={dir === 'rtl' ? PAD_R : PAD_L} x2={dir === 'rtl' ? W - PAD_L : W - PAD_R} y1={y(goal)} y2={y(goal)} stroke="var(--primary)" strokeWidth="1.5" strokeDasharray="4 3" data-testid="chart-goal-line" />}
         {ordered.map((x, i) => {
           const h = mounted ? plotH * (x.minutes / top) : 0;
           const idx = dir === 'rtl' ? ordered.length - 1 - i : i;
@@ -220,7 +221,7 @@ export function MinutesChart({ days, label, testId }: { days: { date: string; mi
                 ? <rect className="bar-rect" x={xOf(i) - bw / 2} y={y(0) - h} width={bw} height={h} rx={Math.min(5, bw / 2)} fill="var(--info)" />
                 : <rect x={xOf(i) - bw / 2} y={y(0) - 2} width={bw} height="2" rx="1" fill="var(--surface-3)" />}
               {showLabel && <text className="lbl" x={xOf(i)} y={H - 6} textAnchor="middle" style={x.date === last ? { fill: 'var(--text)', fontWeight: 600 } : undefined}>
-                {d(x.date, ordered.length <= 7 ? { weekday: 'narrow' } : { day: 'numeric' })}
+                {labelOf ? labelOf(x.date) : d(x.date, ordered.length <= 7 ? { weekday: 'narrow' } : { day: 'numeric' })}
               </text>}
             </g>
           );

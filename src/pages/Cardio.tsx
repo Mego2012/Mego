@@ -1,5 +1,6 @@
 import { useLiveQuery } from 'dexie-react-hooks';
 import { useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
 import { useBody, useCardio } from '../app/hooks';
 import { MinutesChart } from '../components/charts';
@@ -12,6 +13,8 @@ import {
 } from '../lib/cardio';
 import { db } from '../lib/db';
 import { monthKey, today } from '../lib/dates';
+import { CardioGoalsDashboard, CardioReports } from '../components/CardioGoals';
+import { cardioGoalsOf, preferredToActivity } from '../lib/cardioGoals';
 
 const nowTime = () => new Date().toTimeString().slice(0, 5);
 
@@ -20,7 +23,9 @@ export default function Cardio() {
   const sessions = useCardio();
   const body = useBody();
   const routine = useLiveQuery(async () => (await db.kv.get(ROUTINE_KEY))?.value as CardioRoutine | undefined, [], undefined) ?? DEFAULT_ROUTINE;
-  const [form, setForm] = useState<{ mode: 'new' | 'edit' | 'routine'; session?: CardioSession } | null>(null);
+  const [form, setForm] = useState<{ mode: 'new' | 'edit' | 'routine'; session?: CardioSession; preferred?: boolean } | null>(null);
+  const [params, setParams] = useSearchParams();
+  const tab = (['goals', 'log', 'reports'] as const).find((x) => x === params.get('tab')) ?? 'goals';
   const [del, setDel] = useState<CardioSession | null>(null);
   const { run, busy } = useAsync();
   const date = today();
@@ -46,8 +51,29 @@ export default function Cardio() {
   const routineLine = [t('act_' + routine.activity), t('cardioMinutes', { n: n(routine.durationMin) }),
     routine.speedKmh ? `${n(routine.speedKmh, 1)} ${t('kmh')}` : '', routine.inclinePct !== undefined ? `${n(routine.inclinePct)}%` : ''].filter(Boolean).join(' · ');
 
+  const tabs = (
+    <div className="segmented cardio-tabs" role="tablist" aria-label={t('nav_cardio')} data-testid="cardio-tabs">
+      {(['goals', 'log', 'reports'] as const).map((x) => (
+        <button key={x} role="tab" aria-selected={tab === x} className={tab === x ? 'on' : ''} data-testid={'cardio-tab-' + x}
+          onClick={() => setParams({ tab: x }, { replace: true })}>{t('cg_tab_' + x)}</button>
+      ))}
+    </div>
+  );
+  const sheets = (
+    <>
+      {form && <CardioForm mode={form.mode} session={form.session} routine={routine} preferred={form.preferred} onClose={() => setForm(null)} />}
+      {del && <Confirm danger message={t('cardioDeleteQ')} onNo={() => setDel(null)} onYes={async () => {
+        const s = del; setDel(null);
+        await run(() => deleteCardio(s.id), t('deleted'));
+      }} />}
+    </>
+  );
+  if (tab === 'goals') return <div data-testid="cardio-page">{tabs}<CardioGoalsDashboard onLog={() => setForm({ mode: 'new', preferred: true })} />{sheets}</div>;
+  if (tab === 'reports') return <div data-testid="cardio-page">{tabs}<CardioReports />{sheets}</div>;
+
   return (
     <div data-testid="cardio-page">
+      {tabs}
       <section className="cardio-summary" data-testid="cardio-summary">
         {([['cardioToday', view.day, 'cardio-today'], ['cardioWeek', view.week, 'cardio-week'], ['cardioMonth', view.month, 'cardio-month']] as const).map(([k, v, id]) => (
           <div key={k} className="stat">
@@ -89,7 +115,7 @@ export default function Cardio() {
       <Card title={t('cardioHistory')}>
         <ul className="list cardio-list" data-testid="cardio-history">
           {sessions.slice(0, 60).map((s) => (
-            <li key={s.id} data-testid="cardio-row">
+            <li key={s.id} data-testid="cardio-row" data-activity={s.activity} data-min={s.durationMin}>
               <button className="grow cardio-row-main" onClick={() => setForm({ mode: 'edit', session: s })} data-testid="cardio-open">
                 <span className="bold">{name(s)}</span>
                 <span className="tiny muted num">{s.date} {s.time} · {t('cardioMinutes', { n: n(s.durationMin) })}
@@ -105,22 +131,18 @@ export default function Cardio() {
         <div className="tiny muted" style={{ marginTop: 8 }}>{t('cardioEstimateNote')}</div>
       </Card>
 
-      {form && <CardioForm mode={form.mode} session={form.session} routine={routine} onClose={() => setForm(null)} />}
-      {del && <Confirm danger message={t('cardioDeleteQ')} onNo={() => setDel(null)} onYes={async () => {
-        const s = del; setDel(null);
-        await run(() => deleteCardio(s.id), t('deleted'));
-      }} />}
+      {sheets}
     </div>
   );
 }
 
 const dist = (a: CardioActivity, km?: number) => (km === undefined ? '' : activityDef(a).distanceUnit === 'm' ? Math.round(km * 1000) : km);
 
-function CardioForm({ mode, session, routine, onClose }: { mode: 'new' | 'edit' | 'routine'; session?: CardioSession; routine: CardioRoutine; onClose: () => void }) {
+function CardioForm({ mode, session, routine, preferred, onClose }: { mode: 'new' | 'edit' | 'routine'; session?: CardioSession; routine: CardioRoutine; preferred?: boolean; onClose: () => void }) {
   const { t, n, settings } = useApp();
   const body = useBody();
   const { run, busy } = useAsync();
-  const start: Partial<CardioInput> = session ?? (mode === 'routine' ? routine : { activity: 'treadmill_walk', durationMin: undefined, intensity: 'moderate' });
+  const start: Partial<CardioInput> = session ?? (mode === 'routine' ? routine : preferred ? preferredStart(cardioGoalsOf(settings).preferred, routine) : { activity: 'treadmill_walk', durationMin: undefined, intensity: 'moderate' });
   const [activity, setActivity] = useState<CardioActivity>(start.activity ?? 'treadmill_walk');
   const [customName, setCustomName] = useState(start.customName ?? '');
   const [date, setDate] = useState(session?.date ?? today());
@@ -134,6 +156,12 @@ function CardioForm({ mode, session, routine, onClose }: { mode: 'new' | 'edit' 
   const [notes, setNotes] = useState(session?.notes ?? '');
   const def = activityDef(activity);
   const has = (f: 'distance' | 'speed' | 'incline') => def.fields.includes(f);
+  /** Switching activity never carries over a speed that is impossible for the new one (e.g. 3.5 km/h → running). */
+  const changeActivity = (a: CardioActivity) => {
+    const range = activityDef(a).speed;
+    if (speed !== '' && range && !(speed >= range[0] && speed <= range[1])) setSpeed('');
+    setActivity(a);
+  };
 
   const input: CardioInput = {
     activity, customName, date, time, intensity, notes,
@@ -166,7 +194,7 @@ function CardioForm({ mode, session, routine, onClose }: { mode: 'new' | 'edit' 
       <div className="stack" data-testid="cardio-form">
         <label className="field">
           <span>{t('cardioActivity')}</span>
-          <select className="input" value={activity} onChange={(e) => setActivity(e.target.value as CardioActivity)} data-testid="cardio-activity">
+          <select className="input" value={activity} onChange={(e) => changeActivity(e.target.value as CardioActivity)} data-testid="cardio-activity">
             {ACTIVITIES.map((a) => <option key={a.id} value={a.id}>{t('act_' + a.id)}</option>)}
           </select>
         </label>
@@ -206,6 +234,13 @@ function CardioForm({ mode, session, routine, onClose }: { mode: 'new' | 'edit' 
       </div>
     </Sheet>
   );
+}
+
+/** New session from the preferred activity: treadmill / incline walking reuse the saved routine's speed and incline. */
+function preferredStart(p: Parameters<typeof preferredToActivity>[0], routine: CardioRoutine): Partial<CardioInput> {
+  const { activity } = preferredToActivity(p);
+  if (activity === 'treadmill_walk' && routine.activity === 'treadmill_walk') return { activity, speedKmh: routine.speedKmh, inclinePct: routine.inclinePct, intensity: routine.intensity };
+  return { activity, intensity: 'moderate' };
 }
 
 function fieldLabel(e: string, unit?: 'km' | 'm'): string {

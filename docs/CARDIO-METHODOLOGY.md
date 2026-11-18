@@ -76,7 +76,12 @@ MET source, in order:
 * The ACSM equations are validated for steady-state walking (about 3–6 km/h) and running (above 8 km/h).
 * Values are never presented as measurements.
 
-## 4. Smart cardio → calorie target
+## 4. Smart cardio → calorie target (superseded)
+
+> **Superseded on 18 November 2026 (cardio-goals release).** Exercise calories are no longer added to the food budget
+> in any mode: the day's calorie target is always the saved nutrition target, and cardio / training calories are shown
+> for information only. A stored `cardioCalorieMode` / `cardioReplenishPct` from an older version is ignored. The text
+> below documents the earlier behaviour for reference. Cardio goals are described in `docs/CARDIO-GOALS.md`.
 
 The base target (Settings or Goals) is never modified. The app shows these lines on Home:
 

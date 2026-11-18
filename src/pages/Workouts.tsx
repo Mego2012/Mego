@@ -9,6 +9,7 @@ import { Card, Confirm, NumField, ProgressBar, Segmented, Sheet, useAsync } from
 import { totalsFor } from '../lib/cardio';
 import { addDays, today, weekday } from '../lib/dates';
 import { fitnessOf } from '../lib/energy';
+import { cardioGoalsOf } from '../lib/cardioGoals';
 import {
   EQUIPMENT, EXERCISES, findExercise, MUSCLES, saveCustomExercise, searchExercises, type Equipment, type Exercise, type Muscle
 } from '../lib/exercises';
@@ -119,7 +120,8 @@ function Overview({ program, list }: { program: Program; list: Exercise[] }) {
       <Card title={t('ov_week')}>
         <div className="stack">
           <div><div className="row between small"><span>{t('ov_workouts')}</span><b className="num" data-testid="ov-workouts">{view.stats.sessions} / {view.stats.planned}</b></div><ProgressBar value={view.stats.sessions} max={Math.max(1, view.stats.planned)} color="var(--primary)" /></div>
-          <div><div className="row between small"><span>{t('gp_cardio')}</span><b className="num">{n(view.cardio.minutes)} / {n(fit.cardioSessionsPerWeek * fit.cardioMinPerSession)}</b></div><ProgressBar value={view.cardio.minutes} max={Math.max(1, fit.cardioSessionsPerWeek * fit.cardioMinPerSession)} color="var(--info)" /></div>
+          <div><div className="row between small"><span>{t('gp_cardio')}</span><b className="num">{n(view.cardio.minutes)} / {n(cardioGoalsOf(settings).weeklyMin)}</b></div><ProgressBar value={view.cardio.minutes} max={Math.max(1, cardioGoalsOf(settings).weeklyMin)} color="var(--info)" />
+            <Link className="tiny" to="/cardio?tab=goals" data-testid="wk-cardio-goals">{t('cg_open')}</Link></div>
           <div className="small">{t('ov_strength', { up: view.up, flat: view.flat, down: view.down })}</div>
         </div>
       </Card>

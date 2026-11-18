@@ -7,6 +7,7 @@
 import { addDays, today } from './dates';
 import { totalsFor, datesBack, type CardioSession } from './cardio';
 import { fitnessOf } from './energy';
+import { cardioGoalsOf } from './cardioGoals';
 import { buildPeriod, progressEstimate, type DataBundle } from './reports';
 import type { Macros, Settings } from './types';
 import { tdeeOf } from './goals';
@@ -100,7 +101,7 @@ export function adviseGoals(data: DataBundle, sessions: CardioSession[], checkin
 
   // cardio volume and recovery
   const week = totalsFor(sessions, datesBack(7, date));
-  const goalMin = fit.cardioSessionsPerWeek * fit.cardioMinPerSession;
+  const goalMin = cardioGoalsOf(s).weeklyMin;
   if (goalMin > 0 && week.minutes < goalMin) out.push({ id: 'cardioLow', key: 'adv_cardioBelow', params: { done: week.minutes, goal: goalMin }, level: 'info' });
   else if (goalMin > 0) out.push({ id: 'cardioOk', key: 'adv_cardioMet', params: { done: week.minutes, goal: goalMin }, level: 'good' });
   if (recentCheck && recentCheck.recovery <= 2 && week.minutes > goalMin * 1.5 && goalMin > 0) out.push({ id: 'recovery', key: 'adv_recoveryCardio', level: 'warn' });

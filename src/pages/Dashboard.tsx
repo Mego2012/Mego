@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { useApp } from '../app/AppContext';
 import { useBundle, useCardio, useTraining } from '../app/hooks';
 import { TrainingCard } from '../components/TrainingCard';
-import { EnergyCard } from '../components/EnergyCard';
+import { CardioTodayCard } from '../components/CardioGoals';
 import { StrategyChip } from '../components/StrategyChip';
 import { energyFor } from '../lib/energy';
 import { CaloriesChart } from '../components/charts';
@@ -45,7 +45,7 @@ export default function Dashboard() {
 
   if (!view) return null;
   const { day, week, last7, latestWeight, trend, insights, coach, est, energy } = view;
-  // Dial and remaining use the adjusted target (= base target unless extra cardio justifies more; see energy.ts).
+  // Dial and remaining use the saved calorie target: exercise never changes the food budget (see energy.ts).
   const target = energy.adjusted;
   const remaining = target - day.totals.kcal;
   const pct = target ? Math.round((day.totals.kcal / target) * 100) : 0;
@@ -90,7 +90,7 @@ export default function Dashboard() {
       </section>
 
       <BudgetCard data={data!} />
-      <EnergyCard e={energy} />
+      <CardioTodayCard />
       <TrainingCard />
 
       <nav className="quick" aria-label={t('quickActions')}>

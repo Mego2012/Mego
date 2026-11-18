@@ -486,3 +486,34 @@ input.input:not([type="number"]):not([dir]) { unicode-bidi: plaintext; text-alig
 /* About card: legal links (separate, finger-sized targets) */
 .about-links { display: flex; flex-wrap: wrap; gap: 4px 20px; margin-top: 12px; }
 .about-links a { color: var(--primary); font-weight: 600; font-size: 14px; min-height: 44px; display: inline-flex; align-items: center; }
+
+/* Cardio goals ------------------------------------------------------------------------------------------------ */
+.cardio-tabs { margin-bottom: 12px; }
+.cg-row { display: grid; gap: 6px; }
+.cg-nums { display: flex; flex-wrap: wrap; gap: 2px 14px; }
+.cg-nums b { color: var(--text); font-weight: 600; }
+.cg-week { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); gap: 6px; }
+.cg-day { display: grid; justify-items: center; gap: 2px; padding: 8px 2px; border-radius: 12px; background: var(--surface-2); border: 1.5px solid transparent; min-width: 0; }
+.cg-day .wd { font-size: 12px; font-weight: 600; color: var(--muted); max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cg-day .dn { font-size: 11px; font-weight: 600; color: inherit; }
+.cg-day .mark { font-size: 15px; font-weight: 700; line-height: 1.2; min-height: 18px; }
+.cg-day.done { background: color-mix(in srgb, var(--good) 16%, transparent); color: var(--good); }
+.cg-day.extra { background: color-mix(in srgb, var(--info) 14%, transparent); color: var(--info); }
+.cg-day.missed { border-color: var(--warn); color: var(--warn); }
+.cg-day.today { border-color: var(--primary); }
+.cg-day.planned { border-color: var(--hairline); border-style: dashed; }
+.cg-day.rest { background: transparent; border-color: var(--hairline); }
+.cg-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin-top: 8px; }
+.cg-key { display: inline-flex; align-items: center; gap: 4px; }
+.cg-key i { width: 10px; height: 10px; border-radius: 3px; background: var(--surface-2); border: 1.5px solid transparent; display: inline-block; }
+.cg-key.done i { background: var(--good); }
+.cg-key.extra i { background: var(--info); }
+.cg-key.missed i { border-color: var(--warn); }
+.cg-key.planned i { border-color: var(--muted); border-style: dashed; }
+.cg-days-field { border: 0; padding: 0; margin: 0; min-width: 0; }
+.cg-days-field legend { font-size: 13px; font-weight: 500; color: var(--muted); margin-bottom: 6px; padding: 0; }
+.cg-days-field .chip { min-height: 40px; min-width: 48px; justify-content: center; }
+.cg-report-wrap, [data-testid="cg-reports"] .table-wrap { margin-top: 10px; }
+.cg-table { width: 100%; border-collapse: collapse; }
+.cg-table th, .cg-table td { padding: 6px 8px; text-align: start; border-bottom: 1px solid var(--hairline); white-space: nowrap; }
+.cg-table th { font-size: 12px; color: var(--muted); font-weight: 600; }

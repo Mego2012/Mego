@@ -228,17 +228,16 @@ describe('sessions, recovery and coach', () => {
 });
 
 describe('calories: workouts and the target (no double counting, no surplus)', () => {
-  it('workouts within the planned resistance days add nothing; extra ones count as net energy', async () => {
+  it('workouts never add calories to the food budget (planned or extra); their net energy is shown for information', async () => {
     const s = await saveSettings((x) => { x.fitness = { resistanceDaysPerWeek: 2, cardioSessionsPerWeek: 0, cardioMinPerSession: 0 }; x.cardioReplenishPct = 100; });
     const d0 = today();
     const w1 = session(addDays(d0, -2), [ex('bench_press', sets([[60, 8]]))]);
     const w2 = session(addDays(d0, -1), [ex('bench_press', sets([[60, 8]]))]);
     const within = energyFor(d0, 2110, 0, [], s, [w1, session(d0, [ex('squat', sets([[80, 6]]))], 72, 60)].slice(0, 2));
-    expect(within.allowed).toBe(0);
+    expect(within).toMatchObject({ allowed: 0, adjusted: 2110 });
     const extra = energyFor(d0, 2110, 0, [], s, [w1, w2, session(d0, [ex('squat', sets([[80, 6]]))], 72, 60)]);
-    expect(extra.extraWorkouts).toBe(1);
-    expect(extra.workoutExtraNet).toBe(Math.round(2.5 * s.profile.currentWeight)); // (3.5 − 1) MET × kg × 1 h
-    expect(extra.adjusted).toBe(2110 + Math.round(extra.workoutExtraNet / 10) * 10);
+    expect(extra.workoutNetKcal).toBe(Math.round(2.5 * s.profile.currentWeight)); // (3.5 − 1) MET × kg × 1 h, information only
+    expect(extra).toMatchObject({ allowed: 0, adjusted: 2110, remaining: 2110 });
   });
   it('a saved 2,110 kcal target is never changed by logging workouts', async () => {
     await saveSettings((x) => { x.targets.training.kcal = 2110; x.targets.rest.kcal = 2110; });

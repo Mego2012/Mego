@@ -5,7 +5,7 @@ import { useBundle, useCardio } from '../app/hooks';
 import { TrainingReport } from '../components/TrainingReport';
 import { BudgetReport } from '../components/BudgetCard';
 import { cardioReport } from '../lib/cardio';
-import { fitnessOf } from '../lib/energy';
+import { cardioGoalsOf } from '../lib/cardioGoals';
 import { CaloriesChart, MacrosChart, WeightChart } from '../components/charts';
 import { Icon } from '../components/icons';
 import { InsightList } from '../components/Insights';
@@ -219,9 +219,8 @@ function CardioAndGoals({ sessions, dates, prevDates, completeDays, inRange, pro
   sessions: import('../lib/cardio').CardioSession[]; dates: string[]; prevDates: string[]; completeDays: number; inRange: number; proteinDays: number;
 }) {
   const { t, n, settings } = useApp();
-  const fit = fitnessOf(settings);
   const past = dates.filter((x) => x <= today());
-  const c = cardioReport(sessions, past, prevDates, fit.cardioSessionsPerWeek * fit.cardioMinPerSession);
+  const c = cardioReport(sessions, past, prevDates, cardioGoalsOf(settings).weeklyMin);
   const parts = [completeDays ? (inRange / completeDays) * 100 : null, completeDays ? (proteinDays / completeDays) * 100 : null, c.goalPct].filter((x): x is number => x !== null);
   const completion = parts.length ? Math.round(parts.reduce((a, b) => a + b, 0) / parts.length) : null;
   const insights: string[] = [];

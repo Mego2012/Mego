@@ -4,7 +4,7 @@
 // Usage: VITE_DEMO=1 npx vite build --outDir dist-demo && node e2e/i18n-crawl.cjs [--strict]
 const pw = require('playwright'); const { spawn } = require('child_process');
 const ROUTES = ['/', '/diary', '/foods', '/recipes?tab=library', '/recipes?tab=suggest', '/recipes?tab=cook', '/recipes?tab=recipes', '/recipes?tab=meals', '/planner', '/progress',
-  '/reports/week', '/reports/month', '/habits', '/goals', '/cardio', '/workouts?tab=today', '/workouts?tab=program', '/workouts?tab=library', '/workouts?tab=progress',
+  '/reports/week', '/reports/month', '/habits', '/goals', '/cardio', '/cardio?tab=log', '/cardio?tab=reports', '/workouts?tab=today', '/workouts?tab=program', '/workouts?tab=library', '/workouts?tab=progress',
   '/workouts?tab=coach', '/exercise/squat', '/exercise/bench-press', '/coach', '/coach?tab=advisor', '/coach?tab=week', '/coach?tab=month', '/coach?tab=foods', '/coach?tab=learn', '/settings', '/privacy', '/terms'];
 // technical names that stay in Latin letters in Arabic (brands, standards, abbreviations)
 const ALLOW = /^(MEGO|Mego|USDA|FoodData|Central|SR|Legacy|FNDDS|Open|Food|Facts|BMR|TDEE|MET|METs|RIR|RPE|e1RM|1RM|BMI|ACSM|ISSN|AI|Gemini|Google|Drive|Firebase|Apps|Script|Excel|CSV|JSON|PDF|PWA|Android|iOS|iPhone|Safari|Chrome|English|kcal|DHA|EPA|ALA|PDCAAS|DIAAS|WHO|EFSA|NIH|Mifflin|St|Jeor|Katch|McArdle|Atwater|GitHub|Pages|OK|ID|URL|QR|GPS|HIIT|LISS|AMRAP|EMOM|IU|µg|mg|RAE|Spark|Play|Store|App|Wi|Fi|http|https|www|com|org|io|github|mego2012|NFS|NS|FDC|Cloud|Firestore|HTTPS|IIFYM|Studio|Create|API|key|Hub|Nutrition|Database|License|gs|appsscript|installMego|script|macros|exec|flash|gemini|Sara|Wikimedia|Commons|Sheet|GitHub|IP|Fonts|CC0|ODbL)$/; // CC0 / ODbL: licence identifiers
@@ -52,7 +52,7 @@ const ALLOW = /^(MEGO|Mego|USDA|FoodData|Central|SR|Legacy|FNDDS|Open|Food|Facts
       await tryDo('food detail', async () => { await p.goto(B + '#/foods'); await p.waitForTimeout(800); await p.locator('[data-testid="food-row"]').first().click(); });
       await tryDo('shopping list', async () => { await p.goto(B + '#/planner'); await p.waitForTimeout(900); await p.getByTestId('open-shopping').click(); });
       await tryDo('plan generator', async () => { await p.goto(B + '#/planner'); await p.waitForTimeout(900); await p.getByTestId('generate-plan').click(); await p.waitForTimeout(3000); });
-      await tryDo('cardio form', async () => { await p.goto(B + '#/cardio'); await p.waitForTimeout(900); await p.getByTestId('cardio-add').click(); });
+      await tryDo('cardio form', async () => { await p.goto(B + '#/cardio?tab=log'); await p.waitForTimeout(900); await p.getByTestId('cardio-add').click(); });
       await tryDo('workout start', async () => { await p.goto(B + '#/workouts?tab=today'); await p.waitForTimeout(900); if (await p.getByTestId('start-workout').count()) await p.getByTestId('start-workout').click(); });
     }
     // header language switch: whole app flips, survives a reload, records unchanged

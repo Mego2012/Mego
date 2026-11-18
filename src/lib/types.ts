@@ -314,7 +314,7 @@ export interface Settings {
   foodExclusions?: string[];
   /** Include progress photos in Google Drive backups (off by default — photos stay on the device). */
   backupPhotos: boolean;
-  /** Cardio → calorie target: 'smart' (only justified extra cardio, see energy.ts) or 'off'. Saved targets never change. */
+  /** Legacy (≤ 1.x): cardio → calorie target mode. Ignored since the cardio-goals release: exercise never changes the food budget. */
   cardioCalorieMode?: 'smart' | 'off';
   /** Flexible calorie budget preferences (see budget.ts); undefined = defaults. */
   budget?: import('./budget').BudgetSettings;
@@ -328,6 +328,8 @@ export interface Settings {
   cardioReplenishPct?: number | null;
   /** Fitness goals (Goals screen). */
   fitness?: FitnessGoals;
+  /** Cardio goals (daily / weekly minutes, sessions, distance, preferred activity and days) — see cardioGoals.ts. */
+  cardioGoals?: import('./cardioGoals').CardioGoals;
   /** Diet strategy (Settings → Diet strategy). Absent = the saved targets are used exactly as they are. */
   dietStrategy?: import('./dietStrategy').DietStrategy;
   updatedAt: number;

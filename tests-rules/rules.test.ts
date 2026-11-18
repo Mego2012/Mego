@@ -54,6 +54,27 @@ describe('private data isolation (3 users)', () => {
   });
 });
 
+describe('cardio goals and sessions (per user)', () => {
+  it('only the owner reads and writes their cardio goals (settings) and sessions (kv); others and the admin cannot', async () => {
+    const goals = { cardioGoals: { dailyMin: 20, weeklyMin: 120, weeklySessions: 6, weeklyKm: null, preferred: 'treadmill_walk', days: [6, 1, 3] } };
+    const session = { id: 'c1', activity: 'treadmill_walk', date: '2026-11-18', time: '07:00', durationMin: 10 };
+    await assertSucceeds(setDoc(doc(as('alice'), 'users', 'alice', 'settings', 'main'), rec(10, goals)));
+    await assertSucceeds(setDoc(doc(as('alice'), 'users', 'alice', 'kv', 'cardio:c1'), rec(10, session)));
+    await assertSucceeds(getDoc(doc(as('alice'), 'users', 'alice', 'settings', 'main')));
+    await assertSucceeds(setDoc(doc(as('alice'), 'users', 'alice', 'settings', 'main'), rec(11, { cardioGoals: { ...goals.cardioGoals, weeklyMin: 150 } })));
+    for (const who of ['bob', 'admin']) {
+      await assertFails(getDoc(doc(as(who), 'users', 'alice', 'settings', 'main')));
+      await assertFails(getDoc(doc(as(who), 'users', 'alice', 'kv', 'cardio:c1')));
+      await assertFails(getDocs(collection(as(who), 'users', 'alice', 'kv')));
+      await assertFails(setDoc(doc(as(who), 'users', 'alice', 'settings', 'main'), rec(99, goals)));
+      await assertFails(setDoc(doc(as(who), 'users', 'alice', 'kv', 'cardio:c1'), rec(99, session)));
+      await assertFails(deleteDoc(doc(as(who), 'users', 'alice', 'kv', 'cardio:c1')));
+    }
+    await assertFails(getDoc(doc(env.unauthenticatedContext().firestore(), 'users', 'alice', 'kv', 'cardio:c1')));
+    await assertSucceeds(deleteDoc(doc(as('alice'), 'users', 'alice', 'kv', 'cardio:c1')));
+  });
+});
+
 describe('administrator', () => {
   it('sees account cards and counts, never private records', async () => {
     const a = as('admin');

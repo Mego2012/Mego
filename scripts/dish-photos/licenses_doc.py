@@ -17,6 +17,8 @@ REASON = {
  'lib4-garlic-parmesan-chicken-pasta': 'best candidate is an unidentified restaurant product shot; dish cannot be confirmed from its record',
  'lib-mango-chia': 'no freely licensed photo found',
  'lib4-yogurt-banana-honey': 'only candidate was a breakfast table with many dishes',
+ 'lib-yogurt-bowl': 'rejected after review: the photo shows purple blueberry yogurt; the recipe is white Greek yogurt with strawberries and banana',
+ 'lib-hummus-veg': 'rejected after review: the square crop shows only the vegetable sticks, the hummus is cut off',
  'lib-airfryer-nuggets': 'candidates were dominated by fries or novelty-shaped nuggets',
 }
 L = ['# MEGO — Image licences', '',

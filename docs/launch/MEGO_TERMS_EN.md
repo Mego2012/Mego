@@ -22,7 +22,7 @@ Food values come from USDA FoodData Central, Open Food Facts or user entries and
 
 ## Data sources and licences
 
-Food values: USDA FoodData Central (CC0 1.0 public-domain dedication) and Open Food Facts (Open Database License). Food and dish photos: Wikimedia Commons and other sources under the licences listed, with the author, in Settings → Photo credits.
+Food values: USDA FoodData Central (CC0 1.0 public-domain dedication) and Open Food Facts (Open Database License). Food and dish photos: freely licensed photos from Wikimedia Commons; each photo’s author and licence are listed in Settings → Photo credits. Dish photos are examples of the kind of dish, not photos of MEGO’s exact recipes.
 
 ## AI estimates
 

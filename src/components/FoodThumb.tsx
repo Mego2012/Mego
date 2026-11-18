@@ -110,7 +110,9 @@ export function DishPhotoNote({ recipeId }: { recipeId: string }) {
   return (
     <div className="tiny muted dish-note" data-testid="dish-photo-note">
       {t('dishPhotoNote')}{' '}
-      <a href={c.source} target="_blank" rel="noreferrer"><bdi>{t('dishPhotoBy', { author: c.author, license: c.license })}</bdi></a>
+      {t('dishPhotoBy')}{' '}
+      {/* the photographer's name and the licence code are proper names: never translated */}
+      <a href={c.source} target="_blank" rel="noreferrer"><bdi dir="ltr" data-i18n-skip="photo-credit">{c.author} · {c.license}</bdi></a>
     </div>
   );
 }

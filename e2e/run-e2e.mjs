@@ -36,6 +36,8 @@ async function check(id, name, fn) {
     const lines = String(e && e.message || e).split('\n').map((l) => l.replace(/\u001b\[[0-9;]*m/g, '').trim()).filter(Boolean);
     const why = [...new Set(lines.filter((l) => /intercepts pointer|not stable|outside of the viewport|not visible|not enabled|detached/.test(l)))].slice(0, 2);
     record(id, name, false, [lines[0], ...why].join(' | '));
+    // diagnostics only: keep a picture and the address of the screen where the check failed
+    try { const pg = globalThis.__e2ePage; if (pg) { console.log(`      at ${pg.url()}`); mkdirSync(path.join(ROOT, 'e2e', 'failures'), { recursive: true }); await pg.screenshot({ path: path.join(ROOT, 'e2e', 'failures', `${id.replace(/\W+/g, '_')}.png`), fullPage: true }); } } catch { /* no page */ }
   }
 }
 function expectEq(a, b, label) {
@@ -142,6 +144,7 @@ async function entryKcal(page, meal, name) {
 }
 
 let { ctx, page } = await openContext();
+globalThis.__e2ePage = page;
 await go(page, '/');
 await page.waitForSelector('[data-testid="dashboard"]');
 
@@ -339,7 +342,7 @@ await check('TEST 13', 'Offline: log food without internet, then reconnect and v
 
 await check('TEST 12', 'Close the app and reopen: all data still there', async () => {
   await ctx.close();
-  ({ ctx, page } = await openContext());
+  ({ ctx, page } = await openContext()); globalThis.__e2ePage = page;
   await go(page, '/diary');
   expectEq(await entryKcal(page, 'lunch', 'صدر دجاج'), '120', 'persisted entry');
   await go(page, '/');
@@ -909,6 +912,9 @@ await check('PROGRAM-GEN', 'Program generator keeps the split, Pull-ups/Dips fre
   if (pull !== 3) throw new Error('pull-ups in preview: ' + pull);
   await page.getByTestId('gen-save').click();
   await page.waitForFunction((n) => document.querySelectorAll('[data-testid=program-chip]').length === n + 1, before);
+  // the new program appears in the list first and becomes the active (edited) one in a second update: wait for that
+  await page.waitForFunction(() => { const c = [...document.querySelectorAll('[data-testid=program-chip]')]; return c.length && c[c.length - 1].classList.contains('on'); });
+  await page.waitForTimeout(300); // let the editor load the newly active program before editing it
   // edit: remove one exercise and save
   const n0 = await page.getByTestId('program-ex').count();
   await page.getByTestId('ex-remove').first().click();
@@ -986,7 +992,8 @@ await check('EX-GUIDE', 'All 54 exercise pages (AR + EN): demonstration, start/f
     if (lang === 'en') { await go(page, '/settings'); await page.getByRole('tab', { name: 'English' }).click(); }
     for (const id of ids) {
       await go(page, '/exercise/' + id);
-      await page.getByTestId('exercise-page').waitFor();
+      // a hash change does not reload: wait for THIS exercise's page, not the previous one still on screen
+      await page.locator(`[data-testid="exercise-page"][data-id="${id}"]`).waitFor();
       const r = await page.evaluate(() => {
         const q = (s) => document.querySelector(`[data-testid="${s}"]`);
         const items = (s) => q(s)?.querySelectorAll('li').length ?? 0;

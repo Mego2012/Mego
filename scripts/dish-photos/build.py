@@ -39,7 +39,8 @@ for key, idx in sel.items():
         continue
     c = cand[key][idx]
     try:
-        thumb = re.sub(r'/\d+px-', '/640px-', c['thumb']) if min(c['w'], c['h']) > 640 else c['url']
+        # thumbnail service (only standard widths such as 330/500/960 are served); originals are not fetched
+        thumb = re.sub(r'/\d+px-', '/960px-' if c['w'] >= 960 else '/500px-', c['thumb'])
         im = Image.open(io.BytesIO(get(thumb))).convert('RGB')
     except Exception as e:
         print('skip', key, e)
@@ -50,7 +51,8 @@ for key, idx in sel.items():
     im.save(OUT / f'{key}.webp', 'WEBP', quality=72, method=6)
     manifest[key] = {'file': f'{key}.webp', 'title': c['title'].replace('File:', ''), 'author': plain(c['artist']),
                      'license': c['license'], 'licenseUrl': c['licenseUrl'], 'source': c['descurl']}
-    time.sleep(0.5)
+    print('ok', key, flush=True)
+    time.sleep(1)
 
 manifest = {k: v for k, v in manifest.items() if sel.get(k) is not None}
 mf.write_text(json.dumps(manifest, ensure_ascii=False, indent=1))

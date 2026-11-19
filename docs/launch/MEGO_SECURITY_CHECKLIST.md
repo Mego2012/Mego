@@ -21,6 +21,11 @@ so nothing here has been changed for you. Tick each item when done.
 | Leftover test account `mego-audit-k-…` | its email/password were never printed and cannot be recovered | Deletion needs the Firebase console → **your action** |
 | Firestore location | `me-central2` (Dammam), from the 7 Nov setup record; now stated in the privacy policy | ✅ documented (console confirmation optional) |
 | Google / GitHub 2-step verification, sessions, connected apps | not visible to this environment | **your action** |
+| Re-check, 19 Nov 2026 (later) | backend still **v9**; web key still unrestricted; no Cloud/Firebase/Apps Script credentials and no Remote Control computer available to this session | v10 deploy, server key, key restriction and orphan deletion remain **your action** |
+| Live meal scanner | `e2e/live-scanner-test.mjs`: no token → refused, forged token → refused, real photo → 4 foods; throw-away account deleted. **Latency 253 s** (close to the app's 280 s limit) | ✅ verified; latency is a risk (Gemini retries) |
+| Live accounts + Firestore rules | `e2e/live-account-test.mjs` 20/20 (other user, anonymous and self-promotion to admin all refused) | ✅ verified |
+| Orphan test account | full email still unknown: the only `mego-audit-k-…` address found in the logs (`…c4wsux`) is the re-run that **deleted** itself; the orphan is from the earlier run whose random suffix was never printed | Firebase console → Authentication → search `mego-audit-k` → your action |
+| Arabic video (public) | backed up privately (owner only) to the 07 PRIVATE launch folder; the original is still link-viewable: the connector account is listed as editor but has no right to change its sharing | **your action** (owner `ahmedmego967`) |
 
  (HTTP referrer + API restrictions)
 

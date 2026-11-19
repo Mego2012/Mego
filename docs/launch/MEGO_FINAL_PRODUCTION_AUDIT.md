@@ -12,8 +12,8 @@ decision · **Blocked** = not possible with the access available here.
 | --- | --- | --- | --- |
 | 1 | Firebase web API key: HTTP-referrer + API restriction | **Prepared · needs your action** (console only) | `MEGO_SECURITY_CHECKLIST.md` §1, steps A–D; backend v10 deployed in the app's setup page |
 | 2 | Account security (Google, Firebase, GitHub) | **Checklist ready · needs your action** | `MEGO_SECURITY_CHECKLIST.md` §2–5 |
-| 3 | Privacy policy and terms (AR + EN) | **Drafts done, in the app and as files · lawyer review + 3 owner facts needed** | `MEGO_PRIVACY_POLICY_AR/EN.md`, `MEGO_TERMS_AR/EN.md`; app → Settings → About → links |
-| 4 | Arabic narration licence | **Audit done · replacement (MIT voice) prepared 19 Nov, NOT published · awaits your listening approval** | `MEGO_AUDIO_LICENSE_AUDIT.md` §4 |
+| 3 | Privacy policy and terms (AR + EN) | **Drafts done, in the app and as files · 4 owner facts + lawyer review needed (see `MEGO_LEGAL_REVIEW_PACK.md`)** | `MEGO_PRIVACY_POLICY_AR/EN.md`, `MEGO_TERMS_AR/EN.md`; app → Settings → About → links |
+| 4 | Arabic narration licence | **Replacement v2 (MIT voice) prepared, NOT published · original backed up privately · awaits your listening approval** | `MEGO_AUDIO_LICENSE_AUDIT.md` §4 |
 | 5 | Real dish photographs | **Done: 37 recipes** (licensed, documented, labelled, fallback, offline) | `MEGO_IMAGE_LICENSES.md`; app → Settings → Photo credits |
 | 6 | Full regression | **Done: all baselines met or exceeded** | `MEGO_FINAL_TEST_RESULTS.md` |
 | 7 | Deployment | **Done and verified** (Actions green, live bundle = commit, live tests) | §7 below |

@@ -65,25 +65,34 @@ the existing video has not been replaced.** It needs your listening check and ap
 | Residual risk | The model card does not list its training datasets. The MIT licence is the publisher's grant; there is no known restriction, but it is less certain than a human narrator or a paid service with written terms |
 | Cost | 0 (no account, no API, no billing) |
 
-### Quality test (automatic, Whisper `small` speech recognition, character error rate vs. the script)
+### Quality test (automatic speech recognition, character error rate vs. the script) — draft v2, 19 Nov 2026
 
-| | Chatterbox (final) | Old Piper voice |
+| Recogniser | Chatterbox v2 (final) | Old Piper voice |
 | --- | --- | --- |
-| All 83 lines | **5.4 %** | 2.6 % |
-| Lines above 12 % | 1 (5-0, caused only by Whisper writing 4 and 9 as digits) | — |
+| Whisper `medium` (more reliable) | **3.1 %** | 1.6 % |
+| Whisper `small` | 5.6 % | 2.6 % |
 | Speaking rate | 10.8 characters/s (natural) | 6.4 characters/s (slow) |
 
-Method: 2 takes per line, 4 more for the 9 weakest lines, 8 more for 4-3 and 7-3; the best take per line was chosen
-by error rate. Line 4-3 (the 2,110 kcal / 160 g target) was chosen by hand so that the number is spoken correctly
-(several takes said "1,110"); all numbers in the final narration were checked against the script.
+Method: 2 takes for every line; 4 more for the 9 weakest; 8 more for 4-3 and 7-3; 6 more for the 22 lines above 7 %;
+8 more for 19-0 and 8-3 (up to 28 takes per line, 336 takes in total). The best take per line was chosen with Whisper
+`medium`; lines with numbers or key words were accepted only when **both** recognisers heard them correctly:
 
-Known weaknesses to listen for: the emphatic consonants (ض ظ ذ) are sometimes softened (e.g. "حذف"), and because the
-new voice speaks faster than the old one, scenes have short pauses of a few seconds after each sentence (the screen
-actions were timed to the slower voice). Subtitles are re-timed to the new voice.
+* 4-3: "ألفان ومئة وعشر سعرات، ومئة وستون غراماً" — 2,110 kcal and 160 g heard correctly by both (several takes
+  said "1,110"; they were rejected).
+* 5-0 (4 and 9 kcal per gram), 9-1 (50–150 g), 9-3 (1.6 g/kg), 14-2 (800 g): numbers correct.
+* 8-3: "الوجبة" correct (earlier take sounded like "الوشبة").
 
-Draft file: *MEGO Complete User Guide – Arabic (Chatterbox voice – NOT PUBLISHED).mp4*, 1920×1080, 17 min 33 s
-(same length as the original), AAC 48 kHz, −16 LUFS, decodes without errors, SHA-256 `917e8887…c70695`. It was handed
-to you privately; it is too large (62 MB) for the Drive connector of this session, so it is **not** on Drive.
+Remaining weaknesses to listen for: "التتبيل" in 19-0 still sounds like "التدبيل" (best of 10 takes); emphatic and
+interdental consonants (ض ظ ذ) are sometimes softened; the new voice speaks faster than the old one, so scenes have
+pauses of a few seconds after sentences (the screen actions were timed to the slower voice). Pronunciation was not
+traded for speed: no time-stretching or speed-up was applied. Subtitles are re-timed to the new voice.
+
+Draft file v2: *MEGO Complete User Guide – Arabic (Chatterbox voice v2 – NOT PUBLISHED).mp4*, 1920×1080, 17 min 33 s
+(same length as the original), AAC 48 kHz, −16.1 LUFS, decodes without errors, SHA-256 `c5e8b66c…945150`. It was
+handed to you privately in the session; at 62 MB it is too large for this session's Drive connector, so it is **not**
+on Drive. The original Arabic video was **backed up privately** (owner only) to the launch folder
+`07 – Launch Documentation – PRIVATE` as "BACKUP – MEGO Complete User Guide – Arabic (original Piper narration…)",
+same size as the original (69,904,279 bytes).
 
 **Before publishing:** (1) listen to at least chapters 1, 4, 5, 7 and 21; (2) approve or reject the voice; (3) make the
 current public Arabic video private (it is owned by the other Google account); (4) then upload the new file.

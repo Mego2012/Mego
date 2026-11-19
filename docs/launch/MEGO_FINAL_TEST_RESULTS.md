@@ -73,3 +73,19 @@ in the build workspace.
 | Backend (`GET` on the Apps Script URL) | reachable, reports **version 9** (v10 not deployed: no Apps Script access here) |
 | Web API key | still accepted with a foreign or no referrer (**unrestricted**); Gemini with this key: 403 |
 | Arabic narration draft (Chatterbox, NOT published) | 83/83 lines; Whisper character error rate 5.4 % (old voice 2.6 %); every number checked; video 17 min 33 s = original length, decodes cleanly, −16 LUFS, subtitles re-timed and visible |
+
+## 7. Final production audit, 19 November 2026 (later)
+
+| Check | Result |
+| --- | --- |
+| Unit / integration tests | **349 / 349** |
+| Type check (`tsc -b`) | **0 errors** |
+| Firestore rules (emulator) | **15 / 15** |
+| Main browser suite (`npm run e2e`) | **57 / 57** |
+| AR/EN interface crawl | 176 screens, **0** wrong-language texts, 0 layout/direction notes |
+| Live accounts, data and security (real Firebase) | **20 / 20** |
+| Live meal scanner (real backend + Gemini) | **7 / 7**; one scan took 253 s |
+| Backend version (production) | **9** (v10 in repository; frontend compatible with both — v10 changes only the server-side token check) |
+| Repository secrets (102 commits) | only the public web key and a fake test key |
+| Deployment | GitHub Actions build + deploy green; live bundle unchanged by docs-only commits |
+| Production logs | Apps Script / Cloud logs not accessible from here; no browser page errors in the live runs |

@@ -62,3 +62,14 @@ in the build workspace.
 * Your own account on your phone after the update (open MEGO, check today's diary and targets 2,110 kcal / 160 g).
 * The API-key restriction itself (Google Cloud console) and the backend v10 update in Apps Script; see
   `MEGO_SECURITY_CHECKLIST.md`, steps A–D, which include the exact checks to run afterwards.
+
+## 6. Launch-operations round, 19 November 2026
+
+| Check | Result |
+| --- | --- |
+| Unit / integration tests (`npx vitest run`) | **349 / 349 passed** (24 files) |
+| Type check (`tsc --noEmit`) | **0 errors** |
+| Privacy policy region text (AR + EN) | live bundle `index-BeLUAspv.js` = local build of `d41fdb4`; i18n crawl 176 screens, 0 issues |
+| Backend (`GET` on the Apps Script URL) | reachable, reports **version 9** (v10 not deployed: no Apps Script access here) |
+| Web API key | still accepted with a foreign or no referrer (**unrestricted**); Gemini with this key: 403 |
+| Arabic narration draft (Chatterbox, NOT published) | 83/83 lines; Whisper character error rate 5.4 % (old voice 2.6 %); every number checked; video 17 min 33 s = original length, decodes cleanly, −16 LUFS, subtitles re-timed and visible |

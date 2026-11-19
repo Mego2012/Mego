@@ -13,7 +13,7 @@ decision · **Blocked** = not possible with the access available here.
 | 1 | Firebase web API key: HTTP-referrer + API restriction | **Prepared · needs your action** (console only) | `MEGO_SECURITY_CHECKLIST.md` §1, steps A–D; backend v10 deployed in the app's setup page |
 | 2 | Account security (Google, Firebase, GitHub) | **Checklist ready · needs your action** | `MEGO_SECURITY_CHECKLIST.md` §2–5 |
 | 3 | Privacy policy and terms (AR + EN) | **Drafts done, in the app and as files · lawyer review + 3 owner facts needed** | `MEGO_PRIVACY_POLICY_AR/EN.md`, `MEGO_TERMS_AR/EN.md`; app → Settings → About → links |
-| 4 | Arabic narration licence | **Audit done · Arabic voice NOT cleared · replacement awaits your choice** | `MEGO_AUDIO_LICENSE_AUDIT.md` |
+| 4 | Arabic narration licence | **Audit done · replacement (MIT voice) prepared 19 Nov, NOT published · awaits your listening approval** | `MEGO_AUDIO_LICENSE_AUDIT.md` §4 |
 | 5 | Real dish photographs | **Done: 37 recipes** (licensed, documented, labelled, fallback, offline) | `MEGO_IMAGE_LICENSES.md`; app → Settings → Photo credits |
 | 6 | Full regression | **Done: all baselines met or exceeded** | `MEGO_FINAL_TEST_RESULTS.md` |
 | 7 | Deployment | **Done and verified** (Actions green, live bundle = commit, live tests) | §7 below |
@@ -65,7 +65,9 @@ own accounts, including today's live run.
 English video: public-domain voice (LJ Speech), OK. **Arabic video: not cleared:** the `ar_JO-kareem-medium` voice
 was trained on a dataset with no licence and fine-tuned from a research-only base voice. Recommendation: keep the
 Arabic video private now; for launch, re-record with a human narrator (option A) or use Azure neural Arabic voices on the
-free tier (option B). **Nothing was replaced; waiting for your choice.**
+free tier (option B). **Update 19 Nov 2026:** a free, MIT-licensed replacement (Chatterbox Multilingual, built-in voice,
+no cloning) was generated and a full draft video built and checked (pronunciation error rate 5.4 % vs. 2.6 % for the old
+voice; all numbers verified). It is **not published**; the current video was not touched. Details: audit §4.
 
 ## 5. Dish photographs
 
@@ -100,13 +102,21 @@ without weakening any assertion. Details: `MEGO_FINAL_TEST_RESULTS.md`.
 nutrition. Your targets (2,110 kcal, 160 g protein), food database, recipes, accounts and diary history are untouched.
 No paid service was added.
 
+## 7b. Re-check on 19 November 2026
+
+Re-verified from here: backend live at **v9** (v10 is in the repo but not deployed; this session has no Apps Script or
+Google Cloud access), web key still **unrestricted** (accepted with a foreign or no referrer), Gemini not reachable with
+that key (403), git history free of secrets, only one GitHub collaborator, Firestore region **me-central2 (Dammam)**
+now stated in the privacy policy (AR/EN, live). Full table: `MEGO_SECURITY_CHECKLIST.md` §0.
+
 ## 8. What needs you (in order)
 
 1. **Apps Script:** update to backend v10 (Settings → Backend setup → copy Code.gs → new deployment version).
 2. **Google Cloud:** create the server key, set `FIREBASE_SERVER_KEY`, restrict the web key (checklist steps B–D).
 3. **Firebase:** delete the leftover `mego-audit-k-…@example.com` test account; note the Firestore location.
 4. **Legal:** fill in the operator and contact details and the region, then have a lawyer review the drafts.
-5. **Narration:** choose option A (human) or B (Azure free tier) for the Arabic video; keep it private until then.
+5. **Narration:** listen to the Chatterbox draft and approve or reject it (or choose A / B); make the current public Arabic
+   video private (owned by the other Google account).
 6. **Account security:** work through the checklist (2FA, sessions, collaborators, apps).
 
 ## 9. Remaining risks

@@ -2,7 +2,7 @@
 
 > **DRAFT. Requires review by a qualified lawyer before public launch.** Every statement was checked against what the app actually does (code, security rules, live tests on 17–18 November 2026). Items in [square brackets] are decisions or facts only the owner can provide. MEGO makes no claim of legal compliance.
 
-*Version: draft of 18 November 2026 · Draft — to be reviewed by a qualified legal professional before public launch.*
+*Version: draft of 19 November 2026 · Draft — to be reviewed by a qualified legal professional before public launch.*
 
 ## Who operates MEGO
 
@@ -22,7 +22,7 @@ In Google Firebase (Cloud Firestore and Authentication) under your account, and 
 
 ## Where data is stored
 
-Your synced records are stored in Google Cloud Firestore under your account. [Storage region — to be confirmed by the owner in the Firebase console (Firestore → Database → Location) and stated here.] Your device also keeps a local copy so the app works offline.
+Your synced records are stored in Google Cloud Firestore under your account. The database is located in the Google Cloud region me-central2 (Dammam, Saudi Arabia). Photos sent to the optional AI meal scanner are processed by Google’s Gemini API, which may process them outside Saudi Arabia, and are not stored by MEGO. Your device also keeps a local copy so the app works offline.
 
 ## Who can see it
 

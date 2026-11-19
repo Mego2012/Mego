@@ -24,7 +24,7 @@ export const en3: Record<string, string> = {
   pp_0_h: 'Who operates MEGO', pp_0: '[Operator name, country and contact email — to be completed by the owner before launch.] Requests about your data go to this contact.',
   pp_9_h: 'Health-related data', pp_9: 'Weight, body measurements, food intake and goals can reveal information about your health. They are used only to show your own diary, reports and suggestions, never for advertising, and are not sold or shared.',
   pp_10_h: 'Services that receive data', pp_10: 'Google Firebase (accounts and your synced records); Google Apps Script and the Gemini API (only when you use the photo scanner); GitHub Pages (hosts the app and receives your IP address and browser details when you open it); Google Fonts (the typefaces are loaded from Google, which receives your IP address); Open Food Facts (only a scanned barcode number, or the words you type when you choose "search Open Food Facts"). MEGO has no advertising and no analytics or tracking tools.',
-  pp_11_h: 'Where data is stored', pp_11: 'Your synced records are stored in Google Cloud Firestore under your account. [Storage region — to be confirmed by the owner in the Firebase console (Firestore → Database → Location) and stated here.] Your device also keeps a local copy so the app works offline.',
+  pp_11_h: 'Where data is stored', pp_11: 'Your synced records are stored in Google Cloud Firestore under your account. The database is located in the Google Cloud region me-central2 (Dammam, Saudi Arabia). Photos sent to the optional AI meal scanner are processed by Google’s Gemini API, which may process them outside Saudi Arabia, and are not stored by MEGO. Your device also keeps a local copy so the app works offline.',
   pp_12_h: 'Security', pp_12: 'Connections are encrypted (HTTPS). Server-side rules allow each account to read and write only its own records. A suspended account can no longer add or change records, but can still export and delete its own data. Error reports contain the error message only, without diary content.',
   pp_13_h: 'Your rights', pp_13: 'You can view, correct, export and delete your data in the app at any time. For any other request, contact the operator above. [Rights, response times and the competent authority depend on the applicable law — to be completed after legal review.]',
   pp_14_h: 'Changes to this policy', pp_14: 'Material changes will be announced in the app before they take effect. The date of the current version is shown at the top of this page.',
@@ -33,7 +33,7 @@ export const en3: Record<string, string> = {
   tos_9_h: 'Ending your use', tos_9: 'You can delete your account at any time. Accounts that break these terms may be suspended; you can still export your data.',
   tos_10_h: 'Liability', tos_10: '[Limitation of liability — wording to be provided by legal review.]',
   tos_11_h: 'Governing law', tos_11: '[Applicable law and jurisdiction — to be decided by the owner after legal review.]',
-  legal_version: 'Version: draft of 18 November 2026'
+  legal_version: 'Version: draft of 19 November 2026'
 };
 export const ar3: Record<string, string> = {
   tapToAdd: 'أضف إلى {meal}',
@@ -60,7 +60,7 @@ export const ar3: Record<string, string> = {
   pp_0_h: 'من يشغّل MEGO', pp_0: '[اسم المشغّل ودولته وبريد التواصل — يكملها المالك قبل الإطلاق.] تُرسل الطلبات المتعلقة ببياناتك إلى جهة التواصل هذه.',
   pp_9_h: 'البيانات المتعلقة بالصحة', pp_9: 'قد يكشف الوزن وقياسات الجسم والطعام والأهداف معلومات عن صحتك. تُستخدم فقط لعرض يومياتك وتقاريرك واقتراحاتك أنت، ولا تُستخدم للإعلانات أبدًا، ولا تُباع ولا تُشارك.',
   pp_10_h: 'الخدمات التي تستقبل بيانات', pp_10: 'Google Firebase (الحسابات وسجلاتك المتزامنة)؛ Google Apps Script وGemini API (فقط عند استخدام ماسح الصور)؛ GitHub Pages (يستضيف التطبيق ويستقبل عنوان IP وبيانات المتصفح عند فتحه)؛ Google Fonts (تُحمَّل الخطوط من Google التي تستقبل عنوان IP)؛ Open Food Facts (فقط رقم الباركود الممسوح، أو الكلمات التي تكتبها عند اختيار «بحث Open Food Facts»). لا يحتوي MEGO على إعلانات ولا أدوات تحليلات أو تتبّع.',
-  pp_11_h: 'أين تُحفظ البيانات', pp_11: 'تُحفظ سجلاتك المتزامنة في Google Cloud Firestore تحت حسابك. [منطقة التخزين — يؤكدها المالك من لوحة Firebase (Firestore ← قاعدة البيانات ← الموقع) وتُذكر هنا.] ويحتفظ جهازك أيضاً بنسخة محلية ليعمل التطبيق دون إنترنت.',
+  pp_11_h: 'أين تُحفظ البيانات', pp_11: 'تُحفظ سجلاتك المتزامنة في Google Cloud Firestore تحت حسابك. وقاعدة البيانات موجودة في منطقة Google Cloud بمدينة الدمام في المملكة العربية السعودية. أما الصور المرسلة إلى ماسح الوجبات الاختياري بالذكاء الاصطناعي فتعالجها واجهة Gemini من Google، وقد تُعالج خارج المملكة، ولا يحفظها MEGO. ويحتفظ جهازك أيضاً بنسخة محلية ليعمل التطبيق دون إنترنت.',
   pp_12_h: 'الأمان', pp_12: 'الاتصالات مشفّرة (HTTPS). قواعد الخادم تسمح لكل حساب بقراءة سجلاته وكتابتها فقط. الحساب الموقوف لا يستطيع إضافة سجلات أو تعديلها، لكنه يستطيع تصدير بياناته وحذفها. تقارير الأخطاء تحتوي رسالة الخطأ فقط دون محتوى اليوميات.',
   pp_13_h: 'حقوقك', pp_13: 'يمكنك عرض بياناتك وتصحيحها وتصديرها وحذفها من التطبيق في أي وقت. لأي طلب آخر تواصل مع المشغّل أعلاه. [الحقوق ومدد الرد والجهة المختصة تعتمد على القانون المطبّق — تُستكمل بعد المراجعة القانونية.]',
   pp_14_h: 'تغييرات هذه السياسة', pp_14: 'يُعلن عن أي تغيير جوهري داخل التطبيق قبل سريانه. يظهر تاريخ النسخة الحالية أعلى هذه الصفحة.',
@@ -69,5 +69,5 @@ export const ar3: Record<string, string> = {
   tos_9_h: 'إنهاء الاستخدام', tos_9: 'يمكنك حذف حسابك في أي وقت. قد تُوقف الحسابات المخالفة لهذه الشروط، ويبقى بإمكانك تصدير بياناتك.',
   tos_10_h: 'المسؤولية', tos_10: '[حدود المسؤولية — تُكتب صياغتها بعد المراجعة القانونية.]',
   tos_11_h: 'القانون الحاكم', tos_11: '[القانون المطبّق والاختصاص القضائي — يقرّره المالك بعد المراجعة القانونية.]',
-  legal_version: 'النسخة: مسودة 18 نوفمبر 2026'
+  legal_version: 'النسخة: مسودة 19 نوفمبر 2026'
 };

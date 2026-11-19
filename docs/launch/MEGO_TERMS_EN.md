@@ -2,7 +2,7 @@
 
 > **DRAFT. Requires review by a qualified lawyer before public launch.** Every statement was checked against what the app actually does (code, security rules, live tests on 17–18 November 2026). Items in [square brackets] are decisions or facts only the owner can provide. MEGO makes no claim of legal compliance.
 
-*Version: draft of 18 November 2026 · Draft — to be reviewed by a qualified legal professional before public launch.*
+*Version: draft of 19 November 2026 · Draft — to be reviewed by a qualified legal professional before public launch.*
 
 ## Use of the service
 

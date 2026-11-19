@@ -6,7 +6,23 @@ so nothing here has been changed for you. Tick each item when done.
 
 ---
 
-## 1. Restrict the Firebase Web API key (HTTP referrer + API restrictions)
+## 0. Status on 19 November 2026 (re-checked by the engineer)
+
+| Item | Verified state | Done here? |
+| --- | --- | --- |
+| Live backend (Apps Script) | answers, reports **version 9**; rejects a forged sign-in token | Update to v10 **not possible from this environment**: no Google Cloud / Apps Script credentials; the Drive connector lists script projects read-only, and the MEGO project is not in the account the connector uses (the Hub belongs to `ahmedmego967`) |
+| Web API key `AIzaSy…tTdA` | **no website restriction**: accepted with a foreign referrer and with none (HTTP 200); refused by the Gemini API (403) | Restriction needs the Cloud console (no access) |
+| Repository secrets | full history (99 commits) scanned: only the public Firebase web key and fake test keys; no Gemini / GitHub / private keys | ✅ verified |
+| GitHub collaborators | only `Mego2012` (admin); 1 branch, unprotected | ✅ reviewed, nothing to remove |
+| Deploy workflow | permissions `contents: read`, `pages: write`, `id-token: write`; official actions only; uses no secrets | ✅ verified |
+| Nutrition Hub spreadsheets (personal data) | all **private** | ✅ verified |
+| Public documentation folder | user guides, quick starts, brand assets, methodology PDFs are link-viewable (intended) | ✅ reviewed |
+| **Arabic tutorial video** | **link-viewable** (inherits the public "01 – Video Tutorials" folder) although its voice is not licence-cleared | Cannot change: owned by `ahmedmego967`, no edit right through the connector → **your action** |
+| Leftover test account `mego-audit-k-…` | its email/password were never printed and cannot be recovered | Deletion needs the Firebase console → **your action** |
+| Firestore location | `me-central2` (Dammam), from the 7 Nov setup record; now stated in the privacy policy | ✅ documented (console confirmation optional) |
+| Google / GitHub 2-step verification, sessions, connected apps | not visible to this environment | **your action** |
+
+ (HTTP referrer + API restrictions)
 
 ### Verified facts (17–18 Nov 2026)
 

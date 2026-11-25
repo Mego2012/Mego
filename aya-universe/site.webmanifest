@@ -1,0 +1,14 @@
+{
+  "name": "For Aya",
+  "short_name": "For Aya",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "portrait",
+  "background_color": "#050207",
+  "theme_color": "#050207",
+  "icons": [
+    { "src": "assets/icons/favicon.svg", "sizes": "any", "type": "image/svg+xml" },
+    { "src": "assets/icons/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

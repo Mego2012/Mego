@@ -1,0 +1,50 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check that every local file the site references exists
+        run: |
+          missing=0
+          for ref in $(grep -ohE '(href|src)="[^"#:]+"' index.html | sed -E 's/^(href|src)="//; s/"$//') \
+                     $(grep -ohE 'url\(\.\./[^)]+\)' css/*.css | sed -E 's/^url\(\.\.\///; s/\)$//'); do
+            [ -e "$ref" ] || { echo "Missing file: $ref"; missing=1; }
+          done
+          exit $missing
+
+      - name: Collect the site files
+        run: |
+          mkdir _site
+          cp -r index.html 404.html site.webmanifest .nojekyll css js assets _site/
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

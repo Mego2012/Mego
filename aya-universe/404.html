@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>For Aya</title>
+<meta name="robots" content="noindex">
+<script>
+  // Any unknown address goes back to the start of the experience.
+  // Project sites live at /REPOSITORY-NAME/, user sites at /.
+  (function () {
+    var seg = location.pathname.split('/')[1] || '';
+    var project = /\.github\.io$/i.test(location.hostname) && seg && seg.indexOf('.') === -1;
+    location.replace(project ? '/' + seg + '/' : '/');
+  })();
+</script>
+<style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#050207;color:#f7e9ec;font:16px/1.5 Georgia,serif}a{color:#f4c7b8}</style>
+</head>
+<body><p>Taking you back to <a href="./">our universe</a>…</p></body>
+</html>
